@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { lockStartingNumberAction } from "@/app/documents/actions";
+import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
 
 type Props = {
   documentType: string;
