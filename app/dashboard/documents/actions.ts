@@ -46,3 +46,51 @@ export async function lockStartingNumberAction(params: {
 
   return { ok: true as const, sequence: data };
 }
+export async function getSequenceInfoAction(params: { documentType: string }) {
+  const supabase = await createClient();
+  const companyId = await getMyCompanyId();
+
+  // 1) האם כבר יש מסמך issued?
+  const { data: issued, error: issuedErr } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("document_type", params.documentType)
+    .eq("status", "issued")
+    .limit(1);
+
+  if (issuedErr) throw issuedErr;
+
+  const hasIssued = (issued?.length ?? 0) > 0;
+
+  // 2) להביא sequence דרך RPC (כדי לעקוף RLS על document_sequences)
+  const { data, error } = await supabase.rpc("get_sequence_info", {
+    p_company_id: companyId,
+    p_document_type: params.documentType,
+  });
+
+  if (error) throw error;
+
+  // 3) נרמול: RPC לפעמים מחזיר array ולפעמים object
+  const row = Array.isArray(data) ? data[0] : data;
+
+  const isLocked = Boolean(row?.is_locked);
+  const currentNumber =
+    typeof row?.current_number === "number" ? row.current_number : null;
+
+  const nextNumber = currentNumber !== null ? currentNumber + 1 : null;
+  const prefix = row?.prefix ?? null;
+
+  // ✅ הלוגיקה הנכונה למודאל
+  const sequenceExists = Boolean(row);
+  const shouldShowModal = !hasIssued && (!sequenceExists || !isLocked);
+
+  return {
+    hasIssued,
+    isLocked,
+    currentNumber,
+    nextNumber,
+    prefix,
+    shouldShowModal,
+  };
+}
