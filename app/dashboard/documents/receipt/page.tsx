@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
-export default function ReceiptEntry() {
-  redirect("/documents");
+export default function ReceiptPage() {
+  redirect("/dashboard/documents/new/receipt");
 }
+
 
