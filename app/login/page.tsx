@@ -69,7 +69,7 @@ function LoginForm() {
       // Update last login
       await supabase.from("companies").update({ last_login_at: new Date().toISOString() }).eq("id", companyData.id)
 
-      router.push("/app")
+      router.push("/dashboard")
       router.refresh()
     } catch (err) {
       setError("אירעה שגיאה לא צפויה. נסה שוב.")
