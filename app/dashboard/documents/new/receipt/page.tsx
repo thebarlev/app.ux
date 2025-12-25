@@ -1,23 +1,26 @@
-"use client";
+import { getSequenceInfoAction } from "@/app/dashboard/document/actions";
+import ReceiptForm from "@/components/documents/receipt-form";
+import StartingNumberCard from "@/components/documents/starting-number-card";
 
-import { useState } from "react";
-import StartingNumberModal from "@/components/documents/StartingNumberModal";
+export default async function NewReceiptPage() {
+  const sequenceInfo = await getSequenceInfoAction({
+    documentType: "receipt",
+  });
 
-export default function CreateReceiptPage() {
-  const [open, setOpen] = useState(true);
+  // ⛔ אם עדיין לא נעול – מבקשים מספר פתיחה
+  if (sequenceInfo.shouldShowModal) {
+    return (
+      <main dir="rtl" style={{ padding: 24 }}>
+        <StartingNumberCard documentType="receipt" />
+      </main>
+    );
+  }
 
+  // ✅ אם נעול – עוברים ליצירת קבלה
   return (
-    <div style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700 }}>Create Receipt</h1>
-
-      {open ? (
-        <StartingNumberModal
-          documentType="receipt"
-          onClose={() => setOpen(false)}
-        />
-      ) : (
-        <p>✅ Modal closed. Next step: issue receipt.</p>
-      )}
-    </div>
+    <main dir="rtl" style={{ padding: 24 }}>
+      <ReceiptForm sequenceInfo={sequenceInfo} />
+    </main>
   );
 }
+
