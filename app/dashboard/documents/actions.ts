@@ -4,26 +4,38 @@ import { createClient } from "@/lib/supabase/server";
 
 /**
  * מחזיר את ה-company_id של המשתמש המחובר
+ * לוגיקה נכונה לפי מודל של multi-users per company:
+ *
+ * auth.users → company_members → companies
  */
 async function getMyCompanyId() {
   const supabase = await createClient();
 
+  // 1) משיכת המשתמש
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth?.user?.id;
+
   if (!userId) throw new Error("Not authenticated");
 
-  const { data: company, error } = await supabase
-    .from("companies")
-    .select("id")
-    .eq("auth_user_id", userId)
+  // 2) משיכת החברה מתוך company_members (המודל הנכון)
+  const { data: member, error: memberErr } = await supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) throw error;
-  if (!company) throw new Error("Company not found");
+  if (memberErr) throw memberErr;
 
-  return company.id as string;
+  if (!member || !member.company_id) {
+    throw new Error("company_not_found");
+  }
+
+  return member.company_id as string;
 }
 
+/**
+ * נועל מספר התחלה למספור
+ */
 export async function lockStartingNumberAction(params: {
   documentType: string;
   startingNumber: number;
@@ -46,11 +58,17 @@ export async function lockStartingNumberAction(params: {
 
   return { ok: true as const, sequence: data };
 }
-export async function getSequenceInfoAction(params: { documentType: string }) {
+
+/**
+ * מחזיר מידע על המספור — האם נעול, המספר הבא, האם יש issued וכו'
+ */
+export async function getSequenceInfoAction(params: {
+  documentType: string;
+}) {
   const supabase = await createClient();
   const companyId = await getMyCompanyId();
 
-  // 1) האם כבר יש מסמך issued?
+  // 1) האם כבר קיימת קבלה/חשבונית שהונפקה?
   const { data: issued, error: issuedErr } = await supabase
     .from("documents")
     .select("id")
@@ -63,7 +81,7 @@ export async function getSequenceInfoAction(params: { documentType: string }) {
 
   const hasIssued = (issued?.length ?? 0) > 0;
 
-  // 2) להביא sequence דרך RPC (כדי לעקוף RLS על document_sequences)
+  // 2) הבאת sequence דרך RPC (מעקף RLS)
   const { data, error } = await supabase.rpc("get_sequence_info", {
     p_company_id: companyId,
     p_document_type: params.documentType,
@@ -71,7 +89,6 @@ export async function getSequenceInfoAction(params: { documentType: string }) {
 
   if (error) throw error;
 
-  // 3) נרמול: RPC לפעמים מחזיר array ולפעמים object
   const row = Array.isArray(data) ? data[0] : data;
 
   const isLocked = Boolean(row?.is_locked);
@@ -81,8 +98,9 @@ export async function getSequenceInfoAction(params: { documentType: string }) {
   const nextNumber = currentNumber !== null ? currentNumber + 1 : null;
   const prefix = row?.prefix ?? null;
 
-  // ✅ הלוגיקה הנכונה למודאל
   const sequenceExists = Boolean(row);
+
+  // אם אין issued וגם אין מנעול → לפתוח מודאל
   const shouldShowModal = !hasIssued && (!sequenceExists || !isLocked);
 
   return {
