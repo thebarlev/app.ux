@@ -8,18 +8,46 @@ export type Customer = {
   id: string;
   company_id: string;
   name: string;
+  tax_id: string | null;
+  profession: string | null;
+  contact_person: string | null;
   email: string | null;
   phone: string | null;
-  mobile: string | null; // Changed from mobile_phone to match DB schema
+  phone_secondary: string | null;
+  mobile: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_city: string | null;
+  address_zip: string | null;
+  address_country: string | null;
+  payment_terms_text: string | null;
+  external_account_key: string | null;
+  bank_name: string | null;
+  bank_branch: string | null;
+  bank_account: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export type CustomerPayload = {
   name: string;
+  tax_id?: string;
+  profession?: string;
+  contact_person?: string;
   email?: string;
   phone?: string;
-  mobile?: string; // Changed from mobile_phone to match DB schema
+  phone_secondary?: string;
+  mobile?: string;
+  address_street?: string;
+  address_number?: string;
+  address_city?: string;
+  address_zip?: string;
+  address_country?: string;
+  payment_terms_text?: string;
+  external_account_key?: string;
+  bank_name?: string;
+  bank_branch?: string;
+  bank_account?: string;
 };
 
 /**
@@ -89,9 +117,23 @@ export async function createCustomerAction(payload: CustomerPayload) {
       .insert({
         company_id: companyId,
         name: payload.name.trim(),
+        tax_id: payload.tax_id?.trim() || null,
+        profession: payload.profession?.trim() || null,
+        contact_person: payload.contact_person?.trim() || null,
         email: payload.email?.trim() || null,
         phone: payload.phone?.trim() || null,
-        mobile: payload.mobile?.trim() || null, // Changed from mobile_phone
+        phone_secondary: payload.phone_secondary?.trim() || null,
+        mobile: payload.mobile?.trim() || null,
+        address_street: payload.address_street?.trim() || null,
+        address_number: payload.address_number?.trim() || null,
+        address_city: payload.address_city?.trim() || null,
+        address_zip: payload.address_zip?.trim() || null,
+        address_country: payload.address_country?.trim() || 'ישראל',
+        payment_terms_text: payload.payment_terms_text?.trim() || null,
+        external_account_key: payload.external_account_key?.trim() || null,
+        bank_name: payload.bank_name?.trim() || null,
+        bank_branch: payload.bank_branch?.trim() || null,
+        bank_account: payload.bank_account?.trim() || null,
       })
       .select()
       .single();
@@ -124,9 +166,23 @@ export async function updateCustomerAction(customerId: string, payload: Customer
       .from("customers")
       .update({
         name: payload.name.trim(),
+        tax_id: payload.tax_id?.trim() || null,
+        profession: payload.profession?.trim() || null,
+        contact_person: payload.contact_person?.trim() || null,
         email: payload.email?.trim() || null,
         phone: payload.phone?.trim() || null,
-        mobile: payload.mobile?.trim() || null, // Changed from mobile_phone
+        phone_secondary: payload.phone_secondary?.trim() || null,
+        mobile: payload.mobile?.trim() || null,
+        address_street: payload.address_street?.trim() || null,
+        address_number: payload.address_number?.trim() || null,
+        address_city: payload.address_city?.trim() || null,
+        address_zip: payload.address_zip?.trim() || null,
+        address_country: payload.address_country?.trim() || 'ישראל',
+        payment_terms_text: payload.payment_terms_text?.trim() || null,
+        external_account_key: payload.external_account_key?.trim() || null,
+        bank_name: payload.bank_name?.trim() || null,
+        bank_branch: payload.bank_branch?.trim() || null,
+        bank_account: payload.bank_account?.trim() || null,
       })
       .eq("id", customerId)
       .eq("company_id", companyId)
