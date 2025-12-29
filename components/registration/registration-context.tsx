@@ -9,18 +9,17 @@ export interface RegistrationData {
   email: string
   phone: string
   password: string
-  // Step 2: Business Check (internal)
-  businessNumber: string
-  isBusinessFound: boolean
-  // Step 3: Business Profile
+  // Step 2: Business Profile
   businessName: string
   businessType: "osek_patur" | "osek_murshe" | "ltd" | "partnership" | ""
+  companyNumber: string // מספר חברה / תעודת זהות (חובה)
   industry: string
-  // Step 4: Address
+  customIndustry: string // תחום פעילות מותאם אישית (אם בחר "אחר")
+  // Step 3: Address
   street: string
-  city: string
+  city: string // שדה טקסט חופשי
   postalCode: string
-  // Step 5: Onboarding
+  // Step 4: Onboarding
   howDidYouHear: string
   accountingNeeds: string[]
   monthlyDocuments: string
@@ -45,11 +44,11 @@ const initialData: RegistrationData = {
   email: "",
   phone: "",
   password: "",
-  businessNumber: "",
-  isBusinessFound: false,
   businessName: "",
   businessType: "",
+  companyNumber: "",
   industry: "",
+  customIndustry: "",
   street: "",
   city: "",
   postalCode: "",
@@ -71,7 +70,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const nextStep = useCallback(() => {
-    setCurrentStep((prev) => Math.min(prev + 1, 5))
+    setCurrentStep((prev) => Math.min(prev + 1, 4))
     setError(null)
   }, [])
 

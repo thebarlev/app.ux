@@ -1,38 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
-// אם אצלך getMyCompanyId כבר קיים במקום אחר (כמו app/dashboard/documents/actions.ts)
-// ואתה רוצה למחזר אותו, אפשר להחליף את הפונקציה למטה ב-import.
-async function getMyCompanyIdOrThrow() {
-  const supabase = await createClient();
-
-  // נסיון הכי “סטנדרטי”: יש טבלת memberships / companies_users וכו’.
-  // אם אצלך המבנה שונה, אל תדאג — אם זה ייכשל, תגיד לי מה השגיאה ונחבר לטבלה הנכונה.
-  const { data: userRes } = await supabase.auth.getUser();
-  const userId = userRes?.user?.id;
-  if (!userId) throw new Error("not_authenticated");
-
-  // נסיון 1: company_memberships (נפוץ)
-  const m1 = await supabase
-    .from("company_memberships")
-    .select("company_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (m1.data?.company_id) return m1.data.company_id as string;
-
-  // נסיון 2: companies.owner_id (נפוץ)
-  const m2 = await supabase
-    .from("companies")
-    .select("id")
-    .eq("owner_id", userId)
-    .maybeSingle();
-
-  if (m2.data?.id) return m2.data.id as string;
-
-  throw new Error("company_not_found");
-}
+import { 
+  getCompanyIdForUser, 
+  isSequenceLocked, 
+  finalizeDocument,
+  getNextDocumentNumberPreview 
+} from "@/lib/document-helpers";
+import { redirect } from "next/navigation";
 
 export type ReceiptSettings = {
   allowedCurrencies: string[];
@@ -41,39 +16,44 @@ export type ReceiptSettings = {
   roundTotals: boolean;
 };
 
-export type InitialReceiptCreateData = {
-  ok: true;
-  companyId: string;
-  companyName: string | null;
-  sequenceLocked: boolean;
-  nextNumberText: string; // "טיוטה" / "מספר יוקצה בעת הפקה" / "המספר הבא: X"
-  settings: ReceiptSettings;
-} | {
-  ok: false;
-  message: string;
-};
+export type InitialReceiptCreateData =
+  | {
+      ok: true;
+      companyId: string;
+      companyName: string | null;
+      sequenceLocked: boolean;
+      previewNumber: string | null; // The formatted preview number (e.g., "000042")
+      settings: ReceiptSettings;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreateData> {
   try {
     const supabase = await createClient();
-    const companyId = await getMyCompanyIdOrThrow();
+    const companyId = await getCompanyIdForUser();
 
-    // האם המספור נעול?
-    const seq = await supabase
-      .from("document_sequences")
-      .select("id,current_number,starting_number,document_type")
-      .eq("company_id", companyId)
-      .eq("document_type", "receipt")
-      .maybeSingle();
+    // Check if sequence is locked
+    const { locked } = await isSequenceLocked(companyId, "receipt");
 
-    const sequenceLocked = !!seq.data;
+    // Get preview of next document number (does NOT allocate it)
+    const { formatted: previewNumber } = await getNextDocumentNumberPreview(
+      companyId,
+      "receipt"
+    );
 
-    // נסיון להביא שם חברה (אם יש companies)
+    // Get company name
     let companyName: string | null = null;
-    const c = await supabase.from("companies").select("name").eq("id", companyId).maybeSingle();
-    companyName = (c.data?.name as string) ?? null;
+    const { data: company } = await supabase
+      .from("companies")
+      .select("company_name")
+      .eq("id", companyId)
+      .maybeSingle();
+    companyName = company?.company_name ?? null;
 
-    // הגדרות ברירת מחדל (כמו שביקשת: ₪/$/€ לפחות) :contentReference[oaicite:1]{index=1}
+    // Default settings
     const settings: ReceiptSettings = {
       allowedCurrencies: ["₪", "$", "€"],
       defaultCurrency: "₪",
@@ -81,18 +61,12 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
       roundTotals: false,
     };
 
-    // תצוגת מספר: בטיוטה אין מספר. מספר מוקצה בעת הפקה. :contentReference[oaicite:2]{index=2}
-    let nextNumberText = "מספר יוקצה בעת הפקה";
-    if (sequenceLocked && typeof seq.data?.current_number === "number") {
-      nextNumberText = `המספר הבא צפוי להיות: ${seq.data.current_number + 1}`;
-    }
-
     return {
       ok: true,
       companyId,
       companyName,
-      sequenceLocked,
-      nextNumberText,
+      sequenceLocked: locked,
+      previewNumber, // Pass preview to client
       settings,
     };
   } catch (e: any) {
@@ -159,74 +133,239 @@ function validatePayload(p: ReceiptDraftPayload) {
   return null;
 }
 
-// שמירת טיוטה: אין מספר מסמך :contentReference[oaicite:3]{index=3}
+/**
+ * Save receipt as draft (no document number assigned)
+ * CRITICAL: This NEVER allocates a document number
+ * The preview number is NOT consumed when saving as draft
+ */
 export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
   const err = validatePayload(payload);
   if (err) return { ok: false as const, message: err };
 
   const supabase = await createClient();
-  const companyId = await getMyCompanyIdOrThrow();
+  const companyId = await getCompanyIdForUser();
 
-  // ⚠️ הנחה: טבלת documents קיימת
   const { data, error } = await supabase
     .from("documents")
     .insert({
       company_id: companyId,
       document_type: "receipt",
-      status: "draft",
-      document_number: null,
-      payload,
+      document_status: "draft", // Always draft
+      document_number: null, // NEVER set a number for drafts
+      customer_name: payload.customerName,
+      issue_date: payload.documentDate,
+      total_amount: payload.total,
       currency: payload.currency,
-      total: payload.total,
+      internal_notes: payload.notes,
+      customer_notes: payload.footerNotes,
     })
     .select("id")
     .single();
 
   if (error) return { ok: false as const, message: error.message };
-  return { ok: true as const, id: data.id as string };
+
+  // Insert payment line items
+  if (payload.payments && payload.payments.length > 0) {
+    const lineItems = payload.payments.map((payment, idx) => ({
+      document_id: data.id,
+      company_id: companyId,
+      line_number: idx + 1,
+      description: payment.method,
+      quantity: 1,
+      unit_price: payment.amount,
+      line_total: payment.amount,
+    }));
+
+    const { error: lineItemsError } = await supabase
+      .from("document_line_items")
+      .insert(lineItems);
+
+    if (lineItemsError) {
+      console.error("Failed to insert line items:", lineItemsError);
+      // Continue anyway - document is saved
+    }
+  }
+  
+  // Redirect to documents list after saving draft
+  redirect("/dashboard/documents");
 }
 
-// הפקה: הקצאת מספר בעת הפקה בלבד :contentReference[oaicite:4]{index=4}
+/**
+ * Issue receipt immediately with document number
+ * This is the ONLY action that allocates document numbers
+ * Creates document as draft, then finalizes it (which allocates the number)
+ * Returns the receipt ID instead of redirecting (for PDF download)
+ */
 export async function issueReceiptAction(payload: ReceiptDraftPayload) {
   const err = validatePayload(payload);
   if (err) return { ok: false as const, message: err };
 
   const supabase = await createClient();
-  const companyId = await getMyCompanyIdOrThrow();
+  const companyId = await getCompanyIdForUser();
 
-  // ניסיון לקרוא RPC שמקצה מספר אטומית (אם קיימת)
-  const alloc = await supabase.rpc("allocate_document_number", {
-    p_company_id: companyId,
-    p_document_type: "receipt",
-  });
-
-  if (alloc.error) {
-    // אם אין RPC כזה, נחזיר שגיאה ברורה כדי שנדע מה חסר
-    return {
-      ok: false as const,
-      message:
-        "לא קיימת פונקציה allocate_document_number במסד הנתונים. צריך ליצור אותה או להשתמש במנגנון קיים.",
-      details: alloc.error.message,
-    };
-  }
-
-  const documentNumber = alloc.data;
-
-  const { data, error } = await supabase
+  // First create as draft (no number yet)
+  const { data: draft, error: draftError } = await supabase
     .from("documents")
     .insert({
       company_id: companyId,
       document_type: "receipt",
-      status: "issued",
-      document_number: documentNumber,
-      payload,
+      document_status: "draft",
+      document_number: null, // No number until finalized
+      customer_name: payload.customerName,
+      issue_date: payload.documentDate,
+      total_amount: payload.total,
       currency: payload.currency,
-      total: payload.total,
+      internal_notes: payload.notes,
+      customer_notes: payload.footerNotes,
     })
-    .select("id, document_number")
+    .select("id")
     .single();
 
-  if (error) return { ok: false as const, message: error.message };
+  if (draftError) return { ok: false as const, message: draftError.message };
 
-  return { ok: true as const, id: data.id as string, documentNumber: data.document_number as number };
+  // Insert payment line items
+  if (payload.payments && payload.payments.length > 0) {
+    const lineItems = payload.payments.map((payment, idx) => ({
+      document_id: draft.id,
+      company_id: companyId,
+      line_number: idx + 1,
+      description: payment.method,
+      quantity: 1,
+      unit_price: payment.amount,
+      line_total: payment.amount,
+    }));
+
+    const { error: lineItemsError } = await supabase
+      .from("document_line_items")
+      .insert(lineItems);
+
+    if (lineItemsError) {
+      console.error("Failed to insert line items:", lineItemsError);
+      // Continue anyway - will finalize document
+    }
+  }
+
+  // Then finalize it (THIS is where the number gets allocated)
+  const result = await finalizeDocument(draft.id, companyId, "receipt");
+
+  if (!result.ok) {
+    return {
+      ok: false as const,
+      message: result.message ?? "Failed to finalize document",
+    };
+  }
+
+  // Return the receipt ID so client can download PDF
+  return {
+    ok: true as const,
+    receiptId: draft.id,
+    documentNumber: result.documentNumber,
+  };
+}
+
+/**
+ * Update an existing draft receipt
+ * CRITICAL: This will FAIL if the document is already final (enforced by RLS)
+ */
+export async function updateReceiptDraftAction(draftId: string, payload: ReceiptDraftPayload) {
+  const err = validatePayload(payload);
+  if (err) return { ok: false as const, message: err };
+
+  const supabase = await createClient();
+  const companyId = await getCompanyIdForUser();
+
+  // First verify this is a draft and belongs to the user's company
+  const { data: existing, error: fetchError } = await supabase
+    .from("documents")
+    .select("id, document_status")
+    .eq("id", draftId)
+    .eq("company_id", companyId)
+    .eq("document_type", "receipt")
+    .maybeSingle();
+
+  if (fetchError) return { ok: false as const, message: fetchError.message };
+  if (!existing) return { ok: false as const, message: "Draft not found" };
+
+  // Server-side guard: Prevent editing final receipts
+  if (existing.document_status !== "draft") {
+    return {
+      ok: false as const,
+      message: "Cannot edit final receipts. Only drafts can be modified.",
+    };
+  }
+
+  // Update the draft
+  const { error: updateError } = await supabase
+    .from("documents")
+    .update({
+      customer_name: payload.customerName,
+      issue_date: payload.documentDate,
+      total_amount: payload.total,
+      currency: payload.currency,
+      internal_notes: payload.notes,
+      customer_notes: payload.footerNotes,
+    })
+    .eq("id", draftId)
+    .eq("company_id", companyId); // Double-check company_id for security
+
+  if (updateError) {
+    // RLS will also block this if status is not 'draft'
+    return { ok: false as const, message: updateError.message };
+  }
+
+  // Redirect to documents list after update
+  redirect("/dashboard/documents");
+}
+
+/**
+ * Get draft receipt for editing
+ * Returns error if document is final or doesn't exist
+ */
+export async function getDraftReceiptForEditAction(draftId: string) {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("id", draftId)
+      .eq("company_id", companyId)
+      .eq("document_type", "receipt")
+      .maybeSingle();
+
+    if (error) return { ok: false as const, message: error.message };
+    if (!data) return { ok: false as const, message: "Draft not found" };
+
+    // Server-side guard: Prevent editing final receipts
+    if (data.document_status !== "draft") {
+      return {
+        ok: false as const,
+        message: "Cannot edit final receipts. Only drafts can be modified.",
+      };
+    }
+
+    return {
+      ok: true as const,
+      draft: {
+        id: data.id,
+        customerName: data.customer_name ?? "",
+        documentDate: data.issue_date ?? todayYmd(),
+        total: data.total_amount ?? 0,
+        currency: data.currency ?? "₪",
+        notes: data.internal_notes ?? "",
+        footerNotes: data.customer_notes ?? "",
+      },
+    };
+  } catch (e: any) {
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
+  }
+}
+
+function todayYmd() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }

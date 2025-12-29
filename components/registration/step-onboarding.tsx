@@ -99,7 +99,12 @@ export function StepOnboarding() {
       const { error: companyError } = await supabase.from("companies").insert({
         company_name: data.businessName,
         business_type: data.businessType,
-        tax_id: data.businessNumber || null,
+        company_number: data.companyNumber || null,
+        industry: data.industry || null,
+        custom_industry: data.customIndustry || null,
+        street: data.street || null,
+        city: data.city || null,
+        postal_code: data.postalCode || null,
         contact_first_name: data.firstName,
         contact_full_name: `${data.firstName} ${data.lastName}`,
         email: data.email,
@@ -110,7 +115,9 @@ export function StepOnboarding() {
 
       if (companyError) {
         console.error("Company creation error:", companyError)
-        // Continue anyway - user was created
+        setError(`שגיאה ביצירת חברה: ${companyError.message || JSON.stringify(companyError)}`)
+        setIsLoading(false)
+        return
       }
 
       // Redirect to success page

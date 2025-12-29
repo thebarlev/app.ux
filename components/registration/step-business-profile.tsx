@@ -23,12 +23,13 @@ const INDUSTRIES = [
   { value: "construction", label: "בנייה" },
   { value: "food", label: "מזון ומסעדנות" },
   { value: "health", label: "בריאות" },
+  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
   { value: "education", label: "חינוך" },
   { value: "other", label: "אחר" },
 ]
 
 export function StepBusinessProfile() {
-  const { data, updateData, nextStep, prevStep } = useRegistration()
+  const { data, updateData, nextStep } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = () => {
@@ -36,7 +37,13 @@ export function StepBusinessProfile() {
 
     if (!data.businessName.trim()) newErrors.businessName = "שדה חובה"
     if (!data.businessType) newErrors.businessType = "שדה חובה"
+    if (!data.companyNumber.trim()) newErrors.companyNumber = "שדה חובה"
     if (!data.industry) newErrors.industry = "שדה חובה"
+    
+    // אם בחר "אחר" - חובה למלא תחום פעילות מותאם אישית
+    if (data.industry === "other" && !data.customIndustry.trim()) {
+      newErrors.customIndustry = "שדה חובה כאשר בוחרים 'אחר'"
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -53,9 +60,7 @@ export function StepBusinessProfile() {
     <NeumorphicCard>
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-foreground">פרופיל עסקי</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {data.isBusinessFound ? "בדוק ועדכן את הפרטים" : "ספר לנו על העסק שלך"}
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">ספר לנו על העסק שלך</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -77,6 +82,17 @@ export function StepBusinessProfile() {
           error={errors.businessType}
         />
 
+        <NeumorphicInput
+          id="companyNumber"
+          label="מספר חברה / תעודת זהות"
+          placeholder="123456789"
+          value={data.companyNumber}
+          onChange={(e) => updateData({ companyNumber: e.target.value })}
+          error={errors.companyNumber}
+          dir="ltr"
+          className="text-left"
+        />
+
         <NeumorphicSelect
           label="תחום פעילות"
           placeholder="בחר תחום"
@@ -86,10 +102,18 @@ export function StepBusinessProfile() {
           error={errors.industry}
         />
 
+        {data.industry === "other" && (
+          <NeumorphicInput
+            id="customIndustry"
+            label="פרט תחום פעילות"
+            placeholder="הזן את תחום הפעילות שלך"
+            value={data.customIndustry}
+            onChange={(e) => updateData({ customIndustry: e.target.value })}
+            error={errors.customIndustry}
+          />
+        )}
+
         <div className="flex gap-3 mt-2">
-          <NeumorphicButton type="button" variant="secondary" onClick={prevStep}>
-            חזור
-          </NeumorphicButton>
           <NeumorphicButton type="submit">המשך</NeumorphicButton>
         </div>
       </form>

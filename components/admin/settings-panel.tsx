@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Save, Percent, FileText } from "lucide-react"
+import { Loader2, Save, Percent, FileText, Receipt } from "lucide-react"
 import type { GlobalSetting } from "@/lib/types/admin"
 
 interface SettingsPanelProps {
@@ -31,6 +31,9 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
   const [footerLine3, setFooterLine3] = useState(
     settings.find((s) => s.setting_key === "document_footer_line_3")?.setting_value || "",
   )
+  const [receiptFooterText, setReceiptFooterText] = useState(
+    settings.find((s) => s.setting_key === "receipt_footer_text")?.setting_value || "",
+  )
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -42,6 +45,7 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
         { setting_key: "document_footer_line_1", setting_value: footerLine1 },
         { setting_key: "document_footer_line_2", setting_value: footerLine2 },
         { setting_key: "document_footer_line_3", setting_value: footerLine3 },
+        { setting_key: "receipt_footer_text", setting_value: receiptFooterText },
       ]
 
       for (const update of updates) {
@@ -143,6 +147,36 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
                 <li>Issue date/time</li>
                 <li>Page X of Y</li>
               </ul>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Receipt className="h-4 w-4 text-primary" />
+              </div>
+              <h3 className="font-semibold">טקסט פוטר לקובץ קבלה</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              טקסט זה יופיע בתחתית כל דף יצירת קבלה חדשה. ניתן להשתמש בשדה זה להוראות, פרטים משפטיים, או הנחיות לעובדים.
+            </p>
+
+            <div className="grid gap-2">
+              <Label htmlFor="receipt-footer">טקסט פוטר</Label>
+              <Textarea
+                id="receipt-footer"
+                placeholder="לדוגמה: ודא שכל השדות מולאו לפני שליחת הקבלה ללקוח..."
+                value={receiptFooterText}
+                onChange={(e) => setReceiptFooterText(e.target.value)}
+                rows={4}
+                className="text-right"
+                dir="rtl"
+              />
+              <p className="text-xs text-muted-foreground">
+                השאר ריק אם אין צורך בטקסט פוטר
+              </p>
             </div>
           </div>
         </div>

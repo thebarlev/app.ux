@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { RegistrationProvider, useRegistration } from "@/components/registration/registration-context"
 import { StepProgress } from "@/components/registration/step-progress"
 import { StepPersonalDetails } from "@/components/registration/step-personal-details"
-import { StepBusinessCheck } from "@/components/registration/step-business-check"
 import { StepBusinessProfile } from "@/components/registration/step-business-profile"
 import { StepAddress } from "@/components/registration/step-address"
 import { StepOnboarding } from "@/components/registration/step-onboarding"
@@ -14,10 +13,9 @@ import Link from "next/link"
 
 const STEPS = [
   { id: 1, label: "פרטים אישיים" },
-  { id: 2, label: "בדיקת עסק" },
-  { id: 3, label: "פרופיל עסקי" },
-  { id: 4, label: "כתובת" },
-  { id: 5, label: "שאלות" },
+  { id: 2, label: "פרופיל עסקי" },
+  { id: 3, label: "כתובת" },
+  { id: 4, label: "שאלות" },
 ]
 
 function RegistrationFlow() {
@@ -28,12 +26,10 @@ function RegistrationFlow() {
       case 1:
         return <StepPersonalDetails />
       case 2:
-        return <StepBusinessCheck />
-      case 3:
         return <StepBusinessProfile />
-      case 4:
+      case 3:
         return <StepAddress />
-      case 5:
+      case 4:
         return <StepOnboarding />
       default:
         return <StepPersonalDetails />

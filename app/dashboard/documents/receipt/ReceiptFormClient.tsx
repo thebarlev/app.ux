@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import StartingNumberModal from "@/components/documents/StartingNumberModal";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "./actions";
-import { issueReceiptAction, saveReceiptDraftAction } from "./actions";
+import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } from "./actions";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -41,12 +40,28 @@ function formatMoney(amount: number, currency: string) {
   return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
 }
 
-export default function ReceiptFormClient({ initial }: { initial: InitialReceiptCreateData }) {
+export default function ReceiptFormClient({ 
+  initial,
+  footerText,
+  editData,
+  draftId,
+}: { 
+  initial: InitialReceiptCreateData;
+  footerText?: string;
+  editData?: {
+    id: string;
+    customerName: string;
+    documentDate: string;
+    total: number;
+    currency: string;
+    notes: string;
+    footerNotes: string;
+  } | null;
+  draftId?: string;
+}) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
 
-  const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : false);
-  const [startingModalOpen, setStartingModalOpen] = useState(initial.ok ? !initial.sequenceLocked : false);
+  const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
 
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
@@ -68,7 +83,22 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
 
   const [busy, setBusy] = useState<null | "draft" | "issue">(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [issuedNumber, setIssuedNumber] = useState<number | null>(null);
+
+  // Load edit data if editing a draft
+  useEffect(() => {
+    if (editData) {
+      setCustomerName(editData.customerName);
+      setDocumentDate(editData.documentDate);
+      setCurrency(editData.currency);
+      setNotes(editData.notes);
+      setFooterNotes(editData.footerNotes);
+      // Note: We don't have payment rows in the draft data structure yet
+      // You may need to extend getDraftReceiptForEditAction to include them
+    }
+  }, [editData]);
+
+  // Preview number comes from server (NOT allocated yet)
+  const previewNumber = initial.ok ? initial.previewNumber : null;
 
   const total = useMemo(() => {
     const sum = payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0);
@@ -101,8 +131,10 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
     );
   }
 
-  const headerNumberText =
-    issuedNumber != null ? `| ${issuedNumber}` : `| ${initial.nextNumberText || "מספר יוקצה בעת הפקה"}`;
+  // Display preview number in header
+  const headerNumberText = previewNumber 
+    ? `| ${previewNumber}` 
+    : "| מספר יוקצה בעת הפקה";
 
   function addPaymentRow() {
     setPayments((prev) => [
@@ -123,13 +155,16 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
     setMessage(null);
     setBusy("draft");
     try {
-      const res = await saveReceiptDraftAction(payload);
-      if (!res.ok) {
-        setMessage(res.message);
-        return;
+      if (draftId && editData) {
+        // Update existing draft
+        await updateReceiptDraftAction(draftId, payload);
+      } else {
+        // Create new draft
+        await saveReceiptDraftAction(payload);
       }
-      setMessage("✅ הטיוטה נשמרה בהצלחה");
-    } finally {
+      // Both actions redirect automatically on success
+    } catch (error: any) {
+      setMessage(error.message || "שגיאה בשמירת הטיוטה");
       setBusy(null);
     }
   }
@@ -138,14 +173,40 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
     setMessage(null);
     setBusy("issue");
     try {
-      const res = await issueReceiptAction(payload);
-      if (!res.ok) {
-        setMessage(res.message + (res.details ? ` (${res.details})` : ""));
+      if (draftId && editData) {
+        // Cannot issue from edit mode - must save first
+        setMessage("יש לשמור את הטיוטה ולהפיק מהרשימה");
+        setBusy(null);
         return;
       }
-      setIssuedNumber(res.documentNumber);
-      setMessage(`✅ המסמך הופק בהצלחה. מספר: ${res.documentNumber}`);
-    } finally {
+      
+      // Issue the receipt
+      const result = await issueReceiptAction(payload);
+      
+      if (!result.ok) {
+        setMessage(result.message || "שגיאה בהפקת המסמך");
+        setBusy(null);
+        return;
+      }
+      
+      // Success! Download PDF automatically
+      if (result.receiptId) {
+        // Trigger PDF download
+        const pdfUrl = `/api/receipts/${result.receiptId}/pdf`;
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `receipt-${result.documentNumber || "new"}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Small delay to ensure download started, then redirect
+        setTimeout(() => {
+          window.location.href = "/dashboard/documents";
+        }, 500);
+      }
+    } catch (error: any) {
+      setMessage(error.message || "שגיאה בהפקת המסמך");
       setBusy(null);
     }
   }
@@ -170,7 +231,7 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
             קבלה <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>{headerNumberText}</span>
           </div>
           <div style={{ marginTop: 6, opacity: 0.75 }}>
-            {issuedNumber == null ? "טיוטה (מספר יוקצה בעת הפקה)" : "מסמך מופק (לא ניתן לעריכה)"}
+            {previewNumber ? `מספר תצוגה מקדימה: ${previewNumber}` : "מספר יוקצה בעת הפקה"}
           </div>
         </div>
 
@@ -233,25 +294,6 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
           <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>
             הערה: כרגע אלו ברירות מחדל מקומיות למסך (כמו שביקשת). בהמשך נחבר להגדרות חברה ב־DB.
           </div>
-        </div>
-      )}
-
-      {/* First-time sequence modal */}
-      {startingModalOpen && (
-        <div style={{ padding: 16, border: "1px solid #fde68a", borderRadius: 16, background: "#fffbeb" }}>
-          <div style={{ fontWeight: 900, marginBottom: 8 }}>לפני שמתחילים</div>
-          <div style={{ opacity: 0.85, marginBottom: 12 }}>
-            נדרש לבחור מספר מסמך ראשון (חד־פעמי). לאחר מכן לא תראה את החלון שוב.
-          </div>
-          <StartingNumberModal
-            documentType="receipt"
-            onClose={() => setStartingModalOpen(false)}
-            onSuccess={() => {
-              setSequenceLocked(true);
-              setStartingModalOpen(false);
-              setMessage("✅ המספור נקבע. אפשר להתחיל ליצור קבלה.");
-            }}
-          />
         </div>
       )}
 
@@ -376,13 +418,13 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
                     <button
                       type="button"
                       onClick={() => removePaymentRow(i)}
-                      disabled={issuedNumber != null || payments.length === 1}
+                      disabled={payments.length === 1}
                       style={{
                         padding: "8px 10px",
                         borderRadius: 10,
                         border: "1px solid #e5e7eb",
-                        background: issuedNumber != null ? "#f3f4f6" : "white",
-                        cursor: issuedNumber != null ? "not-allowed" : "pointer",
+                        background: "white",
+                        cursor: payments.length === 1 ? "not-allowed" : "pointer",
                       }}
                     >
                       מחק
@@ -397,14 +439,13 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
         <button
           type="button"
           onClick={addPaymentRow}
-          disabled={issuedNumber != null}
           style={{
             marginTop: 12,
             padding: "10px 12px",
             borderRadius: 12,
             border: "1px solid #e5e7eb",
             background: "#f9fafb",
-            cursor: issuedNumber != null ? "not-allowed" : "pointer",
+            cursor: "pointer",
           }}
         >
           הוספת תקבול +
@@ -441,50 +482,70 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button
           type="button"
-          onClick={() => setPreviewOpen((v) => !v)}
-          style={{ padding: "10px 14px", borderRadius: 12, border: "1px solid #e5e7eb", background: "white", cursor: "pointer" }}
+          onClick={() => {
+            // Open preview in new tab
+            const previewData = {
+              previewNumber,
+              companyName: initial.companyName || "העסק שלי",
+              customerName,
+              documentDate,
+              description,
+              notes,
+              footerNotes,
+              total: String(total),
+              currency,
+              payments: JSON.stringify(payments),
+              data: JSON.stringify(payload),
+            };
+            
+            const params = new URLSearchParams(previewData as any);
+            window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
+          }}
+          style={{ 
+            padding: "10px 14px", 
+            borderRadius: 12, 
+            border: "1px solid #3b82f6", 
+            background: "#3b82f6",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
         >
-          תצוגה מקדימה
+          📄 תצוגה מקדימה (טאב חדש)
         </button>
 
         <button
           type="button"
           onClick={onSaveDraft}
-          disabled={busy != null || issuedNumber != null}
+          disabled={busy != null}
           style={{
             padding: "10px 14px",
             borderRadius: 12,
             border: "1px solid #e5e7eb",
             background: busy === "draft" ? "#f3f4f6" : "white",
-            cursor: busy != null || issuedNumber != null ? "not-allowed" : "pointer",
+            cursor: busy != null ? "not-allowed" : "pointer",
           }}
         >
-          {busy === "draft" ? "שומר..." : "שמירת טיוטה"}
+          {busy === "draft" ? "שומר..." : "שמירת טיוטה (לא מקצה מספר)"}
         </button>
 
         <button
           type="button"
           onClick={onIssue}
-          disabled={busy != null || issuedNumber != null || !sequenceLocked}
+          disabled={busy != null}
           style={{
             padding: "10px 14px",
             borderRadius: 12,
             border: "1px solid #111827",
             background: busy === "issue" ? "#111827" : "#111827",
             color: "white",
-            cursor: busy != null || issuedNumber != null || !sequenceLocked ? "not-allowed" : "pointer",
-            opacity: busy != null || issuedNumber != null || !sequenceLocked ? 0.6 : 1,
+            cursor: busy != null ? "not-allowed" : "pointer",
+            opacity: busy != null ? 0.6 : 1,
           }}
         >
-          {busy === "issue" ? "מפיק..." : "הפקת מסמך"}
+          {busy === "issue" ? "מפיק..." : `הפקה + הקצאת מספר${previewNumber ? ` (${previewNumber})` : ""}`}
         </button>
       </div>
-
-      {!sequenceLocked && (
-        <div style={{ opacity: 0.8, fontSize: 13 }}>
-          כדי להפיק מסמך חייבים לקבוע מספור חד־פעמי קודם.
-        </div>
-      )}
 
       {message && (
         <div style={{ padding: 12, borderRadius: 12, border: "1px solid #e5e7eb", background: "#f9fafb" }}>
@@ -492,23 +553,25 @@ export default function ReceiptFormClient({ initial }: { initial: InitialReceipt
         </div>
       )}
 
-      {/* Preview */}
-      {previewOpen && (
-        <div style={{ padding: 16, border: "1px dashed #d1d5db", borderRadius: 16, background: "white" }}>
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>תצוגה מקדימה</div>
-          <div style={{ display: "grid", gap: 6, opacity: 0.9 }}>
-            <div><b>לקוח:</b> {customerName || "—"}</div>
-            <div><b>תאריך:</b> {documentDate}</div>
-            <div><b>תיאור:</b> {description || "—"}</div>
-            <div><b>סה״כ:</b> {formatMoney(total, currency)}</div>
-            <div style={{ marginTop: 8 }}><b>תקבולים:</b></div>
-            <ul style={{ margin: 0, paddingInlineStart: 18 }}>
-              {payments.map((p, idx) => (
-                <li key={idx}>
-                  {p.method || "—"} | {p.date} | {formatMoney(p.amount, p.currency)}
-                </li>
-              ))}
-            </ul>
+      {/* Footer Text from Admin Settings */}
+      {footerText && footerText.trim() && (
+        <div style={{
+          marginTop: 24,
+          padding: 16,
+          border: "1px solid #dbeafe",
+          borderRadius: 12,
+          background: "#eff6ff",
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "#1e40af" }}>
+            📌 הערות מערכת
+          </div>
+          <div style={{
+            fontSize: 14,
+            lineHeight: 1.6,
+            color: "#1e3a8a",
+            whiteSpace: "pre-wrap",
+          }}>
+            {footerText}
           </div>
         </div>
       )}

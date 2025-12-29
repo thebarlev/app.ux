@@ -5,11 +5,7 @@ import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
 
 type Props = {
   documentType: string;
-
-  // המשתמש סגר/ביטל (לא בהכרח הצלחה)
   onClose: () => void;
-
-  // הצלחה: המספור נשמר או כבר היה נעול
   onSuccess: () => void;
 };
 
@@ -33,18 +29,18 @@ export default function StartingNumberModal({
         prefix: null,
       });
 
-      // אם כבר נעול - נחשב כהצלחה ונמשיך
       if (!res.ok) {
+        // If already locked, treat as success
         if (res.message?.includes("sequence_already_locked")) {
           onSuccess();
           return;
         }
 
-        setError("אירעה שגיאה. נסה שוב.");
+        setError(res.message || "אירעה שגיאה. נסה שוב.");
         return;
       }
 
-      // הצלחה אמיתית
+      // Success
       onSuccess();
     } catch (e) {
       setError("אירעה שגיאה. נסה שוב.");

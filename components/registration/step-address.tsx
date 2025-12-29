@@ -6,22 +6,7 @@ import { useState } from "react"
 import { useRegistration } from "./registration-context"
 import { NeumorphicCard } from "./neumorphic-card"
 import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicSelect } from "./neumorphic-select"
 import { NeumorphicButton } from "./neumorphic-button"
-
-const CITIES = [
-  { value: "tel_aviv", label: "תל אביב-יפו" },
-  { value: "jerusalem", label: "ירושלים" },
-  { value: "haifa", label: "חיפה" },
-  { value: "beer_sheva", label: "באר שבע" },
-  { value: "rishon", label: "ראשון לציון" },
-  { value: "petah_tikva", label: "פתח תקווה" },
-  { value: "ashdod", label: "אשדוד" },
-  { value: "netanya", label: "נתניה" },
-  { value: "holon", label: "חולון" },
-  { value: "bnei_brak", label: "בני ברק" },
-  { value: "other", label: "אחר" },
-]
 
 export function StepAddress() {
   const { data, updateData, nextStep, prevStep } = useRegistration()
@@ -31,7 +16,7 @@ export function StepAddress() {
     const newErrors: Record<string, string> = {}
 
     if (!data.street.trim()) newErrors.street = "שדה חובה"
-    if (!data.city) newErrors.city = "שדה חובה"
+    if (!data.city.trim()) newErrors.city = "שדה חובה"
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -62,12 +47,12 @@ export function StepAddress() {
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <NeumorphicSelect
+          <NeumorphicInput
+            id="city"
             label="עיר"
-            placeholder="בחר עיר"
+            placeholder="תל אביב-יפו"
             value={data.city}
-            onValueChange={(value) => updateData({ city: value })}
-            options={CITIES}
+            onChange={(e) => updateData({ city: e.target.value })}
             error={errors.city}
           />
 
