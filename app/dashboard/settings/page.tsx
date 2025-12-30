@@ -35,7 +35,8 @@ export default async function SettingsPage() {
         mobile_phone,
         email,
         website,
-        logo_url
+        logo_url,
+        signature_url
       `)
       .eq("id", companyId)
       .single();

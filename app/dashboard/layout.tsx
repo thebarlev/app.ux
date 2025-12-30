@@ -2,7 +2,7 @@ import { IconSidebar } from "@/components/dashboard/IconSidebar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="dashboard-layout">
+    <div className="dashboard-layout" dir="rtl">
       <IconSidebar />
       
       <main className="dashboard-main">

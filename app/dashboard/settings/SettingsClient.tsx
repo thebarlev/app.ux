@@ -214,11 +214,14 @@ export default function SettingsClient({ company }: Props) {
 
     const result = await uploadSignatureAction(formData);
 
+    console.log("Signature upload result:", result);
+
     if (result.ok && result.signatureUrl) {
       setSignatureUrl(result.signatureUrl);
       setMessage({ type: "success", text: "החתימה הועלתה בהצלחה!" });
       router.refresh();
     } else {
+      console.error("Signature upload failed:", result);
       if (result.message?.includes("Bucket not found") || result.message?.includes("business-assets")) {
         setMessage({ 
           type: "error", 
@@ -400,7 +403,7 @@ export default function SettingsClient({ company }: Props) {
         <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>חתימת העסק</h2>
 
         {/* Show installation notice if signature_url field doesn't exist in company object */}
-        {!('signature_url' in company) && (
+        {company.signature_url === undefined && (
           <div
             style={{
               padding: 16,

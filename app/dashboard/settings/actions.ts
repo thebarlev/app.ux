@@ -185,24 +185,35 @@ export async function deleteLogoAction() {
 /**
  * Upload company signature to Supabase Storage
  */
-export async function uploadSignatureAction(formData: FormData) {
+export async function uploadSignatureAction(
+  formData: FormData
+): Promise<{ ok: true; signatureUrl: string } | { ok: false; message: string }> {
+  console.log("uploadSignatureAction called");
+  
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
+    
+    console.log("Company ID:", companyId);
 
     const file = formData.get("signature") as File;
     if (!file) {
+      console.log("No file provided");
       return { ok: false as const, message: "no_file_provided" };
     }
+    
+    console.log("File received:", file.name, file.type, file.size);
 
     // Validate file type
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
     if (!validTypes.includes(file.type)) {
+      console.log("Invalid file type:", file.type);
       return { ok: false as const, message: "invalid_file_type" };
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
+      console.log("File too large:", file.size);
       return { ok: false as const, message: "file_too_large" };
     }
 
@@ -214,12 +225,16 @@ export async function uploadSignatureAction(formData: FormData) {
         .eq("id", companyId)
         .single();
 
+      console.log("Existing signature check:", company);
+
       if (company?.signature_url) {
         // Extract path from URL and delete old file
         const oldPath = `business-signatures/${companyId}/signature.png`;
         await supabase.storage.from("business-assets").remove([oldPath]);
+        console.log("Deleted old signature");
       }
     } catch (selectError: any) {
+      console.error("Error checking existing signature:", selectError);
       // If column doesn't exist, show helpful message
       if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
         return {
@@ -234,12 +249,15 @@ export async function uploadSignatureAction(formData: FormData) {
     const fileExt = file.name.split(".").pop();
     const fileName = `signature.${fileExt}`;
     const filePath = `business-signatures/${companyId}/${fileName}`;
+    
+    console.log("Uploading to path:", filePath);
 
     const { error: uploadError } = await supabase.storage
       .from("business-assets")
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
+      console.error("Upload error:", uploadError);
       // Provide helpful error message if bucket doesn't exist
       if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
         return { 
@@ -249,11 +267,15 @@ export async function uploadSignatureAction(formData: FormData) {
       }
       return { ok: false as const, message: uploadError.message };
     }
+    
+    console.log("Upload successful");
 
     // Get public URL
     const { data: urlData } = supabase.storage
       .from("business-assets")
       .getPublicUrl(filePath);
+      
+    console.log("Public URL:", urlData.publicUrl);
 
     // Update company record with signature URL
     const { error: updateError } = await supabase
@@ -262,6 +284,7 @@ export async function uploadSignatureAction(formData: FormData) {
       .eq("id", companyId);
 
     if (updateError) {
+      console.error("Update error:", updateError);
       // Special handling for missing column
       if (updateError.message?.includes("column") && updateError.message?.includes("signature_url")) {
         return {
@@ -271,12 +294,16 @@ export async function uploadSignatureAction(formData: FormData) {
       }
       return { ok: false as const, message: updateError.message };
     }
+    
+    console.log("Database updated successfully");
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
+    console.log("Returning success with URL:", urlData.publicUrl);
     return { ok: true as const, signatureUrl: urlData.publicUrl };
   } catch (e: any) {
+    console.error("Unexpected error in uploadSignatureAction:", e);
     return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }

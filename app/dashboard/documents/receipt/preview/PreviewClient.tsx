@@ -130,7 +130,7 @@ export default function PreviewClient({
   return (
     <div
       dir="rtl"
-      style={{ minHeight: "100vh", background: "#ffffff", padding: "40px 20px" }}
+      style={{ minHeight: "100vh", background: "#ffffff", padding: "20px 10px" }}
     >
       {/* Override Tailwind's lab() and color-mix() + Apply style settings */}
       <style>{`
@@ -314,8 +314,8 @@ export default function PreviewClient({
           <div
             style={{
               position: "absolute",
-              top: "70px",
-              right: "37px",
+              top: "50px",
+              right: "20px",
               display: "flex",
               flexDirection: "column",
               alignItems: "flex-end",
@@ -373,7 +373,7 @@ export default function PreviewClient({
             </div>
 
             {/* Part 2 – Customer details */}
-            <div className="receipt-part-2" style={{ marginLeft: "57px" }}>
+            <div className="receipt-part-2" style={{ marginLeft: "60px" }}>
               {/* Customer name */}
               <div
                 className="receipt-customer-name"
@@ -427,8 +427,8 @@ export default function PreviewClient({
           <div
             style={{
               position: "absolute",
-              top: "70px",
-              right: "37px",
+              top: "50px",
+              right: "20px",
               width: "351px",
               height: "244px",
               background: "#F0F0F0",
@@ -441,8 +441,8 @@ export default function PreviewClient({
             className="receipt-part-3"
             style={{
               position: "absolute",
-              top: "70px",
-              left: "37px",
+              top: "50px",
+              left: "20px",
               width: "170px",
               textAlign: "right",
             }}
@@ -553,10 +553,10 @@ export default function PreviewClient({
           <div
             className="receipt-description-section"
             style={{
-              marginTop: "80px",
-              marginBottom: 24,
-              marginLeft: "37px",
-              marginRight: "37px",
+              marginTop: "40px",
+              marginBottom: 20,
+              marginLeft: "20px",
+              marginRight: "20px",
             }}
           >
             <div className="receipt-description-text">
@@ -570,9 +570,9 @@ export default function PreviewClient({
           <div
             className="receipt-payments-section"
             style={{
-              marginBottom: 24,
-              marginLeft: "37px",
-              marginRight: "37px",
+              marginBottom: 20,
+              marginLeft: "20px",
+              marginRight: "20px",
             }}
           >
             {/* Table */}
@@ -589,35 +589,13 @@ export default function PreviewClient({
                 className="receipt-payments-table-header"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                  gridTemplateColumns: "1fr 1fr 2fr 1fr",
                   background: styleSettings.colors.tableHeaderBackground,
                   borderBottom: `2px solid ${styleSettings.colors.tableRowBorder}`,
                   padding: "12px 16px",
                   gap: 16,
                 }}
               >
-                <div
-                  className="receipt-payments-header-cell"
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: styleSettings.colors.tableHeaderText,
-                    textAlign: "right",
-                  }}
-                >
-                  פרטים (אופציונלי)
-                </div>
-                <div
-                  className="receipt-payments-header-cell"
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: styleSettings.colors.tableHeaderText,
-                    textAlign: "right",
-                  }}
-                >
-                  סכום
-                </div>
                 <div
                   className="receipt-payments-header-cell"
                   style={{
@@ -640,80 +618,144 @@ export default function PreviewClient({
                 >
                   אמצעי
                 </div>
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  פרטים נוספים
+                </div>
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  סכום
+                </div>
               </div>
 
               {/* Table Rows */}
-              {payments.map((p, idx) => (
-                <div
-                  key={idx}
-                  className="receipt-payment-row"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 1fr",
-                    background: idx % 2 === 0 ? styleSettings.colors.background : styleSettings.colors.tableHeaderBackground,
-                    borderBottom: idx < payments.length - 1 ? `1px solid ${styleSettings.colors.tableRowBorder}` : "none",
-                    padding: "12px 16px",
-                    gap: 16,
-                  }}
-                >
+              {payments.map((p, idx) => {
+                // Format additional payment details based on payment method
+                const getPaymentDetails = (payment: any) => {
+                  if (payment.method === "כרטיס אשראי") {
+                    const parts = [];
+                    if (payment.cardLastDigits) parts.push(`כרטיס: *${payment.cardLastDigits}`);
+                    if (payment.cardType) parts.push(payment.cardType);
+                    if (payment.cardDealType && payment.cardDealType !== "regular") parts.push(payment.cardDealType);
+                    if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments} תשלומים`);
+                    return parts.join(" | ");
+                  }
+                  
+                  if (payment.method === "העברה בנקאית") {
+                    const parts = [];
+                    if (payment.bankName) parts.push(payment.bankName);
+                    if (payment.bankBranch) parts.push(`סניף: ${payment.bankBranch}`);
+                    if (payment.bankAccount) parts.push(`חשבון: ${payment.bankAccount}`);
+                    return parts.join(" | ");
+                  }
+                  
+                  if (payment.method === "צ׳ק") {
+                    const parts = [];
+                    if (payment.checkNumber) parts.push(`צ׳ק מס׳ ${payment.checkNumber}`);
+                    if (payment.checkBank) parts.push(payment.checkBank);
+                    if (payment.checkBranch) parts.push(`סניף: ${payment.checkBranch}`);
+                    if (payment.checkAccount) parts.push(`חשבון: ${payment.checkAccount}`);
+                    return parts.join(" | ");
+                  }
+                  
+                  if ([
+                    "Bit", "PayBox", "PayPal", "Apple Pay", "Google Pay", 
+                    "Colu", "Pay", "Payoneer", "V-CHECK", "שווה כסף", 
+                    "שובר מתנה", "שובר BuyME", "אתריום", "ביטקוין", 
+                    "ניכוי חלק עובד טל״א"
+                  ].includes(payment.method)) {
+                    const parts = [];
+                    if (payment.payerAccount) parts.push(`חשבון: ${payment.payerAccount}`);
+                    if (payment.transactionReference) parts.push(`עסקה: ${payment.transactionReference}`);
+                    return parts.join(" | ");
+                  }
+                  
+                  if (payment.method === "ניכוי אחר" && payment.description) {
+                    return payment.description;
+                  }
+                  
+                  return "";
+                };
+                
+                return (
                   <div
-                    className="receipt-payment-details"
+                    key={idx}
+                    className="receipt-payment-row"
                     style={{
-                      fontSize: 13,
-                      color: styleSettings.colors.text,
-                      textAlign: "right",
-                      direction: "ltr",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 2fr 1fr",
+                      background: idx % 2 === 0 ? styleSettings.colors.background : styleSettings.colors.tableHeaderBackground,
+                      borderBottom: idx < payments.length - 1 ? `1px solid ${styleSettings.colors.tableRowBorder}` : "none",
+                      padding: "12px 16px",
+                      gap: 16,
                     }}
                   >
-                    {p.bankName && (
-                      <>
-                        {p.bankName}
-                        {p.branch && ` ${p.branch}`}
-                        {p.accountNumber && ` ${p.accountNumber}`}
-                      </>
-                    )}
+                    <div
+                      className="receipt-payment-date"
+                      style={{
+                        fontSize: 13,
+                        color: styleSettings.colors.text,
+                        textAlign: "right",
+                      }}
+                    >
+                      {formatDate(p.date)}
+                    </div>
+                    <div
+                      className="receipt-payment-method"
+                      style={{
+                        fontSize: 13,
+                        color: styleSettings.colors.text,
+                        textAlign: "right",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {p.method || "—"}
+                    </div>
+                    <div
+                      className="receipt-payment-details"
+                      style={{
+                        fontSize: 13,
+                        color: styleSettings.colors.text,
+                        textAlign: "right",
+                      }}
+                    >
+                      {getPaymentDetails(p) || "—"}
+                    </div>
+                    <div
+                      className="receipt-payment-amount"
+                      style={{
+                        fontSize: 13,
+                        color: styleSettings.colors.text,
+                        textAlign: "right",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatMoney(p.amount, p.currency)}
+                    </div>
                   </div>
-                  <div
-                    className="receipt-payment-amount"
-                    style={{
-                      fontSize: 13,
-                      color: styleSettings.colors.text,
-                      textAlign: "right",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {formatMoney(p.amount, p.currency)}
-                  </div>
-                  <div
-                    className="receipt-payment-date"
-                    style={{
-                      fontSize: 13,
-                      color: styleSettings.colors.text,
-                      textAlign: "right",
-                    }}
-                  >
-                    {formatDate(p.date)}
-                  </div>
-                  <div
-                    className="receipt-payment-method"
-                    style={{
-                      fontSize: 13,
-                      color: styleSettings.colors.text,
-                      textAlign: "right",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {p.method || "—"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
 
               {/* Total Row */}
               <div
                 className="receipt-payments-total-row"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                  gridTemplateColumns: "1fr 1fr 2fr 1fr",
                   background: "#F0F0F0",
                   borderTop: `2px solid ${styleSettings.colors.totalBoxBorder}`,
                   padding: "12px 16px",
@@ -721,6 +763,17 @@ export default function PreviewClient({
                 }}
               >
                 <div></div>
+                <div></div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: styleSettings.colors.text,
+                    textAlign: "right",
+                  }}
+                >
+                  סה״כ
+                </div>
                 <div
                   className="receipt-payments-total-amount"
                   style={{
@@ -732,9 +785,6 @@ export default function PreviewClient({
                 >
                   {formatMoney(total, currency)}
                 </div>
-                <div style={{ gridColumn: "3 / 5", fontSize: 14, fontWeight: 700, color: styleSettings.colors.text, textAlign: "right" }}>
-                  סה״כ
-                </div>
               </div>
             </div>
           </div>
@@ -745,10 +795,10 @@ export default function PreviewClient({
           <div
             className="receipt-signature-section"
             style={{
-              marginTop: "40px",
+              marginTop: "30px",
               marginBottom: "16px",
-              marginLeft: "37px",
-              marginRight: "37px",
+              marginLeft: "20px",
+              marginRight: "20px",
               display: "flex",
               justifyContent: "flex-start", // Left side in RTL (שמאל)
               alignItems: "center",
@@ -800,8 +850,8 @@ export default function PreviewClient({
             className="receipt-notes-internal"
             style={{
               marginBottom: 16,
-              marginLeft: "37px",
-              marginRight: "37px",
+              marginLeft: "20px",
+              marginRight: "20px",
               padding: 12,
               background: "#fffbeb",
               borderRadius: 8,
@@ -830,8 +880,8 @@ export default function PreviewClient({
             className="receipt-notes-customer"
             style={{
               marginBottom: 16,
-              marginLeft: "37px",
-              marginRight: "37px",
+              marginLeft: "20px",
+              marginRight: "20px",
               padding: 12,
               background: "#f0f9ff",
               borderRadius: 8,

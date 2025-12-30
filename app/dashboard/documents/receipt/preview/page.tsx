@@ -30,7 +30,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     const companyId = await getCompanyIdForUser();
     const { data } = await supabase
       .from("companies")
-      .select("company_name, business_type, registration_number, address, phone, mobile_phone, email, website, logo_url")
+      .select("company_name, business_type, registration_number, address, phone, mobile_phone, email, website, logo_url, signature_url")
       .eq("id", companyId)
       .maybeSingle();
     
