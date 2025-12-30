@@ -5,7 +5,7 @@ import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { revalidatePath } from "next/cache";
 
 /**
- * מחזיר את ה-company_id של המשתמש המחובר
+ * מחזיר את ה-company_id של המשתמש המחובר (דרך טבלת company_members)
  */
 async function getMyCompanyId() {
   const supabase = await createClient();
@@ -47,9 +47,11 @@ export type BusinessDetailsPayload = {
 };
 
 /**
- * Update business details for the current user's company
+ * עדכון פרטי עסק לחברה של המשתמש
  */
-export async function updateBusinessDetailsAction(payload: BusinessDetailsPayload) {
+export async function updateBusinessDetailsAction(
+  payload: BusinessDetailsPayload
+) {
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
@@ -73,20 +75,20 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
       .eq("id", companyId);
 
     if (error) {
-      return { ok: false, message: error.message };
+      return { ok: false as const, message: error.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
-    
-    return { ok: true };
+
+    return { ok: true as const };
   } catch (e: any) {
-    return { ok: false, message: e?.message ?? "unknown_error" };
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }
 
 /**
- * Upload company logo to Supabase Storage
+ * העלאת לוגו עסק ל-Supabase Storage
  */
 export async function uploadLogoAction(formData: FormData) {
   try {
@@ -95,21 +97,21 @@ export async function uploadLogoAction(formData: FormData) {
 
     const file = formData.get("logo") as File;
     if (!file) {
-      return { ok: false, message: "no_file_provided" };
+      return { ok: false as const, message: "no_file_provided" };
     }
 
-    // Validate file type
+    // בדיקת סוג קובץ
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
     if (!validTypes.includes(file.type)) {
-      return { ok: false, message: "invalid_file_type" };
+      return { ok: false as const, message: "invalid_file_type" };
     }
 
-    // Validate file size (max 5MB)
+    // בדיקת גודל (עד 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      return { ok: false, message: "file_too_large" };
+      return { ok: false as const, message: "file_too_large" };
     }
 
-    // Delete old logo if exists
+    // מחיקת לוגו ישן אם קיים
     const { data: company } = await supabase
       .from("companies")
       .select("logo_url")
@@ -117,12 +119,11 @@ export async function uploadLogoAction(formData: FormData) {
       .single();
 
     if (company?.logo_url) {
-      // Extract path from URL and delete old file
       const oldPath = `business-logos/${companyId}/logo.png`;
       await supabase.storage.from("business-assets").remove([oldPath]);
     }
 
-    // Upload new logo
+    // העלאת לוגו חדש
     const fileExt = file.name.split(".").pop();
     const fileName = `logo.${fileExt}`;
     const filePath = `business-logos/${companyId}/${fileName}`;
@@ -132,49 +133,51 @@ export async function uploadLogoAction(formData: FormData) {
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
-      // Provide helpful error message if bucket doesn't exist
-      if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
-        return { 
-          ok: false, 
-          message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
+      if (
+        uploadError.message.includes("Bucket not found") ||
+        uploadError.message.includes("bucket")
+      ) {
+        return {
+          ok: false as const,
+          message:
+            "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions.",
         };
       }
-      return { ok: false, message: uploadError.message };
+      return { ok: false as const, message: uploadError.message };
     }
 
-    // Get public URL
+    // URL ציבורי
     const { data: urlData } = supabase.storage
       .from("business-assets")
       .getPublicUrl(filePath);
 
-    // Update company record with logo URL
+    // עדכון בטבלת companies
     const { error: updateError } = await supabase
       .from("companies")
       .update({ logo_url: urlData.publicUrl })
       .eq("id", companyId);
 
     if (updateError) {
-      return { ok: false, message: updateError.message };
+      return { ok: false as const, message: updateError.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    return { ok: true, logoUrl: urlData.publicUrl };
+    return { ok: true as const, logoUrl: urlData.publicUrl };
   } catch (e: any) {
     return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }
 
 /**
- * Delete company logo
+ * מחיקת לוגו עסק
  */
 export async function deleteLogoAction() {
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
 
-    // Get current logo URL
     const { data: company } = await supabase
       .from("companies")
       .select("logo_url")
@@ -182,14 +185,12 @@ export async function deleteLogoAction() {
       .single();
 
     if (!company?.logo_url) {
-      return { ok: false, message: "no_logo_to_delete" };
+      return { ok: false as const, message: "no_logo_to_delete" };
     }
 
-    // Delete from storage
     const filePath = `business-logos/${companyId}/logo.png`;
     await supabase.storage.from("business-assets").remove([filePath]);
 
-    // Update company record
     const { error } = await supabase
       .from("companies")
       .update({ logo_url: null })
@@ -209,39 +210,58 @@ export async function deleteLogoAction() {
 }
 
 /**
- * Upload company signature to Supabase Storage
+ * העלאת חתימת חברה ל-Supabase Storage
  */
 export async function uploadCompanySignatureAction(formData: FormData) {
   try {
     const supabase = await createClient();
     const companyId = await getMyCompanyId();
 
-    // 1. משיגים את הקובץ מהטופס
+    // 1. קובץ מהטופס
     const file = formData.get("signature") as File | null;
     if (!file) {
-      return { ok: false, error: "לא התקבל קובץ חתימה" };
+      return { ok: false as const, message: "לא התקבל קובץ חתימה" };
     }
 
-    // 2. מעלים ל-Storage
-    const path = `signatures/${companyId}/${Date.now()}-${file.name}`;
+    // 2. ולידציה בסיסית
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
+    if (!validTypes.includes(file.type)) {
+      return { ok: false as const, message: "סוג קובץ לא נתמך" };
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      return { ok: false as const, message: "הקובץ גדול מדי (מעל 5MB)" };
+    }
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("business-assets") // שים לב: זה צריך להיות אותו bucket כמו הלוגו שלך
-      .upload(path, file, {
-        cacheControl: "3600",
-        upsert: true,
-      });
+    // 3. העלאה ל-Storage
+    const fileExt = file.name.split(".").pop() ?? "png";
+    const fileName = `signature.${fileExt}`;
+    const filePath = `signatures/${companyId}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("business-assets")
+      .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
       console.error("Supabase storage uploadError:", uploadError);
-      return { ok: false, error: uploadError.message };
+      if (
+        uploadError.message.includes("Bucket not found") ||
+        uploadError.message.includes("bucket")
+      ) {
+        return {
+          ok: false as const,
+          message:
+            "Bucket בשם 'business-assets' לא קיים. יש ליצור אותו ב-Supabase Dashboard > Storage.",
+        };
+      }
+      return { ok: false as const, message: uploadError.message };
     }
 
+    // 4. URL ציבורי
     const {
       data: { publicUrl },
-    } = supabase.storage.from("business-assets").getPublicUrl(path);
+    } = supabase.storage.from("business-assets").getPublicUrl(filePath);
 
-    // 3. מעדכנים את החתימה בטבלת companies
+    // 5. עדכון שדה signature_url בטבלת companies
     const { error: updateError } = await supabase
       .from("companies")
       .update({ signature_url: publicUrl })
@@ -249,108 +269,53 @@ export async function uploadCompanySignatureAction(formData: FormData) {
 
     if (updateError) {
       console.error("Supabase companies updateError:", updateError);
-      return { ok: false, error: updateError.message };
-    }
 
-    return { ok: true, url: publicUrl };
-  } catch (e: any) {
-    console.error("uploadCompanySignatureAction fatal error:", e);
-    return { ok: false, error: e?.message || "Unknown error" };
-  }
-}
-
-
-    // Upload new signature
-    const fileExt = file.name.split(".").pop();
-    const fileName = `signature.${fileExt}`;
-    const filePath = `business-signatures/${companyId}/${fileName}`;
-    
-    console.log("Uploading to path:", filePath);
-
-    const { error: uploadError } = await supabase.storage
-      .from("business-assets")
-      .upload(filePath, file, { upsert: true });
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError.message);
-      if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
-        return { 
-          ok: false as const, 
-          message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
-        };
-      }
-      return { ok: false as const, message: uploadError.message };
-    }
-    
-    console.log("Upload successful!");
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from("business-assets")
-      .getPublicUrl(filePath);
-      
-    console.log("Public URL:", urlData.publicUrl);
-
-    // Update company record with signature URL
-    console.log("Updating company record...");
-    const { error: updateError } = await supabase
-      .from("companies")
-      .update({ signature_url: urlData.publicUrl })
-      .eq("id", companyId);
-
-    if (updateError) {
-      console.error("Update error:", updateError.message, updateError);
-      
-      if (updateError.message?.includes("row-level security") || updateError.message?.includes("policy")) {
+      if (
+        updateError.message?.includes("row-level security") ||
+        updateError.message?.includes("policy")
+      ) {
         return {
           ok: false as const,
-          message: "שגיאת הרשאות: אנא הרץ את הסקריפט scripts/017-fix-companies-update-policy.sql במסד הנתונים."
+          message:
+            "שגיאת הרשאות: יש להריץ את הסקריפט scripts/017-fix-companies-update-policy.sql במסד הנתונים.",
         };
       }
-      
-      if (updateError.message?.includes("column") && updateError.message?.includes("signature_url")) {
+
+      if (
+        updateError.message?.includes("column") &&
+        updateError.message?.includes("signature_url")
+      ) {
         return {
           ok: false as const,
-          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
+          message:
+            "העמודה signature_url לא קיימת. יש להריץ את הסקריפט scripts/016-add-signature-field.sql.",
         };
       }
-      
+
       return { ok: false as const, message: updateError.message };
     }
-    
-    console.log("Database updated successfully!");
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    const successResult = { ok: true as const, signatureUrl: urlData.publicUrl };
-    console.log("=== uploadSignatureAction SUCCESS ===");
-    console.log("Returning:", successResult);
-    return successResult;
+    return { ok: true as const, signatureUrl: publicUrl };
   } catch (e: any) {
-    console.error("=== uploadSignatureAction CAUGHT ERROR ===");
-    console.error("Error type:", typeof e);
-    console.error("Error:", e);
-    console.error("Error message:", e?.message);
-    console.error("Error stack:", e?.stack);
-    
-    const errorMessage = e?.message || (e ? String(e) : "unknown_error");
-    const errorResult = { ok: false as const, message: errorMessage };
-    console.log("Returning error:", errorResult);
-    return errorResult;
+    console.error("uploadCompanySignatureAction fatal error:", e);
+    const errorMessage = e?.message || "unknown_error";
+    return { ok: false as const, message: errorMessage };
   }
 }
 
 /**
- * Delete company signature
+ * מחיקת חתימת חברה
  */
 export async function deleteSignatureAction() {
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
 
-    // Get current signature URL (with error handling for missing column)
-    let company;
+    // בודקים שיש בכלל חתימה
+    let company: { signature_url: string | null } | null = null;
     try {
       const { data } = await supabase
         .from("companies")
@@ -359,39 +324,42 @@ export async function deleteSignatureAction() {
         .single();
       company = data;
     } catch (selectError: any) {
-      if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
+      if (
+        selectError?.message?.includes("column") &&
+        selectError?.message?.includes("signature_url")
+      ) {
         return {
-          ok: false,
-          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
+          ok: false as const,
+          message:
+            "העמודה signature_url לא קיימת. יש להריץ את הסקריפט scripts/016-add-signature-field.sql.",
         };
       }
       throw selectError;
     }
 
     if (!company?.signature_url) {
-      return { ok: false, message: "no_signature_to_delete" };
+      return { ok: false as const, message: "no_signature_to_delete" };
     }
 
-    // Delete from storage
-    const filePath = `business-signatures/${companyId}/signature.png`;
+    // מוחקים מה-Storage (אותו path כמו למעלה, בהתאם למה שהעלית)
+    const filePath = `signatures/${companyId}/signature.png`;
     await supabase.storage.from("business-assets").remove([filePath]);
 
-    // Update company record
+    // מעדכנים את הרשומה
     const { error } = await supabase
       .from("companies")
       .update({ signature_url: null })
       .eq("id", companyId);
 
     if (error) {
-      return { ok: false, message: error.message };
+      return { ok: false as const, message: error.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    return { ok: true };
+    return { ok: true as const };
   } catch (e: any) {
-    return { ok: false, message: e?.message ?? "unknown_error" };
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }
-
