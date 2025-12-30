@@ -47,15 +47,15 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
       .eq("id", companyId);
 
     if (error) {
-      return { ok: false as const, message: error.message };
+      return { ok: false, message: error.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
     
-    return { ok: true as const };
+    return { ok: true };
   } catch (e: any) {
-    return { ok: false as const, message: e?.message ?? "unknown_error" };
+    return { ok: false, message: e?.message ?? "unknown_error" };
   }
 }
 
@@ -69,18 +69,18 @@ export async function uploadLogoAction(formData: FormData) {
 
     const file = formData.get("logo") as File;
     if (!file) {
-      return { ok: false as const, message: "no_file_provided" };
+      return { ok: false, message: "no_file_provided" };
     }
 
     // Validate file type
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
     if (!validTypes.includes(file.type)) {
-      return { ok: false as const, message: "invalid_file_type" };
+      return { ok: false, message: "invalid_file_type" };
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      return { ok: false as const, message: "file_too_large" };
+      return { ok: false, message: "file_too_large" };
     }
 
     // Delete old logo if exists
@@ -109,11 +109,11 @@ export async function uploadLogoAction(formData: FormData) {
       // Provide helpful error message if bucket doesn't exist
       if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
         return { 
-          ok: false as const, 
+          ok: false, 
           message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
         };
       }
-      return { ok: false as const, message: uploadError.message };
+      return { ok: false, message: uploadError.message };
     }
 
     // Get public URL
@@ -128,13 +128,13 @@ export async function uploadLogoAction(formData: FormData) {
       .eq("id", companyId);
 
     if (updateError) {
-      return { ok: false as const, message: updateError.message };
+      return { ok: false, message: updateError.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    return { ok: true as const, logoUrl: urlData.publicUrl };
+    return { ok: true, logoUrl: urlData.publicUrl };
   } catch (e: any) {
     return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
@@ -156,7 +156,7 @@ export async function deleteLogoAction() {
       .single();
 
     if (!company?.logo_url) {
-      return { ok: false as const, message: "no_logo_to_delete" };
+      return { ok: false, message: "no_logo_to_delete" };
     }
 
     // Delete from storage
@@ -192,14 +192,28 @@ export async function uploadSignatureAction(
   
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    
+    let companyId: string;
+    try {
+      companyId = await getCompanyIdForUser();
+    } catch (authError: any) {
+      console.error("Authentication error:", authError);
+      return { 
+        ok: false, 
+        message: authError?.message === "not_authenticated" 
+          ? "לא מחובר למערכת" 
+          : authError?.message === "company_not_found"
+          ? "לא נמצאה חברה למשתמש"
+          : authError?.message || "שגיאת אימות"
+      };
+    }
     
     console.log("Company ID:", companyId);
 
     const file = formData.get("signature") as File;
     if (!file) {
       console.log("No file provided");
-      return { ok: false as const, message: "no_file_provided" };
+      return { ok: false, message: "no_file_provided" };
     }
     
     console.log("File received:", file.name, file.type, file.size);
@@ -208,13 +222,13 @@ export async function uploadSignatureAction(
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
     if (!validTypes.includes(file.type)) {
       console.log("Invalid file type:", file.type);
-      return { ok: false as const, message: "invalid_file_type" };
+      return { ok: false, message: "invalid_file_type" };
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       console.log("File too large:", file.size);
-      return { ok: false as const, message: "file_too_large" };
+      return { ok: false, message: "file_too_large" };
     }
 
     // Delete old signature if exists (only if column exists)
@@ -238,7 +252,7 @@ export async function uploadSignatureAction(
       // If column doesn't exist, show helpful message
       if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
         return {
-          ok: false as const,
+          ok: false,
           message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
         };
       }
@@ -261,11 +275,11 @@ export async function uploadSignatureAction(
       // Provide helpful error message if bucket doesn't exist
       if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
         return { 
-          ok: false as const, 
+          ok: false, 
           message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
         };
       }
-      return { ok: false as const, message: uploadError.message };
+      return { ok: false, message: uploadError.message };
     }
     
     console.log("Upload successful");
@@ -285,14 +299,24 @@ export async function uploadSignatureAction(
 
     if (updateError) {
       console.error("Update error:", updateError);
+      
+      // Check for RLS policy violation
+      if (updateError.message?.includes("row-level security") || updateError.message?.includes("policy")) {
+        return {
+          ok: false,
+          message: "שגיאת הרשאות: אנא הרץ את הסקריפט scripts/017-fix-companies-update-policy.sql במסד הנתונים."
+        };
+      }
+      
       // Special handling for missing column
       if (updateError.message?.includes("column") && updateError.message?.includes("signature_url")) {
         return {
-          ok: false as const,
+          ok: false,
           message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql. ראה את הקובץ SIGNATURE_INSTALLATION_GUIDE.md להוראות."
         };
       }
-      return { ok: false as const, message: updateError.message };
+      
+      return { ok: false, message: updateError.message };
     }
     
     console.log("Database updated successfully");
@@ -301,10 +325,12 @@ export async function uploadSignatureAction(
     revalidatePath("/dashboard");
 
     console.log("Returning success with URL:", urlData.publicUrl);
-    return { ok: true as const, signatureUrl: urlData.publicUrl };
+    return { ok: true, signatureUrl: urlData.publicUrl };
   } catch (e: any) {
     console.error("Unexpected error in uploadSignatureAction:", e);
-    return { ok: false as const, message: e?.message ?? "unknown_error" };
+    const errorMessage = e?.message || String(e) || "unknown_error";
+    console.error("Error details:", { message: errorMessage, error: e });
+    return { ok: false, message: errorMessage };
   }
 }
 
@@ -328,7 +354,7 @@ export async function deleteSignatureAction() {
     } catch (selectError: any) {
       if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
         return {
-          ok: false as const,
+          ok: false,
           message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
         };
       }
@@ -336,7 +362,7 @@ export async function deleteSignatureAction() {
     }
 
     if (!company?.signature_url) {
-      return { ok: false as const, message: "no_signature_to_delete" };
+      return { ok: false, message: "no_signature_to_delete" };
     }
 
     // Delete from storage
@@ -350,15 +376,15 @@ export async function deleteSignatureAction() {
       .eq("id", companyId);
 
     if (error) {
-      return { ok: false as const, message: error.message };
+      return { ok: false, message: error.message };
     }
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    return { ok: true as const };
+    return { ok: true };
   } catch (e: any) {
-    return { ok: false as const, message: e?.message ?? "unknown_error" };
+    return { ok: false, message: e?.message ?? "unknown_error" };
   }
 }
 

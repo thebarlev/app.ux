@@ -216,19 +216,41 @@ export default function SettingsClient({ company }: Props) {
 
     console.log("Signature upload result:", result);
 
-    if (result.ok && result.signatureUrl) {
+    if (result && result.ok && result.signatureUrl) {
       setSignatureUrl(result.signatureUrl);
       setMessage({ type: "success", text: "החתימה הועלתה בהצלחה!" });
       router.refresh();
     } else {
       console.error("Signature upload failed:", result);
-      if (result.message?.includes("Bucket not found") || result.message?.includes("business-assets")) {
+      
+      // Handle undefined/null result
+      if (!result) {
+        setMessage({ 
+          type: "error", 
+          text: "שגיאה בהעלאת חתימה - לא התקבלה תשובה מהשרת. אנא בדוק את ה-console לפרטים נוספים." 
+        });
+        return;
+      }
+      
+      const errorMessage = result.message || "שגיאה בהעלאת חתימה";
+      
+      if (errorMessage.includes("Bucket not found") || errorMessage.includes("business-assets")) {
         setMessage({ 
           type: "error", 
           text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות." 
         });
+      } else if (errorMessage.includes("not_authenticated") || errorMessage.includes("לא מחובר")) {
+        setMessage({ 
+          type: "error", 
+          text: "❌ לא מחובר למערכת. אנא התחבר מחדש." 
+        });
+      } else if (errorMessage.includes("company_not_found") || errorMessage.includes("לא נמצאה חברה")) {
+        setMessage({ 
+          type: "error", 
+          text: "❌ לא נמצאה חברה קשורה למשתמש. אנא צור קשר עם התמיכה." 
+        });
       } else {
-        setMessage({ type: "error", text: result.message || "שגיאה בהעלאת חתימה" });
+        setMessage({ type: "error", text: errorMessage });
       }
     }
 
