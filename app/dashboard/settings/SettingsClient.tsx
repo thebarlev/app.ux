@@ -6,6 +6,8 @@ import {
   updateBusinessDetailsAction, 
   uploadLogoAction, 
   deleteLogoAction,
+  uploadSignatureAction,
+  deleteSignatureAction,
   type BusinessDetailsPayload 
 } from "./actions";
 
@@ -26,6 +28,7 @@ type Company = {
   email: string;
   website: string | null;
   logo_url: string | null;
+  signature_url: string | null;
 };
 
 type Props = {
@@ -55,6 +58,7 @@ const INDUSTRIES = [
 export default function SettingsClient({ company }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const signatureInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
@@ -73,8 +77,10 @@ export default function SettingsClient({ company }: Props) {
   });
 
   const [logoUrl, setLogoUrl] = useState(company.logo_url);
+  const [signatureUrl, setSignatureUrl] = useState(company.signature_url ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -194,6 +200,58 @@ export default function SettingsClient({ company }: Props) {
     }
 
     setIsUploadingLogo(false);
+  };
+
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingSignature(true);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append("signature", file);
+
+    const result = await uploadSignatureAction(formData);
+
+    if (result.ok && result.signatureUrl) {
+      setSignatureUrl(result.signatureUrl);
+      setMessage({ type: "success", text: "החתימה הועלתה בהצלחה!" });
+      router.refresh();
+    } else {
+      if (result.message?.includes("Bucket not found") || result.message?.includes("business-assets")) {
+        setMessage({ 
+          type: "error", 
+          text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות." 
+        });
+      } else {
+        setMessage({ type: "error", text: result.message || "שגיאה בהעלאת חתימה" });
+      }
+    }
+
+    setIsUploadingSignature(false);
+    if (signatureInputRef.current) {
+      signatureInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteSignature = async () => {
+    if (!confirm("האם אתה בטוח שברצונך למחוק את החתימה?")) return;
+
+    setIsUploadingSignature(true);
+    setMessage(null);
+
+    const result = await deleteSignatureAction();
+
+    if (result.ok) {
+      setSignatureUrl(null);
+      setMessage({ type: "success", text: "החתימה נמחקה בהצלחה" });
+      router.refresh();
+    } else {
+      setMessage({ type: "error", text: result.message || "שגיאה במחיקת חתימה" });
+    }
+
+    setIsUploadingSignature(false);
   };
 
   return (
@@ -322,6 +380,153 @@ export default function SettingsClient({ company }: Props) {
                   }}
                 >
                   מחק לוגו
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Signature Section */}
+      <div
+        style={{
+          padding: 24,
+          background: "white",
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          marginBottom: 24,
+        }}
+      >
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>חתימת העסק</h2>
+
+        {/* Show installation notice if signature_url field doesn't exist in company object */}
+        {!('signature_url' in company) && (
+          <div
+            style={{
+              padding: 16,
+              marginBottom: 16,
+              borderRadius: 12,
+              border: "1px solid #fbbf24",
+              background: "#fef3c7",
+              color: "#92400e",
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
+              📋 נדרשת התקנה
+            </div>
+            <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
+              כדי להשתמש בתכונת החתימה, יש להריץ את הסקריפט SQL הבא במסד הנתונים:
+            </div>
+            <code
+              style={{
+                display: "block",
+                padding: 12,
+                background: "#fff",
+                borderRadius: 8,
+                fontSize: 13,
+                fontFamily: "monospace",
+                marginBottom: 12,
+                border: "1px solid #fde68a",
+              }}
+            >
+              scripts/016-add-signature-field.sql
+            </code>
+            <div style={{ fontSize: 13, opacity: 0.9 }}>
+              ראה את הקובץ <strong>SIGNATURE_INSTALLATION_GUIDE.md</strong> להוראות מפורטות.
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* Signature Preview */}
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div
+              style={{
+                maxWidth: 400,
+                width: "100%",
+                minHeight: 200,
+                border: "2px dashed #d1d5db",
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#f9fafb",
+                padding: 20,
+              }}
+            >
+              {signatureUrl ? (
+                <img
+                  src={signatureUrl}
+                  alt="Business Signature"
+                  style={{ 
+                    maxWidth: "100%", 
+                    maxHeight: "400px", 
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                    display: "block"
+                  }}
+                />
+              ) : (
+                <div style={{ textAlign: "center", opacity: 0.5 }}>
+                  <div style={{ fontSize: 48 }}>✍️</div>
+                  <div style={{ fontSize: 14, marginTop: 8 }}>אין חתימה</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Signature Actions */}
+          <div style={{ maxWidth: 600 }}>
+            <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
+              העלה חתימה דיגיטלית שתופיע על המסמכים שלך (קבלות, חשבוניות וכו').
+            </p>
+            <p style={{ marginBottom: 16, fontSize: 13, opacity: 0.6 }}>
+              פורמטים נתמכים: PNG, JPG, SVG. גודל מקסימלי: 5MB. מומלץ רקע שקוף (PNG).
+            </p>
+
+            <input
+              ref={signatureInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+              onChange={handleSignatureUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={() => signatureInputRef.current?.click()}
+                disabled={isUploadingSignature}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  border: "1px solid #111827",
+                  background: "#111827",
+                  color: "white",
+                  cursor: isUploadingSignature ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                  opacity: isUploadingSignature ? 0.5 : 1,
+                }}
+              >
+                {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף חתימה" : "העלה חתימה"}
+              </button>
+
+              {signatureUrl && (
+                <button
+                  onClick={handleDeleteSignature}
+                  disabled={isUploadingSignature}
+                  style={{
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    border: "1px solid #ef4444",
+                    background: "white",
+                    color: "#ef4444",
+                    cursor: isUploadingSignature ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    opacity: isUploadingSignature ? 0.5 : 1,
+                  }}
+                >
+                  מחק חתימה
                 </button>
               )}
             </div>

@@ -181,3 +181,157 @@ export async function deleteLogoAction() {
     return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }
+
+/**
+ * Upload company signature to Supabase Storage
+ */
+export async function uploadSignatureAction(formData: FormData) {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    const file = formData.get("signature") as File;
+    if (!file) {
+      return { ok: false as const, message: "no_file_provided" };
+    }
+
+    // Validate file type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
+    if (!validTypes.includes(file.type)) {
+      return { ok: false as const, message: "invalid_file_type" };
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return { ok: false as const, message: "file_too_large" };
+    }
+
+    // Delete old signature if exists (only if column exists)
+    try {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("signature_url")
+        .eq("id", companyId)
+        .single();
+
+      if (company?.signature_url) {
+        // Extract path from URL and delete old file
+        const oldPath = `business-signatures/${companyId}/signature.png`;
+        await supabase.storage.from("business-assets").remove([oldPath]);
+      }
+    } catch (selectError: any) {
+      // If column doesn't exist, show helpful message
+      if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
+        return {
+          ok: false as const,
+          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
+        };
+      }
+      // For other errors, continue (column might exist but be empty)
+    }
+
+    // Upload new signature
+    const fileExt = file.name.split(".").pop();
+    const fileName = `signature.${fileExt}`;
+    const filePath = `business-signatures/${companyId}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("business-assets")
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) {
+      // Provide helpful error message if bucket doesn't exist
+      if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
+        return { 
+          ok: false as const, 
+          message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
+        };
+      }
+      return { ok: false as const, message: uploadError.message };
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from("business-assets")
+      .getPublicUrl(filePath);
+
+    // Update company record with signature URL
+    const { error: updateError } = await supabase
+      .from("companies")
+      .update({ signature_url: urlData.publicUrl })
+      .eq("id", companyId);
+
+    if (updateError) {
+      // Special handling for missing column
+      if (updateError.message?.includes("column") && updateError.message?.includes("signature_url")) {
+        return {
+          ok: false as const,
+          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql. ראה את הקובץ SIGNATURE_INSTALLATION_GUIDE.md להוראות."
+        };
+      }
+      return { ok: false as const, message: updateError.message };
+    }
+
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard");
+
+    return { ok: true as const, signatureUrl: urlData.publicUrl };
+  } catch (e: any) {
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
+  }
+}
+
+/**
+ * Delete company signature
+ */
+export async function deleteSignatureAction() {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    // Get current signature URL (with error handling for missing column)
+    let company;
+    try {
+      const { data } = await supabase
+        .from("companies")
+        .select("signature_url")
+        .eq("id", companyId)
+        .single();
+      company = data;
+    } catch (selectError: any) {
+      if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
+        return {
+          ok: false as const,
+          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
+        };
+      }
+      throw selectError;
+    }
+
+    if (!company?.signature_url) {
+      return { ok: false as const, message: "no_signature_to_delete" };
+    }
+
+    // Delete from storage
+    const filePath = `business-signatures/${companyId}/signature.png`;
+    await supabase.storage.from("business-assets").remove([filePath]);
+
+    // Update company record
+    const { error } = await supabase
+      .from("companies")
+      .update({ signature_url: null })
+      .eq("id", companyId);
+
+    if (error) {
+      return { ok: false as const, message: error.message };
+    }
+
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard");
+
+    return { ok: true as const };
+  } catch (e: any) {
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
+  }
+}
+

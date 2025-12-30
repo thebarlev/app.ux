@@ -1,0 +1,226 @@
+{
+  "receiptClasses": {
+    "version": "2.0",
+    "lastUpdated": "2025-12-30",
+    "sections": {
+      "header": {
+        "part1": {
+          "container": "receipt-part-1",
+          "elements": {
+            "date": {
+              "wrapper": "receipt-date",
+              "description": "תאריך יצירת הקבלה"
+            },
+            "titleAndNumber": {
+              "wrapper": "receipt-title-and-number",
+              "title": "receipt-title-text",
+              "number": "receipt-number",
+              "description": "כותרת 'קבלה' ומספר סידורי באותה שורה"
+            },
+            "copyText": {
+              "wrapper": "receipt-copy-text",
+              "description": "טקסט 'העתק נאמן למקור'"
+            }
+          }
+        },
+        "part2": {
+          "container": "receipt-part-2",
+          "elements": {
+            "toLabel": {
+              "wrapper": "receipt-to-label",
+              "description": "טקסט 'לכבוד'"
+            },
+            "customerName": {
+              "wrapper": "receipt-customer-name",
+              "description": "שם הלקוח"
+            },
+            "customerId": {
+              "wrapper": "receipt-customer-id",
+              "description": "מספר ת.ז. / ח.פ."
+            },
+            "customerPhone": {
+              "wrapper": "receipt-customer-phone",
+              "description": "טלפון לקוח (מוצג רק אם קיים)"
+            }
+          }
+        },
+        "part3": {
+          "container": "receipt-part-3",
+          "elements": {
+            "logo": {
+              "wrapper": "receipt-company-logo",
+              "description": "לוגו החברה"
+            },
+            "companyName": {
+              "wrapper": "receipt-company-name",
+              "description": "שם העסק המנפיק"
+            },
+            "registration": {
+              "wrapper": "receipt-company-registration",
+              "description": "מספר ע.מ. / ח.פ."
+            },
+            "address": {
+              "wrapper": "receipt-company-address",
+              "description": "כתובת העסק"
+            },
+            "phone": {
+              "wrapper": "receipt-company-phone",
+              "description": "טלפון העסק"
+            },
+            "website": {
+              "wrapper": "receipt-company-website",
+              "description": "אתר אינטרנט"
+            }
+          }
+        }
+      },
+      "description": {
+        "container": "receipt-description-section",
+        "elements": {
+          "label": {
+            "wrapper": "receipt-description-label",
+            "text": "receipt-description-label-text",
+            "description": "כותרת 'תיאור:'"
+          },
+          "content": {
+            "wrapper": "receipt-description-text",
+            "value": "receipt-description-value",
+            "description": "תוכן התיאור"
+          }
+        }
+      },
+      "paymentsTable": {
+        "container": "receipt-payments-section",
+        "title": "receipt-payments-title",
+        "table": {
+          "wrapper": "receipt-payments-table",
+          "header": {
+            "row": "receipt-payments-table-header",
+            "cell": "receipt-payments-header-cell",
+            "columns": ["אמצעי", "תאריך", "סכום", "פרטים (אופציונלי)"]
+          },
+          "bodyRow": {
+            "wrapper": "receipt-payment-row",
+            "cells": {
+              "method": "receipt-payment-method",
+              "date": "receipt-payment-date",
+              "amount": "receipt-payment-amount",
+              "details": "receipt-payment-details"
+            }
+          },
+          "totalRow": {
+            "wrapper": "receipt-payments-total-row",
+            "amount": "receipt-payments-total-amount"
+          }
+        }
+      },
+      "total": {
+        "container": "receipt-total-section",
+        "elements": {
+          "label": {
+            "wrapper": "receipt-total-label",
+            "text": "receipt-total-label-text",
+            "description": "טקסט 'סה״כ לתשלום:'"
+          },
+          "amount": {
+            "wrapper": "receipt-total-amount",
+            "value": "receipt-total-value",
+            "description": "הסכום הסופי"
+          }
+        }
+      },
+      "notesInternal": {
+        "container": "receipt-notes-internal",
+        "elements": {
+          "label": {
+            "wrapper": "receipt-notes-internal-label",
+            "text": "receipt-notes-internal-label-text",
+            "description": "כותרת 'הערות פנימיות:'"
+          },
+          "content": {
+            "wrapper": "receipt-notes-internal-text",
+            "value": "receipt-notes-internal-value",
+            "description": "תוכן ההערות"
+          }
+        }
+      },
+      "notesCustomer": {
+        "container": "receipt-notes-customer",
+        "elements": {
+          "label": {
+            "wrapper": "receipt-notes-customer-label",
+            "text": "receipt-notes-customer-label-text",
+            "description": "כותרת 'הערות ללקוח:'"
+          },
+          "content": {
+            "wrapper": "receipt-notes-customer-text",
+            "value": "receipt-notes-customer-value",
+            "description": "תוכן ההערות"
+          }
+        }
+      },
+      "footer": {
+        "container": "receipt-footer",
+        "meta": {
+          "wrapper": "receipt-footer-meta",
+          "receiptNumber": {
+            "container": "receipt-footer-number",
+            "label": {
+              "wrapper": "receipt-footer-number-label",
+              "text": "receipt-footer-number-label-text"
+            },
+            "value": {
+              "wrapper": "receipt-footer-number-value",
+              "text": "receipt-footer-number-value-text"
+            }
+          },
+          "issueDate": {
+            "container": "receipt-footer-issue-date",
+            "label": {
+              "wrapper": "receipt-footer-issue-date-label",
+              "text": "receipt-footer-issue-date-label-text"
+            },
+            "value": {
+              "wrapper": "receipt-footer-issue-date-value",
+              "text": "receipt-footer-issue-date-value-text"
+            }
+          },
+          "status": {
+            "container": "receipt-footer-status",
+            "label": {
+              "wrapper": "receipt-footer-status-label",
+              "text": "receipt-footer-status-label-text"
+            },
+            "value": {
+              "wrapper": "receipt-footer-status-value",
+              "text": "receipt-footer-status-value-text"
+            }
+          }
+        },
+        "signature": {
+          "wrapper": "receipt-footer-signature",
+          "line1": {
+            "wrapper": "receipt-footer-signature-line1",
+            "text": "receipt-footer-signature-line1-text",
+            "companyName": "receipt-footer-signature-company-name"
+          },
+          "line2": {
+            "wrapper": "receipt-footer-signature-line2",
+            "prefix": "receipt-footer-signature-line2-prefix",
+            "date": "receipt-footer-signature-date"
+          },
+          "copyright": {
+            "wrapper": "receipt-footer-copyright",
+            "text": "receipt-footer-copyright-text"
+          }
+        }
+      }
+    },
+    "styleSettings": {
+      "note": "כל ה-classes תומכים בעיצוב דרך styleSettings מה-Admin",
+      "adminOnly": true,
+      "connection": "styleSettings מוזרם מטבלת receipt_style_settings דרך RLS",
+      "customCss": "ניתן להוסיף CSS נוסף דרך שדה customCss ב-styleSettings"
+    }
+  }
+}

@@ -28,6 +28,7 @@ type CustomerData = {
   address_city?: string;
   address_zip?: string;
   tax_exempt?: boolean;
+  tax_id?: string;
 } | null;
 
 type CompanyData = {
@@ -40,6 +41,7 @@ type CompanyData = {
   email?: string;
   website?: string;
   logo_url?: string;
+  signature_url?: string;
 } | null;
 
 export default function PreviewClient({
@@ -96,17 +98,6 @@ export default function PreviewClient({
     document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyName}`;
   }, [previewNumber, companyName]);
 
-  // Auto-download PDF if autoDownload parameter is set
-  useEffect(() => {
-    if (autoDownload) {
-      // Wait for DOM to render, then trigger download
-      const timer = setTimeout(() => {
-        handleDownloadPDF();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [autoDownload]);
-
   const handleDownloadPDF = async () => {
     const element = document.getElementById("receipt-pdf-root");
     if (!element) return;
@@ -139,7 +130,7 @@ export default function PreviewClient({
   return (
     <div
       dir="rtl"
-      style={{ minHeight: "100vh", background: "#f5f5f5", padding: "40px 20px" }}
+      style={{ minHeight: "100vh", background: "#ffffff", padding: "40px 20px" }}
     >
       {/* Override Tailwind's lab() and color-mix() + Apply style settings */}
       <style>{`
@@ -298,6 +289,7 @@ export default function PreviewClient({
         id="receipt-pdf-root"
         className="receipt-document receipt-pdf"
         style={{
+          position: "relative",
           width: "210mm",
           minHeight: "297mm",
           margin: "0 auto",
@@ -331,51 +323,42 @@ export default function PreviewClient({
             }}
           >
             {/* Part 1 – Document metadata */}
-            <div style={{ marginBottom: "25px" }}>
+            <div className="receipt-part-1" style={{ marginBottom: "25px" }}>
               {/* Receipt creation date */}
               <div
+                className="receipt-date"
                 style={{
                   color: "#000",
                   textAlign: "right",
-                  fontSize: "18px",
+                  fontSize: "14px",
                   fontWeight: 700,
                   lineHeight: "normal",
-                  marginBottom: "10px",
+                  marginBottom: "15px",
                 }}
               >
                 {formatDate(documentDate)}
               </div>
 
-              {/* Document title */}
+              {/* Document title and number on same line */}
               <div
+                className="receipt-title-and-number"
                 style={{
                   color: "#000",
                   textAlign: "right",
-                  fontSize: "24px",
+                  fontSize: "32px",
                   fontWeight: 700,
                   lineHeight: "normal",
-                  marginBottom: "15px",
+                  marginBottom: "20px",
+                  marginTop: "10px",
                 }}
               >
-                קבלה
-              </div>
-
-              {/* Receipt serial number */}
-              <div
-                style={{
-                  color: "#000",
-                  textAlign: "right",
-                  fontSize: "20px",
-                  fontWeight: 700,
-                  lineHeight: "normal",
-                  marginBottom: "15px",
-                }}
-              >
-                {previewNumber || ""}
+                <span className="receipt-title-text">קבלה </span>
+                <span className="receipt-number">{previewNumber || ""}</span>
               </div>
 
               {/* Static text */}
               <div
+                className="receipt-copy-text"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -390,23 +373,10 @@ export default function PreviewClient({
             </div>
 
             {/* Part 2 – Customer details */}
-            <div>
-              {/* "לכבוד" */}
-              <div
-                style={{
-                  color: "#000",
-                  textAlign: "right",
-                  fontSize: "14px",
-                  fontWeight: 400,
-                  lineHeight: "normal",
-                  marginBottom: "15px",
-                }}
-              >
-                לכבוד
-              </div>
-
+            <div className="receipt-part-2" style={{ marginLeft: "57px" }}>
               {/* Customer name */}
               <div
+                className="receipt-customer-name"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -420,17 +390,34 @@ export default function PreviewClient({
               </div>
 
               {/* Customer ID */}
-              {customerData && (
+              <div
+                className="receipt-customer-id"
+                style={{
+                  color: "#000",
+                  textAlign: "right",
+                  fontSize: "14px",
+                  fontWeight: 400,
+                  lineHeight: "normal",
+                  marginBottom: "15px",
+                }}
+              >
+                ח.פ. / ת.ז. {customerData?.tax_id || ""}
+              </div>
+
+              {/* Customer phone */}
+              {customerPhone && (
                 <div
+                  className="receipt-customer-phone"
                   style={{
                     color: "#000",
                     textAlign: "right",
                     fontSize: "14px",
                     fontWeight: 400,
                     lineHeight: "normal",
+                    direction: "ltr",
                   }}
                 >
-                  ח.פ. / ת.ז. {/* Add actual customer ID field when available */}
+                  {customerPhone}
                 </div>
               )}
             </div>
@@ -451,6 +438,7 @@ export default function PreviewClient({
 
           {/* Part 3 – Issuer/Company details (Left side) */}
           <div
+            className="receipt-part-3"
             style={{
               position: "absolute",
               top: "70px",
@@ -461,7 +449,7 @@ export default function PreviewClient({
           >
             {/* Logo */}
             {companyData?.logo_url && (
-              <div style={{ marginBottom: "15px" }}>
+              <div className="receipt-company-logo" style={{ marginBottom: "15px" }}>
                 <img
                   src={companyData.logo_url}
                   alt="Company Logo"
@@ -478,6 +466,7 @@ export default function PreviewClient({
 
             {/* Business name */}
             <div
+              className="receipt-company-name"
               style={{
                 color: "#000",
                 fontSize: "12px",
@@ -492,6 +481,7 @@ export default function PreviewClient({
             {/* Company ID / VAT */}
             {companyData?.registration_number && (
               <div
+                className="receipt-company-registration"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -508,6 +498,7 @@ export default function PreviewClient({
             {/* Address */}
             {companyData?.address && (
               <div
+                className="receipt-company-address"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -524,6 +515,7 @@ export default function PreviewClient({
             {/* Phone */}
             {companyPhone && (
               <div
+                className="receipt-company-phone"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -541,6 +533,7 @@ export default function PreviewClient({
             {/* Website */}
             {companyData?.website && (
               <div
+                className="receipt-company-website"
                 style={{
                   color: "#000",
                   textAlign: "right",
@@ -560,128 +553,246 @@ export default function PreviewClient({
           <div
             className="receipt-description-section"
             style={{
+              marginTop: "80px",
               marginBottom: 24,
               marginLeft: "37px",
               marginRight: "37px",
-              padding: 12,
-              background: styleSettings.colors.tableHeaderBackground,
-              borderRadius: 8,
             }}
           >
-            <div
-              className="receipt-description-label"
-              style={{
-                fontSize: 12,
-                color: styleSettings.colors.text,
-                opacity: 0.6,
-                marginBottom: 4,
-              }}
-            >
-              תיאור:
+            <div className="receipt-description-text">
+              <span className="receipt-description-value" style={{ fontSize: 20, color: styleSettings.colors.text }}>{description}</span>
             </div>
-            <div className="receipt-description-text" style={{ fontSize: 14, color: styleSettings.colors.text }}>{description}</div>
           </div>
         )}
 
-        {/* Payment Methods – Horizontal Single Line */}
-        <div
-          className="receipt-payments-section"
-          style={{
-            marginBottom: 24,
-            marginLeft: "37px",
-            marginRight: "37px",
-            padding: styleSettings.sections.paymentsTable.rowPaddingY,
-            background: styleSettings.colors.tableHeaderBackground,
-            borderRadius: 8,
-          }}
-        >
+        {/* Payment Methods Table – פירוט תקבולים */}
+        {payments.length > 0 && (
           <div
-            className="receipt-payments-title"
+            className="receipt-payments-section"
             style={{
-              fontSize: 14,
-              fontWeight: 700,
-              marginBottom: 12,
-              color: styleSettings.colors.tableHeaderText,
+              marginBottom: 24,
+              marginLeft: "37px",
+              marginRight: "37px",
             }}
           >
-            אמצעי תשלום:
-          </div>
-          
-          {payments.length === 0 ? (
-            <div className="receipt-payments-empty" style={{ fontSize: 13, color: styleSettings.colors.text, opacity: 0.6 }}>
-              אין אמצעי תשלום מוגדרים
-            </div>
-          ) : (
+            {/* Table */}
             <div
-              className="receipt-payments-list"
+              className="receipt-payments-table"
               style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 24,
-                alignItems: "center",
+                border: `1px solid ${styleSettings.colors.tableRowBorder}`,
+                borderRadius: 8,
+                overflow: "hidden",
               }}
             >
+              {/* Table Header */}
+              <div
+                className="receipt-payments-table-header"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                  background: styleSettings.colors.tableHeaderBackground,
+                  borderBottom: `2px solid ${styleSettings.colors.tableRowBorder}`,
+                  padding: "12px 16px",
+                  gap: 16,
+                }}
+              >
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  פרטים (אופציונלי)
+                </div>
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  סכום
+                </div>
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  תאריך
+                </div>
+                <div
+                  className="receipt-payments-header-cell"
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: styleSettings.colors.tableHeaderText,
+                    textAlign: "right",
+                  }}
+                >
+                  אמצעי
+                </div>
+              </div>
+
+              {/* Table Rows */}
               {payments.map((p, idx) => (
                 <div
                   key={idx}
-                  className="receipt-payment-item"
+                  className="receipt-payment-row"
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: 13,
-                    color: styleSettings.colors.text,
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                    background: idx % 2 === 0 ? styleSettings.colors.background : styleSettings.colors.tableHeaderBackground,
+                    borderBottom: idx < payments.length - 1 ? `1px solid ${styleSettings.colors.tableRowBorder}` : "none",
+                    padding: "12px 16px",
+                    gap: 16,
                   }}
                 >
-                  <span className="receipt-payment-method" style={{ fontWeight: 600 }}>
-                    {p.method || "—"}
-                  </span>
-                  <span className="receipt-payment-separator">•</span>
-                  <span className="receipt-payment-amount">{formatMoney(p.amount, p.currency)}</span>
-                  {p.bankName && (
-                    <>
-                      <span className="receipt-payment-separator">•</span>
-                      <span className="receipt-payment-bank" style={{ fontSize: 12, color: styleSettings.colors.text, opacity: 0.6 }}>
+                  <div
+                    className="receipt-payment-details"
+                    style={{
+                      fontSize: 13,
+                      color: styleSettings.colors.text,
+                      textAlign: "right",
+                      direction: "ltr",
+                    }}
+                  >
+                    {p.bankName && (
+                      <>
                         {p.bankName}
-                        {p.branch && ` (${p.branch})`}
-                      </span>
-                    </>
-                  )}
+                        {p.branch && ` ${p.branch}`}
+                        {p.accountNumber && ` ${p.accountNumber}`}
+                      </>
+                    )}
+                  </div>
+                  <div
+                    className="receipt-payment-amount"
+                    style={{
+                      fontSize: 13,
+                      color: styleSettings.colors.text,
+                      textAlign: "right",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatMoney(p.amount, p.currency)}
+                  </div>
+                  <div
+                    className="receipt-payment-date"
+                    style={{
+                      fontSize: 13,
+                      color: styleSettings.colors.text,
+                      textAlign: "right",
+                    }}
+                  >
+                    {formatDate(p.date)}
+                  </div>
+                  <div
+                    className="receipt-payment-method"
+                    style={{
+                      fontSize: 13,
+                      color: styleSettings.colors.text,
+                      textAlign: "right",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {p.method || "—"}
+                  </div>
                 </div>
               ))}
-            </div>
-          )}
-        </div>
 
-        {/* Total */}
-        <div
-          className="receipt-total-section"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginLeft: "37px",
-            marginRight: "37px",
-            padding: styleSettings.sections.totalBox.padding,
-            background: styleSettings.colors.totalBoxBackground,
-            borderRadius: 8,
-            border: `2px solid ${styleSettings.colors.totalBoxBorder}`,
-            marginBottom: 24,
-          }}
-        >
-          <div className="receipt-total-label" style={{ fontSize: 18, fontWeight: 700, color: styleSettings.colors.text }}>סה״כ לתשלום:</div>
+              {/* Total Row */}
+              <div
+                className="receipt-payments-total-row"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                  background: "#F0F0F0",
+                  borderTop: `2px solid ${styleSettings.colors.totalBoxBorder}`,
+                  padding: "12px 16px",
+                  gap: 16,
+                }}
+              >
+                <div></div>
+                <div
+                  className="receipt-payments-total-amount"
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: styleSettings.colors.text,
+                    textAlign: "right",
+                  }}
+                >
+                  {formatMoney(total, currency)}
+                </div>
+                <div style={{ gridColumn: "3 / 5", fontSize: 14, fontWeight: 700, color: styleSettings.colors.text, textAlign: "right" }}>
+                  סה״כ
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Signature Section - Below payments table, aligned to left (right in RTL) */}
+        {companyData?.signature_url && (
           <div
-            className="receipt-total-amount"
+            className="receipt-signature-section"
             style={{
-              fontSize: 24,
-              fontWeight: 900,
-              color: styleSettings.colors.text,
-              textAlign: styleSettings.sections.totalBox.alignAmount,
+              marginTop: "40px",
+              marginBottom: "16px",
+              marginLeft: "37px",
+              marginRight: "37px",
+              display: "flex",
+              justifyContent: "flex-start", // Left side in RTL (שמאל)
+              alignItems: "center",
             }}
           >
-            {formatMoney(total, currency)}
+            <div
+              className="receipt-signature-container"
+              style={{
+                textAlign: "center",
+              }}
+            >
+              <img
+                src={companyData.signature_url}
+                alt="חתימת העסק"
+                className="receipt-signature-image"
+                style={{
+                  maxWidth: "200px",
+                  maxHeight: "80px",
+                  objectFit: "contain",
+                  display: "block",
+                  marginBottom: "8px",
+                }}
+              />
+              <div
+                className="receipt-signature-line"
+                style={{
+                  borderTop: "1px solid #000",
+                  width: "200px",
+                  marginBottom: "4px",
+                }}
+              />
+              <div
+                className="receipt-signature-label"
+                style={{
+                  fontSize: "11px",
+                  color: "#666",
+                  fontWeight: 600,
+                }}
+              >
+                חתימה
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Notes */}
         {notes && (
@@ -706,9 +817,11 @@ export default function PreviewClient({
                 marginBottom: 4,
               }}
             >
-              הערות פנימיות:
+              <span className="receipt-notes-internal-label-text">הערות פנימיות:</span>
             </div>
-            <div className="receipt-notes-internal-text" style={{ fontSize: 13, color: "#78350f" }}>{notes}</div>
+            <div className="receipt-notes-internal-text">
+              <span className="receipt-notes-internal-value" style={{ fontSize: 13, color: "#78350f" }}>{notes}</span>
+            </div>
           </div>
         )}
 
@@ -734,105 +847,34 @@ export default function PreviewClient({
                 marginBottom: 4,
               }}
             >
-              הערות ללקוח:
+              <span className="receipt-notes-customer-label-text">הערות ללקוח:</span>
             </div>
-            <div className="receipt-notes-customer-text" style={{ fontSize: 13, color: "#0c4a6e" }}>
-              {footerNotes}
+            <div className="receipt-notes-customer-text">
+              <span className="receipt-notes-customer-value" style={{ fontSize: 13, color: "#0c4a6e" }}>{footerNotes}</span>
             </div>
           </div>
         )}
 
-        {/* Footer – Receipt Details */}
+        {/* Footer - Bottom of page */}
         <div
-          className="receipt-footer"
+          className="receipt-bottom-footer"
           style={{
-            marginTop: 40,
-            marginLeft: "37px",
-            marginRight: "37px",
-            paddingTop: 20,
-            borderTop: `2px solid ${styleSettings.colors.accent}`,
+            position: "absolute",
+            bottom: "30px",
+            left: 0,
+            right: 0,
+            width: "100%",
+            textAlign: "center",
+            fontSize: "12px",
+            color: "#000",
+            lineHeight: "1.8",
           }}
         >
-          <div
-            className="receipt-footer-meta"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            <div className="receipt-footer-meta-item receipt-footer-number">
-              <div
-                className="receipt-footer-meta-label"
-                style={{
-                  fontSize: 11,
-                  color: styleSettings.colors.text,
-                  opacity: 0.6,
-                  marginBottom: 4,
-                }}
-              >
-                מספר קבלה
-              </div>
-              <div className="receipt-footer-meta-value" style={{ fontSize: 13, fontWeight: 600, color: styleSettings.colors.text }}>
-                {previewNumber || "טיוטה"}
-              </div>
-            </div>
-
-            <div className="receipt-footer-meta-item receipt-footer-issue-date">
-              <div
-                className="receipt-footer-meta-label"
-                style={{
-                  fontSize: 11,
-                  color: styleSettings.colors.text,
-                  opacity: 0.6,
-                  marginBottom: 4,
-                }}
-              >
-                תאריך הנפקה
-              </div>
-              <div className="receipt-footer-meta-value" style={{ fontSize: 13, fontWeight: 600, color: styleSettings.colors.text }}>
-                {formatDate(documentDate)}
-              </div>
-            </div>
-
-            <div className="receipt-footer-meta-item receipt-footer-status">
-              <div
-                className="receipt-footer-meta-label"
-                style={{
-                  fontSize: 11,
-                  color: styleSettings.colors.text,
-                  opacity: 0.6,
-                  marginBottom: 4,
-                }}
-              >
-                סטטוס
-              </div>
-              <div className="receipt-footer-meta-value" style={{ fontSize: 13, fontWeight: 600, color: styleSettings.colors.text }}>
-                {previewNumber ? "סופי" : "טיוטה"}
-              </div>
-            </div>
+          <div className="receipt-footer-line1" style={{ marginBottom: "8px" }}>
+            מסמך מוחשב הופק על ידי israel.green
           </div>
-
-          <div
-            className="receipt-footer-signature"
-            style={{
-              textAlign: "center",
-              fontSize: 11,
-              color: styleSettings.colors.text,
-              opacity: 0.5,
-              marginTop: 16,
-              paddingTop: 16,
-              borderTop: `1px solid ${styleSettings.colors.tableRowBorder}`,
-            }}
-          >
-            <div className="receipt-footer-signature-line1">מסמך זה הופק באופן דיגיטלי ב-{companyName}</div>
-            <div className="receipt-footer-signature-line2" style={{ marginTop: 4 }}>
-              תאריך יצירה: {new Date().toLocaleDateString("he-IL")} • {new Date().toLocaleTimeString("he-IL")}
-            </div>
-            <div className="receipt-footer-copyright" style={{ marginTop: 8, fontSize: 10, opacity: 0.7 }}>
-              © כל הזכויות שמורות
-            </div>
+          <div className="receipt-footer-line2">
+            הופק ב- תאריך {formatDate(documentDate)} שעה {new Date().toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' })} קבלה {previewNumber || "—"} עמוד 1 מתוך 1
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } 
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
+import PaymentDetailsSection from "./PaymentDetailsSection";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -25,6 +26,7 @@ const PAYMENT_METHODS = [
   "שווה כסף",
   "V-CHECK",
   "Colu",
+  "Pay",
   "ניכוי במקור",
   "ניכוי חלק עובד טל״א",
   "ניכוי אחר",
@@ -343,7 +345,9 @@ export default function ReceiptFormClient({
                 value={customerName}
                 onChange={setCustomerName}
                 onSelectCustomer={(customer) => {
-                  setCustomerId(customer.id);
+                  if (customer) {
+                    setCustomerId(customer.id);
+                  }
                 }}
                 onAddNewCustomer={() => {
                   // Only open modal when user explicitly clicks "+ Add customer"
@@ -439,26 +443,10 @@ export default function ReceiptFormClient({
                   </td>
 
                   <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <div style={{ display: "grid", gap: 6, gridTemplateColumns: "repeat(3, minmax(120px, 1fr))" }}>
-                      <input
-                        placeholder="בנק"
-                        value={row.bankName ?? ""}
-                        onChange={(e) => updatePaymentRow(i, { bankName: e.target.value })}
-                        style={{ padding: 8 }}
-                      />
-                      <input
-                        placeholder="סניף"
-                        value={row.branch ?? ""}
-                        onChange={(e) => updatePaymentRow(i, { branch: e.target.value })}
-                        style={{ padding: 8 }}
-                      />
-                      <input
-                        placeholder="חשבון"
-                        value={row.accountNumber ?? ""}
-                        onChange={(e) => updatePaymentRow(i, { accountNumber: e.target.value })}
-                        style={{ padding: 8 }}
-                      />
-                    </div>
+                    <PaymentDetailsSection
+                      payment={row}
+                      onUpdate={(updates) => updatePaymentRow(i, updates)}
+                    />
                   </td>
 
                   <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>

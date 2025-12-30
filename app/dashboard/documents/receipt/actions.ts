@@ -92,6 +92,7 @@ export type PaymentMethod =
   | "שווה כסף"
   | "V-CHECK"
   | "Colu"
+  | "Pay"
   | "ניכוי במקור"
   | "ניכוי חלק עובד טל״א"
   | "ניכוי אחר";
@@ -101,9 +102,34 @@ export type PaymentRow = {
   date: string; // YYYY-MM-DD
   amount: number;
   currency: string;
+  
+  // Legacy fields (still used for bank transfer)
   bankName?: string;
   branch?: string;
   accountNumber?: string;
+  
+  // Credit card fields
+  cardInstallments?: number;
+  cardDealType?: string; // regular, payments, credit, deferred
+  cardType?: string; // visa, mastercard, isracard, amex, diners, other
+  cardLastDigits?: string;
+  
+  // Bank transfer fields
+  bankAccount?: string;
+  bankBranch?: string;
+  
+  // Check fields
+  checkBank?: string;
+  checkBranch?: string;
+  checkAccount?: string;
+  checkNumber?: string;
+  
+  // Digital wallet / simple payment fields
+  payerAccount?: string;
+  transactionReference?: string;
+  
+  // Other deduction description
+  description?: string;
 };
 
 export type ReceiptDraftPayload = {

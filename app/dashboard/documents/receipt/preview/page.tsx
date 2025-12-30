@@ -17,7 +17,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   if (customerId) {
     const { data } = await supabase
       .from("customers")
-      .select("name, email, phone, mobile, address_street, address_city, address_zip, tax_exempt")
+      .select("name, email, phone, mobile, address_street, address_city, address_zip, tax_exempt, tax_id")
       .eq("id", customerId)
       .maybeSingle();
     
