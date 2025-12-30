@@ -205,3 +205,77 @@ export async function exportReceiptsCSVAction(
     return { ok: false, message: error?.message || "Failed to export CSV" };
   }
 }
+
+/**
+ * Build preview URL for a receipt by ID
+ * Fetches all receipt data and constructs URL for new preview page
+ */
+export async function getReceiptPreviewUrlAction(receiptId: string): Promise<{
+  ok: boolean;
+  url?: string;
+  message?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    // Fetch the receipt with company isolation
+    const { data: receipt, error: receiptError } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("id", receiptId)
+      .eq("company_id", companyId)
+      .eq("document_type", "receipt")
+      .maybeSingle();
+
+    if (receiptError || !receipt) {
+      return { ok: false, message: "Receipt not found" };
+    }
+
+    // Fetch company info
+    const { data: company } = await supabase
+      .from("companies")
+      .select("company_name")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    // Fetch line items (payments)
+    const { data: lineItems } = await supabase
+      .from("document_line_items")
+      .select("description, item_date, unit_price, line_total, currency, bank_name, branch, account_number")
+      .eq("document_id", receiptId)
+      .order("line_number");
+
+    // Build payments array
+    const payments = (lineItems || []).map((item: any) => ({
+      method: item.description || "תשלום",
+      date: item.item_date || receipt.issue_date || new Date().toISOString().split("T")[0],
+      amount: item.line_total || 0,
+      currency: item.currency || receipt.currency || "₪",
+      bankName: item.bank_name || undefined,
+      branch: item.branch || undefined,
+      accountNumber: item.account_number || undefined,
+    }));
+
+    // Build preview URL query params
+    const params = new URLSearchParams({
+      previewNumber: receipt.document_number || "",
+      companyName: company?.company_name || "העסק שלי",
+      customerName: receipt.customer_name || "",
+      customerId: receipt.customer_id || "",
+      documentDate: receipt.issue_date || new Date().toISOString().split("T")[0],
+      description: receipt.description || "",
+      notes: receipt.internal_notes || "",
+      footerNotes: receipt.customer_notes || "",
+      total: receipt.total_amount?.toString() || "0",
+      currency: receipt.currency || "₪",
+      payments: JSON.stringify(payments),
+    });
+
+    const url = `/dashboard/documents/receipt/preview?${params.toString()}`;
+    
+    return { ok: true, url };
+  } catch (error: any) {
+    return { ok: false, message: error?.message || "Failed to build preview URL" };
+  }
+}

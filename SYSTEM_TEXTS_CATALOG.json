@@ -1,0 +1,105 @@
+{
+  "receiptFormTexts": {
+    "paymentMethods": [
+      { "key": "payment_method_bank_transfer", "default": "העברה בנקאית", "description": "Bank transfer payment method" },
+      { "key": "payment_method_bit", "default": "Bit", "description": "Bit payment method" },
+      { "key": "payment_method_paybox", "default": "PayBox", "description": "PayBox payment method" },
+      { "key": "payment_method_credit_card", "default": "כרטיס אשראי", "description": "Credit card payment method" },
+      { "key": "payment_method_cash", "default": "מזומן", "description": "Cash payment method" },
+      { "key": "payment_method_check", "default": "צ׳ק", "description": "Check payment method" },
+      { "key": "payment_method_paypal", "default": "PayPal", "description": "PayPal payment method" },
+      { "key": "payment_method_payoneer", "default": "Payoneer", "description": "Payoneer payment method" },
+      { "key": "payment_method_google_pay", "default": "Google Pay", "description": "Google Pay payment method" },
+      { "key": "payment_method_apple_pay", "default": "Apple Pay", "description": "Apple Pay payment method" },
+      { "key": "payment_method_bitcoin", "default": "ביטקוין", "description": "Bitcoin payment method" },
+      { "key": "payment_method_ethereum", "default": "אתריום", "description": "Ethereum payment method" },
+      { "key": "payment_method_buyme_voucher", "default": "שובר BuyME", "description": "BuyME voucher payment method" },
+      { "key": "payment_method_gift_voucher", "default": "שובר מתנה", "description": "Gift voucher payment method" },
+      { "key": "payment_method_cash_equivalent", "default": "שווה כסף", "description": "Cash equivalent payment method" },
+      { "key": "payment_method_vcheck", "default": "V-CHECK", "description": "V-CHECK payment method" },
+      { "key": "payment_method_colu", "default": "Colu", "description": "Colu payment method" },
+      { "key": "payment_method_tax_deduction", "default": "ניכוי במקור", "description": "Tax deduction at source" },
+      { "key": "payment_method_employee_deduction", "default": "ניכוי חלק עובד טל״א", "description": "Employee deduction (social security)" },
+      { "key": "payment_method_other_deduction", "default": "ניכוי אחר", "description": "Other deduction" }
+    ],
+    "formLabels": [
+      { "key": "receipt_form_title", "default": "קבלה", "description": "Receipt form title", "location": "Form header" },
+      { "key": "receipt_form_company_default", "default": "העסק שלי", "description": "Default company name placeholder", "location": "Company name fallback" },
+      { "key": "receipt_form_settings_button", "default": "הגדרות", "description": "Settings button", "location": "Header area" },
+      { "key": "receipt_form_settings_title", "default": "הגדרות", "description": "Settings panel title", "location": "Settings panel" },
+      { "key": "receipt_form_language_label", "default": "שפה", "description": "Language setting label", "location": "Settings panel" },
+      { "key": "receipt_form_language_hebrew", "default": "עברית", "description": "Hebrew language option", "location": "Language dropdown" },
+      { "key": "receipt_form_language_english", "default": "אנגלית", "description": "English language option", "location": "Language dropdown" },
+      { "key": "receipt_form_default_currency_label", "default": "מטבע ברירת מחדל", "description": "Default currency label", "location": "Settings panel" },
+      { "key": "receipt_form_allowed_currencies_label", "default": "מותרים:", "description": "Allowed currencies prefix", "location": "Settings panel" },
+      { "key": "receipt_form_round_totals_label", "default": "עיגול סכומים", "description": "Round totals label", "location": "Settings panel" },
+      { "key": "receipt_form_round_totals_description", "default": "לעגל את הסכום הסופי למטבע שלם (ללא אגורות)", "description": "Round totals checkbox description", "location": "Settings panel" },
+      { "key": "receipt_form_settings_note", "default": "הערה: כרגע אלו ברירות מחדל מקומיות למסך (כמו שביקשת). בהמשך נחבר להגדרות חברה ב־DB.", "description": "Settings panel note about local defaults", "location": "Settings panel bottom" }
+    ],
+    "documentDetails": [
+      { "key": "receipt_form_document_details_title", "default": "פרטי המסמך", "description": "Document details section title", "location": "Document details section" },
+      { "key": "receipt_form_customer_name_label", "default": "שם לקוח", "description": "Customer name field label", "location": "Customer name field" },
+      { "key": "receipt_form_customer_name_placeholder", "default": "התחל להקליד שם לקוח...", "description": "Customer name input placeholder", "location": "Customer autocomplete" },
+      { "key": "receipt_form_document_date_label", "default": "תאריך מסמך", "description": "Document date field label", "location": "Date field" },
+      { "key": "receipt_form_description_label", "default": "תיאור", "description": "Description field label", "location": "Description field" },
+      { "key": "receipt_form_description_placeholder", "default": "לדוגמה: שירותי עיצוב", "description": "Description placeholder example", "location": "Description input" }
+    ],
+    "paymentsSection": [
+      { "key": "receipt_form_payments_title", "default": "פירוט תקבולים", "description": "Payments breakdown section title", "location": "Payments section" },
+      { "key": "receipt_form_payments_subtitle", "default": "איך שילמו לך? אם שילמו לך בכמה צורות תשלום, אפשר לבחור כמה סוגי תקבולים.", "description": "Payments section subtitle/help text", "location": "Payments section" },
+      { "key": "receipt_form_payment_method_column", "default": "אמצעי", "description": "Payment method column header", "location": "Payments table header" },
+      { "key": "receipt_form_payment_date_column", "default": "תאריך", "description": "Payment date column header", "location": "Payments table header" },
+      { "key": "receipt_form_payment_amount_column", "default": "סכום", "description": "Payment amount column header", "location": "Payments table header" },
+      { "key": "receipt_form_payment_currency_column", "default": "מטבע", "description": "Payment currency column header", "location": "Payments table header" },
+      { "key": "receipt_form_payment_details_column", "default": "פרטים (אופציונלי)", "description": "Payment details column header (optional)", "location": "Payments table header" },
+      { "key": "receipt_form_payment_method_select_default", "default": "בחר…", "description": "Payment method select default option", "location": "Payment method dropdown" },
+      { "key": "receipt_form_payment_bank_placeholder", "default": "בנק", "description": "Bank name field placeholder", "location": "Payment details" },
+      { "key": "receipt_form_payment_branch_placeholder", "default": "סניף", "description": "Branch number field placeholder", "location": "Payment details" },
+      { "key": "receipt_form_payment_account_placeholder", "default": "חשבון", "description": "Account number field placeholder", "location": "Payment details" },
+      { "key": "receipt_form_payment_delete_button", "default": "מחק", "description": "Delete payment row button", "location": "Payment row" },
+      { "key": "receipt_form_add_payment_button", "default": "הוספת תקבול +", "description": "Add payment row button", "location": "Below payments table" },
+      { "key": "receipt_form_total_paid_label", "default": "סה״כ שולם", "description": "Total paid label", "location": "Payments total row" },
+      { "key": "receipt_form_round_totals_note", "default": "כולל עיגול לסכום סופי (ללא אגורות).", "description": "Note about rounding when enabled", "location": "Below total" }
+    ],
+    "notesSection": [
+      { "key": "receipt_form_notes_title", "default": "הערות", "description": "Notes section title", "location": "Notes section" },
+      { "key": "receipt_form_notes_on_document_label", "default": "הערות שיופיעו במסמך", "description": "Notes that appear on document label", "location": "Notes textarea" },
+      { "key": "receipt_form_notes_footer_label", "default": "הערות בתחתית המסמך", "description": "Footer notes label", "location": "Footer notes textarea" }
+    ],
+    "actionButtons": [
+      { "key": "receipt_form_preview_button", "default": "📄 תצוגה מקדימה (טאב חדש)", "description": "Preview button text (new tab)", "location": "Action buttons" },
+      { "key": "receipt_form_save_draft_button", "default": "שמירת טיוטה", "description": "Save draft button", "location": "Action buttons" },
+      { "key": "receipt_form_save_draft_button_saving", "default": "שומר...", "description": "Save draft button (saving state)", "location": "Action buttons" },
+      { "key": "receipt_form_issue_button", "default": "הפקה + הקצאת מספר", "description": "Issue and assign number button", "location": "Action buttons" },
+      { "key": "receipt_form_issue_button_processing", "default": "מפיק...", "description": "Issue button (processing state)", "location": "Action buttons" },
+      { "key": "receipt_form_sequence_not_locked_tooltip", "default": "נדרש לבחור מספר התחלתי", "description": "Tooltip when sequence not locked", "location": "Issue button tooltip" }
+    ],
+    "messages": [
+      { "key": "receipt_form_error_save_draft", "default": "שגיאה בשמירת הטיוטה", "description": "Error saving draft", "location": "Error message" },
+      { "key": "receipt_form_error_sequence_required", "default": "נדרש לבחור מספר התחלתי לפני הפקת מסמכים", "description": "Error: starting number required", "location": "Error message" },
+      { "key": "receipt_form_error_save_before_issue", "default": "יש לשמור את הטיוטה ולהפיק מהרשימה", "description": "Error: save draft before issuing", "location": "Error message" },
+      { "key": "receipt_form_error_issue_document", "default": "שגיאה בהפקת המסמך", "description": "Error issuing document", "location": "Error message" },
+      { "key": "receipt_form_error_pdf_download", "default": "שגיאה בהורדת PDF:", "description": "Error downloading PDF prefix", "location": "Error message" },
+      { "key": "receipt_form_customer_added_success", "default": "הלקוח \"{name}\" נוסף בהצלחה ללקוחות שמורים", "description": "Customer added successfully message", "location": "Success message" },
+      { "key": "receipt_form_customer_name_saved", "default": "שם הלקוח נשמר למסמך זה בלבד (לא נוסף ללקוחות)", "description": "Customer name saved for this document only", "location": "Info message" },
+      { "key": "receipt_form_system_notes_title", "default": "📌 הערות מערכת", "description": "System notes section title", "location": "Footer system notes" }
+    ]
+  },
+  "totals": {
+    "paymentMethods": 20,
+    "formLabels": 12,
+    "documentDetails": 6,
+    "paymentsSection": 15,
+    "notesSection": 3,
+    "actionButtons": 6,
+    "messages": 8,
+    "grandTotal": 70
+  },
+  "instructions": {
+    "step1": "Run SYSTEM_TEXTS_SEED_DATA.sql in Supabase SQL Editor to add all these keys to the database",
+    "step2": "Use the useSystemTexts() hook in ReceiptFormClient.tsx: const { getText } = useSystemTexts()",
+    "step3": "Replace hard-coded strings with: getText('key_name', 'fallback text')",
+    "step4": "Test the form to ensure all texts load correctly",
+    "step5": "Admins can now customize all these texts via /admin/texts interface"
+  }
+}

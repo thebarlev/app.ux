@@ -3,6 +3,9 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "./actions";
 import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } from "./actions";
+import CustomerAutocomplete from "@/components/CustomerAutocomplete";
+import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
+import StartingNumberModal from "@/components/documents/StartingNumberModal";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -62,6 +65,7 @@ export default function ReceiptFormClient({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
+  const [showStartingNumberModal, setShowStartingNumberModal] = useState(false);
 
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
@@ -71,6 +75,8 @@ export default function ReceiptFormClient({
   const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "₪");
 
   const [customerName, setCustomerName] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
 
@@ -83,6 +89,20 @@ export default function ReceiptFormClient({
 
   const [busy, setBusy] = useState<null | "draft" | "issue">(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [successModal, setSuccessModal] = useState<{
+    receiptId: string;
+    documentNumber: string;
+    companyName: string;
+    payload: ReceiptDraftPayload;
+  } | null>(null);
+
+  // Check if sequence is locked, and show modal if not
+  useEffect(() => {
+    if (initial.ok && !initial.sequenceLocked && !draftId) {
+      // First time creating receipt, need to set starting number
+      setShowStartingNumberModal(true);
+    }
+  }, [initial, draftId]);
 
   // Load edit data if editing a draft
   useEffect(() => {
@@ -110,6 +130,7 @@ export default function ReceiptFormClient({
     return {
       documentType: "receipt",
       customerName,
+      customerId,
       documentDate,
       description,
       payments,
@@ -120,7 +141,7 @@ export default function ReceiptFormClient({
       roundTotals,
       language,
     };
-  }, [customerName, documentDate, description, payments, notes, footerNotes, currency, total, roundTotals, language]);
+  }, [customerName, customerId, documentDate, description, payments, notes, footerNotes, currency, total, roundTotals, language]);
 
   if (!initial.ok) {
     return (
@@ -155,14 +176,23 @@ export default function ReceiptFormClient({
     setMessage(null);
     setBusy("draft");
     try {
+      let result;
       if (draftId && editData) {
         // Update existing draft
-        await updateReceiptDraftAction(draftId, payload);
+        result = await updateReceiptDraftAction(draftId, payload);
       } else {
         // Create new draft
-        await saveReceiptDraftAction(payload);
+        result = await saveReceiptDraftAction(payload);
       }
-      // Both actions redirect automatically on success
+      
+      if (!result.ok) {
+        setMessage(result.message || "שגיאה בשמירת הטיוטה");
+        setBusy(null);
+        return;
+      }
+      
+      // Success! Redirect to documents list
+      window.location.href = "/dashboard/documents";
     } catch (error: any) {
       setMessage(error.message || "שגיאה בשמירת הטיוטה");
       setBusy(null);
@@ -171,6 +201,14 @@ export default function ReceiptFormClient({
 
   async function onIssue() {
     setMessage(null);
+    
+    // Prevent issue if sequence not locked
+    if (!sequenceLocked) {
+      setMessage("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
+      setShowStartingNumberModal(true);
+      return;
+    }
+    
     setBusy("issue");
     try {
       if (draftId && editData) {
@@ -180,8 +218,12 @@ export default function ReceiptFormClient({
         return;
       }
       
+      console.log("Issuing receipt with payload:", payload);
+      
       // Issue the receipt
       const result = await issueReceiptAction(payload);
+      
+      console.log("Issue result:", result);
       
       if (!result.ok) {
         setMessage(result.message || "שגיאה בהפקת המסמך");
@@ -189,23 +231,18 @@ export default function ReceiptFormClient({
         return;
       }
       
-      // Success! Download PDF automatically
-      if (result.receiptId) {
-        // Trigger PDF download
-        const pdfUrl = `/api/receipts/${result.receiptId}/pdf`;
-        const link = document.createElement("a");
-        link.href = pdfUrl;
-        link.download = `receipt-${result.documentNumber || "new"}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Small delay to ensure download started, then redirect
-        setTimeout(() => {
-          window.location.href = "/dashboard/documents";
-        }, 500);
+      // Success! Show modal with options
+      if (result.receiptId && result.documentNumber && result.companyName && result.payload) {
+        setBusy(null);
+        setSuccessModal({
+          receiptId: result.receiptId,
+          documentNumber: result.documentNumber,
+          companyName: result.companyName,
+          payload: result.payload,
+        });
       }
     } catch (error: any) {
+      console.error("Issue error:", error);
       setMessage(error.message || "שגיאה בהפקת המסמך");
       setBusy(null);
     }
@@ -228,10 +265,7 @@ export default function ReceiptFormClient({
       >
         <div>
           <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.1 }}>
-            קבלה <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>{headerNumberText}</span>
-          </div>
-          <div style={{ marginTop: 6, opacity: 0.75 }}>
-            {previewNumber ? `מספר תצוגה מקדימה: ${previewNumber}` : "מספר יוקצה בעת הפקה"}
+            קבלה {previewNumber && <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>| {previewNumber}</span>}
           </div>
         </div>
 
@@ -303,8 +337,21 @@ export default function ReceiptFormClient({
 
         <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
           <div>
-            <div style={{ fontWeight: 800 }}>שם לקוח</div>
-            <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }} placeholder="לדוגמה: ישראל ישראלי" />
+            <div style={{ fontWeight: 800 }}>שם לקוח <span style={{ color: "#ef4444" }}>*</span></div>
+            <div style={{ marginTop: 6 }}>
+              <CustomerAutocomplete
+                value={customerName}
+                onChange={setCustomerName}
+                onSelectCustomer={(customer) => {
+                  setCustomerId(customer.id);
+                }}
+                onAddNewCustomer={() => {
+                  // Only open modal when user explicitly clicks "+ Add customer"
+                  setShowQuickAddModal(true);
+                }}
+                placeholder="התחל להקליד שם לקוח..."
+              />
+            </div>
           </div>
 
           <div>
@@ -482,74 +529,51 @@ export default function ReceiptFormClient({
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button
           type="button"
-          onClick={() => {
-            // Open preview in new tab
-            const previewData = {
-              previewNumber,
-              companyName: initial.companyName || "העסק שלי",
-              customerName,
-              documentDate,
-              description,
-              notes,
-              footerNotes,
-              total: String(total),
-              currency,
-              payments: JSON.stringify(payments),
-              data: JSON.stringify(payload),
-            };
-            
-            const params = new URLSearchParams(previewData as any);
-            window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
-          }}
-          style={{ 
-            padding: "10px 14px", 
-            borderRadius: 12, 
-            border: "1px solid #3b82f6", 
-            background: "#3b82f6",
-            color: "white",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          📄 תצוגה מקדימה (טאב חדש)
-        </button>
-
-        <button
-          type="button"
           onClick={onSaveDraft}
           disabled={busy != null}
           style={{
-            padding: "10px 14px",
+            padding: "12px 20px",
             borderRadius: 12,
-            border: "1px solid #e5e7eb",
+            border: "1px solid #d1d5db",
             background: busy === "draft" ? "#f3f4f6" : "white",
             cursor: busy != null ? "not-allowed" : "pointer",
+            fontWeight: 600,
+            fontSize: 15,
           }}
         >
-          {busy === "draft" ? "שומר..." : "שמירת טיוטה (לא מקצה מספר)"}
+          {busy === "draft" ? "שומר בטיוטות..." : "💾 שמירה בטיוטות"}
         </button>
 
         <button
           type="button"
           onClick={onIssue}
-          disabled={busy != null}
+          disabled={busy != null || !sequenceLocked}
           style={{
-            padding: "10px 14px",
+            padding: "12px 20px",
             borderRadius: 12,
             border: "1px solid #111827",
-            background: busy === "issue" ? "#111827" : "#111827",
+            background: (busy != null || !sequenceLocked) ? "#9ca3af" : "#111827",
             color: "white",
-            cursor: busy != null ? "not-allowed" : "pointer",
-            opacity: busy != null ? 0.6 : 1,
+            cursor: (busy != null || !sequenceLocked) ? "not-allowed" : "pointer",
+            opacity: (busy != null || !sequenceLocked) ? 0.6 : 1,
+            fontWeight: 700,
+            fontSize: 15,
           }}
+          title={!sequenceLocked ? "נדרש לבחור מספר התחלתי" : ""}
         >
-          {busy === "issue" ? "מפיק..." : `הפקה + הקצאת מספר${previewNumber ? ` (${previewNumber})` : ""}`}
+          {busy === "issue" ? "יוצר קבלה..." : "✅ יצירת קבלה"}
         </button>
       </div>
 
       {message && (
-        <div style={{ padding: 12, borderRadius: 12, border: "1px solid #e5e7eb", background: "#f9fafb" }}>
-          {message}
+        <div style={{ 
+          padding: 12, 
+          borderRadius: 12, 
+          border: message.includes("שגיאה") ? "1px solid #fca5a5" : "1px solid #bfdbfe",
+          background: message.includes("שגיאה") ? "#fef2f2" : "#eff6ff",
+          color: message.includes("שגיאה") ? "#991b1b" : "#1e40af",
+        }}>
+          {message.includes("שגיאה") && "⚠️ "}{message}
         </div>
       )}
 
@@ -572,6 +596,177 @@ export default function ReceiptFormClient({
             whiteSpace: "pre-wrap",
           }}>
             {footerText}
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Customer Modal */}
+      <QuickAddCustomerModal
+        isOpen={showQuickAddModal}
+        onClose={() => setShowQuickAddModal(false)}
+        onCustomerCreated={(customer) => {
+          setCustomerName(customer.name);
+          setCustomerId(customer.id);
+          setMessage(`הלקוח "${customer.name}" נוסף בהצלחה ללקוחות שמורים`);
+          setTimeout(() => setMessage(null), 3000);
+        }}
+        onSaveNameOnly={(name) => {
+          setCustomerName(name);
+          setCustomerId(null);
+          setMessage("שם הלקוח נשמר למסמך זה בלבד (לא נוסף ללקוחות)");
+          setTimeout(() => setMessage(null), 3000);
+        }}
+        prefillName={customerName}
+      />
+
+      {/* Starting Number Modal - Opens on first receipt creation */}
+      {showStartingNumberModal && (
+        <StartingNumberModal
+          documentType="receipt"
+          onClose={() => {
+            // User cancelled - redirect back to documents list
+            window.location.href = "/dashboard/documents";
+          }}
+          onSuccess={() => {
+            // Sequence is now locked, refresh page to get new sequence info
+            setShowStartingNumberModal(false);
+            setSequenceLocked(true);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {/* Success Modal - Receipt Created Successfully */}
+      {successModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => {
+            setSuccessModal(null);
+            window.location.href = "/dashboard/documents";
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 20,
+              padding: 40,
+              maxWidth: 500,
+              width: "90%",
+              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+              textAlign: "center",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Success Icon */}
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: "50%",
+                background: "#10b981",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+              }}
+            >
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <h2 style={{ fontSize: 28, fontWeight: 900, marginBottom: 12, color: "#111827" }}>
+              יצרת בהצלחה קבלה!
+            </h2>
+
+            {/* Receipt Number */}
+            <div style={{ fontSize: 18, color: "#6b7280", marginBottom: 32 }}>
+              מספר קבלה: <strong style={{ color: "#111827" }}>{successModal.documentNumber}</strong>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <button
+                onClick={() => {
+                  // Open preview page with auto-download enabled
+                  const previewData = {
+                    previewNumber: successModal.documentNumber,
+                    companyName: successModal.companyName,
+                    customerName: successModal.payload.customerName,
+                    customerId: successModal.payload.customerId || "",
+                    documentDate: successModal.payload.documentDate,
+                    description: successModal.payload.description || "",
+                    notes: successModal.payload.notes,
+                    footerNotes: successModal.payload.footerNotes,
+                    total: String(successModal.payload.total),
+                    currency: successModal.payload.currency,
+                    payments: JSON.stringify(successModal.payload.payments),
+                    autoDownload: "true", // Trigger auto-download
+                  };
+                  
+                  const params = new URLSearchParams(previewData as any);
+                  window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
+                  
+                  // Close modal and redirect after short delay
+                  setTimeout(() => {
+                    setSuccessModal(null);
+                    window.location.href = "/dashboard/documents";
+                  }, 1000);
+                }}
+                style={{
+                  padding: "16px 32px",
+                  borderRadius: 12,
+                  border: "none",
+                  background: "#111827",
+                  color: "white",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                הורדת קבלה (PDF)
+              </button>
+
+              <button
+                onClick={() => {
+                  setSuccessModal(null);
+                  window.location.href = "/dashboard/documents";
+                }}
+                style={{
+                  padding: "16px 32px",
+                  borderRadius: 12,
+                  border: "1px solid #d1d5db",
+                  background: "white",
+                  color: "#374151",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                סגירה
+              </button>
+            </div>
           </div>
         </div>
       )}

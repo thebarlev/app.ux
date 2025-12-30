@@ -109,6 +109,7 @@ export type PaymentRow = {
 export type ReceiptDraftPayload = {
   documentType: "receipt";
   customerName: string;
+  customerId?: string | null; // NEW: Link to customer record
   documentDate: string;
   description: string;
   payments: PaymentRow[];
@@ -152,8 +153,10 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
       document_type: "receipt",
       document_status: "draft", // Always draft
       document_number: null, // NEVER set a number for drafts
+      customer_id: payload.customerId || null, // Link to customer
       customer_name: payload.customerName,
       issue_date: payload.documentDate,
+      document_description: payload.description || null, // Receipt description
       total_amount: payload.total,
       currency: payload.currency,
       internal_notes: payload.notes,
@@ -171,9 +174,14 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
       company_id: companyId,
       line_number: idx + 1,
       description: payment.method,
+      item_date: payment.date, // Save individual payment date
       quantity: 1,
       unit_price: payment.amount,
       line_total: payment.amount,
+      currency: payment.currency,
+      bank_name: payment.bankName || null,
+      branch: payment.branch || null,
+      account_number: payment.accountNumber || null,
     }));
 
     const { error: lineItemsError } = await supabase
@@ -186,8 +194,7 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
     }
   }
   
-  // Redirect to documents list after saving draft
-  redirect("/dashboard/documents");
+  return { ok: true as const, draftId: data.id };
 }
 
 /**
@@ -211,8 +218,10 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
       document_type: "receipt",
       document_status: "draft",
       document_number: null, // No number until finalized
+      customer_id: payload.customerId || null,
       customer_name: payload.customerName,
       issue_date: payload.documentDate,
+      document_description: payload.description || null, // Receipt description
       total_amount: payload.total,
       currency: payload.currency,
       internal_notes: payload.notes,
@@ -230,9 +239,14 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
       company_id: companyId,
       line_number: idx + 1,
       description: payment.method,
+      item_date: payment.date, // Save individual payment date
       quantity: 1,
       unit_price: payment.amount,
       line_total: payment.amount,
+      currency: payment.currency,
+      bank_name: payment.bankName || null,
+      branch: payment.branch || null,
+      account_number: payment.accountNumber || null,
     }));
 
     const { error: lineItemsError } = await supabase
@@ -255,11 +269,20 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
     };
   }
 
-  // Return the receipt ID so client can download PDF
+  // Get company name for preview
+  const { data: company } = await supabase
+    .from("companies")
+    .select("company_name")
+    .eq("id", companyId)
+    .single();
+
+  // Return the receipt data for preview
   return {
     ok: true as const,
     receiptId: draft.id,
     documentNumber: result.documentNumber,
+    companyName: company?.company_name || "העסק שלי",
+    payload, // Return original payload for preview
   };
 }
 
@@ -313,8 +336,7 @@ export async function updateReceiptDraftAction(draftId: string, payload: Receipt
     return { ok: false as const, message: updateError.message };
   }
 
-  // Redirect to documents list after update
-  redirect("/dashboard/documents");
+  return { ok: true as const };
 }
 
 /**

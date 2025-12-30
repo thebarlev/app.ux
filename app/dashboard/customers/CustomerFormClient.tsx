@@ -121,12 +121,33 @@ export default function CustomerFormClient({ customer }: Props) {
         >
           ← חזרה ללקוחות
         </Link>
-        <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>
-          פרטי הלקוח
-        </h1>
-        <p style={{ marginTop: 8, opacity: 0.75 }}>
-          {isEdit ? "עדכן את פרטי הלקוח" : "הוסף לקוח חדש למערכת"}
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>
+              פרטי הלקוח
+            </h1>
+            <p style={{ marginTop: 8, opacity: 0.75 }}>
+              {isEdit ? "עדכן את פרטי הלקוח" : "הוסף לקוח חדש למערכת"}
+            </p>
+          </div>
+          {isEdit && (
+            <Link
+              href={`/dashboard/customers/${customer.id}/documents`}
+              style={{
+                padding: "10px 20px",
+                background: "#3b82f6",
+                color: "white",
+                borderRadius: 10,
+                textDecoration: "none",
+                fontWeight: 600,
+                fontSize: 14,
+                display: "inline-block",
+              }}
+            >
+              📄 צפה במסמכים
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Message */}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReceiptsListFilters, ReceiptsListResult } from "./actions";
-import { exportReceiptsCSVAction } from "./actions";
+import { exportReceiptsCSVAction, getReceiptPreviewUrlAction } from "./actions";
 
 type Props = {
   initialData: { ok: boolean; data?: ReceiptsListResult; message?: string };
@@ -397,8 +397,15 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                           </Link>
                         ) : (
                           <>
-                            <Link
-                              href={`/dashboard/documents/receipt/view?id=${receipt.id}`}
+                            <button
+                              onClick={async () => {
+                                const result = await getReceiptPreviewUrlAction(receipt.id);
+                                if (result.ok && result.url) {
+                                  window.open(result.url, "_blank");
+                                } else {
+                                  alert(result.message || "Failed to open preview");
+                                }
+                              }}
                               style={{
                                 padding: "6px 12px",
                                 borderRadius: 8,
@@ -407,25 +414,55 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                                 cursor: "pointer",
                                 fontSize: 14,
                                 fontWeight: 600,
-                                textDecoration: "none",
                                 color: "white",
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: 6,
                               }}
-                              target="_blank"
                             >
                               👁 צפייה
-                            </Link>
+                            </button>
                             <button
-                              onClick={() => {
-                                const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
-                                const link = document.createElement("a");
-                                link.href = pdfUrl;
-                                link.download = `receipt-${receipt.document_number}.pdf`;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
+                              onClick={async () => {
+                                try {
+                                  const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
+                                  console.log("Downloading PDF from:", pdfUrl);
+                                  
+                                  // Fetch PDF as binary data
+                                  const response = await fetch(pdfUrl);
+                                  
+                                  if (!response.ok) {
+                                    throw new Error(`PDF download failed: ${response.statusText}`);
+                                  }
+                                  
+                                  // Get the binary data as a Blob
+                                  const blob = await response.blob();
+                                  console.log("PDF blob size:", blob.size, "type:", blob.type);
+                                  
+                                  if (blob.size === 0) {
+                                    throw new Error("Downloaded PDF is empty");
+                                  }
+                                  
+                                  // Create a proper Blob with correct MIME type
+                                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                                  
+                                  // Create download link
+                                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                                  const link = document.createElement("a");
+                                  link.href = downloadUrl;
+                                  link.download = `receipt-${receipt.document_number}.pdf`;
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  
+                                  // Cleanup
+                                  document.body.removeChild(link);
+                                  window.URL.revokeObjectURL(downloadUrl);
+                                  
+                                  console.log("PDF download completed");
+                                } catch (error: any) {
+                                  console.error("PDF download error:", error);
+                                  alert(`שגיאה בהורדת PDF: ${error.message}`);
+                                }
                               }}
                               style={{
                                 padding: "6px 12px",

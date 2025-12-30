@@ -232,27 +232,35 @@ export default function SettingsClient({ company }: Props) {
       >
         <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו העסק</h2>
 
-        <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Logo Preview */}
-          <div style={{ flex: "0 0 200px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
             <div
               style={{
-                width: 200,
-                height: 200,
+                maxWidth: 400,
+                width: "100%",
+                minHeight: 200,
                 border: "2px dashed #d1d5db",
                 borderRadius: 12,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 background: "#f9fafb",
-                overflow: "hidden",
+                padding: 20,
               }}
             >
               {logoUrl ? (
                 <img
                   src={logoUrl}
                   alt="Company Logo"
-                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+                  style={{ 
+                    maxWidth: "100%", 
+                    maxHeight: "400px", 
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                    display: "block"
+                  }}
                 />
               ) : (
                 <div style={{ textAlign: "center", opacity: 0.5 }}>
@@ -264,7 +272,7 @@ export default function SettingsClient({ company }: Props) {
           </div>
 
           {/* Logo Actions */}
-          <div style={{ flex: 1 }}>
+          <div style={{ maxWidth: 600 }}>
             <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
               העלה לוגו לעסק שלך. הלוגו יופיע על כל הקבלות והמסמכים.
             </p>

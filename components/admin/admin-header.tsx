@@ -10,7 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Shield, Settings, LogOut, User } from "lucide-react"
+import { Shield, Settings, LogOut, User, FileText, Home, Palette } from "lucide-react"
+import Link from "next/link"
 
 interface AdminHeaderProps {
   adminName: string
@@ -40,6 +41,27 @@ export function AdminHeader({ adminName, onSettingsClick }: AdminHeaderProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link href="/admin">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+          </Link>
+          
+          <Link href="/admin/texts">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">System Texts</span>
+            </Button>
+          </Link>
+          
+          <Link href="/admin/receipt-style">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Palette className="h-4 w-4" />
+              <span className="hidden sm:inline">Receipt Style</span>
+            </Button>
+          </Link>
+
           <Button variant="outline" size="sm" onClick={onSettingsClick} className="gap-2 bg-transparent">
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">Settings</span>
