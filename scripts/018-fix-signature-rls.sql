@@ -15,8 +15,9 @@ COMMENT ON COLUMN public.companies.signature_url IS 'URL to uploaded signature i
 -- Step 2: Fix companies UPDATE policy
 -- ====================================
 
--- Drop existing restrictive policy if exists
+-- Drop existing policies if they exist
 DROP POLICY IF EXISTS "Business owners can update own company" ON public.companies;
+DROP POLICY IF EXISTS "companies_update_policy" ON public.companies;
 
 -- Create comprehensive UPDATE policy
 -- Allows update if:
