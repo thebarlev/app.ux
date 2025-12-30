@@ -188,50 +188,54 @@ export async function deleteLogoAction() {
 export async function uploadSignatureAction(
   formData: FormData
 ): Promise<{ ok: true; signatureUrl: string } | { ok: false; message: string }> {
-  console.log("uploadSignatureAction called");
+  console.log("=== uploadSignatureAction START ===");
+  console.log("FormData keys:", Array.from(formData.keys()));
   
   try {
     const supabase = await createClient();
+    console.log("Supabase client created");
     
     let companyId: string;
     try {
       companyId = await getCompanyIdForUser();
+      console.log("Company ID obtained:", companyId);
     } catch (authError: any) {
       console.error("Authentication error:", authError);
-      return { 
-        ok: false, 
+      const errorResult = { 
+        ok: false as const, 
         message: authError?.message === "not_authenticated" 
           ? "לא מחובר למערכת" 
           : authError?.message === "company_not_found"
           ? "לא נמצאה חברה למשתמש"
           : authError?.message || "שגיאת אימות"
       };
+      console.log("Returning auth error:", errorResult);
+      return errorResult;
     }
-    
-    console.log("Company ID:", companyId);
 
     const file = formData.get("signature") as File;
-    if (!file) {
-      console.log("No file provided");
-      return { ok: false, message: "no_file_provided" };
-    }
+    console.log("File from FormData:", file ? `${file.name} (${file.size} bytes, ${file.type})` : "null");
     
-    console.log("File received:", file.name, file.type, file.size);
+    if (!file) {
+      console.log("No file provided - returning error");
+      return { ok: false as const, message: "no_file_provided" };
+    }
 
     // Validate file type
     const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/svg+xml"];
     if (!validTypes.includes(file.type)) {
       console.log("Invalid file type:", file.type);
-      return { ok: false, message: "invalid_file_type" };
+      return { ok: false as const, message: "invalid_file_type" };
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       console.log("File too large:", file.size);
-      return { ok: false, message: "file_too_large" };
+      return { ok: false as const, message: "file_too_large" };
     }
 
-    // Delete old signature if exists (only if column exists)
+    // Delete old signature if exists
+    console.log("Checking for existing signature...");
     try {
       const { data: company } = await supabase
         .from("companies")
@@ -239,24 +243,21 @@ export async function uploadSignatureAction(
         .eq("id", companyId)
         .single();
 
-      console.log("Existing signature check:", company);
+      console.log("Existing signature:", company?.signature_url || "none");
 
       if (company?.signature_url) {
-        // Extract path from URL and delete old file
         const oldPath = `business-signatures/${companyId}/signature.png`;
         await supabase.storage.from("business-assets").remove([oldPath]);
-        console.log("Deleted old signature");
+        console.log("Deleted old signature at:", oldPath);
       }
     } catch (selectError: any) {
-      console.error("Error checking existing signature:", selectError);
-      // If column doesn't exist, show helpful message
+      console.error("Error checking existing signature:", selectError.message);
       if (selectError?.message?.includes("column") && selectError?.message?.includes("signature_url")) {
         return {
-          ok: false,
+          ok: false as const,
           message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
         };
       }
-      // For other errors, continue (column might exist but be empty)
     }
 
     // Upload new signature
@@ -271,18 +272,17 @@ export async function uploadSignatureAction(
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
-      console.error("Upload error:", uploadError);
-      // Provide helpful error message if bucket doesn't exist
+      console.error("Upload error:", uploadError.message);
       if (uploadError.message.includes("Bucket not found") || uploadError.message.includes("bucket")) {
         return { 
-          ok: false, 
+          ok: false as const, 
           message: "Storage bucket 'business-assets' not found. Please create it in Supabase Dashboard > Storage. See STORAGE_SETUP_GUIDE.md for instructions." 
         };
       }
-      return { ok: false, message: uploadError.message };
+      return { ok: false as const, message: uploadError.message };
     }
     
-    console.log("Upload successful");
+    console.log("Upload successful!");
 
     // Get public URL
     const { data: urlData } = supabase.storage
@@ -292,45 +292,52 @@ export async function uploadSignatureAction(
     console.log("Public URL:", urlData.publicUrl);
 
     // Update company record with signature URL
+    console.log("Updating company record...");
     const { error: updateError } = await supabase
       .from("companies")
       .update({ signature_url: urlData.publicUrl })
       .eq("id", companyId);
 
     if (updateError) {
-      console.error("Update error:", updateError);
+      console.error("Update error:", updateError.message, updateError);
       
-      // Check for RLS policy violation
       if (updateError.message?.includes("row-level security") || updateError.message?.includes("policy")) {
         return {
-          ok: false,
+          ok: false as const,
           message: "שגיאת הרשאות: אנא הרץ את הסקריפט scripts/017-fix-companies-update-policy.sql במסד הנתונים."
         };
       }
       
-      // Special handling for missing column
       if (updateError.message?.includes("column") && updateError.message?.includes("signature_url")) {
         return {
-          ok: false,
-          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql. ראה את הקובץ SIGNATURE_INSTALLATION_GUIDE.md להוראות."
+          ok: false as const,
+          message: "העמודה signature_url לא קיימת במסד הנתונים. אנא הרץ את הסקריפט: scripts/016-add-signature-field.sql"
         };
       }
       
-      return { ok: false, message: updateError.message };
+      return { ok: false as const, message: updateError.message };
     }
     
-    console.log("Database updated successfully");
+    console.log("Database updated successfully!");
 
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    console.log("Returning success with URL:", urlData.publicUrl);
-    return { ok: true, signatureUrl: urlData.publicUrl };
+    const successResult = { ok: true as const, signatureUrl: urlData.publicUrl };
+    console.log("=== uploadSignatureAction SUCCESS ===");
+    console.log("Returning:", successResult);
+    return successResult;
   } catch (e: any) {
-    console.error("Unexpected error in uploadSignatureAction:", e);
-    const errorMessage = e?.message || String(e) || "unknown_error";
-    console.error("Error details:", { message: errorMessage, error: e });
-    return { ok: false, message: errorMessage };
+    console.error("=== uploadSignatureAction CAUGHT ERROR ===");
+    console.error("Error type:", typeof e);
+    console.error("Error:", e);
+    console.error("Error message:", e?.message);
+    console.error("Error stack:", e?.stack);
+    
+    const errorMessage = e?.message || (e ? String(e) : "unknown_error");
+    const errorResult = { ok: false as const, message: errorMessage };
+    console.log("Returning error:", errorResult);
+    return errorResult;
   }
 }
 
