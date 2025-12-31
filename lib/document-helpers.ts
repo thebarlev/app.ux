@@ -11,56 +11,42 @@ import { createClient } from "@/lib/supabase/server"
  */
 export async function getCompanyIdForUser(): Promise<string> {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error("not_authenticated")
 
-  // Primary method: Direct ownership via companies.auth_user_id
-  const { data: company } = await supabase
+  // 1️⃣ קודם מנסים company_members (זה המקור האמיתי)
+  const { data: membership, error: membershipError } = await supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (membershipError) {
+    console.error("[getCompanyIdForUser] company_members error:", membershipError)
+  }
+
+  if (membership?.company_id) {
+    return membership.company_id
+  }
+
+  // 2️⃣ אם אין – מנסים בעלות ישירה (fallback)
+  const { data: company, error: companyError } = await supabase
     .from("companies")
     .select("id")
     .eq("auth_user_id", user.id)
     .maybeSingle()
-  
-  if (company?.id) return company.id
 
-  // Fallback: Try company_members (multi-tenant membership) if table exists
-  try {
-    const { data: membership } = await supabase
-      .from("company_members")
-      .select("company_id")
-      .eq("user_id", user.id)
-      .maybeSingle()
-    
-    if (membership?.company_id) return membership.company_id
-  } catch (e) {
-    // Table might not exist yet, continue to error
-    console.warn("company_members table not accessible:", e)
+  if (companyError) {
+    console.error("[getCompanyIdForUser] companies error:", companyError)
   }
 
+  if (company?.id) {
+    return company.id
+  }
+
+  // 3️⃣ אם כלום לא נמצא – שגיאה אמיתית
   throw new Error("company_not_found")
-}
-
-/**
- * Check if a sequence is locked for a given company and document type
- */
-export async function isSequenceLocked(
-  companyId: string,
-  documentType: string
-): Promise<{ locked: boolean; currentNumber: number | null }> {
-  const supabase = await createClient()
-  
-  const { data } = await supabase
-    .from("document_sequences")
-    .select("is_locked, current_number")
-    .eq("company_id", companyId)
-    .eq("document_type", documentType)
-    .maybeSingle()
-
-  return {
-    locked: data?.is_locked ?? false,
-    currentNumber: data?.current_number ?? null,
-  }
 }
 
 /**
