@@ -2,13 +2,13 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  updateBusinessDetailsAction, 
-  uploadLogoAction, 
+import {
+  updateBusinessDetailsAction,
+  uploadLogoAction,
   deleteLogoAction,
-  uploadSignatureAction,
+  uploadCompanySignatureAction,
   deleteSignatureAction,
-  type BusinessDetailsPayload 
+  type BusinessDetailsPayload,
 } from "./actions";
 
 type Company = {
@@ -130,8 +130,8 @@ export default function SettingsClient({ company }: Props) {
     }
 
     // Auto-generate address from street and city
-    const autoAddress = `${formData.street}, ${formData.city}${formData.postal_code ? ' ' + formData.postal_code : ''}`;
-    
+    const autoAddress = `${formData.street}, ${formData.city}${formData.postal_code ? " " + formData.postal_code : ""}`;
+
     const payload = {
       ...formData,
       address: autoAddress, // Auto-generated full address
@@ -168,9 +168,9 @@ export default function SettingsClient({ company }: Props) {
     } else {
       // Check if it's a bucket not found error
       if (result.message?.includes("Bucket not found") || result.message?.includes("business-assets")) {
-        setMessage({ 
-          type: "error", 
-          text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות." 
+        setMessage({
+          type: "error",
+          text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות.",
         });
       } else {
         setMessage({ type: "error", text: result.message || "שגיאה בהעלאת לוגו" });
@@ -212,7 +212,8 @@ export default function SettingsClient({ company }: Props) {
     const formData = new FormData();
     formData.append("signature", file);
 
-    const result = await uploadSignatureAction(formData);
+    // ✅ פה היה השם הלא נכון:
+    const result = await uploadCompanySignatureAction(formData);
 
     console.log("Signature upload result:", result);
 
@@ -222,32 +223,32 @@ export default function SettingsClient({ company }: Props) {
       router.refresh();
     } else {
       console.error("Signature upload failed:", result);
-      
+
       // Handle undefined/null result
       if (!result) {
-        setMessage({ 
-          type: "error", 
-          text: "שגיאה בהעלאת חתימה - לא התקבלה תשובה מהשרת. אנא בדוק את ה-console לפרטים נוספים." 
+        setMessage({
+          type: "error",
+          text: "שגיאה בהעלאת חתימה - לא התקבלה תשובה מהשרת. אנא בדוק את ה-console לפרטים נוספים.",
         });
         return;
       }
-      
+
       const errorMessage = result.message || "שגיאה בהעלאת חתימה";
-      
+
       if (errorMessage.includes("Bucket not found") || errorMessage.includes("business-assets")) {
-        setMessage({ 
-          type: "error", 
-          text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות." 
+        setMessage({
+          type: "error",
+          text: "❌ Storage bucket לא נמצא! יש ליצור bucket בשם 'business-assets' ב-Supabase Dashboard. ראה את הקובץ STORAGE_SETUP_GUIDE.md להוראות מפורטות.",
         });
       } else if (errorMessage.includes("not_authenticated") || errorMessage.includes("לא מחובר")) {
-        setMessage({ 
-          type: "error", 
-          text: "❌ לא מחובר למערכת. אנא התחבר מחדש." 
+        setMessage({
+          type: "error",
+          text: "❌ לא מחובר למערכת. אנא התחבר מחדש.",
         });
       } else if (errorMessage.includes("company_not_found") || errorMessage.includes("לא נמצאה חברה")) {
-        setMessage({ 
-          type: "error", 
-          text: "❌ לא נמצאה חברה קשורה למשתמש. אנא צור קשר עם התמיכה." 
+        setMessage({
+          type: "error",
+          text: "❌ לא נמצאה חברה קשורה למשתמש. אנא צור קשר עם התמיכה.",
         });
       } else {
         setMessage({ type: "error", text: errorMessage });
@@ -336,13 +337,13 @@ export default function SettingsClient({ company }: Props) {
                 <img
                   src={logoUrl}
                   alt="Company Logo"
-                  style={{ 
-                    maxWidth: "100%", 
-                    maxHeight: "400px", 
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "400px",
                     width: "auto",
                     height: "auto",
                     objectFit: "contain",
-                    display: "block"
+                    display: "block",
                   }}
                 />
               ) : (
@@ -436,9 +437,7 @@ export default function SettingsClient({ company }: Props) {
               color: "#92400e",
             }}
           >
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>
-              📋 נדרשת התקנה
-            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה</div>
             <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
               כדי להשתמש בתכונת החתימה, יש להריץ את הסקריפט SQL הבא במסד הנתונים:
             </div>
@@ -483,13 +482,13 @@ export default function SettingsClient({ company }: Props) {
                 <img
                   src={signatureUrl}
                   alt="Business Signature"
-                  style={{ 
-                    maxWidth: "100%", 
-                    maxHeight: "400px", 
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "400px",
                     width: "auto",
                     height: "auto",
                     objectFit: "contain",
-                    display: "block"
+                    display: "block",
                   }}
                 />
               ) : (
