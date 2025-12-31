@@ -49,9 +49,7 @@ export type BusinessDetailsPayload = {
 /**
  * עדכון פרטי עסק לחברה של המשתמש
  */
-export async function updateBusinessDetailsAction(
-  payload: BusinessDetailsPayload
-) {
+export async function updateBusinessDetailsAction(payload: BusinessDetailsPayload) {
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
@@ -305,6 +303,12 @@ export async function uploadCompanySignatureAction(formData: FormData) {
     return { ok: false as const, message: errorMessage };
   }
 }
+
+/**
+ * ✅ תוספת חשובה:
+ * נותן שם חלופי לפונקציה, כדי שקבצים שמייבאים uploadSignatureAction לא ישברו בבילד
+ */
+export const uploadSignatureAction = uploadCompanySignatureAction;
 
 /**
  * מחיקת חתימת חברה
