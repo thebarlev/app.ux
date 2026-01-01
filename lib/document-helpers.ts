@@ -13,7 +13,12 @@ export async function getCompanyIdForUser(): Promise<string> {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("not_authenticated")
+  if (!user) {
+    console.error("[getCompanyIdForUser] ❌ No authenticated user");
+    throw new Error("not_authenticated");
+  }
+
+  console.log("[getCompanyIdForUser] User ID:", user.id);
 
   // 1️⃣ קודם מנסים company_members (זה המקור האמיתי)
   const { data: membership, error: membershipError } = await supabase
@@ -27,6 +32,7 @@ export async function getCompanyIdForUser(): Promise<string> {
   }
 
   if (membership?.company_id) {
+    console.log("[getCompanyIdForUser] ✅ Found via company_members:", membership.company_id);
     return membership.company_id
   }
 
@@ -42,10 +48,12 @@ export async function getCompanyIdForUser(): Promise<string> {
   }
 
   if (company?.id) {
+    console.log("[getCompanyIdForUser] ✅ Found via companies.auth_user_id:", company.id);
     return company.id
   }
 
   // 3️⃣ אם כלום לא נמצא – שגיאה אמיתית
+  console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
   throw new Error("company_not_found")
 }
 
@@ -104,6 +112,49 @@ export async function initializeSequence(
 
   if (error) return { ok: false, message: error.message }
   return { ok: true }
+}
+
+/**
+ * בודק האם המספור של סוג מסמך מסוים נעול עבור חברה מסוימת
+ * Check if a document sequence is locked for a specific company
+ */
+export async function isSequenceLocked(params: {
+  companyId: string;
+  documentType: string;
+}): Promise<{ locked: boolean; currentNumber: number | null }> {
+  const supabase = await createClient()
+
+  console.log("[isSequenceLocked] Called with params:", params);
+
+  if (!params.companyId || params.companyId === "undefined") {
+    console.error("[isSequenceLocked] ❌ Invalid companyId:", params.companyId);
+    return { locked: false, currentNumber: null };
+  }
+
+  const { data, error } = await supabase
+    .from("document_sequences")
+    .select("is_locked, current_number, starting_number, prefix")
+    .eq("company_id", params.companyId)
+    .eq("document_type", params.documentType)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[isSequenceLocked] ❌ Error checking sequence:", error)
+    return { locked: false, currentNumber: null }
+  }
+
+  if (!data) {
+    // אין עדיין שורה למספור – לא נעול, ואין current_number
+    console.log("[isSequenceLocked] No sequence found, returning unlocked");
+    return { locked: false, currentNumber: null }
+  }
+
+  console.log("[isSequenceLocked] ✅ Result:", { locked: !!data.is_locked, currentNumber: data.current_number });
+
+  return {
+    locked: !!data.is_locked,
+    currentNumber: typeof data.current_number === "number" ? data.current_number : null,
+  }
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import TemplateSelector from "@/components/dashboard/TemplateSelector";
 import {
   updateBusinessDetailsAction,
   uploadLogoAction,
@@ -29,10 +30,21 @@ type Company = {
   website: string | null;
   logo_url: string | null;
   signature_url: string | null;
+  selected_template_id: string | null;
+};
+
+type Template = {
+  id: string;
+  name: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  is_default: boolean;
+  company_id: string | null;
 };
 
 type Props = {
   company: Company;
+  initialTemplates: Template[];
 };
 
 const BUSINESS_TYPES = [
@@ -55,7 +67,7 @@ const INDUSTRIES = [
   { value: "other", label: "אחר" },
 ];
 
-export default function SettingsClient({ company }: Props) {
+export default function SettingsClient({ company, initialTemplates }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -304,7 +316,7 @@ export default function SettingsClient({ company }: Props) {
         </div>
       )}
 
-      {/* Logo Section */}
+      {/* Logo & Signature Section - Combined */}
       <div
         style={{
           padding: 24,
@@ -314,118 +326,9 @@ export default function SettingsClient({ company }: Props) {
           marginBottom: 24,
         }}
       >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו העסק</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Logo Preview */}
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div
-              style={{
-                maxWidth: 400,
-                width: "100%",
-                minHeight: 200,
-                border: "2px dashed #d1d5db",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#f9fafb",
-                padding: 20,
-              }}
-            >
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Company Logo"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "400px",
-                    width: "auto",
-                    height: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <div style={{ textAlign: "center", opacity: 0.5 }}>
-                  <div style={{ fontSize: 48 }}>🏢</div>
-                  <div style={{ fontSize: 14, marginTop: 8 }}>אין לוגו</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Logo Actions */}
-          <div style={{ maxWidth: 600 }}>
-            <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
-              העלה לוגו לעסק שלך. הלוגו יופיע על כל הקבלות והמסמכים.
-            </p>
-            <p style={{ marginBottom: 16, fontSize: 13, opacity: 0.6 }}>
-              פורמטים נתמכים: PNG, JPG, SVG. גודל מקסימלי: 5MB
-            </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-              onChange={handleLogoUpload}
-              style={{ display: "none" }}
-            />
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingLogo}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "1px solid #111827",
-                  background: "#111827",
-                  color: "white",
-                  cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  opacity: isUploadingLogo ? 0.5 : 1,
-                }}
-              >
-                {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף לוגו" : "העלה לוגו"}
-              </button>
-
-              {logoUrl && (
-                <button
-                  onClick={handleDeleteLogo}
-                  disabled={isUploadingLogo}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "1px solid #ef4444",
-                    background: "white",
-                    color: "#ef4444",
-                    cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    opacity: isUploadingLogo ? 0.5 : 1,
-                  }}
-                >
-                  מחק לוגו
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Signature Section */}
-      <div
-        style={{
-          padding: 24,
-          background: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>חתימת העסק</h2>
-
-        {/* Show installation notice if signature_url field doesn't exist in company object */}
+        {/* Show installation notice if signature_url field doesn't exist */}
         {company.signature_url === undefined && (
           <div
             style={{
@@ -437,38 +340,25 @@ export default function SettingsClient({ company }: Props) {
               color: "#92400e",
             }}
           >
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה</div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה לחתימה</div>
             <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
-              כדי להשתמש בתכונת החתימה, יש להריץ את הסקריפט SQL הבא במסד הנתונים:
-            </div>
-            <code
-              style={{
-                display: "block",
-                padding: 12,
-                background: "#fff",
-                borderRadius: 8,
-                fontSize: 13,
-                fontFamily: "monospace",
-                marginBottom: 12,
-                border: "1px solid #fde68a",
-              }}
-            >
-              scripts/016-add-signature-field.sql
-            </code>
-            <div style={{ fontSize: 13, opacity: 0.9 }}>
-              ראה את הקובץ <strong>SIGNATURE_INSTALLATION_GUIDE.md</strong> להוראות מפורטות.
+              כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ background: "#fff", padding: "2px 6px", borderRadius: 4 }}>scripts/016-add-signature-field.sql</code>
             </div>
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Signature Preview */}
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+        {/* Combined Grid: Logo on Right, Signature on Left */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
+          
+          {/* Logo Section */}
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#374151" }}>לוגו העסק</h3>
+            
+            {/* Logo Preview */}
             <div
               style={{
-                maxWidth: 400,
                 width: "100%",
-                minHeight: 200,
+                minHeight: 160,
                 border: "2px dashed #d1d5db",
                 borderRadius: 12,
                 display: "flex",
@@ -476,6 +366,100 @@ export default function SettingsClient({ company }: Props) {
                 justifyContent: "center",
                 background: "#f9fafb",
                 padding: 20,
+                marginBottom: 16,
+              }}
+            >
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Company Logo"
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "140px",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              ) : (
+                <div style={{ textAlign: "center", opacity: 0.4 }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                  <div style={{ fontSize: 13, color: "#9ca3af" }}>לא הועלה</div>
+                </div>
+              )}
+            </div>
+
+            <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>
+              הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
+            </p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+              onChange={handleLogoUpload}
+              style={{ display: "none" }}
+            />
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingLogo}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 8,
+                  border: "1px solid #111827",
+                  background: "#111827",
+                  color: "white",
+                  cursor: isUploadingLogo ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  opacity: isUploadingLogo ? 0.5 : 1,
+                }}
+              >
+                {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
+              </button>
+
+              {logoUrl && (
+                <button
+                  onClick={handleDeleteLogo}
+                  disabled={isUploadingLogo}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #ef4444",
+                    background: "white",
+                    color: "#ef4444",
+                    cursor: isUploadingLogo ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: 14,
+                    opacity: isUploadingLogo ? 0.5 : 1,
+                  }}
+                >
+                  מחק
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Signature Section */}
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#374151" }}>חתימת העסק</h3>
+            
+            {/* Signature Preview */}
+            <div
+              style={{
+                width: "100%",
+                minHeight: 160,
+                border: "2px dashed #d1d5db",
+                borderRadius: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#f9fafb",
+                padding: 20,
+                marginBottom: 16,
               }}
             >
               {signatureUrl ? (
@@ -484,7 +468,7 @@ export default function SettingsClient({ company }: Props) {
                   alt="Business Signature"
                   style={{
                     maxWidth: "100%",
-                    maxHeight: "400px",
+                    maxHeight: "140px",
                     width: "auto",
                     height: "auto",
                     objectFit: "contain",
@@ -492,21 +476,15 @@ export default function SettingsClient({ company }: Props) {
                   }}
                 />
               ) : (
-                <div style={{ textAlign: "center", opacity: 0.5 }}>
-                  <div style={{ fontSize: 48 }}>✍️</div>
-                  <div style={{ fontSize: 14, marginTop: 8 }}>אין חתימה</div>
+                <div style={{ textAlign: "center", opacity: 0.4 }}>
+                  <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                  <div style={{ fontSize: 13, color: "#9ca3af" }}>לא הועלה</div>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Signature Actions */}
-          <div style={{ maxWidth: 600 }}>
-            <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
-              העלה חתימה דיגיטלית שתופיע על המסמכים שלך (קבלות, חשבוניות וכו').
-            </p>
-            <p style={{ marginBottom: 16, fontSize: 13, opacity: 0.6 }}>
-              פורמטים נתמכים: PNG, JPG, SVG. גודל מקסימלי: 5MB. מומלץ רקע שקוף (PNG).
+            <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>
+              החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
             </p>
 
             <input
@@ -517,22 +495,23 @@ export default function SettingsClient({ company }: Props) {
               style={{ display: "none" }}
             />
 
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => signatureInputRef.current?.click()}
                 disabled={isUploadingSignature}
                 style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
+                  padding: "8px 16px",
+                  borderRadius: 8,
                   border: "1px solid #111827",
                   background: "#111827",
                   color: "white",
                   cursor: isUploadingSignature ? "not-allowed" : "pointer",
                   fontWeight: 600,
+                  fontSize: 14,
                   opacity: isUploadingSignature ? 0.5 : 1,
                 }}
               >
-                {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף חתימה" : "העלה חתימה"}
+                {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
               </button>
 
               {signatureUrl && (
@@ -540,21 +519,23 @@ export default function SettingsClient({ company }: Props) {
                   onClick={handleDeleteSignature}
                   disabled={isUploadingSignature}
                   style={{
-                    padding: "10px 20px",
-                    borderRadius: 10,
+                    padding: "8px 16px",
+                    borderRadius: 8,
                     border: "1px solid #ef4444",
                     background: "white",
                     color: "#ef4444",
                     cursor: isUploadingSignature ? "not-allowed" : "pointer",
                     fontWeight: 600,
+                    fontSize: 14,
                     opacity: isUploadingSignature ? 0.5 : 1,
                   }}
                 >
-                  מחק חתימה
+                  מחק
                 </button>
               )}
             </div>
           </div>
+
         </div>
       </div>
 
@@ -880,6 +861,26 @@ export default function SettingsClient({ company }: Props) {
             {isSaving ? "שומר..." : "שמור שינויים"}
           </button>
         </div>
+      </div>
+
+      {/* Template Selection Section */}
+      <div
+        style={{
+          padding: 24,
+          background: "white",
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          marginBottom: 24,
+        }}
+      >
+        <TemplateSelector
+          initialTemplates={initialTemplates}
+          selectedTemplateId={company.selected_template_id}
+          onTemplateSelect={async (templateId: string) => {
+            const { setSelectedTemplateInSettingsAction } = await import("./template-actions")
+            return await setSelectedTemplateInSettingsAction(templateId)
+          }}
+        />
       </div>
     </div>
   );

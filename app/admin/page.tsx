@@ -1,28 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { AdminDashboard } from "@/components/admin/admin-dashboard"
 
 export default async function AdminPage() {
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect("/admin/login")
-  }
-
-  // Verify user is a system admin
-  const { data: adminData } = await supabase
-    .from("system_admins")
-    .select("id, name, email")
-    .eq("auth_user_id", user.id)
-    .single()
-
-  if (!adminData) {
-    redirect("/admin/login?error=unauthorized")
-  }
 
   // Fetch KPI data
   const now = new Date()
@@ -73,7 +53,6 @@ export default async function AdminPage() {
 
   return (
     <AdminDashboard
-      adminName={adminData.name || adminData.email}
       kpiData={kpiData}
       companies={companies || []}
       settings={settings || []}

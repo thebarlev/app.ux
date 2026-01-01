@@ -36,10 +36,21 @@ export default async function SettingsPage() {
         email,
         website,
         logo_url,
-        signature_url
+        signature_url,
+        selected_template_id
       `)
       .eq("id", companyId)
       .single();
+
+    // Fetch available templates
+    const { data: templates } = await supabase
+      .from("templates")
+      .select("id, name, description, thumbnail_url, is_default, company_id")
+      .eq("is_active", true)
+      .or(`company_id.eq.${companyId},company_id.is.null`)
+      .eq("document_type", "receipt")
+      .order("is_default", { ascending: false })
+      .order("name");
 
     if (error || !company) {
       return (
@@ -54,7 +65,12 @@ export default async function SettingsPage() {
       );
     }
 
-    return <SettingsClient company={company} />;
+    return (
+      <SettingsClient 
+        company={company} 
+        initialTemplates={templates || []}
+      />
+    );
   } catch (error: any) {
     return (
       <div dir="rtl" style={{ padding: 40, textAlign: "center" }}>

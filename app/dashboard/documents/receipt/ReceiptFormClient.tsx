@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
-import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "./actions";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import type { InitialReceiptCreateData } from "./actions";
+import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
 import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } from "./actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
@@ -81,9 +82,13 @@ export default function ReceiptFormClient({
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
 
   const [notes, setNotes] = useState("");
   const [footerNotes, setFooterNotes] = useState("");
+
+  // Refs for focus management
+  const descriptionInputRef = useRef<HTMLInputElement>(null);
 
   const [payments, setPayments] = useState<PaymentRow[]>([
     { method: "", date: todayYmd(), amount: 0, currency },
@@ -176,6 +181,17 @@ export default function ReceiptFormClient({
 
   async function onSaveDraft() {
     setMessage(null);
+    setDescriptionError(null);
+    
+    // Validation: Description must be at least 5 characters
+    if (!description || description.trim().length < 5) {
+      setDescriptionError("התיאור חובה, לפחות 5 תווים");
+      descriptionInputRef.current?.focus();
+      descriptionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setBusy(null);
+      return;
+    }
+    
     setBusy("draft");
     try {
       let result;
@@ -203,6 +219,16 @@ export default function ReceiptFormClient({
 
   async function onIssue() {
     setMessage(null);
+    setDescriptionError(null);
+    
+    // Validation: Description must be at least 5 characters
+    if (!description || description.trim().length < 5) {
+      setDescriptionError("התיאור חובה, לפחות 5 תווים");
+      descriptionInputRef.current?.focus();
+      descriptionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setBusy(null);
+      return;
+    }
     
     // Prevent issue if sequence not locked
     if (!sequenceLocked) {
@@ -365,8 +391,41 @@ export default function ReceiptFormClient({
         </div>
 
         <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>תיאור</div>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }} placeholder="לדוגמה: שירותי עיצוב" />
+          <div style={{ fontWeight: 800 }}>תיאור <span style={{ color: "#ef4444" }}>*</span></div>
+          <input 
+            ref={descriptionInputRef}
+            value={description} 
+            onChange={(e) => {
+              setDescription(e.target.value);
+              // Clear error when user starts typing
+              if (descriptionError && e.target.value.trim().length >= 5) {
+                setDescriptionError(null);
+              }
+            }} 
+            style={{ 
+              marginTop: 6, 
+              width: "100%", 
+              padding: 10,
+              border: descriptionError ? "2px solid #ef4444" : "1px solid #d1d5db",
+              borderRadius: 8,
+              outline: "none",
+            }} 
+            placeholder="לדוגמה: שירותי עיצוב (לפחות 5 תווים)" 
+          />
+          {descriptionError && (
+            <div style={{ 
+              marginTop: 6, 
+              color: "#ef4444", 
+              fontSize: 14, 
+              fontWeight: 600,
+              display: "flex",
+              alignItems: "center",
+              gap: 4
+            }}>
+              <span>⚠️</span>
+              <span>{descriptionError}</span>
+            </div>
+          )}
         </div>
       </div>
 

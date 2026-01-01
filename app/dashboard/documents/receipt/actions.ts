@@ -8,13 +8,16 @@ import {
   getNextDocumentNumberPreview 
 } from "@/lib/document-helpers";
 import { redirect } from "next/navigation";
+import type { 
+  PaymentRow, 
+  PaymentMethod, 
+  ReceiptDraftPayload, 
+  ReceiptSettings
+} from "@/lib/types/receipt";
+import { paymentRowToLineItem as convertPayment } from "@/lib/types/receipt";
 
-export type ReceiptSettings = {
-  allowedCurrencies: string[];
-  defaultCurrency: string;
-  language: "he" | "en";
-  roundTotals: boolean;
-};
+// Re-export types for backward compatibility
+export type { PaymentRow, PaymentMethod, ReceiptDraftPayload, ReceiptSettings };
 
 export type InitialReceiptCreateData =
   | {
@@ -36,7 +39,7 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
     const companyId = await getCompanyIdForUser();
 
     // Check if sequence is locked
-    const { locked } = await isSequenceLocked(companyId, "receipt");
+    const { locked } = await isSequenceLocked({ companyId, documentType: "receipt" });
 
     // Get preview of next document number (does NOT allocate it)
     const { formatted: previewNumber } = await getNextDocumentNumberPreview(
@@ -74,78 +77,11 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
   }
 }
 
-export type PaymentMethod =
-  | "העברה בנקאית"
-  | "Bit"
-  | "PayBox"
-  | "כרטיס אשראי"
-  | "מזומן"
-  | "צ׳ק"
-  | "PayPal"
-  | "Payoneer"
-  | "Google Pay"
-  | "Apple Pay"
-  | "ביטקוין"
-  | "אתריום"
-  | "שובר BuyME"
-  | "שובר מתנה"
-  | "שווה כסף"
-  | "V-CHECK"
-  | "Colu"
-  | "Pay"
-  | "ניכוי במקור"
-  | "ניכוי חלק עובד טל״א"
-  | "ניכוי אחר";
+// PaymentMethod type now imported from @/lib/types/receipt
 
-export type PaymentRow = {
-  method: PaymentMethod | "";
-  date: string; // YYYY-MM-DD
-  amount: number;
-  currency: string;
-  
-  // Legacy fields (still used for bank transfer)
-  bankName?: string;
-  branch?: string;
-  accountNumber?: string;
-  
-  // Credit card fields
-  cardInstallments?: number;
-  cardDealType?: string; // regular, payments, credit, deferred
-  cardType?: string; // visa, mastercard, isracard, amex, diners, other
-  cardLastDigits?: string;
-  
-  // Bank transfer fields
-  bankAccount?: string;
-  bankBranch?: string;
-  
-  // Check fields
-  checkBank?: string;
-  checkBranch?: string;
-  checkAccount?: string;
-  checkNumber?: string;
-  
-  // Digital wallet / simple payment fields
-  payerAccount?: string;
-  transactionReference?: string;
-  
-  // Other deduction description
-  description?: string;
-};
+// PaymentRow type now imported from @/lib/types/receipt
 
-export type ReceiptDraftPayload = {
-  documentType: "receipt";
-  customerName: string;
-  customerId?: string | null; // NEW: Link to customer record
-  documentDate: string;
-  description: string;
-  payments: PaymentRow[];
-  notes: string;
-  footerNotes: string;
-  currency: string;
-  total: number;
-  roundTotals: boolean;
-  language: "he" | "en";
-};
+// ReceiptDraftPayload type now imported from @/lib/types/receipt
 
 function validatePayload(p: ReceiptDraftPayload) {
   if (!p.customerName.trim()) return "חובה למלא שם לקוח.";
@@ -193,22 +129,11 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
 
   if (error) return { ok: false as const, message: error.message };
 
-  // Insert payment line items
+  // Insert payment line items with metadata support
   if (payload.payments && payload.payments.length > 0) {
-    const lineItems = payload.payments.map((payment, idx) => ({
-      document_id: data.id,
-      company_id: companyId,
-      line_number: idx + 1,
-      description: payment.method,
-      item_date: payment.date, // Save individual payment date
-      quantity: 1,
-      unit_price: payment.amount,
-      line_total: payment.amount,
-      currency: payment.currency,
-      bank_name: payment.bankName || null,
-      branch: payment.branch || null,
-      account_number: payment.accountNumber || null,
-    }));
+    const lineItems = payload.payments.map((payment, idx) => 
+      convertPayment(payment, data.id, companyId, idx + 1)
+    );
 
     const { error: lineItemsError } = await supabase
       .from("document_line_items")
@@ -258,22 +183,11 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
 
   if (draftError) return { ok: false as const, message: draftError.message };
 
-  // Insert payment line items
+  // Insert payment line items with metadata support
   if (payload.payments && payload.payments.length > 0) {
-    const lineItems = payload.payments.map((payment, idx) => ({
-      document_id: draft.id,
-      company_id: companyId,
-      line_number: idx + 1,
-      description: payment.method,
-      item_date: payment.date, // Save individual payment date
-      quantity: 1,
-      unit_price: payment.amount,
-      line_total: payment.amount,
-      currency: payment.currency,
-      bank_name: payment.bankName || null,
-      branch: payment.branch || null,
-      account_number: payment.accountNumber || null,
-    }));
+    const lineItems = payload.payments.map((payment, idx) => 
+      convertPayment(payment, draft.id, companyId, idx + 1)
+    );
 
     const { error: lineItemsError } = await supabase
       .from("document_line_items")
@@ -294,6 +208,21 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
       message: result.message ?? "Failed to finalize document",
     };
   }
+
+  // Generate PDF asynchronously (don't block user response)
+  // Import dynamically to avoid circular dependencies
+  import("@/lib/pdf-service")
+    .then(({ generateDocumentPDF }) => generateDocumentPDF(draft.id))
+    .then((pdfResult) => {
+      if (pdfResult.success) {
+        console.log(`PDF generated successfully for document ${draft.id}:`, pdfResult.path);
+      } else {
+        console.error(`PDF generation failed for document ${draft.id}:`, pdfResult.error);
+      }
+    })
+    .catch((error) => {
+      console.error(`PDF generation error for document ${draft.id}:`, error);
+    });
 
   // Get company name for preview
   const { data: company } = await supabase

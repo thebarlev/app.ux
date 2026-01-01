@@ -261,7 +261,7 @@
   }
 
   .sidebar-label {
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 500;
     color: inherit;
     white-space: nowrap;
@@ -274,13 +274,11 @@
   }
 
   .sidebar-icon-button:hover {
-    background-color: #EBD5AB;
-    color: #1B211A;
+    color: #EBD5AB;
   }
 
   .sidebar-icon-button.active {
-    background-color: #EBD5AB;
-    color: #1B211A;
+    color: #EBD5AB;
   }
 
   .sidebar-flyout {

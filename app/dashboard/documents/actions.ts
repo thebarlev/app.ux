@@ -55,7 +55,7 @@ export async function getSequenceInfoAction(params: { documentType: string }) {
     const hasIssued = (issued?.length ?? 0) > 0;
 
     // Get sequence info
-    const { locked, currentNumber } = await isSequenceLocked(companyId, params.documentType);
+    const { locked, currentNumber } = await isSequenceLocked({ companyId, documentType: params.documentType });
 
     const nextNumber = currentNumber !== null ? currentNumber + 1 : null;
 

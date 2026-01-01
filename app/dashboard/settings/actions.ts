@@ -5,7 +5,8 @@ import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { revalidatePath } from "next/cache";
 
 /**
- * מחזיר את ה-company_id של המשתמש המחובר (דרך טבלת company_members)
+ * מחזיר את ה-company_id של המשתמש המחובר
+ * משתמש ב-helper המרכזי שבודק גם company_members וגם companies.auth_user_id
  */
 async function getMyCompanyId() {
   const supabase = await createClient();
@@ -16,18 +17,13 @@ async function getMyCompanyId() {
     throw new Error("Not authenticated");
   }
 
-  const { data, error } = await supabase
-    .from("company_members")
-    .select("company_id")
-    .eq("user_id", userId)
-    .single();
-
-  if (error || !data) {
-    console.error("getMyCompanyId error:", error);
+  // Use the centralized helper that checks both paths
+  const companyId = await getCompanyIdForUser(userId);
+  if (!companyId) {
     throw new Error("No company found for this user");
   }
 
-  return data.company_id;
+  return companyId;
 }
 
 export type BusinessDetailsPayload = {
@@ -233,7 +229,7 @@ export async function uploadCompanySignatureAction(formData: FormData) {
     // 3. העלאה ל-Storage
     const fileExt = file.name.split(".").pop() ?? "png";
     const fileName = `signature.${fileExt}`;
-    const filePath = `signatures/${companyId}/${fileName}`;
+    const filePath = `business-signatures/${companyId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("business-assets")
@@ -345,8 +341,8 @@ export async function deleteSignatureAction() {
       return { ok: false as const, message: "no_signature_to_delete" };
     }
 
-    // מוחקים מה-Storage (אותו path כמו למעלה, בהתאם למה שהעלית)
-    const filePath = `signatures/${companyId}/signature.png`;
+    // מוחקים מה-Storage
+    const filePath = `business-signatures/${companyId}/signature.png`;
     await supabase.storage.from("business-assets").remove([filePath]);
 
     // מעדכנים את הרשומה
