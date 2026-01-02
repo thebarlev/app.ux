@@ -82,7 +82,6 @@ export type ReceiptDraftPayload = {
   description: string; // Receipt description (document_description column)
   payments: PaymentRow[];
   notes: string; // internal_notes column
-  footerNotes: string; // customer_notes column
   currency: string;
   total: number;
   roundTotals: boolean;
@@ -126,7 +125,7 @@ export type ReceiptPDFData = {
     accountNumber?: string;
   }>;
   notes?: string; // internal_notes
-  footerNotes?: string; // customer_notes
+
   description?: string; // document_description
 };
 

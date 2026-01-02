@@ -36,8 +36,7 @@ export default async function SettingsPage() {
         email,
         website,
         logo_url,
-        signature_url,
-        selected_template_id
+        signature_url
       `)
       .eq("id", companyId)
       .single();

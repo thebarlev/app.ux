@@ -17,7 +17,12 @@ import type {
 
 /**
  * Get template for document type (company-specific or global default)
- * Priority: 1) Company's custom template, 2) Global default template, 3) Hardcoded fallback
+ * Priority:
+ * 1) Company's default template (is_default = TRUE for this company)
+ * 2) Global default template (is_default = TRUE, company_id IS NULL)
+ * 3) Any active company template for this document type
+ * 4) Any active global template for this document type
+ * 5) Hardcoded fallback
  */
 export async function getTemplateForDocument(
   companyId: string,
@@ -25,46 +30,85 @@ export async function getTemplateForDocument(
 ): Promise<{ html: string; css: string; templateId: string | null }> {
   const supabase = await createClient()
 
-  // Try to get company-specific template first
-  const { data: companyTemplate } = await supabase
+  // PRIORITY 1: Company's default template
+  const { data: companyDefault } = await supabase
+    .from("templates")
+    .select("id, html_template, css, is_active")
+    .eq("company_id", companyId)
+    .eq("document_type", documentType)
+    .eq("is_default", true)
+    .eq("is_active", true)
+    .maybeSingle()
+
+  if (companyDefault) {
+    console.log(`✅ Using company default template: ${companyDefault.id}`)
+    return {
+      html: companyDefault.html_template,
+      css: companyDefault.css || "",
+      templateId: companyDefault.id,
+    }
+  }
+
+  // PRIORITY 2: Global default template
+  const { data: globalDefault } = await supabase
+    .from("templates")
+    .select("id, html_template, css, is_active, name")
+    .is("company_id", null)
+    .eq("document_type", documentType)
+    .eq("is_default", true)
+    .eq("is_active", true)
+    .maybeSingle()
+
+  if (globalDefault) {
+    console.log(`✅ Using global default template: ${globalDefault.name} (${globalDefault.id})`)
+    return {
+      html: globalDefault.html_template,
+      css: globalDefault.css || "",
+      templateId: globalDefault.id,
+    }
+  }
+
+  // PRIORITY 3: Any active company template (fallback)
+  const { data: anyCompanyTemplate } = await supabase
     .from("templates")
     .select("id, html_template, css, is_active")
     .eq("company_id", companyId)
     .eq("document_type", documentType)
     .eq("is_active", true)
-    .order("is_default", { ascending: false }) // Prefer default template
     .limit(1)
     .maybeSingle()
 
-  if (companyTemplate) {
+  if (anyCompanyTemplate) {
+    console.log(`⚠️ Using fallback company template: ${anyCompanyTemplate.id}`)
     return {
-      html: companyTemplate.html_template,
-      css: companyTemplate.css || "",
-      templateId: companyTemplate.id,
+      html: anyCompanyTemplate.html_template,
+      css: anyCompanyTemplate.css || "",
+      templateId: anyCompanyTemplate.id,
     }
   }
 
-  // Fallback to global default template
-  const { data: globalTemplate } = await supabase
+  // PRIORITY 4: Any active global template (fallback)
+  const { data: anyGlobalTemplate } = await supabase
     .from("templates")
-    .select("id, html_template, css, is_active")
-    .is("company_id", null) // Global templates have null company_id
+    .select("id, html_template, css, is_active, name")
+    .is("company_id", null)
     .eq("document_type", documentType)
     .eq("is_active", true)
-    .eq("is_default", true)
     .limit(1)
     .maybeSingle()
 
-  if (globalTemplate) {
+  if (anyGlobalTemplate) {
+    console.log(`⚠️ Using fallback global template: ${anyGlobalTemplate.name} (${anyGlobalTemplate.id})`)
     return {
-      html: globalTemplate.html_template,
-      css: globalTemplate.css || "",
-      templateId: globalTemplate.id,
+      html: anyGlobalTemplate.html_template,
+      css: anyGlobalTemplate.css || "",
+      templateId: anyGlobalTemplate.id,
     }
   }
 
-  // Final fallback: Use hardcoded default template
+  // PRIORITY 5: Final fallback - Use hardcoded default template
   if (documentType === "receipt") {
+    console.log(`⚠️ Using hardcoded fallback template for receipt`)
     const defaultTemplate = getDefaultReceiptTemplate()
     return {
       html: defaultTemplate.html,

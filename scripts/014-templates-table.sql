@@ -59,12 +59,18 @@ BEGIN
     FOR INSERT
     WITH CHECK (company_id IN (SELECT public.user_company_ids()));
 
-  -- UPDATE: Users can update their company's templates
+  -- UPDATE: Users can update their company's templates OR global templates (for is_default only)
   DROP POLICY IF EXISTS templates_update ON public.templates;
   CREATE POLICY templates_update ON public.templates
     FOR UPDATE
-    USING (company_id IN (SELECT public.user_company_ids()))
-    WITH CHECK (company_id IN (SELECT public.user_company_ids()));
+    USING (
+      company_id IN (SELECT public.user_company_ids())
+      OR company_id IS NULL  -- Allow updating global templates (e.g., is_default field)
+    )
+    WITH CHECK (
+      company_id IN (SELECT public.user_company_ids())
+      OR company_id IS NULL
+    );
 
   -- DELETE: Users can delete their company's templates
   DROP POLICY IF EXISTS templates_delete ON public.templates;

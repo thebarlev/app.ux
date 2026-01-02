@@ -61,7 +61,6 @@ export default function ReceiptFormClient({
     total: number;
     currency: string;
     notes: string;
-    footerNotes: string;
   } | null;
   draftId?: string;
 }) {
@@ -83,12 +82,15 @@ export default function ReceiptFormClient({
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: string }>({});
 
   const [notes, setNotes] = useState("");
-  const [footerNotes, setFooterNotes] = useState("");
 
   // Refs for focus management
   const descriptionInputRef = useRef<HTMLInputElement>(null);
+  const customerNameRef = useRef<HTMLDivElement>(null);
+  const paymentsTableRef = useRef<HTMLDivElement>(null);
 
   const [payments, setPayments] = useState<PaymentRow[]>([
     { method: "", date: todayYmd(), amount: 0, currency },
@@ -118,7 +120,6 @@ export default function ReceiptFormClient({
       setDocumentDate(editData.documentDate);
       setCurrency(editData.currency);
       setNotes(editData.notes);
-      setFooterNotes(editData.footerNotes);
       // Note: We don't have payment rows in the draft data structure yet
       // You may need to extend getDraftReceiptForEditAction to include them
     }
@@ -142,13 +143,12 @@ export default function ReceiptFormClient({
       description,
       payments,
       notes,
-      footerNotes,
       currency,
       total,
       roundTotals,
       language,
     };
-  }, [customerName, customerId, documentDate, description, payments, notes, footerNotes, currency, total, roundTotals, language]);
+  }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language]);
 
   if (!initial.ok) {
     return (
@@ -179,16 +179,55 @@ export default function ReceiptFormClient({
     setPayments((prev) => prev.filter((_, idx) => idx !== i));
   }
 
+  // Helper function to focus field with error
+  function focusFieldWithError(fieldRef: React.RefObject<HTMLElement>) {
+    if (!fieldRef?.current) return;
+    
+    // Scroll to field
+    fieldRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    
+    // Add error highlight class
+    fieldRef.current.classList.add("error-field");
+    
+    // Remove class after animation
+    setTimeout(() => {
+      fieldRef.current?.classList.remove("error-field");
+    }, 3000);
+  }
+
   async function onSaveDraft() {
     setMessage(null);
     setDescriptionError(null);
+    setCustomerNameError(null);
+    setPaymentErrors({});
+    
+    // Validation: Customer name is required
+    if (!customerName || customerName.trim().length === 0) {
+      setCustomerNameError("שם הלקוח הוא שדה חובה");
+      focusFieldWithError(customerNameRef);
+      return;
+    }
     
     // Validation: Description must be at least 5 characters
     if (!description || description.trim().length < 5) {
       setDescriptionError("התיאור חובה, לפחות 5 תווים");
-      descriptionInputRef.current?.focus();
-      descriptionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setBusy(null);
+      focusFieldWithError(descriptionInputRef);
+      return;
+    }
+    
+    // Validation: Check payment rows
+    const errors: { [key: number]: string } = {};
+    payments.forEach((payment, i) => {
+      if (!payment.method) {
+        errors[i] = "יש לבחור אמצעי תשלום";
+      } else if (!payment.amount || payment.amount <= 0) {
+        errors[i] = "סכום חייב להיות גדול מ-0";
+      }
+    });
+    
+    if (Object.keys(errors).length > 0) {
+      setPaymentErrors(errors);
+      focusFieldWithError(paymentsTableRef);
       return;
     }
     
@@ -220,13 +259,36 @@ export default function ReceiptFormClient({
   async function onIssue() {
     setMessage(null);
     setDescriptionError(null);
+    setCustomerNameError(null);
+    setPaymentErrors({});
+    
+    // Validation: Customer name is required
+    if (!customerName || customerName.trim().length === 0) {
+      setCustomerNameError("שם הלקוח הוא שדה חובה");
+      focusFieldWithError(customerNameRef);
+      return;
+    }
     
     // Validation: Description must be at least 5 characters
     if (!description || description.trim().length < 5) {
       setDescriptionError("התיאור חובה, לפחות 5 תווים");
-      descriptionInputRef.current?.focus();
-      descriptionInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setBusy(null);
+      focusFieldWithError(descriptionInputRef);
+      return;
+    }
+    
+    // Validation: Check payment rows
+    const errors: { [key: number]: string } = {};
+    payments.forEach((payment, i) => {
+      if (!payment.method) {
+        errors[i] = "יש לבחור אמצעי תשלום";
+      } else if (!payment.amount || payment.amount <= 0) {
+        errors[i] = "סכום חייב להיות גדול מ-0";
+      }
+    });
+    
+    if (Object.keys(errors).length > 0) {
+      setPaymentErrors(errors);
+      focusFieldWithError(paymentsTableRef);
       return;
     }
     
@@ -364,15 +426,22 @@ export default function ReceiptFormClient({
         <div style={{ fontSize: 18, fontWeight: 900 }}>פרטי המסמך</div>
 
         <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-          <div>
+          <div ref={customerNameRef}>
             <div style={{ fontWeight: 800 }}>שם לקוח <span style={{ color: "#ef4444" }}>*</span></div>
             <div style={{ marginTop: 6 }}>
               <CustomerAutocomplete
                 value={customerName}
-                onChange={setCustomerName}
+                onChange={(value) => {
+                  setCustomerName(value);
+                  // Clear error when user starts typing
+                  if (customerNameError && value.trim().length > 0) {
+                    setCustomerNameError(null);
+                  }
+                }}
                 onSelectCustomer={(customer) => {
                   if (customer) {
                     setCustomerId(customer.id);
+                    setCustomerNameError(null);
                   }
                 }}
                 onAddNewCustomer={() => {
@@ -382,6 +451,20 @@ export default function ReceiptFormClient({
                 placeholder="התחל להקליד שם לקוח..."
               />
             </div>
+            {customerNameError && (
+              <div className="error-message" style={{ 
+                marginTop: 6, 
+                color: "#dc2626", 
+                fontSize: 13, 
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 4
+              }}>
+                <span>⚠️</span>
+                <span>{customerNameError}</span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -430,11 +513,30 @@ export default function ReceiptFormClient({
       </div>
 
       {/* Payments */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
+      <div ref={paymentsTableRef} style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
         <div style={{ fontSize: 18, fontWeight: 900 }}>פירוט תקבולים</div>
         <div style={{ marginTop: 6, opacity: 0.75 }}>
           איך שילמו לך? אם שילמו לך בכמה צורות תשלום, אפשר לבחור כמה סוגי תקבולים.
         </div>
+        
+        {Object.keys(paymentErrors).length > 0 && (
+          <div className="error-message" style={{ 
+            marginTop: 8,
+            padding: 10,
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: 8,
+            color: "#dc2626", 
+            fontSize: 13, 
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: 4
+          }}>
+            <span>⚠️</span>
+            <span>יש לתקן את השדות המסומנים באדום</span>
+          </div>
+        )}
 
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
@@ -455,8 +557,20 @@ export default function ReceiptFormClient({
                   <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
                     <select
                       value={row.method}
-                      onChange={(e) => updatePaymentRow(i, { method: e.target.value as any })}
-                      style={{ width: 200, padding: 8 }}
+                      onChange={(e) => {
+                        updatePaymentRow(i, { method: e.target.value as any });
+                        // Clear error when user selects payment method
+                        if (paymentErrors[i]) {
+                          const newErrors = { ...paymentErrors };
+                          delete newErrors[i];
+                          setPaymentErrors(newErrors);
+                        }
+                      }}
+                      style={{ 
+                        width: 200, 
+                        padding: 8,
+                        border: paymentErrors[i] ? "2px solid #dc2626" : "1px solid #d1d5db"
+                      }}
                     >
                       <option value="">בחר…</option>
                       {PAYMENT_METHODS.map((m) => (
@@ -482,8 +596,20 @@ export default function ReceiptFormClient({
                       min={0}
                       step="0.01"
                       value={row.amount}
-                      onChange={(e) => updatePaymentRow(i, { amount: Number(e.target.value) })}
-                      style={{ width: 140, padding: 8 }}
+                      onChange={(e) => {
+                        updatePaymentRow(i, { amount: Number(e.target.value) });
+                        // Clear error when user enters valid amount
+                        if (paymentErrors[i] && Number(e.target.value) > 0) {
+                          const newErrors = { ...paymentErrors };
+                          delete newErrors[i];
+                          setPaymentErrors(newErrors);
+                        }
+                      }}
+                      style={{ 
+                        width: 140, 
+                        padding: 8,
+                        border: paymentErrors[i] ? "2px solid #dc2626" : "1px solid #d1d5db"
+                      }}
                     />
                   </td>
 
@@ -564,11 +690,6 @@ export default function ReceiptFormClient({
         <div style={{ marginTop: 12 }}>
           <div style={{ fontWeight: 800 }}>הערות שיופיעו במסמך</div>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10, minHeight: 90 }} />
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>הערות בתחתית המסמך</div>
-          <textarea value={footerNotes} onChange={(e) => setFooterNotes(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10, minHeight: 70 }} />
         </div>
       </div>
 
@@ -756,7 +877,7 @@ export default function ReceiptFormClient({
                     documentDate: successModal.payload.documentDate,
                     description: successModal.payload.description || "",
                     notes: successModal.payload.notes,
-                    footerNotes: successModal.payload.footerNotes,
+                    footerNotes: successModal.payload.notes,
                     total: String(successModal.payload.total),
                     currency: successModal.payload.currency,
                     payments: JSON.stringify(successModal.payload.payments),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReceiptStyleSettings } from "@/lib/types/receipt-style";
 
 function formatMoney(amount: number, currency: string) {
@@ -48,12 +48,27 @@ export default function PreviewClient({
   customerData,
   companyData,
   styleSettings,
+  templateHtml,
+  templateCss,
 }: {
   customerData: CustomerData;
   companyData: CompanyData;
   styleSettings: ReceiptStyleSettings;
+  templateHtml: string | null;
+  templateCss: string | null;
 }) {
   const searchParams = useSearchParams();
+  
+  // State to track if component is mounted (client-side only)
+  const [isMounted, setIsMounted] = useState(false);
+  
+  console.log("🔵 [PreviewClient] Rendering with template:", {
+    hasTemplate: !!templateHtml,
+    templateLength: templateHtml?.length || 0,
+    hasCss: !!templateCss,
+    cssLength: templateCss?.length || 0,
+    isMounted
+  });
 
   // Parse data from URL parameters
   const previewNumber = searchParams.get("previewNumber") || null;
@@ -92,11 +107,180 @@ export default function PreviewClient({
   } catch (e) {
     console.error("Failed to parse payments:", e);
   }
-
+  
   // Enable print-friendly styling on mount
   useEffect(() => {
     document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyName}`;
+    setIsMounted(true); // Mark as mounted after first render
   }, [previewNumber, companyName]);
+  
+  // Prepare template data for rendering
+  const templateData = {
+    // Document metadata
+    previewNumber: previewNumber || "",
+    documentDate: formatDate(documentDate),
+    description: description || "",
+    notes: notes || "",
+    footerNotes: footerNotes || "",
+    total: total,
+    currency: currency,
+    formattedTotal: formatMoney(total, currency),
+    
+    // Company data
+    companyName: companyName,
+    companyRegistration: companyData?.registration_number || "",
+    companyAddress: companyData?.address || "",
+    companyPhone: companyPhone,
+    companyEmail: companyData?.email || "",
+    companyWebsite: companyData?.website || "",
+    companyLogoUrl: companyData?.logo_url || "",
+    companySignatureUrl: companyData?.signature_url || "",
+    
+    // Customer data  
+    customerName: customerName || "",
+    customerTaxId: customerData?.tax_id || "",
+    customerPhone: customerPhone,
+    customerEmail: customerData?.email || "",
+    customerAddress: customerData?.address_street ? 
+      `${customerData.address_street}${customerData.address_city ? ', ' + customerData.address_city : ''}` : "",
+    
+    // Payments
+    payments: payments.map((p, idx) => ({
+      ...p,
+      formattedDate: formatDate(p.date),
+      formattedAmount: formatMoney(p.amount, p.currency),
+      index: idx,
+      isEven: idx % 2 === 0
+    })),
+    hasPayments: payments.length > 0,
+    
+    // Current time - using documentDate to avoid hydration mismatch
+    currentTime: documentDate ? new Date(documentDate).toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' }) : "00:00",
+    
+    // Style settings
+    styleSettings: styleSettings,
+    
+    // Aliases for backward compatibility with different template variable names
+    LOGO_URL: companyData?.logo_url || "",
+    USERCOMPANYNAME: companyName,
+    USERID: companyData?.registration_number || "",
+    USERADDRESS: companyData?.address || "",
+    PHONE: companyPhone,
+    EMAIL: companyData?.email || "",
+    DOMAIN: companyData?.website || "",
+    Datecreation: formatDate(documentDate),
+    RECEIPTNUMBER: previewNumber || "",
+    CLIENTNAME: customerName || "",
+    BUSINESSID: customerData?.tax_id || "",
+    CLIENTPHONE: customerPhone,
+    SIGNATURE_URL: companyData?.signature_url || "",
+    DOC_SUBTITLE: description || "",
+    FOOTER_TEXT: footerNotes || "",
+    FOOTER_META: documentDate ? `הופק ב- תאריך ${formatDate(documentDate)} שעה ${new Date(documentDate).toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' })}` : "",
+    PAYMENT_METHOD: payments[0]?.method || "",
+    PAYMENT_DESC: "",
+    PAYMENT_DATE: payments[0] ? formatDate(payments[0].date) : "",
+    PAYMENT_AMOUNT: payments[0] ? formatMoney(payments[0].amount, payments[0].currency) : "",
+    TOTAL: formatMoney(total, currency)
+  };
+  
+  // Function to process template with data
+  const processTemplate = (html: string) => {
+    let processed = html;
+    
+    console.log("🔵 [processTemplate] Starting with template length:", html.length);
+
+    // 1. Handle loops first: {{#each payments}}...{{/each}}
+    processed = processed.replace(
+      /\{\{#each\s+(\w+)\}\}([\s\S]*?)\{\{\/each\}\}/g,
+      (match, arrayName, template) => {
+        const array = (templateData as any)[arrayName];
+        console.log(`🔄 [processTemplate] Loop {{#each ${arrayName}}}:`, {
+          isArray: Array.isArray(array),
+          length: array?.length
+        });
+        
+        if (!Array.isArray(array)) return "";
+
+        return array
+          .map((item: any, idx: number) => {
+            let itemHtml = template;
+
+            // Handle nested conditionals: {{#if this.prop}}...{{/if}}
+            itemHtml = itemHtml.replace(
+              /\{\{#if\s+this\.(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+              (m, prop, content) => {
+                const value = item[prop];
+                return value ? content : "";
+              }
+            );
+
+            // Replace {{this.prop}} with item values (supports spaces)
+            itemHtml = itemHtml.replace(
+              /\{\{\s*this\.(\w+)\s*\}\}/g,
+              (m, prop) => {
+                const value = item[prop];
+                return value !== undefined && value !== null ? String(value) : "";
+              }
+            );
+
+            // Replace {{@index}} with array index (supports spaces)
+            itemHtml = itemHtml.replace(/\{\{\s*@index\s*\}\}/g, String(idx));
+
+            return itemHtml;
+          })
+          .join("");
+      }
+    );
+
+    // 2. Handle regular conditionals: {{#if var}}...{{/if}}
+    processed = processed.replace(
+      /\{\{#if\s+([^\}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+      (match, expr, content) => {
+        const path = expr.trim();
+        const value = path
+          .split(".")
+          .reduce((obj: any, key: string) => obj?.[key], templateData);
+        
+        console.log(`🔀 [processTemplate] Conditional {{#if ${path}}}:`, {
+          value: value,
+          willShow: !!value
+        });
+        
+        return value ? content : "";
+      }
+    );
+
+    // 3. Replace regular variables: {{ var }} or {{var}} or {{user.name}}
+    // Supports spaces and dot notation
+    processed = processed.replace(
+      /\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}/g,
+      (match, path) => {
+        const value = path
+          .split(".")
+          .reduce((obj: any, key: string) => obj?.[key], templateData);
+        
+        if (value === undefined || value === null) {
+          console.warn(`⚠️ [processTemplate] Variable {{${path}}} not found in templateData`);
+          return "";
+        }
+        
+        return String(value);
+      }
+    );
+
+    console.log("✅ [processTemplate] Processing complete");
+    return processed;
+  };
+  
+  // Use template if available, otherwise use hardcoded HTML
+  const useTemplate = templateHtml && templateHtml.trim().length > 0;
+  
+  console.log("🎯 [PreviewClient] useTemplate decision:", {
+    useTemplate,
+    hasTemplateHtml: !!templateHtml,
+    trimmedLength: templateHtml?.trim().length || 0
+  });
 
   const handleDownloadPDF = async () => {
     const element = document.getElementById("receipt-pdf-root");
@@ -230,6 +414,11 @@ export default function PreviewClient({
         ${styleSettings.customCss}
       `}</style>
 
+      {/* Inject template CSS if available */}
+      {useTemplate && templateCss && (
+        <style dangerouslySetInnerHTML={{ __html: templateCss }} />
+      )}
+
       {/* Download PDF Button - Floating */}
       <div
         style={{
@@ -283,7 +472,32 @@ export default function PreviewClient({
           </svg>
         </button>
       </div>
-
+      
+      {/* Render template HTML or fallback to hardcoded */}
+      {useTemplate && isMounted ? (
+        <div 
+          id="receipt-pdf-root"
+          className="receipt-document receipt-pdf"
+          dangerouslySetInnerHTML={{ __html: processTemplate(templateHtml!) }} 
+        />
+      ) : useTemplate && !isMounted ? (
+        <div 
+          id="receipt-pdf-root"
+          className="receipt-document receipt-pdf"
+          style={{ 
+            width: "210mm", 
+            minHeight: "297mm", 
+            padding: "40px", 
+            textAlign: "center", 
+            color: "#666",
+            margin: "0 auto",
+            background: "#ffffff"
+          }}
+        >
+          טוען...
+        </div>
+      ) : (
+        <div className="receipt-fallback-content">
       {/* Receipt Document - A4 Size Print-Ready View */}
       <div
         id="receipt-pdf-root"
@@ -928,6 +1142,8 @@ export default function PreviewClient({
           </div>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 }

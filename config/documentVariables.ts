@@ -42,6 +42,7 @@ export const DOCUMENT_TYPES = {
   DELIVERY_NOTE: "delivery_note",
   CREDIT_INVOICE: "credit_invoice",
   PROFORMA: "proforma",
+  TRANSACTION_INVOICE: "transaction_invoice",
 } as const
 
 export type DocumentType = (typeof DOCUMENT_TYPES)[keyof typeof DOCUMENT_TYPES]
@@ -54,6 +55,7 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   delivery_note: "תעודת משלוח",
   credit_invoice: "חשבונית זכות",
   proforma: "חשבונית פרופורמה",
+  transaction_invoice: "חשבונית עסקה",
 }
 
 // ===================================================================

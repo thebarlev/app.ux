@@ -122,7 +122,6 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
       total_amount: payload.total,
       currency: payload.currency,
       internal_notes: payload.notes,
-      customer_notes: payload.footerNotes,
     })
     .select("id")
     .single();
@@ -176,7 +175,6 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
       total_amount: payload.total,
       currency: payload.currency,
       internal_notes: payload.notes,
-      customer_notes: payload.footerNotes,
     })
     .select("id")
     .single();
@@ -281,7 +279,6 @@ export async function updateReceiptDraftAction(draftId: string, payload: Receipt
       total_amount: payload.total,
       currency: payload.currency,
       internal_notes: payload.notes,
-      customer_notes: payload.footerNotes,
     })
     .eq("id", draftId)
     .eq("company_id", companyId); // Double-check company_id for security

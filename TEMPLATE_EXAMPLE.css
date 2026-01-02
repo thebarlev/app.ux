@@ -1,0 +1,474 @@
+/* ====================================================
+   תבנית CSS לדוגמה - קבלה מקצועית
+   ==================================================== */
+
+/* Reset & Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Heebo', 'Arial', sans-serif;
+  direction: rtl;
+  text-align: right;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Main Container - A4 Size */
+.receipt-container {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 20mm;
+  background: white;
+  position: relative;
+}
+
+/* Print Optimization */
+@media print {
+  .receipt-container {
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+  }
+  
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}
+
+/* ====================================================
+   HEADER SECTION
+   ==================================================== */
+
+.receipt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  border-bottom: 2px solid var(--receipt-accent, #2563eb);
+  padding-bottom: 20px;
+}
+
+/* Company Info (Right Side) */
+.company-info {
+  text-align: right;
+  flex: 1;
+}
+
+.company-logo {
+  max-width: 150px;
+  max-height: 80px;
+  object-fit: contain;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.company-name {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--receipt-text, #1a1a1a);
+}
+
+.company-details {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.8;
+}
+
+.company-details div {
+  margin-bottom: 3px;
+}
+
+/* Document Info (Left Side) */
+.document-info {
+  text-align: left;
+  flex-shrink: 0;
+}
+
+.document-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--receipt-accent, #2563eb);
+  margin-bottom: 10px;
+}
+
+.document-number {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--receipt-text, #333);
+  margin-bottom: 5px;
+}
+
+.document-date {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 3px;
+}
+
+/* ====================================================
+   CUSTOMER SECTION
+   ==================================================== */
+
+.customer-section {
+  background: var(--receipt-header-bg, #f3f4f6);
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border-right: 4px solid var(--receipt-accent, #2563eb);
+}
+
+.customer-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--receipt-header-text, #1f2937);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.customer-details {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #4b5563;
+}
+
+.customer-details div {
+  margin-bottom: 5px;
+}
+
+.customer-details strong {
+  font-weight: 600;
+  color: var(--receipt-text, #1f2937);
+  margin-left: 8px;
+}
+
+/* ====================================================
+   DESCRIPTION SECTION
+   ==================================================== */
+
+.description-section {
+  margin-bottom: 30px;
+}
+
+.description-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--receipt-text, #1f2937);
+  margin-bottom: 8px;
+}
+
+.description-text {
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.6;
+  padding: 12px 15px;
+  background: #f9fafb;
+  border-right: 3px solid var(--receipt-accent, #3b82f6);
+  border-radius: 4px;
+}
+
+/* ====================================================
+   PAYMENTS TABLE
+   ==================================================== */
+
+.payments-section {
+  margin-bottom: 30px;
+}
+
+.payments-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--receipt-text, #1f2937);
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--receipt-table-border, #e5e7eb);
+}
+
+.payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--receipt-table-border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.payments-table thead {
+  background: var(--receipt-table-header-bg, #1f2937);
+}
+
+.payments-table th {
+  color: var(--receipt-table-header-text, white);
+  padding: 12px 15px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.payments-table tbody tr {
+  border-bottom: 1px solid var(--receipt-table-border, #e5e7eb);
+  transition: background-color 0.2s;
+}
+
+.payments-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.payments-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.payments-table td {
+  padding: 10px 15px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.payments-table td:last-child {
+  font-weight: 600;
+  color: var(--receipt-text, #1f2937);
+}
+
+/* Payment Details Column */
+.payment-details {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+/* ====================================================
+   TOTAL SECTION
+   ==================================================== */
+
+.total-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 40px;
+}
+
+.total-box {
+  background: var(--receipt-total-bg, #1f2937);
+  color: white;
+  padding: 20px 40px;
+  border-radius: 8px;
+  min-width: 280px;
+  text-align: center;
+  border: 2px solid var(--receipt-total-border, #3b82f6);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.total-label {
+  font-size: 14px;
+  margin-bottom: 10px;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.total-amount {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+/* ====================================================
+   NOTES SECTIONS
+   ==================================================== */
+
+.notes-section {
+  margin-bottom: 25px;
+  padding: 15px 20px;
+  border-radius: 6px;
+  border-right: 4px solid;
+}
+
+/* Internal Notes (Yellow) */
+.notes-section.internal {
+  background: #fef3c7;
+  border-right-color: #f59e0b;
+}
+
+.notes-section.internal .notes-title {
+  color: #92400e;
+}
+
+.notes-section.internal .notes-text {
+  color: #78350f;
+}
+
+/* Customer Notes (Blue) */
+.notes-section.customer {
+  background: #dbeafe;
+  border-right-color: #3b82f6;
+}
+
+.notes-section.customer .notes-title {
+  color: #1e3a8a;
+}
+
+.notes-section.customer .notes-text {
+  color: #1e40af;
+}
+
+.notes-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.notes-text {
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ====================================================
+   SIGNATURE SECTION
+   ==================================================== */
+
+.signature-section {
+  margin-top: 50px;
+  margin-bottom: 80px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.signature-image-container {
+  flex-shrink: 0;
+}
+
+.signature-image {
+  max-width: 200px;
+  max-height: 100px;
+  object-fit: contain;
+  display: block;
+}
+
+.signature-line {
+  border-top: 1px solid #333;
+  width: 200px;
+  padding-top: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+}
+
+/* ====================================================
+   FOOTER
+   ==================================================== */
+
+.footer {
+  position: absolute;
+  bottom: 20mm;
+  left: 20mm;
+  right: 20mm;
+  text-align: center;
+  font-size: 11px;
+  color: #6b7280;
+  border-top: 1px solid var(--receipt-table-border, #e5e7eb);
+  padding-top: 15px;
+}
+
+.footer-line {
+  margin-bottom: 5px;
+  line-height: 1.5;
+}
+
+.footer-line:last-child {
+  margin-bottom: 0;
+}
+
+/* ====================================================
+   UTILITY CLASSES
+   ==================================================== */
+
+.text-bold {
+  font-weight: 600;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.mb-10 {
+  margin-bottom: 10px;
+}
+
+.mb-20 {
+  margin-bottom: 20px;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+.mt-20 {
+  margin-top: 20px;
+}
+
+/* ====================================================
+   RESPONSIVE (For Preview on Small Screens)
+   ==================================================== */
+
+@media screen and (max-width: 768px) {
+  .receipt-container {
+    width: 100%;
+    padding: 15px;
+    min-height: auto;
+  }
+  
+  .receipt-header {
+    flex-direction: column;
+  }
+  
+  .document-info {
+    text-align: right;
+    margin-top: 20px;
+  }
+  
+  .signature-section {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .signature-line {
+    margin-top: 20px;
+  }
+}
+
+/* ====================================================
+   DARK MODE SUPPORT (Optional)
+   ==================================================== */
+
+@media (prefers-color-scheme: dark) {
+  @media screen {
+    .receipt-container {
+      background: #1f2937;
+      color: #f3f4f6;
+    }
+    
+    .company-name,
+    .document-number {
+      color: #f3f4f6;
+    }
+    
+    .customer-section {
+      background: #374151;
+    }
+    
+    .description-text {
+      background: #374151;
+      color: #e5e7eb;
+    }
+  }
+}

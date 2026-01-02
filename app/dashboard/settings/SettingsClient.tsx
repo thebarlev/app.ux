@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TemplateSelector from "@/components/dashboard/TemplateSelector";
+import SimpleTemplateSelector from "@/components/dashboard/SimpleTemplateSelector";
 import {
   updateBusinessDetailsAction,
   uploadLogoAction,
@@ -30,7 +31,6 @@ type Company = {
   website: string | null;
   logo_url: string | null;
   signature_url: string | null;
-  selected_template_id: string | null;
 };
 
 type Template = {
@@ -840,48 +840,99 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             />
           </div>
         </div>
-
-        {/* Save Button */}
-        <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e5e7eb" }}>
-          <button
-            onClick={handleSaveDetails}
-            disabled={isSaving}
-            style={{
-              padding: "12px 32px",
-              borderRadius: 12,
-              border: "1px solid #111827",
-              background: "#111827",
-              color: "white",
-              cursor: isSaving ? "not-allowed" : "pointer",
-              fontWeight: 700,
-              fontSize: 16,
-              opacity: isSaving ? 0.5 : 1,
-            }}
-          >
-            {isSaving ? "שומר..." : "שמור שינויים"}
-          </button>
-        </div>
       </div>
 
-      {/* Template Selection Section */}
+      {/* Template Selection Section - Simple List */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-2">בחירת תבניות מסמכים</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+          בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.
+        </p>
+        <SimpleTemplateSelector />
+      </div>
+
+      {/* Floating Save Button - Sticky at Bottom */}
       <div
         style={{
-          padding: 24,
-          background: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          marginBottom: 24,
+          position: "fixed",
+          bottom: 24,
+          left: 24,
+          zIndex: 50,
         }}
       >
-        <TemplateSelector
-          initialTemplates={initialTemplates}
-          selectedTemplateId={company.selected_template_id}
-          onTemplateSelect={async (templateId: string) => {
-            const { setSelectedTemplateInSettingsAction } = await import("./template-actions")
-            return await setSelectedTemplateInSettingsAction(templateId)
+        <button
+          onClick={handleSaveDetails}
+          disabled={isSaving}
+          style={{
+            padding: "16px 40px",
+            borderRadius: 16,
+            border: "none",
+            background: isSaving ? "#6b7280" : "#111827",
+            color: "white",
+            cursor: isSaving ? "not-allowed" : "pointer",
+            fontWeight: 700,
+            fontSize: 18,
+            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)",
+            transition: "all 0.2s ease",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
           }}
-        />
+          onMouseEnter={(e) => {
+            if (!isSaving) {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = "0 15px 30px -5px rgba(0, 0, 0, 0.4), 0 10px 15px -6px rgba(0, 0, 0, 0.3)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)";
+          }}
+        >
+          {isSaving ? (
+            <>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 18,
+                  height: 18,
+                  border: "3px solid rgba(255,255,255,0.3)",
+                  borderTop: "3px solid white",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                }}
+              />
+              שומר...
+            </>
+          ) : (
+            <>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              שמור שינויים
+            </>
+          )}
+        </button>
       </div>
+
+      {/* Keyframe animation for spinner */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

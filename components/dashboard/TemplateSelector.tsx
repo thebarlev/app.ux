@@ -25,13 +25,13 @@ type Template = {
 
 type Props = {
   initialTemplates: Template[]
-  selectedTemplateId: string | null
+  selectedTemplateId?: string | null
   onTemplateSelect: (templateId: string) => Promise<{ ok: boolean; message?: string }>
 }
 
 export default function TemplateSelector({
   initialTemplates,
-  selectedTemplateId,
+  selectedTemplateId = null,
   onTemplateSelect,
 }: Props) {
   const [templates, setTemplates] = useState(initialTemplates)

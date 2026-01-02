@@ -223,7 +223,7 @@ export default function StartingNumberModal({
               תצוגה מקדימה של המיספור:
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>
-              {String(startingNumber).padStart(6, "0")}, {String(startingNumber + 1).padStart(6, "0")}, {String(startingNumber + 2).padStart(6, "0")}...
+              {startingNumber}, {startingNumber + 1}, {startingNumber + 2}...
             </div>
           </div>
         </div>

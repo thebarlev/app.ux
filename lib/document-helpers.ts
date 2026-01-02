@@ -183,7 +183,9 @@ export async function getNextDocumentNumberPreview(
   // Next number is current_number + 1 (or starting_number if current is 0)
   const nextNum = Math.max(sequence.current_number + 1, sequence.starting_number)
   const prefix = sequence.prefix || ""
-  const formatted = `${prefix}${String(nextNum).padStart(6, "0")}`
+  // Return pure number without zero-padding
+  // Examples: 1, 99, 100, 1543 (no leading zeros)
+  const formatted = `${prefix}${nextNum}`
 
   return { nextNumber: nextNum, formatted }
 }

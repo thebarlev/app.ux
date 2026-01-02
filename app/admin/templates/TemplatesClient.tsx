@@ -245,7 +245,6 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                   onClick={() =>
                     handleToggleActive(template.id, template.is_active)
                   }
-                  disabled={template.company_id === null}
                 >
                   <Power className="h-4 w-4 ml-2" />
                   {template.is_active ? "השבת" : "הפעל"}
@@ -253,22 +252,21 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => router.push(`/admin/templates/${template.id}/preview`)}
+                  onClick={() => window.open(`/admin/templates/${template.id}/preview`, '_blank')}
                 >
-                  <Eye className="h-4 w-4" />
+                  <Eye className="h-4 w-4 ml-2" />
+                  תצוגה לדוגמה
                 </Button>
-                {template.company_id && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedTemplateId(template.id)
-                      setDeleteDialogOpen(true)
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedTemplateId(template.id)
+                    setDeleteDialogOpen(true)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
               </CardFooter>
             </Card>
           ))}

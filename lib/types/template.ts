@@ -23,6 +23,7 @@ export interface TemplateDefinition {
   css: string | null;
   is_default: boolean;
   is_active: boolean;
+  thumbnail_url?: string | null; // Preview image
   created_at: string;
   updated_at: string;
   created_by: string | null;

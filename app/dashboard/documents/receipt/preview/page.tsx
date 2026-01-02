@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { getReceiptStyleSettingsPublic } from "@/app/admin/receipt-style/actions";
-import PreviewClient from "./PreviewClient";
+import { getTemplateForDocument } from "@/lib/pdf-service";
+import PreviewWrapper from "./PreviewWrapper";
 
 async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   const supabase = await createClient();
@@ -24,8 +25,11 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     customerData = data;
   }
   
-  // Get company data
+  // Get company data and template
   let companyData = null;
+  let templateHtml = null;
+  let templateCss = null;
+  
   try {
     const companyId = await getCompanyIdForUser();
     const { data } = await supabase
@@ -35,14 +39,33 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       .maybeSingle();
     
     companyData = data;
+    
+    // Get template from database
+    console.log("🔵 [PreviewPage] Fetching template for company:", companyId.substring(0, 8));
+    const template = await getTemplateForDocument(companyId, "receipt");
+    templateHtml = template.html;
+    templateCss = template.css;
+    console.log("✅ [PreviewPage] Template loaded:", {
+      templateId: template.templateId?.substring(0, 8) || 'fallback',
+      hasHtml: !!templateHtml,
+      hasCss: !!templateCss
+    });
   } catch (e) {
-    console.error("Failed to fetch company data:", e);
+    console.error("Failed to fetch company data or template:", e);
   }
   
   // Get receipt style settings
   const styleSettings = await getReceiptStyleSettingsPublic();
   
-  return <PreviewClient customerData={customerData} companyData={companyData} styleSettings={styleSettings} />;
+  return (
+    <PreviewWrapper 
+      customerData={customerData} 
+      companyData={companyData} 
+      styleSettings={styleSettings}
+      templateHtml={templateHtml}
+      templateCss={templateCss}
+    />
+  );
 }
 
 export default async function ReceiptPreviewPage({ searchParams }: { searchParams: any }) {
