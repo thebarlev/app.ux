@@ -16,23 +16,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect("/admin/login")
-  }
-
-  // Verify user is a system admin
+  // The middleware already handles authentication and authorization
+  // If we're here, the user is authenticated and is an admin
+  // Just fetch the admin data for display purposes
   const { data: adminData } = await supabase
     .from("system_admins")
     .select("id, name, email")
-    .eq("auth_user_id", user.id)
+    .eq("auth_user_id", user?.id)
     .single()
 
-  if (!adminData) {
-    redirect("/admin/login?error=unauthorized")
-  }
+  const adminName = adminData?.name || adminData?.email || user?.email || "Admin"
 
   return (
-    <AdminLayoutClient adminName={adminData.name || adminData.email}>
+    <AdminLayoutClient adminName={adminName}>
       {children}
     </AdminLayoutClient>
   )

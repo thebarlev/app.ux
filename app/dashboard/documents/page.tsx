@@ -1,61 +1,30 @@
 import Link from "next/link";
 
-const DOCUMENT_PRODUCTS = [
-  {
-    slug: "receipt",
-    title: "קבלות",
-    description: "הפקה וניהול קבלות",
-  },
-  {
-    slug: "tax-invoice",
-    title: "חשבוניות מס",
-    description: "הפקה וניהול חשבוניות מס",
-  },
-  {
-    slug: "tax-invoice-receipt",
-    title: "חשבונית מס קבלה",
-    description: "מסמך משולב",
-  },
-];
-
-export default function DocumentsPortalPage() {
+function Tile({ title, desc, href }: { title: string; desc: string; href: string }) {
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>מסמכים</h1>
-      <p style={{ marginTop: 8 }}>
-        כל סוג מסמך הוא מוצר נפרד בחשבון שלך
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        {DOCUMENT_PRODUCTS.map((doc) => (
-          <Link
-            key={doc.slug}
-            href={`/dashboard/documents/${doc.slug}`}
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: 16,
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {doc.title}
-            </div>
-            <div style={{ marginTop: 8, opacity: 0.8 }}>
-              {doc.description}
-            </div>
-          </Link>
-        ))}
-      </div>
-    </main>
+    <Link
+      href={href}
+      className="block rounded-2xl border border-white/10 bg-white/5 p-6 transition hover:bg-white/10"
+    >
+      <div className="text-lg font-semibold">{title}</div>
+      <div className="mt-1 text-sm text-white/70">{desc}</div>
+    </Link>
   );
 }
 
+export default function DocumentsPage() {
+  return (
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold">מסמכים</h1>
+        <p className="text-white/70">ניהול מסמכים לפי סוג.</p>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Tile title="ריכוז כל המסמכים" desc="צפייה בכל המסמכים לפי סדר." href="/dashboard/documents/all" />
+        <Tile title="קבלות" desc="רשימת קבלות, חיפוש וניהול." href="/dashboard/documents/receipts" />
+        <Tile title="הפקת קבלה חדשה" desc="יצירת מסמך חדש." href="/dashboard/documents/new/receipt" />
+      </div>
+    </div>
+  );
+}

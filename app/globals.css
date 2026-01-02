@@ -14,3 +14,17 @@ html, body {
 body {
   margin: 0;
 }
+
+/* Error field animation */
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
+}
+
+.error-field {
+  animation: error-shake 0.3s ease-in-out;
+  outline: 2px solid rgb(239 68 68);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}

@@ -8,6 +8,14 @@ import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
 import PaymentDetailsSection from "./PaymentDetailsSection";
+import { SectionCard } from "@/components/ui/section-card";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { MoneyInput } from "@/components/ui/money-input";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileText, Save, CheckCircle, Settings as SettingsIcon, Trash2, Plus } from "lucide-react";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -152,9 +160,9 @@ export default function ReceiptFormClient({
 
   if (!initial.ok) {
     return (
-      <div style={{ padding: 16, border: "1px solid #fca5a5", borderRadius: 12, background: "#fff1f2" }}>
-        <div style={{ fontWeight: 800 }}>שגיאה בטעינת הנתונים</div>
-        <div style={{ marginTop: 8, opacity: 0.9 }}>{initial.message}</div>
+      <div className="p-4 border-2 border-red-200 rounded-xl bg-red-50">
+        <div className="font-bold text-red-900 mb-2">שגיאה בטעינת הנתונים</div>
+        <div className="text-red-700">{initial.message}</div>
       </div>
     );
   }
@@ -339,101 +347,103 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
+    <div className="space-y-6">
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          padding: 16,
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          background: "white",
-        }}
-      >
+      <div className="flex items-start justify-between gap-4 p-6 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border border-blue-100 shadow-sm">
         <div>
-          <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.1 }}>
-            קבלה {previewNumber && <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>| {previewNumber}</span>}
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
+              <FileText className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-slate-800">יצירת קבלה</h1>
+              {previewNumber && (
+                <p className="text-sm font-semibold text-blue-600">מספר תצוגה מקדימה: {previewNumber}</p>
+              )}
+            </div>
           </div>
         </div>
 
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontWeight: 800 }}>{initial.companyName ?? "העסק שלי"}</div>
-          <button
-            type="button"
+        <div className="text-left">
+          <div className="font-bold text-slate-800 mb-2">{initial.companyName ?? "העסק שלי"}</div>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setSettingsOpen((v) => !v)}
-            style={{
-              marginTop: 8,
-              padding: "8px 10px",
-              borderRadius: 10,
-              border: "1px solid #e5e7eb",
-              background: "#f9fafb",
-              cursor: "pointer",
-            }}
+            className="bg-white hover:bg-blue-50"
           >
+            <SettingsIcon className="h-4 w-4 ml-2" />
             הגדרות
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Settings Panel */}
       {settingsOpen && (
-        <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-          <div style={{ fontSize: 18, fontWeight: 900 }}>הגדרות</div>
+        <SectionCard 
+          title="הגדרות מסמך" 
+          description="התאם את ברירות המחדל למסמך זה"
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            <FieldWrapper label="שפה">
+              <Select value={language} onValueChange={(v) => setLanguage(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="he">עברית</SelectItem>
+                  <SelectItem value="en">אנגלית</SelectItem>
+                </SelectContent>
+              </Select>
+            </FieldWrapper>
 
-          <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <div>
-              <div style={{ fontWeight: 800 }}>שפה</div>
-              <select value={language} onChange={(e) => setLanguage(e.target.value as any)} style={{ marginTop: 6, width: "100%", padding: 10 }}>
-                <option value="he">עברית</option>
-                <option value="en">אנגלית</option>
-              </select>
-            </div>
+            <FieldWrapper label="מטבע ברירת מחדל">
+              <Select value={currency} onValueChange={setCurrency}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedCurrencies.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrapper>
 
-            <div>
-              <div style={{ fontWeight: 800 }}>מטבע ברירת מחדל</div>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }}>
-                {allowedCurrencies.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>
-                מותרים: {allowedCurrencies.join(", ")}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 800 }}>עיגול סכומים</div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <input type="checkbox" checked={roundTotals} onChange={(e) => setRoundTotals(e.target.checked)} />
-                לעגל את הסכום הסופי למטבע שלם (ללא אגורות)
+            <FieldWrapper label="עיגול סכומים">
+              <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={roundTotals}
+                  onChange={(e) => setRoundTotals(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-slate-700">עיגול למטבע שלם</span>
               </label>
-            </div>
+            </FieldWrapper>
           </div>
-
-          <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>
-            הערה: כרגע אלו ברירות מחדל מקומיות למסך (כמו שביקשת). בהמשך נחבר להגדרות חברה ב־DB.
-          </div>
-        </div>
+        </SectionCard>
       )}
 
-      {/* Document details */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>פרטי המסמך</div>
-
-        <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-          <div ref={customerNameRef}>
-            <div style={{ fontWeight: 800 }}>שם לקוח <span style={{ color: "#ef4444" }}>*</span></div>
-            <div style={{ marginTop: 6 }}>
+      {/* Customer Details */}
+      <SectionCard 
+        title="פרטי לקוח" 
+        description="בחר לקוח קיים או הזן שם חדש"
+        error={!!customerNameError}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <FieldWrapper 
+            label="שם לקוח" 
+            required 
+            error={customerNameError}
+          >
+            <div ref={customerNameRef}>
               <CustomerAutocomplete
                 value={customerName}
                 onChange={(value) => {
                   setCustomerName(value);
-                  // Clear error when user starts typing
                   if (customerNameError && value.trim().length > 0) {
                     setCustomerNameError(null);
                   }
@@ -444,325 +454,247 @@ export default function ReceiptFormClient({
                     setCustomerNameError(null);
                   }
                 }}
-                onAddNewCustomer={() => {
-                  // Only open modal when user explicitly clicks "+ Add customer"
-                  setShowQuickAddModal(true);
-                }}
+                onAddNewCustomer={() => setShowQuickAddModal(true)}
                 placeholder="התחל להקליד שם לקוח..."
               />
             </div>
-            {customerNameError && (
-              <div className="error-message" style={{ 
-                marginTop: 6, 
-                color: "#dc2626", 
-                fontSize: 13, 
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 4
-              }}>
-                <span>⚠️</span>
-                <span>{customerNameError}</span>
-              </div>
-            )}
-          </div>
+          </FieldWrapper>
 
-          <div>
-            <div style={{ fontWeight: 800 }}>תאריך מסמך</div>
-            <input type="date" value={documentDate} onChange={(e) => setDocumentDate(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }} />
-          </div>
+          <FieldWrapper label="תאריך מסמך" required>
+            <Input
+              type="date"
+              value={documentDate}
+              onChange={(e) => setDocumentDate(e.target.value)}
+            />
+          </FieldWrapper>
         </div>
+      </SectionCard>
 
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>תיאור <span style={{ color: "#ef4444" }}>*</span></div>
-          <input 
+      {/* Document Details */}
+      <SectionCard 
+        title="פרטי המסמך" 
+        description="תיאור התשלום או השירות"
+        error={!!descriptionError}
+      >
+        <FieldWrapper 
+          label="תיאור" 
+          required 
+          error={descriptionError}
+        >
+          <Input
             ref={descriptionInputRef}
-            value={description} 
+            value={description}
             onChange={(e) => {
               setDescription(e.target.value);
-              // Clear error when user starts typing
               if (descriptionError && e.target.value.trim().length >= 5) {
                 setDescriptionError(null);
               }
-            }} 
-            style={{ 
-              marginTop: 6, 
-              width: "100%", 
-              padding: 10,
-              border: descriptionError ? "2px solid #ef4444" : "1px solid #d1d5db",
-              borderRadius: 8,
-              outline: "none",
-            }} 
-            placeholder="לדוגמה: שירותי עיצוב (לפחות 5 תווים)" 
+            }}
+            placeholder="לדוגמה: שירותי עיצוב (לפחות 5 תווים)"
+            className={descriptionError ? "border-red-500" : ""}
           />
-          {descriptionError && (
-            <div style={{ 
-              marginTop: 6, 
-              color: "#ef4444", 
-              fontSize: 14, 
-              fontWeight: 600,
-              display: "flex",
-              alignItems: "center",
-              gap: 4
-            }}>
+        </FieldWrapper>
+      </SectionCard>
+
+      {/* Payments Section */}
+      <SectionCard 
+        title="פירוט תקבולים" 
+        description="איך שילמו לך? אפשר לבחור מספר צורות תשלום שונות"
+        error={Object.keys(paymentErrors).length > 0}
+      >
+        <div ref={paymentsTableRef}>
+          {Object.keys(paymentErrors).length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm font-semibold">
               <span>⚠️</span>
-              <span>{descriptionError}</span>
+              <span>יש לתקן את השדות המסומנים באדום</span>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Payments */}
-      <div ref={paymentsTableRef} style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>פירוט תקבולים</div>
-        <div style={{ marginTop: 6, opacity: 0.75 }}>
-          איך שילמו לך? אם שילמו לך בכמה צורות תשלום, אפשר לבחור כמה סוגי תקבולים.
-        </div>
-        
-        {Object.keys(paymentErrors).length > 0 && (
-          <div className="error-message" style={{ 
-            marginTop: 8,
-            padding: 10,
-            background: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: 8,
-            color: "#dc2626", 
-            fontSize: 13, 
-            fontWeight: 600,
-            display: "flex",
-            alignItems: "center",
-            gap: 4
-          }}>
-            <span>⚠️</span>
-            <span>יש לתקן את השדות המסומנים באדום</span>
-          </div>
-        )}
-
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-            <thead>
-              <tr style={{ textAlign: "right", opacity: 0.85 }}>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>אמצעי</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>תאריך</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>סכום</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>מטבע</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>פרטים (אופציונלי)</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {payments.map((row, i) => (
-                <tr key={i}>
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <select
+          <div className="space-y-3">
+            {payments.map((row, i) => (
+              <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <FieldWrapper label="אמצעי תשלום" error={paymentErrors[i]}>
+                    <Select
                       value={row.method}
-                      onChange={(e) => {
-                        updatePaymentRow(i, { method: e.target.value as any });
-                        // Clear error when user selects payment method
+                      onValueChange={(v) => {
+                        updatePaymentRow(i, { method: v as any });
                         if (paymentErrors[i]) {
                           const newErrors = { ...paymentErrors };
                           delete newErrors[i];
                           setPaymentErrors(newErrors);
                         }
                       }}
-                      style={{ 
-                        width: 200, 
-                        padding: 8,
-                        border: paymentErrors[i] ? "2px solid #dc2626" : "1px solid #d1d5db"
-                      }}
                     >
-                      <option value="">בחר…</option>
-                      {PAYMENT_METHODS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
+                      <SelectTrigger className={paymentErrors[i] ? "border-red-500" : ""}>
+                        <SelectValue placeholder="בחר..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FieldWrapper>
 
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <input
+                  <FieldWrapper label="תאריך">
+                    <Input
                       type="date"
                       value={row.date}
                       onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
-                      style={{ padding: 8 }}
                     />
-                  </td>
+                  </FieldWrapper>
 
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={row.amount}
-                      onChange={(e) => {
-                        updatePaymentRow(i, { amount: Number(e.target.value) });
-                        // Clear error when user enters valid amount
-                        if (paymentErrors[i] && Number(e.target.value) > 0) {
-                          const newErrors = { ...paymentErrors };
-                          delete newErrors[i];
-                          setPaymentErrors(newErrors);
-                        }
-                      }}
-                      style={{ 
-                        width: 140, 
-                        padding: 8,
-                        border: paymentErrors[i] ? "2px solid #dc2626" : "1px solid #d1d5db"
-                      }}
-                    />
-                  </td>
+                  <FieldWrapper label="סכום">
+                    <div className="flex gap-2">
+                      <MoneyInput
+                        value={row.amount}
+                        onChange={(v) => {
+                          updatePaymentRow(i, { amount: v });
+                          if (paymentErrors[i] && v > 0) {
+                            const newErrors = { ...paymentErrors };
+                            delete newErrors[i];
+                            setPaymentErrors(newErrors);
+                          }
+                        }}
+                        currency={row.currency}
+                        error={!!paymentErrors[i]}
+                        className="flex-1"
+                      />
+                      <Select
+                        value={row.currency}
+                        onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                      >
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allowedCurrencies.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </FieldWrapper>
+                </div>
 
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <select
-                      value={row.currency}
-                      onChange={(e) => updatePaymentRow(i, { currency: e.target.value })}
-                      style={{ width: 90, padding: 8 }}
-                    >
-                      {allowedCurrencies.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <div className="flex-1">
                     <PaymentDetailsSection
                       payment={row}
                       onUpdate={(updates) => updatePaymentRow(i, updates)}
                     />
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <button
-                      type="button"
-                      onClick={() => removePaymentRow(i)}
-                      disabled={payments.length === 1}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                        background: "white",
-                        cursor: payments.length === 1 ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      מחק
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <button
-          type="button"
-          onClick={addPaymentRow}
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #e5e7eb",
-            background: "#f9fafb",
-            cursor: "pointer",
-          }}
-        >
-          הוספת תקבול +
-        </button>
-
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 900 }}>סה״כ שולם</div>
-          <div style={{ fontWeight: 900 }}>{formatMoney(total, currency)}</div>
-        </div>
-
-        {roundTotals && (
-          <div style={{ marginTop: 6, opacity: 0.75, fontSize: 13 }}>
-            כולל עיגול לסכום סופי (ללא אגורות).
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removePaymentRow(i)}
+                    disabled={payments.length === 1}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4 ml-1" />
+                    מחק
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Notes */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>הערות</div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addPaymentRow}
+            className="w-full border-dashed border-2 hover:border-blue-400 hover:bg-blue-50"
+          >
+            <Plus className="h-4 w-4 ml-2" />
+            הוספת תקבול
+          </Button>
 
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>הערות שיופיעו במסמך</div>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10, minHeight: 90 }} />
+          <div className="pt-4 border-t-2 border-slate-300">
+            <div className="flex justify-between items-center">
+              <div className="text-lg font-black text-slate-800">סה״כ שולם</div>
+              <div className="text-2xl font-black text-blue-600">{formatMoney(total, currency)}</div>
+            </div>
+            {roundTotals && (
+              <p className="text-xs text-slate-500 mt-1 text-left">כולל עיגול לסכום סופי</p>
+            )}
+          </div>
         </div>
-      </div>
+      </SectionCard>
 
-      {/* Buttons */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
+      {/* Notes Section */}
+      <SectionCard title="הערות" description="הערות שיופיעו במסמך הסופי">
+        <FieldWrapper label="הערות נוספות">
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="הזן הערות כלליות..."
+            className="min-h-[100px] resize-y"
+          />
+        </FieldWrapper>
+      </SectionCard>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 flex-wrap sticky bottom-0 bg-white/95 backdrop-blur-sm p-4 rounded-xl border border-slate-200 shadow-lg">
+        <Button
           type="button"
+          variant="outline"
           onClick={onSaveDraft}
           disabled={busy != null}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 12,
-            border: "1px solid #d1d5db",
-            background: busy === "draft" ? "#f3f4f6" : "white",
-            cursor: busy != null ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            fontSize: 15,
-          }}
+          className="flex-1 min-w-[200px]"
         >
-          {busy === "draft" ? "שומר בטיוטות..." : "💾 שמירה בטיוטות"}
-        </button>
+          {busy === "draft" ? (
+            <>שומר בטיוטות...</>
+          ) : (
+            <>
+              <Save className="h-4 w-4 ml-2" />
+              שמירה בטיוטות
+            </>
+          )}
+        </Button>
 
-        <button
+        <Button
           type="button"
           onClick={onIssue}
           disabled={busy != null || !sequenceLocked}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 12,
-            border: "1px solid #111827",
-            background: (busy != null || !sequenceLocked) ? "#9ca3af" : "#111827",
-            color: "white",
-            cursor: (busy != null || !sequenceLocked) ? "not-allowed" : "pointer",
-            opacity: (busy != null || !sequenceLocked) ? 0.6 : 1,
-            fontWeight: 700,
-            fontSize: 15,
-          }}
+          className="flex-1 min-w-[200px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
           title={!sequenceLocked ? "נדרש לבחור מספר התחלתי" : ""}
         >
-          {busy === "issue" ? "יוצר קבלה..." : "✅ יצירת קבלה"}
-        </button>
+          {busy === "issue" ? (
+            <>יוצר קבלה...</>
+          ) : (
+            <>
+              <CheckCircle className="h-4 w-4 ml-2" />
+              יצירת קבלה
+            </>
+          )}
+        </Button>
       </div>
 
+      {/* Message Alert */}
       {message && (
-        <div style={{ 
-          padding: 12, 
-          borderRadius: 12, 
-          border: message.includes("שגיאה") ? "1px solid #fca5a5" : "1px solid #bfdbfe",
-          background: message.includes("שגיאה") ? "#fef2f2" : "#eff6ff",
-          color: message.includes("שגיאה") ? "#991b1b" : "#1e40af",
-        }}>
-          {message.includes("שגיאה") && "⚠️ "}{message}
+        <div 
+          className={`p-4 rounded-xl border font-medium ${
+            message.includes("שגיאה")
+              ? "bg-red-50 border-red-200 text-red-800"
+              : "bg-blue-50 border-blue-200 text-blue-800"
+          }`}
+        >
+          {message.includes("שגיאה") && "⚠️ "}
+          {message}
         </div>
       )}
 
       {/* Footer Text from Admin Settings */}
       {footerText && footerText.trim() && (
-        <div style={{
-          marginTop: 24,
-          padding: 16,
-          border: "1px solid #dbeafe",
-          borderRadius: 12,
-          background: "#eff6ff",
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "#1e40af" }}>
-            📌 הערות מערכת
-          </div>
-          <div style={{
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: "#1e3a8a",
-            whiteSpace: "pre-wrap",
-          }}>
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="font-bold text-sm mb-2 text-blue-900">📌 הערות מערכת</div>
+          <div className="text-sm text-blue-800 whitespace-pre-wrap leading-relaxed">
             {footerText}
           </div>
         </div>

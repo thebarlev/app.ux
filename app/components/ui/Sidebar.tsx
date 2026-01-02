@@ -29,7 +29,7 @@ export function Sidebar() {
       <nav className="space-y-1">
         <NavLink label="דשבורד" href="/dashboard" />
         <NavLink label="מסמכים" href="/dashboard/documents" />
-        <NavLink label="ריכוז כל המסמכים" href="/dashboard/documents/all" />
+        <NavLink label="כל המסמכים" href="/dashboard/documents/all" />
       </nav>
 
       <div className="mt-3">
@@ -40,16 +40,21 @@ export function Sidebar() {
           </summary>
 
           <div className="mt-2 space-y-1 pr-3 border-r border-white/10">
-            <NavLink label="קבלות" href="/dashboard/receipts" />
-            <NavLink label="חשבונית עסקה" href="/dashboard/invoices/deal" />
-            <NavLink label="חשבונית מס קבלה" href="/dashboard/invoices/tax-receipt" />
-            <NavLink label="חשבונניות" href="/dashboard/invoices" />
+            <NavLink label="כל הקבלות" href="/dashboard/documents/receipts" />
+            <NavLink label="קבלה חדשה" href="/dashboard/documents/receipt" />
+            <NavLink label="חשבונית מס קבלה" href="/dashboard/documents/tax-invoice-receipt" />
           </div>
         </details>
       </div>
 
       <div className="mt-3">
         <NavLink label="לקוחות" href="/dashboard/customers" />
+        <NavLink label="לקוח חדש" href="/dashboard/customers/new" />
+      </div>
+
+      <div className="mt-3">
+        <NavLink label="הגדרות" href="/dashboard/settings" />
+        <NavLink label="תבניות" href="/dashboard/templates" />
       </div>
 
       <div className="flex-1" />

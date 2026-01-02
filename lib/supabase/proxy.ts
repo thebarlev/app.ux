@@ -32,15 +32,45 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect admin routes (except login page)
-  if (request.nextUrl.pathname.startsWith("/admin") && !request.nextUrl.pathname.startsWith("/admin/login")) {
+  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
+  const isLoginPage = request.nextUrl.pathname === "/admin/login"
+
+  // Admin route handling
+  if (isAdminRoute) {
+    // Allow access to login page without authentication
+    if (isLoginPage) {
+      // If already logged in and is admin, redirect to dashboard
+      if (user) {
+        const { data: adminData } = await supabase
+          .from("system_admins")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .maybeSingle()
+        
+        if (adminData) {
+          const url = request.nextUrl.clone()
+          url.pathname = "/admin"
+          return NextResponse.redirect(url)
+        }
+        // If user exists but not admin, allow to see login page with error
+      }
+      // Not logged in, allow to see login page
+      return supabaseResponse
+    }
+
+    // Protect all other admin routes
     if (!user) {
       const url = request.nextUrl.clone()
       url.pathname = "/admin/login"
       return NextResponse.redirect(url)
     }
 
-    const { data: adminData } = await supabase.from("system_admins").select("id").eq("auth_user_id", user.id).single()
+    // Verify user is admin
+    const { data: adminData } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
 
     if (!adminData) {
       const url = request.nextUrl.clone()
