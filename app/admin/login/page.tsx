@@ -74,75 +74,82 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center bg-muted/30 p-6 md:p-10">
-      <div className="w-full max-w-md">
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-center gap-3 text-foreground">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <Shield className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">System Admin</h1>
-              <p className="text-sm text-muted-foreground">Control Panel</p>
-            </div>
+    <div className="min-h-svh w-full flex items-center justify-center bg-ui-bg">
+      <div className="w-full max-w-[460px] px-4 py-8">
+        {/* Logo/Header */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="flex h-14 w-14 items-center justify-center rounded-ui-lg bg-ui-primary">
+            <Shield className="h-7 w-7 text-white" />
+          </div>
+          <div className="text-left">
+            <h1 className="text-xl font-bold text-ui-text">System Admin</h1>
+            <p className="ui-text-muted">Control Panel</p>
+          </div>
+        </div>
+
+        <div className="ui-card">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-ui-text mb-2">Sign In</h2>
+            <p className="ui-text-muted">Enter your credentials to access the admin panel</p>
           </div>
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-semibold tracking-tight">Sign In</CardTitle>
-              <CardDescription>Enter your credentials to access the admin panel</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleLogin}>
-                <div className="flex flex-col gap-5">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email" className="text-sm font-medium">
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="admin@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password" className="text-sm font-medium">
-                      Password
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="h-11"
-                    />
-                  </div>
-                  {error && <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-                  <Button type="submit" className="h-11 w-full font-medium" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      "Sign In"
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="ui-label text-left">
+                Email Address
+              </label>
+              <input
+                id="email"
+                type="email"
+                className="ui-input text-left"
+                placeholder="admin@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
 
-          <p className="text-center text-xs text-muted-foreground">
-            This area is restricted to authorized system administrators only.
-          </p>
+            <div>
+              <label htmlFor="password" className="ui-label text-left">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                className="ui-input text-left"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {error && (
+              <div className="ui-alert-danger">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="ui-button-primary w-full"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In to Admin Panel"
+              )}
+            </button>
+          </form>
         </div>
+
+        <p className="mt-6 text-center ui-text-light">
+          This area is restricted to authorized system administrators only.
+        </p>
       </div>
     </div>
   )

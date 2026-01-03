@@ -24,6 +24,8 @@ function LoginForm() {
     const errorParam = searchParams.get("error")
     if (errorParam === "unauthorized") {
       setError("נא להתחבר כדי לגשת לחשבון שלך")
+    } else if (errorParam === "no_company") {
+      setError("לא נמצא חשבון עסקי קשור למשתמש זה")
     }
   }, [searchParams])
 
@@ -41,7 +43,16 @@ function LoginForm() {
       })
 
       if (authError) {
-        setError("אימייל או סיסמה שגויים")
+        const errorMsg = authError.message.includes("Invalid login")
+          ? "אימייל או סיסמה שגויים"
+          : `שגיאת התחברות: ${authError.message}`
+        const errorDetails = {
+          message: authError.message,
+          code: authError.code,
+          status: authError.status,
+        }
+        console.error("Auth login error:", errorDetails)
+        setError(errorMsg)
         setIsLoading(false)
         return
       }
@@ -79,65 +90,81 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-[420px]">
+    <div className="min-h-svh w-full flex items-center justify-center bg-ui-bg" dir="rtl">
+      <div className="w-full max-w-[460px] px-4 py-8">
         {/* Logo */}
         <div className="mb-8 flex justify-center">
           <RegistrationLogo />
         </div>
 
-        <NeumorphicCard>
+        <div className="ui-card">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-foreground">התחברות</h2>
-            <p className="mt-1 text-sm text-muted-foreground">הזן את פרטי ההתחברות שלך</p>
+            <h1 className="text-2xl font-bold text-ui-text mb-2">התחברות לחשבון</h1>
+            <p className="ui-text-muted">הזן את פרטי ההתחברות שלך כדי להמשיך</p>
           </div>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <NeumorphicInput
-              id="email"
-              type="email"
-              label="אימייל"
-              placeholder="israel@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              dir="ltr"
-              className="text-left"
-            />
-
-            <div className="relative">
-              <NeumorphicInput
-                id="password"
-                type={showPassword ? "text" : "password"}
-                label="סיסמה"
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label htmlFor="email" className="ui-label">
+                כתובת אימייל
+              </label>
+              <input
+                id="email"
+                type="email"
+                className="ui-input text-left"
+                placeholder="israel@example.com"
                 required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 dir="ltr"
-                className="text-left pl-10"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
             </div>
 
-            {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</p>}
+            <div>
+              <label htmlFor="password" className="ui-label">
+                סיסמה
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  className="ui-input text-left pl-12"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  dir="ltr"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
 
-            <NeumorphicButton type="submit" isLoading={isLoading} className="mt-2">
-              התחבר
-            </NeumorphicButton>
+            {error && (
+              <div className="ui-alert-danger">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="ui-button-primary w-full"
+            >
+              {isLoading ? "מתחבר..." : "התחבר לחשבון"}
+            </button>
           </form>
-        </NeumorphicCard>
+        </div>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-center ui-text-muted">
           אין לך חשבון?{" "}
-          <Link href="/register" className="font-medium text-primary hover:text-primary/80 transition-colors">
-            הרשמה
+          <Link href="/register" className="text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors">
+            הרשמה לחשבון חדש
           </Link>
         </p>
       </div>

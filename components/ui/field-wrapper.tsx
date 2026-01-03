@@ -9,7 +9,7 @@ interface FieldWrapperProps {
 export function FieldWrapper({ label, required, error, children, className = "" }: FieldWrapperProps) {
   return (
     <div className={className}>
-      <label className="block mb-2 text-sm font-semibold text-slate-700">
+      <label className="block mb-2 text-sm font-semibold text-white">
         {label}
         {required && <span className="text-red-500 mr-1">*</span>}
       </label>

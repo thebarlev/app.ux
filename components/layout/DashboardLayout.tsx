@@ -97,7 +97,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <nav className="flex-1 space-y-6 overflow-y-auto px-2">
         {navSections.map((section, idx) => (
           <div key={idx}>
-            <div className="mb-2 px-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+            <div className="mb-2 px-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               {section.title}
             </div>
             <div className="space-y-1">
@@ -110,13 +110,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Logout Button */}
-      <div className="border-t border-white/10 pt-4 px-2">
+      <div className="border-t border-slate-700 pt-4 px-2">
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
           className="
-            flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm
-            text-red-200 hover:bg-red-500/10 hover:text-red-100 transition-all
+            flex w-full items-center gap-3 rounded-ui px-4 py-2.5 text-sm
+            text-red-200 hover:bg-red-900 hover:text-red-100 transition-all
             disabled:opacity-50 disabled:cursor-not-allowed
           "
         >

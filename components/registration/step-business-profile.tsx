@@ -57,66 +57,105 @@ export function StepBusinessProfile() {
   }
 
   return (
-    <NeumorphicCard>
+    <div className="ui-card">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">פרופיל עסקי</h2>
-        <p className="mt-1 text-sm text-muted-foreground">ספר לנו על העסק שלך</p>
+        <h2 className="text-xl font-bold text-ui-text">פרופיל עסקי</h2>
+        <p className="mt-2 ui-text-muted">ספר לנו על העסק שלך</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <NeumorphicInput
-          id="businessName"
-          label="שם העסק"
-          placeholder="שם העסק המלא"
-          value={data.businessName}
-          onChange={(e) => updateData({ businessName: e.target.value })}
-          error={errors.businessName}
-        />
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="businessName" className="ui-label">
+            שם העסק
+          </label>
+          <input
+            id="businessName"
+            type="text"
+            className={errors.businessName ? "ui-input-error" : "ui-input"}
+            placeholder="שם העסק המלא"
+            value={data.businessName}
+            onChange={(e) => updateData({ businessName: e.target.value })}
+          />
+          {errors.businessName && <p className="text-sm text-ui-danger mt-1">{errors.businessName}</p>}
+        </div>
 
-        <NeumorphicSelect
-          label="סוג העסק"
-          placeholder="בחר סוג עסק"
-          value={data.businessType}
-          onValueChange={(value) => updateData({ businessType: value as typeof data.businessType })}
-          options={BUSINESS_TYPES}
-          error={errors.businessType}
-        />
+        <div>
+          <label htmlFor="businessType" className="ui-label">
+            סוג העסק
+          </label>
+          <select
+            id="businessType"
+            className={errors.businessType ? "ui-select border-ui-danger" : "ui-select"}
+            value={data.businessType}
+            onChange={(e) => updateData({ businessType: e.target.value as typeof data.businessType })}
+          >
+            <option value="">בחר סוג עסק</option>
+            {BUSINESS_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
+          {errors.businessType && <p className="text-sm text-ui-danger mt-1">{errors.businessType}</p>}
+        </div>
 
-        <NeumorphicInput
-          id="companyNumber"
-          label="מספר חברה / תעודת זהות"
-          placeholder="123456789"
-          value={data.companyNumber}
-          onChange={(e) => updateData({ companyNumber: e.target.value })}
-          error={errors.companyNumber}
-          dir="ltr"
-          className="text-left"
-        />
+        <div>
+          <label htmlFor="companyNumber" className="ui-label">
+            מספר חברה / תעודת זהות
+          </label>
+          <input
+            id="companyNumber"
+            type="text"
+            className={errors.companyNumber ? "ui-input-error text-left" : "ui-input text-left"}
+            placeholder="123456789"
+            value={data.companyNumber}
+            onChange={(e) => updateData({ companyNumber: e.target.value })}
+            dir="ltr"
+          />
+          {errors.companyNumber && <p className="text-sm text-ui-danger mt-1">{errors.companyNumber}</p>}
+        </div>
 
-        <NeumorphicSelect
-          label="תחום פעילות"
-          placeholder="בחר תחום"
-          value={data.industry}
-          onValueChange={(value) => updateData({ industry: value })}
-          options={INDUSTRIES}
-          error={errors.industry}
-        />
+        <div>
+          <label htmlFor="industry" className="ui-label">
+            תחום פעילות
+          </label>
+          <select
+            id="industry"
+            className={errors.industry ? "ui-select border-ui-danger" : "ui-select"}
+            value={data.industry}
+            onChange={(e) => updateData({ industry: e.target.value })}
+          >
+            <option value="">בחר תחום</option>
+            {INDUSTRIES.map((ind) => (
+              <option key={ind.value} value={ind.value}>
+                {ind.label}
+              </option>
+            ))}
+          </select>
+          {errors.industry && <p className="text-sm text-ui-danger mt-1">{errors.industry}</p>}
+        </div>
 
         {data.industry === "other" && (
-          <NeumorphicInput
-            id="customIndustry"
-            label="פרט תחום פעילות"
-            placeholder="הזן את תחום הפעילות שלך"
-            value={data.customIndustry}
-            onChange={(e) => updateData({ customIndustry: e.target.value })}
-            error={errors.customIndustry}
-          />
+          <div>
+            <label htmlFor="customIndustry" className="ui-label">
+              פרט תחום פעילות
+            </label>
+            <input
+              id="customIndustry"
+              type="text"
+              className={errors.customIndustry ? "ui-input-error" : "ui-input"}
+              placeholder="הזן את תחום הפעילות שלך"
+              value={data.customIndustry}
+              onChange={(e) => updateData({ customIndustry: e.target.value })}
+            />
+            {errors.customIndustry && <p className="text-sm text-ui-danger mt-1">{errors.customIndustry}</p>}
+          </div>
         )}
 
-        <div className="flex gap-3 mt-2">
-          <NeumorphicButton type="submit">המשך</NeumorphicButton>
-        </div>
+        <button type="submit" className="ui-button-primary w-full">
+          המשך לשלב הבא
+        </button>
       </form>
-    </NeumorphicCard>
+    </div>
   )
 }

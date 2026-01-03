@@ -8,7 +8,6 @@ import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
 import PaymentDetailsSection from "./PaymentDetailsSection";
-import { SectionCard } from "@/components/ui/section-card";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Input } from "@/components/ui/input";
@@ -347,30 +346,31 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="ui-section-dark">
+      <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 p-6 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border border-blue-100 shadow-sm">
+      <div className="flex items-start justify-between gap-4 p-6 rounded-2xl border" style={{backgroundColor: '#1e293b', borderColor: '#334155'}}>
         <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
               <FileText className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-slate-800">יצירת קבלה</h1>
+              <h1 className="text-3xl font-black ui-text-dark">יצירת קבלה</h1>
               {previewNumber && (
-                <p className="text-sm font-semibold text-blue-600">מספר תצוגה מקדימה: {previewNumber}</p>
+                <p className="text-sm font-semibold" style={{color: '#60a5fa'}}>מספר תצוגה מקדימה: {previewNumber}</p>
               )}
             </div>
           </div>
         </div>
 
         <div className="text-left">
-          <div className="font-bold text-slate-800 mb-2">{initial.companyName ?? "העסק שלי"}</div>
+          <div className="font-bold ui-text-dark mb-2">{initial.companyName ?? "העסק שלי"}</div>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setSettingsOpen((v) => !v)}
-            className="bg-white hover:bg-blue-50"
+            className="ui-button-dark-secondary"
           >
             <SettingsIcon className="h-4 w-4 ml-2" />
             הגדרות
@@ -380,10 +380,11 @@ export default function ReceiptFormClient({
 
       {/* Settings Panel */}
       {settingsOpen && (
-        <SectionCard 
-          title="הגדרות מסמך" 
-          description="התאם את ברירות המחדל למסמך זה"
-        >
+        <div className="ui-card-dark">
+          <div className="mb-4">
+            <h3 className="text-lg font-bold ui-text-dark mb-1">הגדרות מסמך</h3>
+            <p className="text-sm ui-text-dark-muted">התאם את ברירות המחדל למסמך זה</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-3">
             <FieldWrapper label="שפה">
               <Select value={language} onValueChange={(v) => setLanguage(v as any)}>
@@ -413,26 +414,26 @@ export default function ReceiptFormClient({
             </FieldWrapper>
 
             <FieldWrapper label="עיגול סכומים">
-              <label className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+              <label className="flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors" style={{backgroundColor: '#0f172a'}}>
                 <input
                   type="checkbox"
                   checked={roundTotals}
                   onChange={(e) => setRoundTotals(e.target.checked)}
                   className="w-4 h-4"
                 />
-                <span className="text-sm text-slate-700">עיגול למטבע שלם</span>
+                <span className="text-sm ui-text-dark-muted">עיגול למטבע שלם</span>
               </label>
             </FieldWrapper>
           </div>
-        </SectionCard>
+        </div>
       )}
 
       {/* Customer Details */}
-      <SectionCard 
-        title="פרטי לקוח" 
-        description="בחר לקוח קיים או הזן שם חדש"
-        error={!!customerNameError}
-      >
+      <div className="ui-card-dark">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold ui-text-dark mb-1">פרטי לקוח</h3>
+          <p className="text-sm ui-text-dark-muted">בחר לקוח קיים או הזן שם חדש</p>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           <FieldWrapper 
             label="שם לקוח" 
@@ -468,14 +469,14 @@ export default function ReceiptFormClient({
             />
           </FieldWrapper>
         </div>
-      </SectionCard>
+      </div>
 
       {/* Document Details */}
-      <SectionCard 
-        title="פרטי המסמך" 
-        description="תיאור התשלום או השירות"
-        error={!!descriptionError}
-      >
+      <div className="ui-card-dark">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold ui-text-dark mb-1">פרטי המסמך</h3>
+          <p className="text-sm ui-text-dark-muted">תיאור התשלום או השירות</p>
+        </div>
         <FieldWrapper 
           label="תיאור" 
           required 
@@ -494,17 +495,18 @@ export default function ReceiptFormClient({
             className={descriptionError ? "border-red-500" : ""}
           />
         </FieldWrapper>
-      </SectionCard>
+      </div>
 
       {/* Payments Section */}
-      <SectionCard 
-        title="פירוט תקבולים" 
-        description="איך שילמו לך? אפשר לבחור מספר צורות תשלום שונות"
-        error={Object.keys(paymentErrors).length > 0}
-      >
+      <div className="ui-card-dark">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold ui-text-dark mb-1">פירוט תקבולים</h3>
+          <p className="text-sm ui-text-dark-muted">איך שילמו לך? אפשר לבחור מספר צורות תשלום שונות</p>
+        </div>
+        
         <div ref={paymentsTableRef}>
           {Object.keys(paymentErrors).length > 0 && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700 text-sm font-semibold">
+            <div className="p-3 ui-alert-dark-danger rounded-lg flex items-center gap-2 text-sm font-semibold mb-4">
               <span>⚠️</span>
               <span>יש לתקן את השדות המסומנים באדום</span>
             </div>
@@ -512,7 +514,7 @@ export default function ReceiptFormClient({
 
           <div className="space-y-3">
             {payments.map((row, i) => (
-              <div key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div key={i} className="p-4 rounded-xl border" style={{backgroundColor: '#0f172a', borderColor: '#334155'}}>
                 <div className="grid gap-3 md:grid-cols-3">
                   <FieldWrapper label="אמצעי תשלום" error={paymentErrors[i]}>
                     <Select
@@ -609,26 +611,30 @@ export default function ReceiptFormClient({
             type="button"
             variant="outline"
             onClick={addPaymentRow}
-            className="w-full border-dashed border-2 hover:border-blue-400 hover:bg-blue-50"
+            className="w-full border-dashed border-2 ui-button-dark-secondary"
           >
             <Plus className="h-4 w-4 ml-2" />
             הוספת תקבול
           </Button>
 
-          <div className="pt-4 border-t-2 border-slate-300">
+          <div className="pt-4 border-t-2" style={{borderColor: '#334155'}}>
             <div className="flex justify-between items-center">
-              <div className="text-lg font-black text-slate-800">סה״כ שולם</div>
-              <div className="text-2xl font-black text-blue-600">{formatMoney(total, currency)}</div>
+              <div className="text-lg font-black ui-text-dark">סה״כ שולם</div>
+              <div className="text-2xl font-black" style={{color: '#60a5fa'}}>{formatMoney(total, currency)}</div>
             </div>
             {roundTotals && (
-              <p className="text-xs text-slate-500 mt-1 text-left">כולל עיגול לסכום סופי</p>
+              <p className="text-xs ui-text-dark-muted mt-1 text-left">כולל עיגול לסכום סופי</p>
             )}
           </div>
         </div>
-      </SectionCard>
+      </div>
 
       {/* Notes Section */}
-      <SectionCard title="הערות" description="הערות שיופיעו במסמך הסופי">
+      <div className="ui-card-dark">
+        <div className="mb-4">
+          <h3 className="text-lg font-bold ui-text-dark mb-1">הערות</h3>
+          <p className="text-sm ui-text-dark-muted">הערות שיופיעו במסמך הסופי</p>
+        </div>
         <FieldWrapper label="הערות נוספות">
           <Textarea
             value={notes}
@@ -637,16 +643,16 @@ export default function ReceiptFormClient({
             className="min-h-[100px] resize-y"
           />
         </FieldWrapper>
-      </SectionCard>
+      </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-3 flex-wrap sticky bottom-0 bg-white/95 backdrop-blur-sm p-4 rounded-xl border border-slate-200 shadow-lg">
+      <div className="flex gap-3 flex-wrap sticky bottom-0 p-4 rounded-xl border shadow-lg" style={{backgroundColor: '#1e293b', borderColor: '#334155'}}>
         <Button
           type="button"
           variant="outline"
           onClick={onSaveDraft}
           disabled={busy != null}
-          className="flex-1 min-w-[200px]"
+          className="flex-1 min-w-[200px] ui-button-dark-secondary"
         >
           {busy === "draft" ? (
             <>שומר בטיוטות...</>
@@ -662,7 +668,7 @@ export default function ReceiptFormClient({
           type="button"
           onClick={onIssue}
           disabled={busy != null || !sequenceLocked}
-          className="flex-1 min-w-[200px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+          className="flex-1 min-w-[200px] ui-button-dark"
           title={!sequenceLocked ? "נדרש לבחור מספר התחלתי" : ""}
         >
           {busy === "issue" ? (
@@ -681,8 +687,8 @@ export default function ReceiptFormClient({
         <div 
           className={`p-4 rounded-xl border font-medium ${
             message.includes("שגיאה")
-              ? "bg-red-50 border-red-200 text-red-800"
-              : "bg-blue-50 border-blue-200 text-blue-800"
+              ? "ui-alert-dark-danger"
+              : "ui-alert-dark-success"
           }`}
         >
           {message.includes("שגיאה") && "⚠️ "}
@@ -692,9 +698,9 @@ export default function ReceiptFormClient({
 
       {/* Footer Text from Admin Settings */}
       {footerText && footerText.trim() && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-          <div className="font-bold text-sm mb-2 text-blue-900">📌 הערות מערכת</div>
-          <div className="text-sm text-blue-800 whitespace-pre-wrap leading-relaxed">
+        <div className="p-4 ui-card-dark rounded-xl">
+          <div className="font-bold text-sm mb-2 ui-text-dark">📌 הערות מערכת</div>
+          <div className="text-sm ui-text-dark-muted whitespace-pre-wrap leading-relaxed">
             {footerText}
           </div>
         </div>
@@ -870,6 +876,7 @@ export default function ReceiptFormClient({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

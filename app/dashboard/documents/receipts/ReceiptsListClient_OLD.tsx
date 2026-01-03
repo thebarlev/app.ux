@@ -66,7 +66,7 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
   if (!initialData.ok) {
     return (
       <div className="ui-alert-danger">
-        <div className="font-bold">שגיאה</div>
+        <div className="font-bold">\u05e9\u05d2\u05d9\u05d0\u05d4</div>
         <div className="mt-2">{initialData.message}</div>
       </div>
     );
@@ -131,28 +131,45 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "grid", gap: 24 }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <h1 className="ui-page-title mb-0">קבלות</h1>
-          <p className="ui-text-muted mt-1">
+          <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>קבלות</h1>
+          <p style={{ marginTop: 6, opacity: 0.75, margin: 0 }}>
             {totalCount} קבלות סה״כ
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div style={{ display: "flex", gap: 12 }}>
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="ui-button-secondary"
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "1px solid #d1d5db",
+              background: "white",
+              cursor: exporting ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
           >
             {exporting ? "מייצא..." : "ייצוא CSV"}
           </button>
 
           <Link
             href="/dashboard/documents/receipt"
-            className="ui-button-primary"
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "1px solid #111827",
+              background: "#111827",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+              textDecoration: "none",
+              display: "inline-block",
+            }}
           >
             קבלה חדשה +
           </Link>
@@ -160,29 +177,36 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
       </div>
 
       {/* Filters */}
-      <div className="ui-card">
-        <div className="ui-section-title mb-4">סינון</div>
+      <div
+        style={{
+          padding: 20,
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          background: "white",
+          display: "grid",
+          gap: 16,
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 700 }}>סינון</div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
           <div>
-            <label htmlFor="search" className="ui-label">חיפוש חופשי</label>
+            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>חיפוש חופשי</label>
             <input
-              id="search"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="מספר, לקוח, תיאור..."
-              className="ui-input"
+              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
           </div>
 
           <div>
-            <label htmlFor="status" className="ui-label">סטטוס</label>
+            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>סטטוס</label>
             <select
-              id="status"
               value={status}
               onChange={(e) => setStatus(e.target.value as "all" | "draft" | "final" | "void")}
-              className="ui-select"
+              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             >
               <option value="all">הכל</option>
               <option value="draft">טיוטות בלבד</option>
@@ -192,39 +216,52 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
           </div>
 
           <div>
-            <label htmlFor="dateFrom" className="ui-label">מתאריך</label>
+            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מתאריך</label>
             <input
-              id="dateFrom"
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="ui-input"
+              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
           </div>
 
           <div>
-            <label htmlFor="dateTo" className="ui-label">עד תאריך</label>
+            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>עד תאריך</label>
             <input
-              id="dateTo"
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="ui-input"
+              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
             />
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div style={{ display: "flex", gap: 12 }}>
           <button
             onClick={applyFilters}
-            className="ui-button-primary"
+            style={{
+              padding: "10px 20px",
+              borderRadius: 10,
+              border: "1px solid #111827",
+              background: "#111827",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
           >
             החל סינון
           </button>
 
           <button
             onClick={resetFilters}
-            className="ui-button-secondary"
+            style={{
+              padding: "10px 20px",
+              borderRadius: 10,
+              border: "1px solid #d1d5db",
+              background: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
           >
             איפוס
           </button>
@@ -232,51 +269,72 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
       </div>
 
       {/* Table */}
-      <div className="ui-card p-0">
-        <div className="overflow-x-auto">
-          <table className="ui-table">
+      <div style={{ border: "1px solid #e5e7eb", borderRadius: 16, background: "white", overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr>
-                <th>מספר קבלה</th>
-                <th>תאריך</th>
-                <th>לקוח</th>
-                <th>תיאור</th>
-                <th>סכום</th>
-                <th>סטטוס</th>
-                <th>פעולות</th>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>מספר קבלה</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>תאריך</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>לקוח</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>תיאור</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>סכום</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>סטטוס</th>
+                <th style={{ padding: 16, textAlign: "right", fontWeight: 700 }}>פעולות</th>
               </tr>
             </thead>
 
             <tbody>
               {receipts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="text-5xl">📭</div>
-                      <div className="text-lg font-semibold text-ui-text">
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: 48 }}>📭</div>
+                      <div style={{ fontSize: 18, fontWeight: 600, color: "#374151" }}>
                         {search || status !== "all" || dateFrom || dateTo 
                           ? "לא נמצאו קבלות התואמות את החיפוש"
                           : "עדיין לא יצרת קבלות"
                         }
                       </div>
                       {!search && status === "all" && !dateFrom && !dateTo && (
-                        <Link
-                          href="/dashboard/documents/receipt"
-                          className="ui-button-success mt-2"
-                        >
-                          ➕ צור קבלה ראשונה
-                        </Link>
+                        <div style={{ marginTop: 8 }}>
+                          <Link
+                            href="/dashboard/documents/receipt"
+                            style={{
+                              padding: "10px 20px",
+                              background: "#10b981",
+                              color: "white",
+                              borderRadius: 8,
+                              textDecoration: "none",
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              gap: 8,
+                              alignItems: "center"
+                            }}
+                          >
+                            ➕ צור קבלה ראשונה
+                          </Link>
+                        </div>
                       )}
                       {(search || status !== "all" || dateFrom || dateTo) && (
                         <button
                           onClick={resetFilters}
-                          className="ui-button-secondary mt-2"
+                          style={{
+                            padding: "8px 16px",
+                            background: "#f3f4f6",
+                            color: "#374151",
+                            borderRadius: 8,
+                            border: "1px solid #d1d5db",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            marginTop: 8
+                          }}
                         >
                           נקה סינונים
                         </button>
                       )}
-                      <div className="mt-3 ui-text-light">
-                        <Link href="/dashboard/debug-receipts" className="text-ui-primary hover:text-ui-primary-hover underline">
+                      <div style={{ marginTop: 12, fontSize: 14, opacity: 0.6 }}>
+                        <Link href="/dashboard/debug-receipts" style={{ color: "#3b82f6", textDecoration: "underline" }}>
                           🔍 עמוד Debug - בדוק מדוע אין קבלות
                         </Link>
                       </div>
@@ -285,37 +343,55 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                 </tr>
               ) : (
                 receipts.map((receipt) => (
-                  <tr key={receipt.id}>
-                    <td className="font-semibold">
+                  <tr key={receipt.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: 16, fontWeight: 600 }}>
                       {receipt.status === "draft" ? (
-                        <span className="ui-text-light text-xs">טיוטה</span>
+                        <span style={{ opacity: 0.5, fontWeight: 400, fontSize: 12 }}>טיוטה</span>
                       ) : (
                         receipt.document_number || (
-                          <span className="ui-text-light">—</span>
+                          <span style={{ opacity: 0.5, fontWeight: 400 }}>—</span>
                         )
                       )}
                     </td>
-                    <td>{formatDate(receipt.document_date)}</td>
-                    <td>{receipt.customer_name}</td>
-                    <td className="max-w-[200px] truncate">
+                    <td style={{ padding: 16 }}>{formatDate(receipt.document_date)}</td>
+                    <td style={{ padding: 16 }}>{receipt.customer_name}</td>
+                    <td style={{ padding: 16, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {receipt.description || (
-                        <span className="ui-text-light">—</span>
+                        <span style={{ opacity: 0.5 }}>—</span>
                       )}
                     </td>
-                    <td className="font-semibold">
+                    <td style={{ padding: 16, fontWeight: 600 }}>
                       {formatAmount(receipt.amount, receipt.currency)}
                     </td>
-                    <td>
-                      <span className={getStatusBadgeClass(receipt.status)}>
+                    <td style={{ padding: 16 }}>
+                      <span
+                        style={{
+                          padding: "4px 12px",
+                          borderRadius: 12,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          ...getStatusBadgeStyle(receipt.status),
+                        }}
+                      >
                         {getStatusLabel(receipt.status)}
                       </span>
                     </td>
-                    <td>
-                      <div className="flex gap-2">
+                    <td style={{ padding: 16 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         {receipt.status === "draft" ? (
                           <Link
                             href={`/dashboard/documents/receipt?draftId=${receipt.id}`}
-                            className="ui-button-secondary ui-button-sm"
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              border: "1px solid #d1d5db",
+                              background: "white",
+                              cursor: "pointer",
+                              fontSize: 14,
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              color: "inherit",
+                            }}
                           >
                             עריכה
                           </Link>
@@ -330,7 +406,19 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                                   alert(result.message || "Failed to open preview");
                                 }
                               }}
-                              className="ui-button-success ui-button-sm"
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 8,
+                                border: "1px solid #10b981",
+                                background: "#10b981",
+                                cursor: "pointer",
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: "white",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                              }}
                             >
                               👁 צפייה
                             </button>
@@ -338,32 +426,54 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                               onClick={async () => {
                                 try {
                                   const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
+                                  console.log("Downloading PDF from:", pdfUrl);
+                                  
+                                  // Fetch PDF as binary data
                                   const response = await fetch(pdfUrl);
                                   
                                   if (!response.ok) {
                                     throw new Error(`PDF download failed: ${response.statusText}`);
                                   }
                                   
+                                  // Get the binary data as a Blob
                                   const blob = await response.blob();
+                                  console.log("PDF blob size:", blob.size, "type:", blob.type);
                                   
                                   if (blob.size === 0) {
                                     throw new Error("Downloaded PDF is empty");
                                   }
                                   
+                                  // Create a proper Blob with correct MIME type
                                   const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                                  
+                                  // Create download link
                                   const downloadUrl = window.URL.createObjectURL(pdfBlob);
                                   const link = document.createElement("a");
                                   link.href = downloadUrl;
                                   link.download = `receipt-${receipt.document_number}.pdf`;
                                   document.body.appendChild(link);
                                   link.click();
+                                  
+                                  // Cleanup
                                   document.body.removeChild(link);
                                   window.URL.revokeObjectURL(downloadUrl);
+                                  
+                                  console.log("PDF download completed");
                                 } catch (error: any) {
+                                  console.error("PDF download error:", error);
                                   alert(`שגיאה בהורדת PDF: ${error.message}`);
                                 }
                               }}
-                              className="ui-button-primary ui-button-sm"
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 8,
+                                border: "1px solid #3b82f6",
+                                background: "#3b82f6",
+                                cursor: "pointer",
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: "white",
+                              }}
                             >
                               📥 PDF
                             </button>
@@ -380,16 +490,31 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="border-t border-ui-border p-4 flex items-center justify-between">
-            <div className="ui-text-muted">
+          <div
+            style={{
+              padding: 16,
+              borderTop: "1px solid #e5e7eb",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div style={{ opacity: 0.75 }}>
               עמוד {page} מתוך {totalPages}
             </div>
 
-            <div className="flex gap-2">
+            <div style={{ display: "flex", gap: 8 }}>
               <button
                 onClick={() => goToPage(page - 1)}
                 disabled={page === 1}
-                className="ui-button-secondary ui-button-sm"
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: page === 1 ? "#f3f4f6" : "white",
+                  cursor: page === 1 ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
               >
                 הקודם
               </button>
@@ -397,7 +522,14 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
               <button
                 onClick={() => goToPage(page + 1)}
                 disabled={page === totalPages}
-                className="ui-button-secondary ui-button-sm"
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: page === totalPages ? "#f3f4f6" : "white",
+                  cursor: page === totalPages ? "not-allowed" : "pointer",
+                  fontWeight: 600,
+                }}
               >
                 הבא
               </button>

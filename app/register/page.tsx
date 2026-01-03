@@ -37,8 +37,8 @@ function RegistrationFlow() {
   }, [currentStep])
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background px-4 py-8 md:px-8">
-      <div className="w-full max-w-[520px]">
+    <div className="min-h-svh w-full flex flex-col items-center justify-center bg-ui-bg px-4 py-8" dir="rtl">
+      <div className="w-full max-w-[540px]">
         {/* Logo */}
         <div className="mb-8 flex justify-center">
           <RegistrationLogo />
@@ -63,10 +63,10 @@ function RegistrationFlow() {
         </AnimatePresence>
 
         {/* Sign In Link */}
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="mt-6 text-center ui-text-muted">
           כבר יש לך חשבון?{" "}
-          <Link href="/login" className="font-medium text-primary hover:text-primary/80 transition-colors">
-            התחברות
+          <Link href="/login" className="text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors">
+            התחברות לחשבון
           </Link>
         </p>
       </div>

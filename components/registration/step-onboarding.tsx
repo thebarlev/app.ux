@@ -80,11 +80,16 @@ export function StepOnboarding() {
       })
 
       if (authError) {
-        if (authError.message.includes("already registered")) {
-          setError("כתובת האימייל כבר רשומה במערכת. נסה להתחבר.")
-        } else {
-          setError(authError.message)
+        const errorMsg = authError.message.includes("already registered")
+          ? "כתובת האימייל כבר רשומה במערכת. נסה להתחבר."
+          : `שגיאת הרשמה: ${authError.message}`
+        const errorDetails = {
+          message: authError.message,
+          code: authError.code,
+          status: authError.status,
         }
+        console.error("Auth signup error:", errorDetails)
+        setError(errorMsg)
         setIsLoading(false)
         return
       }
@@ -96,26 +101,65 @@ export function StepOnboarding() {
       }
 
       // Step 2: Create company record
-      const { error: companyError } = await supabase.from("companies").insert({
-        company_name: data.businessName,
-        business_type: data.businessType,
-        company_number: data.companyNumber || null,
-        industry: data.industry || null,
-        custom_industry: data.customIndustry || null,
-        street: data.street || null,
-        city: data.city || null,
-        postal_code: data.postalCode || null,
-        contact_first_name: data.firstName,
-        contact_full_name: `${data.firstName} ${data.lastName}`,
-        email: data.email,
-        mobile_phone: data.phone || null,
-        auth_user_id: authData.user.id,
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .insert({
+          company_name: data.businessName,
+          business_type: data.businessType,
+          company_number: data.companyNumber || null,
+          industry: data.industry || null,
+          custom_industry: data.customIndustry || null,
+          street: data.street || null,
+          city: data.city || null,
+          postal_code: data.postalCode || null,
+          contact_first_name: data.firstName,
+          contact_full_name: `${data.firstName} ${data.lastName}`,
+          email: data.email,
+          mobile_phone: data.phone || null,
+          auth_user_id: authData.user.id,
+          status: "active",
+        })
+        .select("id")
+        .single()
+
+      if (companyError) {
+        const errorMsg = `שגיאה ביצירת חברה: ${companyError.message}`
+        const errorDetails = {
+          message: companyError.message,
+          code: companyError.code,
+          details: companyError.details,
+          hint: companyError.hint,
+        }
+        console.error("Company creation error:", errorDetails)
+        setError(errorMsg)
+        setIsLoading(false)
+        return
+      }
+
+      if (!companyData) {
+        setError("שגיאה: לא נוצרה חברה")
+        setIsLoading(false)
+        return
+      }
+
+      // Step 3: Create company_members record for tenant isolation
+      const { error: memberError } = await supabase.from("company_members").insert({
+        company_id: companyData.id,
+        user_id: authData.user.id,
+        role: "owner",
         status: "active",
       })
 
-      if (companyError) {
-        console.error("Company creation error:", companyError)
-        setError(`שגיאה ביצירת חברה: ${companyError.message || JSON.stringify(companyError)}`)
+      if (memberError) {
+        const errorMsg = `שגיאה ביצירת קישור לחברה: ${memberError.message}`
+        const errorDetails = {
+          message: memberError.message,
+          code: memberError.code,
+          details: memberError.details,
+          hint: memberError.hint,
+        }
+        console.error("Company member creation error:", errorDetails)
+        setError(errorMsg)
         setIsLoading(false)
         return
       }

@@ -30,50 +30,69 @@ export function StepAddress() {
   }
 
   return (
-    <NeumorphicCard>
+    <div className="ui-card">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">כתובת העסק</h2>
-        <p className="mt-1 text-sm text-muted-foreground">היכן ממוקם העסק שלך</p>
+        <h2 className="text-xl font-bold text-ui-text">כתובת העסק</h2>
+        <p className="mt-2 ui-text-muted">היכן ממוקם העסק שלך</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <NeumorphicInput
-          id="street"
-          label="רחוב ומספר"
-          placeholder="רחוב הרצל 1"
-          value={data.street}
-          onChange={(e) => updateData({ street: e.target.value })}
-          error={errors.street}
-        />
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="street" className="ui-label">
+            רחוב ומספר
+          </label>
+          <input
+            id="street"
+            type="text"
+            className={errors.street ? "ui-input-error" : "ui-input"}
+            placeholder="רחוב הרצל 1"
+            value={data.street}
+            onChange={(e) => updateData({ street: e.target.value })}
+          />
+          {errors.street && <p className="text-sm text-ui-danger mt-1">{errors.street}</p>}
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <NeumorphicInput
-            id="city"
-            label="עיר"
-            placeholder="תל אביב-יפו"
-            value={data.city}
-            onChange={(e) => updateData({ city: e.target.value })}
-            error={errors.city}
-          />
+          <div>
+            <label htmlFor="city" className="ui-label">
+              עיר
+            </label>
+            <input
+              id="city"
+              type="text"
+              className={errors.city ? "ui-input-error" : "ui-input"}
+              placeholder="תל אביב-יפו"
+              value={data.city}
+              onChange={(e) => updateData({ city: e.target.value })}
+            />
+            {errors.city && <p className="text-sm text-ui-danger mt-1">{errors.city}</p>}
+          </div>
 
-          <NeumorphicInput
-            id="postalCode"
-            label="מיקוד"
-            placeholder="1234567"
-            value={data.postalCode}
-            onChange={(e) => updateData({ postalCode: e.target.value })}
-            dir="ltr"
-            className="text-left"
-          />
+          <div>
+            <label htmlFor="postalCode" className="ui-label">
+              מיקוד
+            </label>
+            <input
+              id="postalCode"
+              type="text"
+              className="ui-input text-left"
+              placeholder="1234567"
+              value={data.postalCode}
+              onChange={(e) => updateData({ postalCode: e.target.value })}
+              dir="ltr"
+            />
+          </div>
         </div>
 
-        <div className="flex gap-3 mt-2">
-          <NeumorphicButton type="button" variant="secondary" onClick={prevStep}>
-            חזור
-          </NeumorphicButton>
-          <NeumorphicButton type="submit">המשך</NeumorphicButton>
+        <div className="flex gap-3">
+          <button type="button" onClick={prevStep} className="ui-button-secondary flex-1">
+            חזור לשלב הקודם
+          </button>
+          <button type="submit" className="ui-button-primary flex-1">
+            המשך לשלב הבא
+          </button>
         </div>
       </form>
-    </NeumorphicCard>
+    </div>
   )
 }

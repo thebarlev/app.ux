@@ -2,29 +2,560 @@
 @tailwind components;
 @tailwind utilities;
 
-/* בסיס עדין + RTL */
-:root {
-  color-scheme: dark;
+/* ============================================
+   Flat UI Kit - Zero Transparency Design System
+   ============================================ */
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html, body {
+    height: 100%;
+    background-color: theme('colors.ui-bg');
+  }
+
+  body {
+    margin: 0;
+    color: theme('colors.ui-text');
+    font-size: 14px;
+    line-height: 1.6;
+  }
 }
 
-html, body {
-  height: 100%;
+@layer components {
+  /* ==================== Page Layout ==================== */
+  .ui-page {
+    @apply w-full max-w-[1440px] mx-auto;
+    padding: theme('spacing.ui-page');
+  }
+
+  /* ==================== Cards & Surfaces ==================== */
+  .ui-card {
+    @apply bg-ui-surface border border-ui-border rounded-ui;
+    padding: 24px;
+    /* NO shadow by default for ultra-flat look */
+  }
+
+  .ui-card-hover {
+    @apply ui-card transition-all duration-200;
+  }
+
+  .ui-card-hover:hover {
+    @apply border-ui-primary shadow-ui-md;
+  }
+
+  /* ==================== Typography ==================== */
+  .ui-section-title {
+    @apply text-lg font-bold text-ui-text mb-4;
+    font-size: 18px;
+  }
+
+  .ui-page-title {
+    @apply text-2xl font-bold text-ui-text mb-6;
+    font-size: 24px;
+  }
+
+  .ui-label {
+    @apply block text-ui-text font-semibold mb-2 text-right;
+    font-size: 13px;
+  }
+
+  .ui-label-required::after {
+    content: ' *';
+    @apply text-ui-danger;
+  }
+
+  .ui-text-muted {
+    @apply text-ui-text-muted;
+    font-size: 13px;
+  }
+
+  .ui-text-light {
+    @apply text-ui-text-light;
+    font-size: 12px;
+  }
+
+  /* ==================== Form Inputs ==================== */
+  .ui-input {
+    @apply w-full bg-ui-surface text-ui-text border border-ui-border rounded-ui;
+    @apply transition-colors duration-200;
+    @apply text-right;
+    padding: theme('spacing.ui-input-y') theme('spacing.ui-input-x');
+    font-size: 14px;
+    outline: none;
+  }
+
+  .ui-input:hover {
+    @apply border-ui-text-muted;
+  }
+
+  .ui-input:focus {
+    @apply border-ui-primary;
+    box-shadow: 0 0 0 3px theme('colors.ui-primary-light');
+  }
+
+  .ui-input::placeholder {
+    @apply text-ui-text-light;
+  }
+
+  .ui-input:disabled {
+    @apply bg-ui-bg cursor-not-allowed;
+  }
+
+  .ui-input-error {
+    @apply ui-input border-ui-danger;
+  }
+
+  .ui-input-error:focus {
+    box-shadow: 0 0 0 3px theme('colors.ui-danger-light');
+  }
+
+  /* ==================== Select Dropdown ==================== */
+  .ui-select {
+    @apply ui-input;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: left 12px center;
+    background-repeat: no-repeat;
+    background-size: 20px;
+    padding-left: 40px;
+  }
+
+  .ui-select:focus {
+    @apply border-ui-primary;
+    box-shadow: 0 0 0 3px theme('colors.ui-primary-light');
+  }
+
+  /* ==================== Textarea ==================== */
+  .ui-textarea {
+    @apply ui-input;
+    min-height: 100px;
+    resize: vertical;
+  }
+
+  /* ==================== Buttons ==================== */
+  .ui-button {
+    @apply font-semibold rounded-ui border-2;
+    @apply transition-all duration-200;
+    @apply cursor-pointer;
+    padding: 12px 24px;
+    font-size: 14px;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .ui-button:disabled {
+    @apply cursor-not-allowed;
+    opacity: 0.5;
+  }
+
+  .ui-button-primary {
+    @apply ui-button bg-ui-primary text-white border-ui-primary;
+  }
+
+  .ui-button-primary:hover:not(:disabled) {
+    @apply bg-ui-primary-hover border-ui-primary-hover;
+  }
+
+  .ui-button-primary:active:not(:disabled) {
+    @apply bg-ui-primary-active border-ui-primary-active;
+  }
+
+  .ui-button-secondary {
+    @apply ui-button bg-ui-surface text-ui-text border-ui-border;
+  }
+
+  .ui-button-secondary:hover:not(:disabled) {
+    @apply border-ui-text-muted bg-ui-bg;
+  }
+
+  .ui-button-danger {
+    @apply ui-button bg-ui-danger text-white border-ui-danger;
+  }
+
+  .ui-button-danger:hover:not(:disabled) {
+    @apply bg-ui-danger-hover border-ui-danger-hover;
+  }
+
+  .ui-button-success {
+    @apply ui-button bg-ui-success text-white border-ui-success;
+  }
+
+  .ui-button-success:hover:not(:disabled) {
+    @apply bg-ui-success-hover border-ui-success-hover;
+  }
+
+  /* Button sizes */
+  .ui-button-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+
+  .ui-button-lg {
+    padding: 16px 32px;
+    font-size: 16px;
+  }
+
+  /* ==================== Tables ==================== */
+  .ui-table {
+    @apply w-full bg-ui-surface border border-ui-border rounded-ui;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .ui-table thead {
+    @apply bg-ui-bg;
+  }
+
+  .ui-table th {
+    @apply text-right text-ui-text font-bold border-b border-ui-border;
+    padding: 14px 16px;
+    font-size: 13px;
+  }
+
+  .ui-table td {
+    @apply text-right text-ui-text border-b border-ui-border-light;
+    padding: 14px 16px;
+    font-size: 14px;
+  }
+
+  .ui-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .ui-table tbody tr:hover {
+    @apply bg-ui-bg;
+  }
+
+  /* ==================== Modal & Overlay ==================== */
+  .ui-modal-overlay {
+    @apply fixed inset-0 z-50;
+    @apply flex items-center justify-center;
+    background-color: theme('colors.ui-overlay');
+    /* SOLID background, no transparency */
+    padding: 16px;
+  }
+
+  .ui-modal {
+    @apply bg-ui-surface border-2 border-ui-border rounded-ui-lg;
+    @apply w-full max-w-2xl;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: theme('boxShadow.ui-lg');
+  }
+
+  .ui-modal-header {
+    @apply border-b border-ui-border;
+    padding: 24px;
+  }
+
+  .ui-modal-body {
+    padding: 24px;
+  }
+
+  .ui-modal-footer {
+    @apply border-t border-ui-border;
+    @apply flex gap-3 justify-end;
+    padding: 20px 24px;
+  }
+
+  /* ==================== Dropdown / Popover ==================== */
+  .ui-dropdown {
+    @apply absolute z-50;
+    @apply bg-ui-surface border-2 border-ui-border rounded-ui;
+    @apply shadow-ui-lg;
+    /* SOLID background */
+    min-width: 200px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .ui-dropdown-item {
+    @apply block w-full text-right text-ui-text;
+    @apply transition-colors duration-150;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    border: none;
+    background: none;
+  }
+
+  .ui-dropdown-item:hover {
+    @apply bg-ui-primary-light;
+  }
+
+  .ui-dropdown-item:active {
+    @apply bg-ui-primary text-white;
+  }
+
+  .ui-dropdown-divider {
+    @apply border-t border-ui-border-light;
+    margin: 4px 0;
+  }
+
+  /* ==================== Alerts / Messages ==================== */
+  .ui-alert {
+    @apply rounded-ui border-2;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .ui-alert-info {
+    @apply ui-alert bg-ui-primary-light border-ui-primary text-ui-primary-active;
+  }
+
+  .ui-alert-success {
+    @apply ui-alert bg-ui-success-light border-ui-success text-ui-success-hover;
+  }
+
+  .ui-alert-warning {
+    @apply ui-alert bg-ui-warning-light border-ui-warning text-ui-warning-hover;
+  }
+
+  .ui-alert-danger {
+    @apply ui-alert bg-ui-danger-light border-ui-danger text-ui-danger-hover;
+  }
+
+  /* ==================== Badges ==================== */
+  .ui-badge {
+    @apply inline-flex items-center rounded-ui-sm border;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ui-badge-primary {
+    @apply ui-badge bg-ui-primary-light border-ui-primary text-ui-primary-active;
+  }
+
+  .ui-badge-success {
+    @apply ui-badge bg-ui-success-light border-ui-success text-ui-success-hover;
+  }
+
+  .ui-badge-warning {
+    @apply ui-badge bg-ui-warning-light border-ui-warning text-ui-warning-hover;
+  }
+
+  .ui-badge-danger {
+    @apply ui-badge bg-ui-danger-light border-ui-danger text-ui-danger-hover;
+  }
+
+  /* ==================== Divider ==================== */
+  .ui-divider {
+    @apply border-t border-ui-border;
+    margin: 24px 0;
+  }
+
+  /* ==================== Loading Spinner ==================== */
+  .ui-spinner {
+    @apply inline-block border-4 border-ui-border rounded-full;
+    border-top-color: theme('colors.ui-primary');
+    animation: ui-spin 0.8s linear infinite;
+    width: 24px;
+    height: 24px;
+  }
+
+  @keyframes ui-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ============================================
+     DARK UI KIT - Receipt Creation Page
+     ============================================ */
+
+  /* Dark page container - full page dark background */
+  .ui-page-dark {
+    @apply w-full min-h-screen;
+    background-color: #0f172a; /* slate-900 solid */
+    padding: 24px;
+  }
+
+  /* Dark section wrapper - main content area with padding */
+  .ui-section-dark {
+    @apply rounded-ui;
+    background-color: #1e293b; /* slate-800 solid */
+    padding: 24px;
+  }
+
+  /* Dark card - for grouped content */
+  .ui-card-dark {
+    @apply rounded-ui border;
+    background-color: #1e293b; /* slate-800 solid */
+    border-color: #334155; /* slate-700 solid */
+    padding: 24px;
+  }
+
+  /* Dark card with hover effect */
+  .ui-card-dark-hover {
+    @apply ui-card-dark transition-all duration-200;
+  }
+
+  .ui-card-dark-hover:hover {
+    border-color: #475569; /* slate-600 solid */
+  }
+
+  /* Dark typography */
+  .ui-text-dark {
+    color: #f1f5f9; /* slate-100 solid - white text */
+  }
+
+  .ui-text-dark-muted {
+    color: #cbd5e1; /* slate-300 solid - light gray */
+  }
+
+  .ui-label-dark {
+    @apply block font-semibold mb-2 text-right;
+    color: #f1f5f9; /* slate-100 solid */
+    font-size: 13px;
+  }
+
+  .ui-label-dark-required::after {
+    content: ' *';
+    color: #ef4444; /* red-500 solid */
+  }
+
+  /* Dark inputs */
+  .ui-input-dark {
+    @apply w-full rounded-ui text-right;
+    @apply transition-colors duration-200;
+    background-color: #0f172a; /* slate-900 solid */
+    color: #f1f5f9; /* slate-100 solid */
+    border: 1px solid #334155; /* slate-700 solid */
+    padding: theme('spacing.ui-input-y') theme('spacing.ui-input-x');
+    font-size: 14px;
+    outline: none;
+  }
+
+  .ui-input-dark:hover {
+    border-color: #475569; /* slate-600 solid */
+  }
+
+  .ui-input-dark:focus {
+    border-color: #3b82f6; /* blue-500 solid */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); /* Minimal focus ring */
+  }
+
+  .ui-input-dark::placeholder {
+    color: #64748b; /* slate-500 solid */
+  }
+
+  .ui-input-dark:disabled {
+    background-color: #1e293b; /* slate-800 solid */
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  /* Dark select */
+  .ui-select-dark {
+    @apply ui-input-dark;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23cbd5e1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: left 12px center;
+    background-repeat: no-repeat;
+    background-size: 20px;
+    padding-left: 40px;
+  }
+
+  /* Dark textarea */
+  .ui-textarea-dark {
+    @apply ui-input-dark;
+    min-height: 100px;
+    resize: vertical;
+  }
+
+  /* Dark button */
+  .ui-button-dark {
+    @apply font-semibold rounded-ui border-2;
+    @apply transition-all duration-200;
+    @apply cursor-pointer;
+    background-color: #3b82f6; /* blue-500 solid */
+    color: #ffffff;
+    border-color: #3b82f6; /* blue-500 solid */
+    padding: 12px 24px;
+    font-size: 14px;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .ui-button-dark:hover:not(:disabled) {
+    background-color: #2563eb; /* blue-600 solid */
+    border-color: #2563eb; /* blue-600 solid */
+  }
+
+  .ui-button-dark:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Dark button secondary */
+  .ui-button-dark-secondary {
+    @apply font-semibold rounded-ui border-2;
+    @apply transition-all duration-200;
+    @apply cursor-pointer;
+    background-color: #1e293b; /* slate-800 solid */
+    color: #f1f5f9; /* slate-100 solid */
+    border-color: #334155; /* slate-700 solid */
+    padding: 12px 24px;
+    font-size: 14px;
+    outline: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .ui-button-dark-secondary:hover:not(:disabled) {
+    border-color: #475569; /* slate-600 solid */
+    background-color: #334155; /* slate-700 solid */
+  }
+
+  .ui-button-dark-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Dark alert */
+  .ui-alert-dark {
+    @apply rounded-ui border-2;
+    background-color: #1e293b; /* slate-800 solid */
+    border-color: #334155; /* slate-700 solid */
+    color: #f1f5f9; /* slate-100 solid */
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .ui-alert-dark-danger {
+    @apply ui-alert-dark;
+    background-color: #7f1d1d; /* red-900 solid */
+    border-color: #dc2626; /* red-600 solid */
+    color: #fecaca; /* red-200 solid */
+  }
+
+  .ui-alert-dark-success {
+    @apply ui-alert-dark;
+    background-color: #14532d; /* green-900 solid */
+    border-color: #16a34a; /* green-600 solid */
+    color: #bbf7d0; /* green-200 solid */
+  }
 }
 
-body {
-  margin: 0;
-}
+@layer utilities {
+  /* Error field animation */
+  @keyframes error-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+  }
 
-/* Error field animation */
-@keyframes error-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-8px); }
-  75% { transform: translateX(8px); }
-}
-
-.error-field {
-  animation: error-shake 0.3s ease-in-out;
-  outline: 2px solid rgb(239 68 68);
-  outline-offset: 2px;
-  border-radius: 0.5rem;
+  .error-field {
+    animation: error-shake 0.3s ease-in-out;
+  }
 }

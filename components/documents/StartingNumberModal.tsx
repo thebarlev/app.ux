@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
+import { AlertCircle, Hash, Loader2 } from "lucide-react";
 
 type Props = {
   documentType: string;
@@ -56,106 +57,44 @@ export default function StartingNumberModal({
     }
   }
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !loading) {
-      onClose();
-    }
-  };
-
   return (
-    <div
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-        padding: 16,
-      }}
-    >
-      <div
-        dir="rtl"
-        style={{
-          background: "white",
-          borderRadius: 16,
-          maxWidth: 500,
-          width: "100%",
-          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "24px",
-            borderBottom: "1px solid #e5e7eb",
-          }}
-        >
-          <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>
-            🔢 בחירת מספר מסמך ראשון
-          </h2>
-          <p style={{ fontSize: 14, opacity: 0.7, margin: "8px 0 0 0", lineHeight: 1.5 }}>
-            זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
-          </p>
+    <div className="ui-modal-overlay" onClick={(e) => e.target === e.currentTarget && !loading && onClose()}>
+      <div className="ui-modal" dir="rtl">
+        <div className="ui-modal-header">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-ui-lg bg-gradient-to-br from-ui-primary to-ui-primary-hover shadow-ui">
+              <Hash className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-ui-text">בחירת מספר מסמך ראשון</h2>
+              <p className="ui-text-muted text-sm mt-1">
+                זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Info Banner */}
-        <div
-          style={{
-            padding: 14,
-            background: "#fef3c7",
-            borderBottom: "1px solid #fde68a",
-            fontSize: 13,
-            color: "#92400e",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 16 }}>⚠️</span>
-          <span>
-            <strong>חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
-          </span>
+        <div className="ui-alert-warning mb-0">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <strong className="font-semibold">חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
+            </div>
+          </div>
         </div>
 
-        {/* Content */}
-        <div style={{ padding: 24 }}>
+        <div className="ui-modal-body space-y-5">
           {/* Quick Options */}
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                fontWeight: 700,
-                marginBottom: 10,
-                fontSize: 14,
-              }}
-            >
-              בחירה מהירה:
-            </label>
-            <div style={{ display: "flex", gap: 8 }}>
+          <div>
+            <label className="ui-label">בחירה מהירה</label>
+            <div className="grid grid-cols-3 gap-3">
               {quickOptions.map((num) => (
                 <button
                   key={num}
                   type="button"
                   onClick={() => setStartingNumber(num)}
                   disabled={loading}
-                  style={{
-                    flex: 1,
-                    padding: "12px 16px",
-                    borderRadius: 10,
-                    border: startingNumber === num ? "2px solid #3b82f6" : "2px solid #e5e7eb",
-                    background: startingNumber === num ? "#eff6ff" : "white",
-                    color: startingNumber === num ? "#1e40af" : "#374151",
-                    fontWeight: startingNumber === num ? 700 : 600,
-                    fontSize: 16,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    transition: "all 0.2s",
-                  }}
+                  className={startingNumber === num ? "ui-button-primary" : "ui-button-secondary"}
                 >
                   {num}
                 </button>
@@ -165,17 +104,9 @@ export default function StartingNumberModal({
 
           {/* Custom Input */}
           <div>
-            <label
-              style={{
-                display: "block",
-                fontWeight: 700,
-                marginBottom: 8,
-                fontSize: 14,
-              }}
-            >
-              או הזן מספר מותאם אישית:
-            </label>
+            <label htmlFor="customNumber" className="ui-label">או הזן מספר מותאם אישית</label>
             <input
+              id="customNumber"
               type="number"
               min={1}
               value={startingNumber}
@@ -183,99 +114,48 @@ export default function StartingNumberModal({
                 const val = parseInt(e.target.value, 10);
                 if (!isNaN(val) && val >= 1) {
                   setStartingNumber(val);
+                  setError(null);
                 }
               }}
               disabled={loading}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 8,
-                border: `2px solid ${error ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 16,
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                if (!error) e.target.style.borderColor = "#3b82f6";
-              }}
-              onBlur={(e) => {
-                if (!error) e.target.style.borderColor = "#d1d5db";
-              }}
+              className={error ? "ui-input-error" : "ui-input"}
             />
-            {error && (
-              <div style={{ color: "#ef4444", fontSize: 13, marginTop: 6 }}>
-                ⚠️ {error}
-              </div>
-            )}
+            {error && <p className="text-sm text-ui-danger mt-1">{error}</p>}
           </div>
 
           {/* Preview */}
-          <div
-            style={{
-              marginTop: 20,
-              padding: 16,
-              background: "#f9fafb",
-              borderRadius: 10,
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>
+          <div className="rounded-ui bg-ui-bg border border-ui-border p-4">
+            <div className="ui-text-muted text-sm font-semibold mb-2">
               תצוגה מקדימה של המיספור:
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>
+            <div className="text-lg font-bold text-ui-text">
               {startingNumber}, {startingNumber + 1}, {startingNumber + 2}...
             </div>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div
-          style={{
-            padding: "16px 24px",
-            borderTop: "1px solid #e5e7eb",
-            display: "flex",
-            gap: 12,
-            background: "#f9fafb",
-          }}
-        >
-          {/* Confirm Button */}
-          <button
-            onClick={onConfirm}
-            disabled={loading || startingNumber < 1}
-            style={{
-              flex: 1,
-              padding: "14px 20px",
-              background: loading || startingNumber < 1 ? "#9ca3af" : "#111827",
-              color: "white",
-              border: "none",
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 16,
-              cursor: loading || startingNumber < 1 ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            {loading ? "⏳ שומר..." : "✅ אישור והתחלת מיספור"}
-          </button>
-
-          {/* Cancel Button */}
+        <div className="ui-modal-footer">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            style={{
-              padding: "14px 20px",
-              background: "white",
-              color: "#6b7280",
-              border: "2px solid #e5e7eb",
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 16,
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-            }}
+            className="ui-button-secondary flex-1"
           >
             ביטול
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading || startingNumber < 1}
+            className="ui-button-primary flex-1"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                שומר...
+              </>
+            ) : (
+              "אישור והתחלת מיספור"
+            )}
           </button>
         </div>
       </div>

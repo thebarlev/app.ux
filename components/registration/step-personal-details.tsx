@@ -47,83 +47,112 @@ export function StepPersonalDetails() {
   }
 
   return (
-    <NeumorphicCard>
+    <div className="ui-card">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">פרטים אישיים</h2>
-        <p className="mt-1 text-sm text-muted-foreground">נתחיל עם הפרטים שלך</p>
+        <h2 className="text-xl font-bold text-ui-text">פרטים אישיים</h2>
+        <p className="mt-2 ui-text-muted">נתחיל עם הפרטים שלך</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="grid grid-cols-2 gap-4">
-          <NeumorphicInput
-            id="firstName"
-            label="שם פרטי"
-            placeholder="ישראל"
-            value={data.firstName}
-            onChange={(e) => updateData({ firstName: e.target.value })}
-            error={errors.firstName}
-          />
-          <NeumorphicInput
-            id="lastName"
-            label="שם משפחה"
-            placeholder="ישראלי"
-            value={data.lastName}
-            onChange={(e) => updateData({ lastName: e.target.value })}
-            error={errors.lastName}
-          />
+          <div>
+            <label htmlFor="firstName" className="ui-label">
+              שם פרטי
+            </label>
+            <input
+              id="firstName"
+              type="text"
+              className={errors.firstName ? "ui-input-error" : "ui-input"}
+              placeholder="ישראל"
+              value={data.firstName}
+              onChange={(e) => updateData({ firstName: e.target.value })}
+            />
+            {errors.firstName && <p className="text-sm text-ui-danger mt-1">{errors.firstName}</p>}
+          </div>
+          
+          <div>
+            <label htmlFor="lastName" className="ui-label">
+              שם משפחה
+            </label>
+            <input
+              id="lastName"
+              type="text"
+              className={errors.lastName ? "ui-input-error" : "ui-input"}
+              placeholder="ישראלי"
+              value={data.lastName}
+              onChange={(e) => updateData({ lastName: e.target.value })}
+            />
+            {errors.lastName && <p className="text-sm text-ui-danger mt-1">{errors.lastName}</p>}
+          </div>
         </div>
 
-        <NeumorphicInput
-          id="email"
-          type="email"
-          label="אימייל"
-          placeholder="israel@example.com"
-          value={data.email}
-          onChange={(e) => updateData({ email: e.target.value })}
-          error={errors.email}
-          dir="ltr"
-          className="text-left"
-        />
-
-        <NeumorphicInput
-          id="phone"
-          type="tel"
-          label="טלפון נייד"
-          placeholder="050-1234567"
-          value={data.phone}
-          onChange={(e) => updateData({ phone: e.target.value })}
-          error={errors.phone}
-          dir="ltr"
-          className="text-left"
-        />
-
-        <div className="relative">
-          <NeumorphicInput
-            id="password"
-            type={showPassword ? "text" : "password"}
-            label="סיסמה"
-            placeholder="לפחות 8 תווים"
-            value={data.password}
-            onChange={(e) => updateData({ password: e.target.value })}
-            error={errors.password}
+        <div>
+          <label htmlFor="email" className="ui-label">
+            כתובת אימייל
+          </label>
+          <input
+            id="email"
+            type="email"
+            className={errors.email ? "ui-input-error text-left" : "ui-input text-left"}
+            placeholder="israel@example.com"
+            value={data.email}
+            onChange={(e) => updateData({ email: e.target.value })}
             dir="ltr"
-            className="text-left pl-10"
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute left-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+          {errors.email && <p className="text-sm text-ui-danger mt-1">{errors.email}</p>}
         </div>
 
-        {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</p>}
+        <div>
+          <label htmlFor="phone" className="ui-label">
+            טלפון נייד
+          </label>
+          <input
+            id="phone"
+            type="tel"
+            className={errors.phone ? "ui-input-error text-left" : "ui-input text-left"}
+            placeholder="050-1234567"
+            value={data.phone}
+            onChange={(e) => updateData({ phone: e.target.value })}
+            dir="ltr"
+          />
+          {errors.phone && <p className="text-sm text-ui-danger mt-1">{errors.phone}</p>}
+        </div>
 
-        <NeumorphicButton type="submit" className="mt-2">
-          המשך
-        </NeumorphicButton>
+        <div>
+          <label htmlFor="password" className="ui-label">
+            סיסמה
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              className={errors.password ? "ui-input-error text-left pl-12" : "ui-input text-left pl-12"}
+              placeholder="לפחות 8 תווים"
+              value={data.password}
+              onChange={(e) => updateData({ password: e.target.value })}
+              dir="ltr"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          {errors.password && <p className="text-sm text-ui-danger mt-1">{errors.password}</p>}
+        </div>
+
+        {error && (
+          <div className="ui-alert-danger">
+            {error}
+          </div>
+        )}
+
+        <button type="submit" className="ui-button-primary w-full">
+          המשך לשלב הבא
+        </button>
       </form>
-    </NeumorphicCard>
+    </div>
   )
 }
