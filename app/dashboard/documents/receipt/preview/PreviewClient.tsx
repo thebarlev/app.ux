@@ -334,7 +334,7 @@ export default function PreviewClient({
   return (
     <div
       dir="rtl"
-      style={{ minHeight: "100vh", background: "#ffffff", padding: "20px 10px" }}
+      style={{ minHeight: "100vh", background: "#F5F6F7", padding: "40px 20px" }}
     >
       {/* Error Display */}
       {renderError && (
