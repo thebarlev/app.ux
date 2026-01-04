@@ -7,12 +7,16 @@ import { useRegistration } from "./registration-context"
 import { NeumorphicCard } from "./neumorphic-card"
 import { NeumorphicInput } from "./neumorphic-input"
 import { NeumorphicButton } from "./neumorphic-button"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { checkEmailExists } from "@/app/register/actions"
+import Link from "next/link"
 
 export function StepPersonalDetails() {
   const { data, updateData, nextStep, error, setError } = useRegistration()
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const [emailExists, setEmailExists] = useState(false)
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -39,10 +43,48 @@ export function StepPersonalDetails() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (validate()) {
+    
+    // First validate all fields
+    if (!validate()) {
+      return
+    }
+
+    // Then check if email already exists
+    setIsCheckingEmail(true)
+    setError(null)
+    setEmailExists(false)
+
+    try {
+      const result = await checkEmailExists(data.email)
+
+      if ("error" in result) {
+        // Network or server error
+        setError(result.message)
+        setIsCheckingEmail(false)
+        return
+      }
+
+      if (result.exists) {
+        // Email is already registered
+        setEmailExists(true)
+        setErrors(prev => ({
+          ...prev,
+          email: result.message
+        }))
+        setIsCheckingEmail(false)
+        return
+      }
+
+      // Email is available - proceed to next step
+      setIsCheckingEmail(false)
       nextStep()
+
+    } catch (err) {
+      console.error("Error checking email:", err)
+      setError("אירעה שגיאה לא צפויה. נסה שוב.")
+      setIsCheckingEmail(false)
     }
   }
 
@@ -96,10 +138,31 @@ export function StepPersonalDetails() {
             className={errors.email ? "ui-input-error text-left" : "ui-input text-left"}
             placeholder="israel@example.com"
             value={data.email}
-            onChange={(e) => updateData({ email: e.target.value })}
+            onChange={(e) => {
+              updateData({ email: e.target.value })
+              // Clear email error when user types
+              if (errors.email) {
+                setErrors(prev => ({ ...prev, email: "" }))
+                setEmailExists(false)
+              }
+            }}
             dir="ltr"
           />
-          {errors.email && <p className="text-sm text-ui-danger mt-1">{errors.email}</p>}
+          {errors.email && (
+            <div className="mt-1">
+              <p className="text-sm text-ui-danger">{errors.email}</p>
+              {emailExists && (
+                <div className="mt-2">
+                  <Link 
+                    href="/login" 
+                    className="inline-flex items-center gap-1 text-sm text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors"
+                  >
+                    ← חזרה להתחברות
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -149,8 +212,19 @@ export function StepPersonalDetails() {
           </div>
         )}
 
-        <button type="submit" className="ui-button-primary w-full">
-          המשך לשלב הבא
+        <button 
+          type="submit" 
+          className="ui-button-primary w-full"
+          disabled={isCheckingEmail}
+        >
+          {isCheckingEmail ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              בודק זמינות אימייל...
+            </span>
+          ) : (
+            "המשך לשלב הבא"
+          )}
         </button>
       </form>
     </div>
