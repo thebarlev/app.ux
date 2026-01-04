@@ -18,3 +18,7 @@ backups/
 # local backups
 backups/
 *.zip
+
+# local backups
+backups/
+*.zip
