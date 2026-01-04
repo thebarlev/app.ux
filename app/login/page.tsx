@@ -43,15 +43,23 @@ function LoginForm() {
       })
 
       if (authError) {
-        const errorMsg = authError.message.includes("Invalid login")
-          ? "אימייל או סיסמה שגויים"
-          : `שגיאת התחברות: ${authError.message}`
-        const errorDetails = {
-          message: authError.message,
-          code: authError.code,
-          status: authError.status,
+        console.error("🔴 Auth login error:", {
+          message: authError.message || "Unknown error",
+          name: authError.name || "Unknown",
+          status: authError.status || "Unknown",
+        })
+        
+        // User-friendly error messages
+        let errorMsg = "שגיאת התחברות"
+        if (authError.message?.toLowerCase().includes("invalid login") || 
+            authError.message?.toLowerCase().includes("invalid email or password")) {
+          errorMsg = "אימייל או סיסמה שגויים"
+        } else if (authError.message?.toLowerCase().includes("email not confirmed")) {
+          errorMsg = "נא לאמת את כתובת האימייל שלך"
+        } else if (authError.message) {
+          errorMsg = `שגיאת התחברות: ${authError.message}`
         }
-        console.error("Auth login error:", errorDetails)
+        
         setError(errorMsg)
         setIsLoading(false)
         return

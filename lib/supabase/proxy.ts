@@ -129,15 +129,17 @@ export async function updateSession(request: NextRequest) {
       .eq("status", "active")
       .maybeSingle()
 
-    const { data: companyData } = memberData
-      ? null
-      : await supabase
-          .from("companies")
-          .select("id")
-          .eq("auth_user_id", user.id)
-          .eq("status", "active")
-          .maybeSingle()
-          .then((res) => res.data)
+    // Only query companies table if user is not a member
+    let companyData = null;
+    if (!memberData) {
+      const { data } = await supabase
+        .from("companies")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .eq("status", "active")
+        .maybeSingle()
+      companyData = data;
+    }
 
     if (memberData || companyData) {
       const url = request.nextUrl.clone()

@@ -61,6 +61,7 @@ export default function PreviewClient({
   
   // State to track if component is mounted (client-side only)
   const [isMounted, setIsMounted] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
   
   console.log("🔵 [PreviewClient] Rendering with template:", {
     hasTemplate: !!templateHtml,
@@ -112,6 +113,19 @@ export default function PreviewClient({
   useEffect(() => {
     document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyName}`;
     setIsMounted(true); // Mark as mounted after first render
+    
+    // Listen for iframe resize messages
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'resize' && event.data.height) {
+        const iframe = document.getElementById('receipt-pdf-root') as HTMLIFrameElement;
+        if (iframe) {
+          iframe.style.height = `${event.data.height}px`;
+        }
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [previewNumber, companyName]);
   
   // Prepare template data for rendering
@@ -186,9 +200,10 @@ export default function PreviewClient({
   
   // Function to process template with data
   const processTemplate = (html: string) => {
-    let processed = html;
-    
-    console.log("🔵 [processTemplate] Starting with template length:", html.length);
+    try {
+      let processed = html;
+      
+      console.log("🔵 [processTemplate] Starting with template length:", html.length);
 
     // 1. Handle loops first: {{#each payments}}...{{/each}}
     processed = processed.replace(
@@ -269,8 +284,13 @@ export default function PreviewClient({
       }
     );
 
-    console.log("✅ [processTemplate] Processing complete");
-    return processed;
+      console.log("✅ [processTemplate] Processing complete");
+      return processed;
+    } catch (error) {
+      console.error("❌ [processTemplate] Error processing template:", error);
+      setRenderError(error instanceof Error ? error.message : String(error));
+      return `<div style="padding: 40px; text-align: center; color: red;">שגיאה בעיבוד התבנית: ${error instanceof Error ? error.message : String(error)}</div>`;
+    }
   };
   
   // Use template if available, otherwise use hardcoded HTML
@@ -316,6 +336,23 @@ export default function PreviewClient({
       dir="rtl"
       style={{ minHeight: "100vh", background: "#ffffff", padding: "20px 10px" }}
     >
+      {/* Error Display */}
+      {renderError && (
+        <div style={{
+          maxWidth: "800px",
+          margin: "20px auto",
+          padding: "20px",
+          background: "#fee",
+          border: "2px solid #f00",
+          borderRadius: "8px",
+          textAlign: "center",
+          color: "#c00",
+          fontWeight: "bold"
+        }}>
+          שגיאה: {renderError}
+        </div>
+      )}
+      
       {/* Override Tailwind's lab() and color-mix() + Apply style settings */}
       <style>{`
         /* PDF-optimized wrapper with stable layout */
@@ -392,24 +429,6 @@ export default function PreviewClient({
           --receipt-total-bg: ${styleSettings.colors.totalBoxBackground} !important;
           --receipt-total-border: ${styleSettings.colors.totalBoxBorder} !important;
         }
-
-        @supports (color: lab(0% 0 0)) {
-          #receipt-pdf-root,
-          #receipt-pdf-root * {
-            color: inherit !important;
-            background-color: inherit !important;
-            border-color: inherit !important;
-          }
-        }
-
-        @supports (color: color-mix(in lab, red, red)) {
-          #receipt-pdf-root,
-          #receipt-pdf-root * {
-            color: inherit !important;
-            background-color: inherit !important;
-            border-color: inherit !important;
-          }
-        }
         
         ${styleSettings.customCss}
       `}</style>
@@ -474,11 +493,104 @@ export default function PreviewClient({
       </div>
       
       {/* Render template HTML or fallback to hardcoded */}
-      {useTemplate && isMounted ? (
+      {renderError ? (
         <div 
           id="receipt-pdf-root"
           className="receipt-document receipt-pdf"
-          dangerouslySetInnerHTML={{ __html: processTemplate(templateHtml!) }} 
+          style={{ 
+            width: "210mm", 
+            minHeight: "297mm", 
+            padding: "40px", 
+            textAlign: "center", 
+            color: "#c00",
+            margin: "0 auto",
+            background: "#fee",
+            border: "2px solid #f00"
+          }}
+        >
+          <h2>שגיאה בעיבוד התבנית</h2>
+          <p>{renderError}</p>
+          <p style={{marginTop: "20px", fontSize: "14px"}}>משתמש בתצוגה המוגדרת כברירת מחדל במקום...</p>
+        </div>
+      ) : useTemplate && isMounted ? (
+        <iframe
+          id="receipt-pdf-root"
+          title="Receipt Preview"
+          style={{
+            width: "210mm",
+            minHeight: "297mm",
+            margin: "0 auto",
+            display: "block",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+            background: "#ffffff",
+          }}
+          srcDoc={`<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>קבלה</title>
+  <style>
+    /* CSS Reset + Safe Defaults */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      color: #000000;
+      background: #ffffff;
+      direction: rtl;
+      font-family: Arial, 'Assistant', 'Heebo', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    /* Hide broken images */
+    img[src=""],
+    img:not([src]),
+    img[src="null"],
+    img[src="undefined"] {
+      display: none;
+    }
+    
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    
+    /* Template CSS */
+    ${templateCss || ''}
+  </style>
+  <script>
+    // Hide images that fail to load
+    window.addEventListener('error', function(e) {
+      if (e.target.tagName === 'IMG') {
+        e.target.style.display = 'none';
+      }
+    }, true);
+    
+    // Auto-resize iframe to content height
+    function resizeIframe() {
+      const height = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'resize', height: height }, '*');
+    }
+    
+    window.addEventListener('load', resizeIframe);
+    window.addEventListener('resize', resizeIframe);
+    
+    // Initial resize after a short delay to ensure content is rendered
+    setTimeout(resizeIframe, 100);
+  </script>
+</head>
+<body>
+  ${processTemplate(templateHtml!)}
+</body>
+</html>`}
         />
       ) : useTemplate && !isMounted ? (
         <div 
@@ -662,7 +774,7 @@ export default function PreviewClient({
             }}
           >
             {/* Logo */}
-            {companyData?.logo_url && (
+            {companyData?.logo_url && companyData.logo_url.trim() && (
               <div className="receipt-company-logo" style={{ marginBottom: "15px" }}>
                 <img
                   src={companyData.logo_url}
@@ -673,6 +785,9 @@ export default function PreviewClient({
                     height: "auto",
                     objectFit: "contain",
                     display: "block",
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
                   }}
                 />
               </div>
@@ -1005,7 +1120,7 @@ export default function PreviewClient({
         )}
 
         {/* Signature Section - Below payments table, aligned to left (right in RTL) */}
-        {companyData?.signature_url && (
+        {companyData?.signature_url && companyData.signature_url.trim() && (
           <div
             className="receipt-signature-section"
             style={{
@@ -1034,6 +1149,11 @@ export default function PreviewClient({
                   objectFit: "contain",
                   display: "block",
                   marginBottom: "8px",
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const container = e.currentTarget.closest('.receipt-signature-section') as HTMLElement;
+                  if (container) container.style.display = 'none';
                 }}
               />
               <div

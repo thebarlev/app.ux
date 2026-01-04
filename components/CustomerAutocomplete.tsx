@@ -196,10 +196,58 @@ export default function CustomerAutocomplete({
         disabled={disabled}
         style={{
           width: "100%",
-          padding: 12,
-          borderRadius: 8,
-          border: "1px solid #d1d5db",
+          height: 50,
+          padding: "0 16px",
+          borderRadius: 12,
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          backgroundColor: "rgba(255, 255, 255, 0.05)",
           fontSize: 14,
+          color: "white",
+          outline: "none",
+          transition: "border-color 200ms, box-shadow 200ms",
+        }}
+        onFocus={async (e) => {
+          e.currentTarget.style.borderColor = "#3b82f6";
+          e.currentTarget.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.3)";
+          
+          // Don't show dropdown if user just selected a customer
+          if (justSelectedRef.current) {
+            return;
+          }
+          
+          // Don't show dropdown if value exists and matches lastValue (already selected)
+          // This prevents reopening after selection
+          if (value && value.trim().length > 0 && value === lastValue) {
+            return;
+          }
+          
+          // Show dropdown only if user is actively searching (empty or typing)
+          if (value.trim().length === 0) {
+            // Empty field - fetch initial customers
+            if (!isLoading) {
+              setIsLoading(true);
+              try {
+                const response = await fetch('/api/customers/search?q=');
+                if (response.ok) {
+                  const data = await response.json();
+                  setSuggestions(data.customers || []);
+                  setShowDropdown(true);
+                  setSelectedIndex(-1);
+                }
+              } catch (error) {
+                console.error('Customer search error:', error);
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          } else if (suggestions.length > 0) {
+            // Has suggestions from typing - show them
+            setShowDropdown(true);
+          }
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
+          e.currentTarget.style.boxShadow = "none";
         }}
       />
 
@@ -226,10 +274,10 @@ export default function CustomerAutocomplete({
             right: 0,
             left: 0,
             marginTop: 4,
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
+            background: "#1e293b",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            borderRadius: 12,
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.3)",
             maxHeight: 320,
             overflowY: "auto",
             zIndex: 1000,
@@ -243,15 +291,16 @@ export default function CustomerAutocomplete({
               style={{
                 padding: 12,
                 cursor: "pointer",
-                background: index === selectedIndex ? "#f3f4f6" : "white",
-                borderBottom: "1px solid #f3f4f6",
+                background: index === selectedIndex ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                transition: "background 150ms",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4, color: "white" }}>
                 {customer.name}
               </div>
               {(customer.tax_id || customer.external_account_key) && (
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                <div style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.6)" }}>
                   {customer.tax_id && `ת.ז/ח.פ: ${customer.tax_id}`}
                   {customer.tax_id && customer.external_account_key && " • "}
                   {customer.external_account_key &&
@@ -267,8 +316,8 @@ export default function CustomerAutocomplete({
                 padding: 16,
                 textAlign: "center",
                 fontSize: 14,
-                color: "#6b7280",
-                borderBottom: "1px solid #f3f4f6",
+                color: "rgba(255, 255, 255, 0.6)",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
               }}
             >
               לא נמצאו לקוחות תואמים
@@ -286,14 +335,15 @@ export default function CustomerAutocomplete({
               style={{
                 padding: 12,
                 cursor: "pointer",
-                background: selectedIndex === suggestions.length ? "#f3f4f6" : "white",
-                borderTop: suggestions.length > 0 ? "2px solid #e5e7eb" : "none",
-                color: "#2563eb",
+                background: selectedIndex === suggestions.length ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                borderTop: suggestions.length > 0 ? "2px solid rgba(255, 255, 255, 0.1)" : "none",
+                color: "#60a5fa",
                 fontWeight: 600,
                 fontSize: 14,
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
+                transition: "background 150ms",
               }}
             >
               <span style={{ fontSize: 16 }}>➕</span>

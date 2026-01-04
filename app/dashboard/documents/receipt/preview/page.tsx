@@ -57,12 +57,27 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   // Get receipt style settings
   const styleSettings = await getReceiptStyleSettingsPublic();
   
+  // Sanitize template HTML to remove any script tags and event handlers
+  let sanitizedHtml = templateHtml;
+  if (sanitizedHtml) {
+    console.log("🔵 [PreviewPage] Sanitizing template HTML");
+    // Remove script tags and their content (case-insensitive, handles attributes)
+    sanitizedHtml = sanitizedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    // Remove inline event handlers (onclick, onload, etc.)
+    sanitizedHtml = sanitizedHtml.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '');
+    sanitizedHtml = sanitizedHtml.replace(/\son\w+\s*=\s*[^\s>]*/gi, '');
+    // Remove javascript: protocol in attributes
+    sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
+    sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*javascript:[^\s>]*/gi, 'href="#"');
+    console.log("✅ [PreviewPage] Template sanitized");
+  }
+  
   return (
     <PreviewWrapper 
       customerData={customerData} 
       companyData={companyData} 
       styleSettings={styleSettings}
-      templateHtml={templateHtml}
+      templateHtml={sanitizedHtml}
       templateCss={templateCss}
     />
   );

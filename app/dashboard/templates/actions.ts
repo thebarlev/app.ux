@@ -22,7 +22,11 @@ export async function getAvailableTemplatesAction() {
     .eq("user_id", user.id)
     .maybeSingle()
 
-  if (!membership?.company_id) {
+  let companyId: string | null = null;
+
+  if (membership?.company_id) {
+    companyId = membership.company_id;
+  } else {
     // Try direct ownership
     const { data: company } = await supabase
       .from("companies")
@@ -33,10 +37,9 @@ export async function getAvailableTemplatesAction() {
     if (!company) {
       return { ok: false, message: "לא נמצאה חברה", templates: [] }
     }
-    membership.company_id = company.id
+    
+    companyId = company.id;
   }
-
-  const companyId = membership.company_id
 
   // Get active templates (company-specific OR global)
   const { data: templates, error } = await supabase

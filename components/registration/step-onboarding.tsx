@@ -79,26 +79,39 @@ export function StepOnboarding() {
         },
       })
 
+      // Log RAW error first to see actual structure
+      console.error("🔴 RAW authError:", authError)
+      console.error("🔴 STRING authError:", JSON.stringify(authError, null, 2))
+      console.error("🔴 Signup response:", { authData, authError })
+
       if (authError) {
-        const errorMsg = authError.message.includes("already registered")
+        const errorMsg = authError.message?.includes("already registered")
           ? "כתובת האימייל כבר רשומה במערכת. נסה להתחבר."
-          : `שגיאת הרשמה: ${authError.message}`
-        const errorDetails = {
-          message: authError.message,
-          code: authError.code,
-          status: authError.status,
-        }
-        console.error("Auth signup error:", errorDetails)
+          : `שגיאת הרשמה: ${authError.message || "Unknown error"}`
+        
+        console.error("❌ Auth signup error details:", {
+          message: authError.message || "NO_MESSAGE",
+          code: authError.code || "NO_CODE",
+          status: authError.status || "NO_STATUS",
+          name: authError.name || "NO_NAME",
+        })
+        
         setError(errorMsg)
         setIsLoading(false)
         return
       }
 
       if (!authData.user) {
+        console.error("No user returned from signup", { authData })
         setError("ההרשמה נכשלה. נסה שוב.")
         setIsLoading(false)
         return
       }
+
+      console.log("User created successfully:", authData.user.id)
+
+      // Wait a moment for auth session to be established
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       // Step 2: Create company record
       const { data: companyData, error: companyError } = await supabase
@@ -123,52 +136,99 @@ export function StepOnboarding() {
         .single()
 
       if (companyError) {
-        const errorMsg = `שגיאה ביצירת חברה: ${companyError.message}`
-        const errorDetails = {
+        console.error("Company creation error:", {
           message: companyError.message,
           code: companyError.code,
           details: companyError.details,
           hint: companyError.hint,
-        }
-        console.error("Company creation error:", errorDetails)
-        setError(errorMsg)
+          user_id: authData.user.id,
+        })
+        setError(`שגיאה ביצירת חברה: ${companyError.message}`)
         setIsLoading(false)
         return
       }
 
       if (!companyData) {
+        console.error("No company data returned")
         setError("שגיאה: לא נוצרה חברה")
         setIsLoading(false)
         return
       }
 
+      console.log("Company created successfully:", companyData.id)
+
+      // STEP 2: Verify user is still authenticated before creating company_members
+      const { data: { user: currentUser }, error: getUserError } = await supabase.auth.getUser()
+      
+      console.log("🔍 Auth check before company_members insert:", {
+        currentUserId: currentUser?.id,
+        authDataUserId: authData.user.id,
+        isAuthenticated: !!currentUser,
+        getUserError: getUserError,
+      })
+
+      if (!currentUser) {
+        console.error("❌ User is not authenticated during onboarding")
+        setError("המשתמש אינו מחובר. נסה להתחבר מחדש.")
+        setIsLoading(false)
+        return
+      }
+
       // Step 3: Create company_members record for tenant isolation
-      const { error: memberError } = await supabase.from("company_members").insert({
+      // NOTE: RLS policy must allow: INSERT when user_id = auth.uid()
+      console.log("📝 Attempting to insert company_members:", {
         company_id: companyData.id,
         user_id: authData.user.id,
         role: "owner",
         status: "active",
       })
 
+      const { data: memberData, error: memberError } = await supabase
+        .from("company_members")
+        .insert({
+          company_id: companyData.id,
+          user_id: authData.user.id,
+          role: "owner",
+          status: "active",
+        })
+        .select()
+
+      // STEP 1: Log the raw error object FIRST
+      console.error("🔴 RAW memberError:", memberError)
+      console.error("🔴 STRING memberError:", JSON.stringify(memberError, null, 2))
+      console.error("🔴 Insert response:", { memberData, memberError })
+
       if (memberError) {
-        const errorMsg = `שגיאה ביצירת קישור לחברה: ${memberError.message}`
-        const errorDetails = {
-          message: memberError.message,
-          code: memberError.code,
-          details: memberError.details,
-          hint: memberError.hint,
+        // Enhanced error logging with all available fields
+        const errorInfo = {
+          message: memberError.message || "Unknown error",
+          code: memberError.code || "NO_CODE",
+          details: memberError.details || "NO_DETAILS",
+          hint: memberError.hint || "NO_HINT",
+          rawError: memberError,
         }
-        console.error("Company member creation error:", errorDetails)
-        setError(errorMsg)
+        console.error("❌ Company member creation error:", errorInfo)
+        
+        // Check if it's an RLS error
+        if (memberError.code === "42501" || memberError.message?.includes("permission") || memberError.message?.includes("policy")) {
+          console.error("🚨 RLS POLICY ERROR: company_members table is blocking INSERT")
+          console.error("💡 Required policy: Allow INSERT into company_members when user_id = auth.uid()")
+          setError("שגיאת הרשאות: אין הרשאה ליצור קישור לחברה. פנה למנהל המערכת.")
+        } else {
+          setError(`שגיאה ביצירת קישור לחברה: ${memberError.message || "Unknown error"}`)
+        }
+        
         setIsLoading(false)
         return
       }
 
+      console.log("✅ Company member created successfully:", memberData)
+
       // Redirect to success page
       router.push("/register/success")
     } catch (err) {
+      console.error("Unexpected registration error:", err)
       setError("אירעה שגיאה לא צפויה. נסה שוב.")
-    } finally {
       setIsLoading(false)
     }
   }
@@ -176,8 +236,8 @@ export function StepOnboarding() {
   return (
     <NeumorphicCard>
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">שאלות אחרונות</h2>
-        <p className="mt-1 text-sm text-muted-foreground">נתאים את השירות לצרכים שלך</p>
+        <h2 className="text-xl font-semibold text-slate-900">שאלות אחרונות</h2>
+        <p className="mt-1 text-sm text-slate-600">נתאים את השירות לצרכים שלך</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -191,7 +251,7 @@ export function StepOnboarding() {
         />
 
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-foreground">באילו שירותים אתה מעוניין?</label>
+          <label className="text-sm font-medium text-slate-900">באילו שירותים אתה מעוניין?</label>
           <div className="flex flex-wrap gap-2">
             {ACCOUNTING_NEEDS.map((need) => (
               <button
@@ -202,15 +262,15 @@ export function StepOnboarding() {
                   "px-4 py-2 rounded-lg text-sm transition-all duration-200",
                   "border",
                   data.accountingNeeds.includes(need.value)
-                    ? "bg-primary/10 border-primary/30 text-primary"
-                    : "bg-muted/30 border-border/50 text-muted-foreground hover:bg-muted/50",
+                    ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
+                    : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50",
                 )}
               >
                 {need.label}
               </button>
             ))}
           </div>
-          {localErrors.accountingNeeds && <p className="text-xs text-destructive">{localErrors.accountingNeeds}</p>}
+          {localErrors.accountingNeeds && <p className="text-xs text-red-600 font-medium">{localErrors.accountingNeeds}</p>}
         </div>
 
         <NeumorphicSelect

@@ -293,11 +293,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   return (
-    <div dir="rtl" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+    <div dir="rtl" className="text-slate-900" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
-        <p style={{ marginTop: 8, opacity: 0.75 }}>ניהול פרטי העסק והלוגו</p>
+        <h1 className="text-slate-900" style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
+        <p className="text-slate-600" style={{ marginTop: 8 }}>ניהול פרטי העסק והלוגו</p>
       </div>
 
       {/* Message */}
@@ -318,15 +318,15 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
       {/* Logo & Signature Section - Combined */}
       <div
+        className="bg-white text-slate-900"
         style={{
           padding: 24,
-          background: "white",
           border: "1px solid #e5e7eb",
           borderRadius: 16,
           marginBottom: 24,
         }}
       >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
+        <h2 className="text-slate-900" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
 
         {/* Show installation notice if signature_url field doesn't exist */}
         {company.signature_url === undefined && (
@@ -541,19 +541,19 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
       {/* Business Details Section */}
       <div
+        className="bg-white text-slate-900"
         style={{
           padding: 24,
-          background: "white",
           border: "1px solid #e5e7eb",
           borderRadius: 16,
         }}
       >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
+        <h2 className="text-slate-900" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
           {/* Company Name */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               שם העסק <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -562,6 +562,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               value={formData.company_name}
               onChange={handleInputChange}
               required
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -574,7 +575,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Business Type - READ ONLY */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               סוג עסק <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <select
@@ -583,6 +584,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               disabled
               required
+              className="text-slate-900"
               style={{
                 width: "100%",
                 padding: 10,
@@ -604,7 +606,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Company Number - READ ONLY */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               מספר חברה / תעודת זהות <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -614,6 +616,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               disabled
               required
+              className="text-slate-900"
               style={{
                 width: "100%",
                 padding: 10,
@@ -629,7 +632,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Industry */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <select
@@ -637,6 +640,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               value={formData.industry}
               onChange={handleInputChange}
               required
+              className="text-slate-900"
               style={{
                 width: "100%",
                 padding: 10,
@@ -657,7 +661,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
           {/* Custom Industry - shows if "other" selected */}
           {formData.industry === "other" && (
             <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
                 פרט תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
               </label>
               <input
@@ -667,6 +671,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 onChange={handleInputChange}
                 required
                 placeholder="הזן את תחום הפעילות שלך"
+                className="text-slate-900 placeholder:text-slate-400"
                 style={{
                   width: "100%",
                   padding: 10,
@@ -680,7 +685,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Street */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               רחוב ומספר <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -690,6 +695,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               required
               placeholder="רחוב הרצל 1"
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -702,7 +708,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* City */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               עיר <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -712,6 +718,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               required
               placeholder="תל אביב-יפו"
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -724,13 +731,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Postal Code */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
             <input
               type="text"
               name="postal_code"
               value={formData.postal_code}
               onChange={handleInputChange}
               placeholder="1234567"
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -743,7 +751,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Registration Number - Shows company_number from registration, READ ONLY */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               מספר רישום (ת.ז / ח"פ) <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -751,6 +759,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               name="company_number"
               value={formData.company_number}
               disabled
+              className="text-slate-900"
               style={{
                 width: "100%",
                 padding: 10,
@@ -766,7 +775,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Email */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
               אימייל <span style={{ color: "#ef4444" }}>*</span>
             </label>
             <input
@@ -775,6 +784,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               value={formData.email}
               onChange={handleInputChange}
               required
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -787,12 +797,13 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Mobile Phone */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
             <input
               type="tel"
               name="mobile_phone"
               value={formData.mobile_phone}
               onChange={handleInputChange}
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -805,12 +816,13 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Phone */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,
@@ -823,13 +835,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Website */}
           <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
+            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
             <input
               type="url"
               name="website"
               value={formData.website}
               onChange={handleInputChange}
               placeholder="https://example.com"
+              className="text-slate-900 placeholder:text-slate-400"
               style={{
                 width: "100%",
                 padding: 10,

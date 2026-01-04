@@ -22,20 +22,25 @@ export default function PaymentDetailsSection({
 }: PaymentDetailsSectionProps) {
   const { method } = payment;
 
-  // Common input style
+  // Common input style - exactly 50px height
   const inputStyle: React.CSSProperties = {
-    padding: 8,
-    borderRadius: 8,
-    border: "1px solid #d1d5db",
+    height: 50,
+    padding: "0 16px",
+    borderRadius: 12,
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     width: "100%",
     fontSize: 14,
+    color: "white",
+    outline: "none",
   };
 
   const labelStyle: React.CSSProperties = {
     fontSize: 13,
     fontWeight: 600,
-    marginBottom: 4,
+    marginBottom: 6,
     display: "block",
+    color: "white",
   };
 
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments

@@ -7,7 +7,6 @@ import { StepProgress } from "@/components/registration/step-progress"
 import { StepPersonalDetails } from "@/components/registration/step-personal-details"
 import { StepBusinessProfile } from "@/components/registration/step-business-profile"
 import { StepAddress } from "@/components/registration/step-address"
-import { StepOnboarding } from "@/components/registration/step-onboarding"
 import { RegistrationLogo } from "@/components/registration/registration-logo"
 import Link from "next/link"
 
@@ -15,7 +14,6 @@ const STEPS = [
   { id: 1, label: "פרטים אישיים" },
   { id: 2, label: "פרופיל עסקי" },
   { id: 3, label: "כתובת" },
-  { id: 4, label: "שאלות" },
 ]
 
 function RegistrationFlow() {
@@ -29,8 +27,6 @@ function RegistrationFlow() {
         return <StepBusinessProfile />
       case 3:
         return <StepAddress />
-      case 4:
-        return <StepOnboarding />
       default:
         return <StepPersonalDetails />
     }
