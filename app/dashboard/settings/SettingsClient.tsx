@@ -293,23 +293,22 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   return (
-    <div dir="rtl" className="text-slate-900" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+    <div dir="rtl" className="text-fg" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
-        <h1 className="text-slate-900" style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
-        <p className="text-slate-600" style={{ marginTop: 8 }}>ניהול פרטי העסק והלוגו</p>
+        <h1 className="text-fg" style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
+        <p className="text-muted-fg" style={{ marginTop: 8 }}>ניהול פרטי העסק והלוגו</p>
       </div>
 
       {/* Message */}
       {message && (
         <div
+          className={message.type === "success" ? "bg-success/10 border-success text-success-fg" : "bg-danger/10 border-danger text-danger-fg"}
           style={{
             padding: 16,
             marginBottom: 24,
             borderRadius: 12,
-            border: `1px solid ${message.type === "success" ? "#10b981" : "#ef4444"}`,
-            background: message.type === "success" ? "#d1fae5" : "#fee2e2",
-            color: message.type === "success" ? "#065f46" : "#991b1b",
+            borderWidth: 1,
           }}
         >
           {message.text}
@@ -318,31 +317,30 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
       {/* Logo & Signature Section - Combined */}
       <div
-        className="bg-white text-slate-900"
+        className="bg-card text-fg border-border"
         style={{
           padding: 24,
-          border: "1px solid #e5e7eb",
+          borderWidth: 1,
           borderRadius: 16,
           marginBottom: 24,
         }}
       >
-        <h2 className="text-slate-900" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
+        <h2 className="text-fg" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
 
         {/* Show installation notice if signature_url field doesn't exist */}
         {company.signature_url === undefined && (
           <div
+            className="bg-warning/10 border-warning text-warning-fg"
             style={{
               padding: 16,
               marginBottom: 16,
               borderRadius: 12,
-              border: "1px solid #fbbf24",
-              background: "#fef3c7",
-              color: "#92400e",
+              borderWidth: 1,
             }}
           >
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה לחתימה</div>
             <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
-              כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ background: "#fff", padding: "2px 6px", borderRadius: 4 }}>scripts/016-add-signature-field.sql</code>
+              כדי להשתמש בתכונת החתימה, יש להריץ: <code className="bg-bg text-fg" style={{ padding: "2px 6px", borderRadius: 4 }}>scripts/016-add-signature-field.sql</code>
             </div>
           </div>
         )}
@@ -352,19 +350,20 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
           
           {/* Logo Section */}
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#374151" }}>לוגו העסק</h3>
+            <h3 className="text-muted-fg" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>לוגו העסק</h3>
             
             {/* Logo Preview */}
             <div
+              className="border-border bg-muted"
               style={{
                 width: "100%",
                 minHeight: 160,
-                border: "2px dashed #d1d5db",
+                borderWidth: 2,
+                borderStyle: "dashed",
                 borderRadius: 12,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "#f9fafb",
                 padding: 20,
                 marginBottom: 16,
               }}
@@ -406,12 +405,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingLogo}
+                className="bg-fg text-bg border-fg hover:bg-fg/90"
                 style={{
                   padding: "8px 16px",
                   borderRadius: 8,
-                  border: "1px solid #111827",
-                  background: "#111827",
-                  color: "white",
+                  borderWidth: 1,
                   cursor: isUploadingLogo ? "not-allowed" : "pointer",
                   fontWeight: 600,
                   fontSize: 14,
@@ -425,12 +423,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 <button
                   onClick={handleDeleteLogo}
                   disabled={isUploadingLogo}
+                  className="bg-bg text-danger border-danger hover:bg-danger/10"
                   style={{
                     padding: "8px 16px",
                     borderRadius: 8,
-                    border: "1px solid #ef4444",
-                    background: "white",
-                    color: "#ef4444",
+                    borderWidth: 1,
                     cursor: isUploadingLogo ? "not-allowed" : "pointer",
                     fontWeight: 600,
                     fontSize: 14,
@@ -445,19 +442,20 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Signature Section */}
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: "#374151" }}>חתימת העסק</h3>
+            <h3 className="text-muted-fg" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>חתימת העסק</h3>
             
             {/* Signature Preview */}
             <div
+              className="border-border bg-muted"
               style={{
                 width: "100%",
                 minHeight: 160,
-                border: "2px dashed #d1d5db",
+                borderWidth: 2,
+                borderStyle: "dashed",
                 borderRadius: 12,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: "#f9fafb",
                 padding: 20,
                 marginBottom: 16,
               }}
@@ -478,7 +476,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               ) : (
                 <div style={{ textAlign: "center", opacity: 0.4 }}>
                   <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                  <div style={{ fontSize: 13, color: "#9ca3af" }}>לא הועלה</div>
+                  <div className="text-muted-fg" style={{ fontSize: 13 }}>לא הועלה</div>
                 </div>
               )}
             </div>
@@ -499,12 +497,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               <button
                 onClick={() => signatureInputRef.current?.click()}
                 disabled={isUploadingSignature}
+                className="bg-fg text-bg border-fg hover:bg-fg/90"
                 style={{
                   padding: "8px 16px",
                   borderRadius: 8,
-                  border: "1px solid #111827",
-                  background: "#111827",
-                  color: "white",
+                  borderWidth: 1,
                   cursor: isUploadingSignature ? "not-allowed" : "pointer",
                   fontWeight: 600,
                   fontSize: 14,
@@ -518,12 +515,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 <button
                   onClick={handleDeleteSignature}
                   disabled={isUploadingSignature}
+                  className="bg-bg text-danger border-danger hover:bg-danger/10"
                   style={{
                     padding: "8px 16px",
                     borderRadius: 8,
-                    border: "1px solid #ef4444",
-                    background: "white",
-                    color: "#ef4444",
+                    borderWidth: 1,
                     cursor: isUploadingSignature ? "not-allowed" : "pointer",
                     fontWeight: 600,
                     fontSize: 14,
@@ -541,20 +537,20 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
       {/* Business Details Section */}
       <div
-        className="bg-white text-slate-900"
+        className="bg-card text-fg border-border"
         style={{
           padding: 24,
-          border: "1px solid #e5e7eb",
+          borderWidth: 1,
           borderRadius: 16,
         }}
       >
-        <h2 className="text-slate-900" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
+        <h2 className="text-fg" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
           {/* Company Name */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              שם העסק <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              שם העסק <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -562,12 +558,12 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               value={formData.company_name}
               onChange={handleInputChange}
               required
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -575,8 +571,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Business Type - READ ONLY */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              סוג עסק <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              סוג עסק <span className="text-danger">*</span>
             </label>
             <select
               name="business_type"
@@ -584,14 +580,13 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               disabled
               required
-              className="text-slate-900"
+              className="text-fg bg-muted border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
-                background: "#f3f4f6",
                 cursor: "not-allowed",
                 opacity: 0.7,
               }}
@@ -606,8 +601,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Company Number - READ ONLY */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר חברה / תעודת זהות <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              מספר חברה / תעודת זהות <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -616,14 +611,13 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               disabled
               required
-              className="text-slate-900"
+              className="text-fg bg-muted border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
-                background: "#f3f4f6",
                 cursor: "not-allowed",
                 opacity: 0.7,
               }}
@@ -632,20 +626,20 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Industry */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              תחום פעילות <span className="text-danger">*</span>
             </label>
             <select
               name="industry"
               value={formData.industry}
               onChange={handleInputChange}
               required
-              className="text-slate-900"
+              className="text-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             >
@@ -661,8 +655,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
           {/* Custom Industry - shows if "other" selected */}
           {formData.industry === "other" && (
             <div>
-              <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                פרט תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
+              <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+                פרט תחום פעילות <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -671,12 +665,12 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 onChange={handleInputChange}
                 required
                 placeholder="הזן את תחום הפעילות שלך"
-                className="text-slate-900 placeholder:text-slate-400"
+                className="text-fg placeholder:text-muted-fg border-border"
                 style={{
                   width: "100%",
                   padding: 10,
                   borderRadius: 8,
-                  border: "1px solid #d1d5db",
+                  borderWidth: 1,
                   fontSize: 14,
                 }}
               />
@@ -685,8 +679,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Street */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              רחוב ומספר <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              רחוב ומספר <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -695,12 +689,12 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               required
               placeholder="רחוב הרצל 1"
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -708,8 +702,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* City */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              עיר <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              עיר <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -718,12 +712,12 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               onChange={handleInputChange}
               required
               placeholder="תל אביב-יפו"
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -731,19 +725,19 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Postal Code */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
             <input
               type="text"
               name="postal_code"
               value={formData.postal_code}
               onChange={handleInputChange}
               placeholder="1234567"
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -751,22 +745,21 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Registration Number - Shows company_number from registration, READ ONLY */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר רישום (ת.ז / ח"פ) <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              מספר רישום (ת.ז / ח"פ) <span className="text-danger">*</span>
             </label>
             <input
               type="text"
               name="company_number"
               value={formData.company_number}
               disabled
-              className="text-slate-900"
+              className="text-fg bg-muted border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
-                background: "#f3f4f6",
                 cursor: "not-allowed",
                 opacity: 0.7,
               }}
@@ -775,8 +768,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Email */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              אימייל <span style={{ color: "#ef4444" }}>*</span>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
+              אימייל <span className="text-danger">*</span>
             </label>
             <input
               type="email"
@@ -784,12 +777,12 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               value={formData.email}
               onChange={handleInputChange}
               required
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -797,18 +790,18 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Mobile Phone */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
             <input
               type="tel"
               name="mobile_phone"
               value={formData.mobile_phone}
               onChange={handleInputChange}
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -816,18 +809,18 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Phone */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -835,19 +828,19 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Website */}
           <div>
-            <label className="text-slate-900" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
+            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
             <input
               type="url"
               name="website"
               value={formData.website}
               onChange={handleInputChange}
               placeholder="https://example.com"
-              className="text-slate-900 placeholder:text-slate-400"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
               }}
             />
@@ -856,9 +849,9 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       </div>
 
       {/* Template Selection Section - Simple List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div className="bg-card rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold mb-2">בחירת תבניות מסמכים</h2>
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+        <p className="text-sm text-muted-fg mb-6">
           בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.
         </p>
         <SimpleTemplateSelector />
@@ -876,12 +869,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
         <button
           onClick={handleSaveDetails}
           disabled={isSaving}
+          className="bg-fg text-bg hover:bg-fg/90"
           style={{
             padding: "16px 40px",
             borderRadius: 16,
             border: "none",
-            background: isSaving ? "#6b7280" : "#111827",
-            color: "white",
             cursor: isSaving ? "not-allowed" : "pointer",
             fontWeight: 700,
             fontSize: 18,
@@ -890,6 +882,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 8,
+            opacity: isSaving ? 0.6 : 1,
           }}
           onMouseEnter={(e) => {
             if (!isSaving) {

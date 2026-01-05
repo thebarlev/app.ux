@@ -1,3 +1,12 @@
+/**
+ * Shared Receipt Style Module
+ * 
+ * This module provides receipt style settings functionality
+ * for both admin and dashboard routes.
+ * 
+ * Architecture: Shared library - safe to import from any route
+ */
+
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
@@ -8,8 +17,47 @@ import {
 } from "@/lib/types/receipt-style";
 
 /**
- * Get current receipt style settings
- * Returns defaults if none exist
+ * Get receipt style settings for public use (preview, PDF generation)
+ * 
+ * No authentication required - returns defaults if not found.
+ * Safe fallback: Never throws, always returns valid settings.
+ * 
+ * @returns Promise<ReceiptStyleSettings> - Style settings or defaults
+ */
+export async function getReceiptStyleSettingsPublic(): Promise<ReceiptStyleSettings> {
+  try {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("receipt_style_settings")
+      .select("settings")
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[receipt-style] Database query error, using defaults:", error.message);
+      return DEFAULT_RECEIPT_STYLE;
+    }
+
+    if (!data?.settings) {
+      console.log("[receipt-style] No settings found, using defaults");
+      return DEFAULT_RECEIPT_STYLE;
+    }
+
+    console.log("[receipt-style] Loaded settings from database");
+    return data.settings as ReceiptStyleSettings;
+  } catch (e) {
+    console.error("[receipt-style] Unexpected error, using defaults:", e);
+    return DEFAULT_RECEIPT_STYLE;
+  }
+}
+
+/**
+ * Get receipt style settings with admin authentication
+ * 
+ * Used by admin panel for editing settings.
+ * 
+ * @returns Promise with ok status and settings/message
  */
 export async function getReceiptStyleSettings(): Promise<{
   ok: boolean;
@@ -43,7 +91,7 @@ export async function getReceiptStyleSettings(): Promise<{
       .maybeSingle();
 
     if (error) {
-      console.error("Error fetching receipt style settings:", error);
+      console.error("[receipt-style] Error fetching settings:", error);
       return { ok: true, settings: DEFAULT_RECEIPT_STYLE };
     }
 
@@ -58,32 +106,10 @@ export async function getReceiptStyleSettings(): Promise<{
 }
 
 /**
- * Get receipt style settings for public use (preview)
- * No auth required - returns defaults if not found
- */
-export async function getReceiptStyleSettingsPublic(): Promise<ReceiptStyleSettings> {
-  try {
-    const supabase = await createClient();
-
-    const { data } = await supabase
-      .from("receipt_style_settings")
-      .select("settings")
-      .limit(1)
-      .maybeSingle();
-
-    if (!data?.settings) {
-      return DEFAULT_RECEIPT_STYLE;
-    }
-
-    return data.settings as ReceiptStyleSettings;
-  } catch (e) {
-    console.error("Error loading receipt style:", e);
-    return DEFAULT_RECEIPT_STYLE;
-  }
-}
-
-/**
  * Save/update receipt style settings (admin only)
+ * 
+ * @param settings - Receipt style settings to save
+ * @returns Promise with ok status and optional message
  */
 export async function saveReceiptStyleSettings(
   settings: ReceiptStyleSettings
@@ -113,9 +139,9 @@ export async function saveReceiptStyleSettings(
     // Validate settings
     const validation = validateReceiptStyleSettings(settings);
     if (!validation.valid) {
-      return {
-        ok: false,
-        message: validation.errors.join(", "),
+      return { 
+        ok: false, 
+        message: "הגדרות לא תקינות:\n" + validation.errors.join("\n") 
       };
     }
 
@@ -134,7 +160,8 @@ export async function saveReceiptStyleSettings(
         .eq("id", existing.id);
 
       if (error) {
-        return { ok: false, message: error.message };
+        console.error("[receipt-style] Update error:", error);
+        return { ok: false, message: "שגיאה בעדכון ההגדרות" };
       }
     } else {
       // Insert new
@@ -143,18 +170,22 @@ export async function saveReceiptStyleSettings(
         .insert({ settings: settings as any });
 
       if (error) {
-        return { ok: false, message: error.message };
+        console.error("[receipt-style] Insert error:", error);
+        return { ok: false, message: "שגיאה ביצירת ההגדרות" };
       }
     }
 
-    return { ok: true, message: "הגדרות נשמרו בהצלחה" };
+    return { ok: true, message: "ההגדרות נשמרו בהצלחה" };
   } catch (e: any) {
-    return { ok: false, message: e?.message || "שגיאה בשמירת ההגדרות" };
+    console.error("[receipt-style] Save error:", e);
+    return { ok: false, message: e?.message || "שגיאה לא צפויה" };
   }
 }
 
 /**
  * Reset to default settings (admin only)
+ * 
+ * @returns Promise with ok status and optional message
  */
 export async function resetReceiptStyleSettings(): Promise<{
   ok: boolean;

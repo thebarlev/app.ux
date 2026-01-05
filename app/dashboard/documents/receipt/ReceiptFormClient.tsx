@@ -75,6 +75,9 @@ export default function ReceiptFormClient({
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
   const [showStartingNumberModal, setShowStartingNumberModal] = useState(false);
+  
+  // Date locking: minimum allowed date based on last issued receipt
+  const minAllowedDate = initial.ok ? initial.minAllowedDate : null;
 
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
@@ -346,8 +349,7 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <div className="ui-section-dark">
-      <div className="space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 p-6 rounded-2xl border" style={{backgroundColor: '#1e293b', borderColor: '#334155'}}>
         <div>
@@ -439,6 +441,7 @@ export default function ReceiptFormClient({
             label="שם לקוח" 
             required 
             error={customerNameError}
+            id="customerName"
           >
             <div ref={customerNameRef}>
               <CustomerAutocomplete
@@ -461,11 +464,14 @@ export default function ReceiptFormClient({
             </div>
           </FieldWrapper>
 
-          <FieldWrapper label="תאריך מסמך" required>
+          <FieldWrapper label="תאריך מסמך" required id="documentDate">
             <Input
+              id="documentDate"
               type="date"
               value={documentDate}
               onChange={(e) => setDocumentDate(e.target.value)}
+              min={minAllowedDate || undefined}
+              aria-required="true"
             />
           </FieldWrapper>
         </div>
@@ -481,8 +487,11 @@ export default function ReceiptFormClient({
           label="תיאור" 
           required 
           error={descriptionError}
+          id="description"
+          hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
         >
           <Input
+            id="description"
             ref={descriptionInputRef}
             value={description}
             onChange={(e) => {
@@ -491,8 +500,11 @@ export default function ReceiptFormClient({
                 setDescriptionError(null);
               }
             }}
-            placeholder="לדוגמה: שירותי עיצוב (לפחות 5 תווים)"
+            placeholder="הזן תיאור..."
             className={descriptionError ? "border-red-500" : ""}
+            aria-required="true"
+            aria-invalid={!!descriptionError}
+            aria-describedby={descriptionError ? "description-error" : "description-hint"}
           />
         </FieldWrapper>
       </div>
@@ -514,9 +526,26 @@ export default function ReceiptFormClient({
 
           <div className="space-y-3">
             {payments.map((row, i) => (
-              <div key={i} className="p-4 rounded-xl border" style={{backgroundColor: '#0f172a', borderColor: '#334155'}}>
+              <div key={i} className="relative p-4 pt-12 rounded-xl border" style={{backgroundColor: '#0f172a', borderColor: '#334155'}}>
+                {/* Delete Button - Icon Only, Absolutely Positioned */}
+                <button
+                  type="button"
+                  onClick={() => removePaymentRow(i)}
+                  disabled={payments.length === 1}
+                  aria-label="מחיקה"
+                  className="absolute top-3 left-3 w-9 h-9 flex items-center justify-center rounded-md text-red-300 hover:text-red-200 hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/40 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                  title="מחק"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </button>
+
                 <div className="grid gap-3 md:grid-cols-3">
-                  <FieldWrapper label="אמצעי תשלום" error={paymentErrors[i]}>
+                  <FieldWrapper 
+                    label="אמצעי תשלום" 
+                    required
+                    error={paymentErrors[i]}
+                    id={`payment-method-${i}`}
+                  >
                     <Select
                       value={row.method}
                       onValueChange={(v) => {
@@ -528,8 +557,14 @@ export default function ReceiptFormClient({
                         }
                       }}
                     >
-                      <SelectTrigger className={paymentErrors[i] ? "border-red-500" : ""}>
-                        <SelectValue placeholder="בחר..." />
+                      <SelectTrigger 
+                        id={`payment-method-${i}`}
+                        className={paymentErrors[i] ? "border-red-500" : ""}
+                        aria-required="true"
+                        aria-invalid={!!paymentErrors[i]}
+                        aria-describedby={paymentErrors[i] ? `payment-method-${i}-error` : undefined}
+                      >
+                        <SelectValue placeholder="בחר אמצעי תשלום..." />
                       </SelectTrigger>
                       <SelectContent>
                         {PAYMENT_METHODS.map((m) => (
@@ -541,17 +576,25 @@ export default function ReceiptFormClient({
                     </Select>
                   </FieldWrapper>
 
-                  <FieldWrapper label="תאריך">
+                  <FieldWrapper label="תאריך תשלום" required id={`payment-date-${i}`}>
                     <Input
+                      id={`payment-date-${i}`}
                       type="date"
                       value={row.date}
                       onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                      min={minAllowedDate || undefined}
+                      aria-required="true"
                     />
                   </FieldWrapper>
 
-                  <FieldWrapper label="סכום">
+                  <FieldWrapper 
+                    label="סכום" 
+                    required
+                    id={`payment-amount-${i}`}
+                  >
                     <div className="flex gap-2">
                       <MoneyInput
+                        id={`payment-amount-${i}`}
                         value={row.amount}
                         onChange={(v) => {
                           updatePaymentRow(i, { amount: v });
@@ -564,12 +607,14 @@ export default function ReceiptFormClient({
                         currency={row.currency}
                         error={!!paymentErrors[i]}
                         className="flex-1"
+                        aria-required="true"
+                        aria-invalid={!!paymentErrors[i]}
                       />
                       <Select
                         value={row.currency}
                         onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                       >
-                        <SelectTrigger className="w-20">
+                        <SelectTrigger className="w-28" aria-label="מטבע">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -584,24 +629,11 @@ export default function ReceiptFormClient({
                   </FieldWrapper>
                 </div>
 
-                <div className="mt-3 flex items-end justify-between gap-2">
-                  <div className="flex-1">
-                    <PaymentDetailsSection
-                      payment={row}
-                      onUpdate={(updates) => updatePaymentRow(i, updates)}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removePaymentRow(i)}
-                    disabled={payments.length === 1}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4 ml-1" />
-                    מחק
-                  </Button>
+                <div className="mt-3">
+                  <PaymentDetailsSection
+                    payment={row}
+                    onUpdate={(updates) => updatePaymentRow(i, updates)}
+                  />
                 </div>
               </div>
             ))}
@@ -611,7 +643,7 @@ export default function ReceiptFormClient({
             type="button"
             variant="outline"
             onClick={addPaymentRow}
-            className="w-full border-dashed border-2 ui-button-dark-secondary"
+            className="w-full border-dashed border-2 ui-button-dark-secondary mt-5"
           >
             <Plus className="h-4 w-4 ml-2" />
             הוספת תקבול
@@ -635,12 +667,18 @@ export default function ReceiptFormClient({
           <h3 className="text-lg font-bold ui-text-dark mb-1">הערות</h3>
           <p className="text-sm ui-text-dark-muted">הערות שיופיעו במסמך הסופי</p>
         </div>
-        <FieldWrapper label="הערות נוספות">
+        <FieldWrapper 
+          label="הערות נוספות" 
+          id="notes"
+          hint="הערות אלו יופיעו במסמך הסופי שישלח ללקוח"
+        >
           <Textarea
+            id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="הזן הערות כלליות..."
+            placeholder="לדוגמה: תודה על העסקה..."
             className="min-h-[100px] resize-y"
+            aria-describedby="notes-hint"
           />
         </FieldWrapper>
       </div>
@@ -877,6 +915,5 @@ export default function ReceiptFormClient({
         </div>
       )}
       </div>
-    </div>
   );
 }

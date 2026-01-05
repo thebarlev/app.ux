@@ -66,8 +66,8 @@ function NavLink({ href, label, icon, onClick }: NavItem & { onClick?: () => voi
         flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm transition-all
         ${
           isActive
-            ? "bg-white/10 text-white font-medium"
-            : "text-white/70 hover:bg-white/5 hover:text-white"
+            ? "bg-sidebar-active text-sidebar-active-fg font-medium"
+            : "text-sidebar-fg/70 hover:bg-sidebar-hover hover:text-sidebar-fg"
         }
       `}
     >
@@ -89,15 +89,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="mb-6 px-4">
-        <div className="text-lg font-bold text-white">מערכת ניהול</div>
-        <div className="text-xs text-white/50">Admin Panel</div>
+        <div className="text-lg font-bold text-sidebar-fg">מערכת ניהול</div>
+        <div className="text-xs text-sidebar-fg/50">Admin Panel</div>
       </div>
 
       {/* Navigation Sections */}
       <nav className="flex-1 space-y-6 overflow-y-auto px-2">
         {navSections.map((section, idx) => (
           <div key={idx}>
-            <div className="mb-2 px-2 text-xs font-semibold text-white/40 uppercase tracking-wider">
+            <div className="mb-2 px-2 text-xs font-semibold text-sidebar-fg/40 uppercase tracking-wider">
               {section.title}
             </div>
             <div className="space-y-1">
@@ -110,13 +110,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* Logout Button */}
-      <div className="border-t border-white/10 pt-4 px-2">
+      <div className="border-t border-sidebar-border pt-4 px-2">
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
           className="
             flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm
-            text-red-200 hover:bg-red-500/10 hover:text-red-100 transition-all
+            text-danger hover:bg-danger/20 hover:text-danger/80 transition-all
             disabled:opacity-50 disabled:cursor-not-allowed
           "
         >
@@ -169,7 +169,7 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
   }, [isResizing, resize, stopResizing])
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white" dir="rtl">
+    <div className="flex min-h-screen bg-bg text-fg" dir="rtl">
       {/* Main Content Area - LEFT SIDE */}
       <main
         className="flex-1 transition-all duration-150 hidden lg:block"
@@ -186,12 +186,12 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
       {/* Mobile Main Content */}
       <main className="flex-1 lg:hidden">
         {/* Mobile Header with Menu Button */}
-        <div className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur border-b border-white/10">
+        <div className="sticky top-0 z-40 bg-bg/95 backdrop-blur border-b border-border">
           <div className="flex items-center justify-between px-4 py-3">
             <span className="font-semibold text-lg">ניהול</span>
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md hover:bg-white/10 transition"
+              className="p-2 rounded-md hover:bg-muted transition"
               aria-label="פתח תפריט"
             >
               <Menu className="h-6 w-6" />
@@ -209,16 +209,16 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
 
       {/* Desktop Sidebar - RIGHT SIDE (Resizable, Fixed Position) */}
       <aside
-        className="hidden lg:block fixed left-0 top-0 h-full bg-slate-900/50 backdrop-blur border-l border-white/10"
+        className="hidden lg:block fixed left-0 top-0 h-full bg-sidebar/50 backdrop-blur border-l border-sidebar-border"
         style={{ width: `${sidebarWidth}px` }}
       >
         {/* Resize Handle */}
         <div
-          className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 group z-10"
+          className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary group z-10"
           onMouseDown={startResizing}
         >
-          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 bg-slate-700 group-hover:bg-blue-500 rounded p-1 transition">
-            <GripVertical className="h-4 w-4 text-gray-400 group-hover:text-white" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 bg-muted group-hover:bg-primary rounded p-1 transition">
+            <GripVertical className="h-4 w-4 text-muted-fg group-hover:text-primary-fg" />
           </div>
         </div>
 
@@ -231,17 +231,17 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
       {/* Mobile Sidebar - Drawer from RIGHT */}
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-80 bg-slate-900 border-l border-white/10
+          fixed top-0 left-0 z-50 h-full w-80 bg-sidebar border-l border-sidebar-border
           transform transition-transform duration-300 ease-in-out lg:hidden
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
         {/* Mobile Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/10">
+        <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
           <span className="font-semibold text-lg">תפריט</span>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="p-2 rounded-md hover:bg-white/10 transition"
+            className="p-2 rounded-md hover:bg-sidebar-hover transition"
             aria-label="סגור תפריט"
           >
             <X className="h-6 w-6" />
@@ -257,7 +257,7 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
       {/* Mobile Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          className="fixed inset-0 bg-overlay z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

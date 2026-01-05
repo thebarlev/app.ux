@@ -52,7 +52,7 @@ export default function ConfirmDialog({
             onClick={handleConfirm}
             className={
               destructive
-                ? "bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                ? "bg-danger hover:bg-danger-hover focus:ring-ring"
                 : undefined
             }
           >

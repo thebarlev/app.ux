@@ -27,11 +27,34 @@ export type InitialReceiptCreateData =
       sequenceLocked: boolean;
       previewNumber: string | null; // The formatted preview number (e.g., "000042")
       settings: ReceiptSettings;
+      minAllowedDate: string | null; // Earliest allowed date (YYYY-MM-DD) based on last issued document
     }
   | {
       ok: false;
       message: string;
     };
+
+/**
+ * Get minimum allowed date for new receipts
+ * Returns the latest issue_date of finalized receipts for this company
+ * Returns null if no finalized receipts exist (no restriction)
+ */
+async function getMinAllowedDate(companyId: string, documentType: string): Promise<string | null> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from("documents")
+    .select("issue_date")
+    .eq("company_id", companyId)
+    .eq("document_type", documentType)
+    .eq("document_status", "final")
+    .order("issue_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return data.issue_date; // YYYY-MM-DD format
+}
 
 export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreateData> {
   try {
@@ -46,6 +69,9 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
       companyId,
       "receipt"
     );
+
+    // Get minimum allowed date (latest finalized receipt date)
+    const minAllowedDate = await getMinAllowedDate(companyId, "receipt");
 
     // Get company name
     let companyName: string | null = null;
@@ -71,6 +97,7 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
       sequenceLocked: locked,
       previewNumber, // Pass preview to client
       settings,
+      minAllowedDate, // Pass min date restriction
     };
   } catch (e: any) {
     return { ok: false, message: e?.message ?? "unknown_error" };
@@ -83,9 +110,15 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
 
 // ReceiptDraftPayload type now imported from @/lib/types/receipt
 
-function validatePayload(p: ReceiptDraftPayload) {
+function validatePayload(p: ReceiptDraftPayload, minAllowedDate?: string | null) {
   if (!p.customerName.trim()) return "חובה למלא שם לקוח.";
   if (!p.documentDate) return "חובה לבחור תאריך.";
+  
+  // Enforce date locking: document date cannot be earlier than last issued document
+  if (minAllowedDate && p.documentDate < minAllowedDate) {
+    return "date_validation_failed"; // Silent error - UI already prevents this
+  }
+  
   if (!Array.isArray(p.payments) || p.payments.length === 0) return "חובה להוסיף לפחות תקבול אחד.";
   for (const [i, row] of p.payments.entries()) {
     if (!row.method) return `שורת תקבול ${i + 1}: חובה לבחור אמצעי תשלום.`;
@@ -102,11 +135,13 @@ function validatePayload(p: ReceiptDraftPayload) {
  * The preview number is NOT consumed when saving as draft
  */
 export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
-  const err = validatePayload(payload);
-  if (err) return { ok: false as const, message: err };
-
   const supabase = await createClient();
   const companyId = await getCompanyIdForUser();
+  
+  // Get min allowed date for validation
+  const minAllowedDate = await getMinAllowedDate(companyId, "receipt");
+  const err = validatePayload(payload, minAllowedDate);
+  if (err) return { ok: false as const, message: err };
 
   const { data, error } = await supabase
     .from("documents")
@@ -154,11 +189,13 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
  * Returns the receipt ID instead of redirecting (for PDF download)
  */
 export async function issueReceiptAction(payload: ReceiptDraftPayload) {
-  const err = validatePayload(payload);
-  if (err) return { ok: false as const, message: err };
-
   const supabase = await createClient();
   const companyId = await getCompanyIdForUser();
+  
+  // Get min allowed date for validation
+  const minAllowedDate = await getMinAllowedDate(companyId, "receipt");
+  const err = validatePayload(payload, minAllowedDate);
+  if (err) return { ok: false as const, message: err };
 
   // First create as draft (no number yet)
   const { data: draft, error: draftError } = await supabase

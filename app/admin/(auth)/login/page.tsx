@@ -74,34 +74,34 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-svh w-full flex items-center justify-center bg-ui-bg">
+    <div className="min-h-svh w-full flex items-center justify-center bg-slate-950">
       <div className="w-full max-w-[460px] px-4 py-8">
         {/* Logo/Header */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="flex h-14 w-14 items-center justify-center rounded-ui-lg bg-ui-primary">
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-white/10">
             <Shield className="h-7 w-7 text-white" />
           </div>
           <div className="text-left">
-            <h1 className="text-xl font-bold text-ui-text">System Admin</h1>
-            <p className="ui-text-muted">Control Panel</p>
+            <h1 className="text-xl font-bold text-white">System Admin</h1>
+            <p className="text-white/50">Control Panel</p>
           </div>
         </div>
 
-        <div className="ui-card">
+        <div className="bg-slate-900/60 backdrop-blur border border-white/10 rounded-lg p-8 shadow-xl">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-ui-text mb-2">Sign In</h2>
-            <p className="ui-text-muted">Enter your credentials to access the admin panel</p>
+            <h2 className="text-2xl font-bold text-white mb-2">Sign In</h2>
+            <p className="text-white/70">Enter your credentials to access the admin panel</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label htmlFor="email" className="ui-label text-left">
+              <label htmlFor="email" className="block text-sm font-medium text-white/90 mb-1.5 text-left">
                 Email Address
               </label>
               <input
                 id="email"
                 type="email"
-                className="ui-input text-left"
+                className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:border-white/20 focus:ring-2 focus:ring-white/10 transition-all text-left"
                 placeholder="admin@example.com"
                 required
                 value={email}
@@ -110,13 +110,13 @@ export default function AdminLoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="ui-label text-left">
+              <label htmlFor="password" className="block text-sm font-medium text-white/90 mb-1.5 text-left">
                 Password
               </label>
               <input
                 id="password"
                 type="password"
-                className="ui-input text-left"
+                className="w-full px-4 py-2.5 bg-slate-800/50 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:border-white/20 focus:ring-2 focus:ring-white/10 transition-all text-left"
                 required
                 minLength={6}
                 value={password}
@@ -125,7 +125,7 @@ export default function AdminLoginPage() {
             </div>
 
             {error && (
-              <div className="ui-alert-danger">
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -133,7 +133,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="ui-button-primary w-full"
+              className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white px-6 py-3 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -147,7 +147,7 @@ export default function AdminLoginPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-center ui-text-light">
+        <p className="mt-6 text-center text-white/50 text-sm">
           This area is restricted to authorized system administrators only.
         </p>
       </div>

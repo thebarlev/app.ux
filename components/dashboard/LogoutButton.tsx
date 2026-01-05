@@ -16,17 +16,7 @@ export function LogoutButton() {
     <button
       onClick={handleLogout}
       disabled={isPending}
-      style={{
-        padding: "8px 16px",
-        backgroundColor: "#dc2626",
-        color: "white",
-        border: "none",
-        borderRadius: "6px",
-        cursor: isPending ? "not-allowed" : "pointer",
-        fontSize: "14px",
-        fontWeight: 500,
-        opacity: isPending ? 0.6 : 1,
-      }}
+      className="px-4 py-2 bg-danger text-danger-fg rounded-md font-medium text-sm disabled:opacity-60 disabled:cursor-not-allowed"
     >
       {isPending ? "מתנתק..." : "🚪 התנתקות"}
     </button>

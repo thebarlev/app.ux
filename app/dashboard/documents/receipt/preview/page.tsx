@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
-import { getReceiptStyleSettingsPublic } from "@/app/admin/receipt-style/actions";
+import { getReceiptStyleSettingsPublic } from "@/lib/receipt-style";
 import { getTemplateForDocument } from "@/lib/pdf-service";
 import PreviewWrapper from "./PreviewWrapper";
 

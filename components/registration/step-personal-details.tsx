@@ -95,46 +95,73 @@ export function StepPersonalDetails() {
         <p className="mt-2 ui-text-muted">נתחיל עם הפרטים שלך</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        {/* Form-level error announcement region */}
+        {error && (
+          <div className="ui-alert-danger" role="alert" aria-live="assertive">
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="firstName" className="ui-label">
-              שם פרטי
+              שם פרטי <span className="text-ui-danger" aria-label="שדה חובה">*</span>
             </label>
             <input
               id="firstName"
               type="text"
+              required
+              aria-required="true"
+              aria-invalid={!!errors.firstName}
+              aria-describedby={errors.firstName ? "firstName-error" : undefined}
               className={errors.firstName ? "ui-input-error" : "ui-input"}
               placeholder="ישראל"
               value={data.firstName}
               onChange={(e) => updateData({ firstName: e.target.value })}
             />
-            {errors.firstName && <p className="text-sm text-ui-danger mt-1">{errors.firstName}</p>}
+            {errors.firstName && (
+              <p id="firstName-error" className="text-sm text-ui-danger mt-1" role="alert">
+                {errors.firstName}
+              </p>
+            )}
           </div>
           
           <div>
             <label htmlFor="lastName" className="ui-label">
-              שם משפחה
+              שם משפחה <span className="text-ui-danger" aria-label="שדה חובה">*</span>
             </label>
             <input
               id="lastName"
               type="text"
+              required
+              aria-required="true"
+              aria-invalid={!!errors.lastName}
+              aria-describedby={errors.lastName ? "lastName-error" : undefined}
               className={errors.lastName ? "ui-input-error" : "ui-input"}
               placeholder="ישראלי"
               value={data.lastName}
               onChange={(e) => updateData({ lastName: e.target.value })}
             />
-            {errors.lastName && <p className="text-sm text-ui-danger mt-1">{errors.lastName}</p>}
+            {errors.lastName && (
+              <p id="lastName-error" className="text-sm text-ui-danger mt-1" role="alert">
+                {errors.lastName}
+              </p>
+            )}
           </div>
         </div>
 
         <div>
           <label htmlFor="email" className="ui-label">
-            כתובת אימייל
+            כתובת אימייל <span className="text-ui-danger" aria-label="שדה חובה">*</span>
           </label>
           <input
             id="email"
             type="email"
+            required
+            aria-required="true"
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? "email-error" : "email-hint"}
             className={errors.email ? "ui-input-error text-left" : "ui-input text-left"}
             placeholder="israel@example.com"
             value={data.email}
@@ -148,14 +175,21 @@ export function StepPersonalDetails() {
             }}
             dir="ltr"
           />
+          {!errors.email && (
+            <p id="email-hint" className="text-xs text-ui-text-muted mt-1">
+              נשתמש בכתובת זו להתחברות למערכת
+            </p>
+          )}
           {errors.email && (
             <div className="mt-1">
-              <p className="text-sm text-ui-danger">{errors.email}</p>
+              <p id="email-error" className="text-sm text-ui-danger" role="alert">
+                {errors.email}
+              </p>
               {emailExists && (
                 <div className="mt-2">
                   <Link 
                     href="/login" 
-                    className="inline-flex items-center gap-1 text-sm text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors"
+                    className="inline-flex items-center gap-1 text-sm text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded-sm"
                   >
                     ← חזרה להתחברות
                   </Link>
@@ -167,28 +201,45 @@ export function StepPersonalDetails() {
 
         <div>
           <label htmlFor="phone" className="ui-label">
-            טלפון נייד
+            טלפון נייד <span className="text-ui-danger" aria-label="שדה חובה">*</span>
           </label>
           <input
             id="phone"
             type="tel"
+            required
+            aria-required="true"
+            aria-invalid={!!errors.phone}
+            aria-describedby={errors.phone ? "phone-error" : "phone-hint"}
             className={errors.phone ? "ui-input-error text-left" : "ui-input text-left"}
             placeholder="050-1234567"
             value={data.phone}
             onChange={(e) => updateData({ phone: e.target.value })}
             dir="ltr"
           />
-          {errors.phone && <p className="text-sm text-ui-danger mt-1">{errors.phone}</p>}
+          {!errors.phone && (
+            <p id="phone-hint" className="text-xs text-ui-text-muted mt-1">
+              פורמט: 050-1234567
+            </p>
+          )}
+          {errors.phone && (
+            <p id="phone-error" className="text-sm text-ui-danger mt-1" role="alert">
+              {errors.phone}
+            </p>
+          )}
         </div>
 
         <div>
           <label htmlFor="password" className="ui-label">
-            סיסמה
+            סיסמה <span className="text-ui-danger" aria-label="שדה חובה">*</span>
           </label>
           <div className="relative">
             <input
               id="password"
               type={showPassword ? "text" : "password"}
+              required
+              aria-required="true"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? "password-error" : "password-hint"}
               className={errors.password ? "ui-input-error text-left pl-12" : "ui-input text-left pl-12"}
               placeholder="לפחות 8 תווים"
               value={data.password}
@@ -198,28 +249,34 @@ export function StepPersonalDetails() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors"
+              aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+              aria-pressed={showPassword}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded-sm"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {errors.password && <p className="text-sm text-ui-danger mt-1">{errors.password}</p>}
+          {!errors.password && (
+            <p id="password-hint" className="text-xs text-ui-text-muted mt-1">
+              מינימום 8 תווים
+            </p>
+          )}
+          {errors.password && (
+            <p id="password-error" className="text-sm text-ui-danger mt-1" role="alert">
+              {errors.password}
+            </p>
+          )}
         </div>
-
-        {error && (
-          <div className="ui-alert-danger">
-            {error}
-          </div>
-        )}
 
         <button 
           type="submit" 
           className="ui-button-primary w-full"
           disabled={isCheckingEmail}
+          aria-busy={isCheckingEmail}
         >
           {isCheckingEmail ? (
             <span className="flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               בודק זמינות אימייל...
             </span>
           ) : (

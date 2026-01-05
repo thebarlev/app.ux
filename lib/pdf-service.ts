@@ -159,7 +159,8 @@ export async function prepareDocumentData(
     .single()
 
   if (docError || !doc) {
-    throw new Error(`Document not found: ${documentId}`)
+    console.warn(`[pdf-service] Document not found: ${documentId}`, docError)
+    throw new Error(`DOCUMENT_NOT_FOUND:${documentId}`)
   }
 
   // Fetch line items
@@ -366,19 +367,22 @@ export async function generatePreviewPDF(
   documentId: string
 ): Promise<PDFGenerationResult> {
   try {
+    console.log(`[generatePreviewPDF] Starting for document: ${documentId}`)
+    
     // Prepare document data
     const templateData = await prepareDocumentData(documentId)
 
     // Get document type and company ID
     const supabase = await createClient()
-    const { data: doc } = await supabase
+    const { data: doc, error: docError } = await supabase
       .from("documents")
       .select("document_type, company_id")
       .eq("id", documentId)
       .single()
 
-    if (!doc) {
-      return { success: false, error: "Document not found" }
+    if (docError || !doc) {
+      console.warn(`[generatePreviewPDF] Document not found: ${documentId}`, docError)
+      return { success: false, error: `DOCUMENT_NOT_FOUND:${documentId}` }
     }
 
     // Get template
@@ -388,17 +392,23 @@ export async function generatePreviewPDF(
     )
 
     // Render and generate PDF (no storage)
+    console.log(`[generatePreviewPDF] Rendering template for document: ${documentId}`)
     const renderedHtml = compileAndRender(template.html, templateData)
+    
+    console.log(`[generatePreviewPDF] Generating PDF from HTML`)
     const pdfResult = await generatePDFFromHTML(renderedHtml, template.css, {
       format: "A4",
       printBackground: true,
     })
 
+    console.log(`[generatePreviewPDF] PDF generated successfully`)
     return pdfResult
   } catch (error) {
+    console.error(`[generatePreviewPDF] Error:`, error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     }
   }
 }

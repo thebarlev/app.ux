@@ -9,23 +9,31 @@ export const metadata: Metadata = {
   description: "System Owner Administration Panel",
 }
 
-export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminAppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // The middleware already handles authentication and authorization
-  // If we're here, the user is authenticated and is an admin
-  // Just fetch the admin data for display purposes
-  const { data: adminData } = await supabase
+  // Guard: User must be authenticated
+  if (!user) {
+    redirect("/admin/login")
+  }
+
+  // Guard: User must be a system admin
+  const { data: adminData, error } = await supabase
     .from("system_admins")
     .select("id, name, email")
-    .eq("auth_user_id", user?.id)
+    .eq("auth_user_id", user.id)
     .single()
 
-  const adminName = adminData?.name || adminData?.email || user?.email || "Admin"
+  // If not an admin, redirect to dashboard with error
+  if (error || !adminData) {
+    redirect("/dashboard?error=unauthorized")
+  }
+
+  const adminName = adminData.name || adminData.email || user.email || "Admin"
 
   return (
     <AdminLayoutClient adminName={adminName}>

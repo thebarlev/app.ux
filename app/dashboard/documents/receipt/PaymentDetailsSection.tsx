@@ -46,27 +46,35 @@ export default function PaymentDetailsSection({
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)" }}>
         {/* Field 1 (rightmost): Card number */}
         <div>
+          <label style={labelStyle}>מספר כרטיס</label>
           <input
             type="text"
             maxLength={4}
-            placeholder="מס' הכרטיס"
+            placeholder="1234"
             value={payment.cardLastDigits ?? ""}
             onChange={(e) => onUpdate({ cardLastDigits: e.target.value })}
             style={inputStyle}
+            aria-label="4 ספרות אחרונות של כרטיס האשראי"
+            aria-describedby="card-number-hint"
           />
+          <div className="text-xs text-muted-fg mt-1 text-right">
+            (4 ספרות אחרונות)
+          </div>
         </div>
 
         {/* Field 2: Card type */}
         <div>
+          <label style={labelStyle}>סוג כרטיס</label>
           <select
             value={payment.cardType ?? ""}
             onChange={(e) => onUpdate({ cardType: e.target.value })}
             style={inputStyle}
+            aria-label="בחר סוג כרטיס אשראי"
           >
-            <option value="">סוג הכרטיס</option>
+            <option value="">בחר...</option>
             <option value="visa">Visa</option>
             <option value="mastercard">Mastercard</option>
             <option value="isracard">ישראכרט</option>
@@ -78,12 +86,14 @@ export default function PaymentDetailsSection({
 
         {/* Field 3: Deal type */}
         <div>
+          <label style={labelStyle}>סוג עסקה</label>
           <select
             value={payment.cardDealType ?? "regular"}
             onChange={(e) => onUpdate({ cardDealType: e.target.value })}
             style={inputStyle}
+            aria-label="בחר סוג עסקה"
           >
-            <option value="regular">סוג העסקה</option>
+            <option value="regular">רגיל</option>
             <option value="payments">תשלומים</option>
             <option value="credit">קרדיט</option>
             <option value="deferred">דחוי</option>
@@ -92,14 +102,16 @@ export default function PaymentDetailsSection({
 
         {/* Field 4 (leftmost): Installments */}
         <div>
+          <label style={labelStyle}>מספר תשלומים</label>
           <input
             type="number"
             min={1}
             max={12}
-            placeholder="תשלומים"
+            placeholder="1"
             value={payment.cardInstallments ?? 1}
             onChange={(e) => onUpdate({ cardInstallments: Number(e.target.value) })}
             style={inputStyle}
+            aria-label="מספר תשלומים"
           />
         </div>
       </div>
@@ -206,12 +218,14 @@ export default function PaymentDetailsSection({
   if (method === "Payoneer") {
     return (
       <div>
+        <label style={labelStyle}>מספר עסקה</label>
         <input
           type="text"
-          placeholder="מס' העסקה"
+          placeholder="הזן מספר עסקה"
           value={payment.transactionReference ?? ""}
           onChange={(e) => onUpdate({ transactionReference: e.target.value })}
           style={inputStyle}
+          aria-label="מספר עסקה Payoneer"
         />
       </div>
     );
@@ -228,24 +242,28 @@ export default function PaymentDetailsSection({
     method === "Pay"
   ) {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
         <div>
+          <label style={labelStyle}>חשבון משלם</label>
           <input
             type="text"
-            placeholder="חשבון משלם (לא חובה)"
+            placeholder="מזהה חשבון (אופציונלי)"
             value={payment.payerAccount ?? ""}
             onChange={(e) => onUpdate({ payerAccount: e.target.value })}
             style={inputStyle}
+            aria-label="מזהה חשבון משלם"
           />
         </div>
 
         <div>
+          <label style={labelStyle}>מספר עסקה</label>
           <input
             type="text"
-            placeholder="מס' העסקה (לא חובה)"
+            placeholder="מזהה עסקה (אופציונלי)"
             value={payment.transactionReference ?? ""}
             onChange={(e) => onUpdate({ transactionReference: e.target.value })}
             style={inputStyle}
+            aria-label="מזהה עסקה או אסמכתא"
           />
         </div>
       </div>
@@ -272,10 +290,9 @@ export default function PaymentDetailsSection({
   if (method === "ניכוי במקור") {
     return (
       <div
+        className="bg-warning/10 border border-warning/30 text-warning-fg"
         style={{
           padding: 12,
-          background: "#fef3c7",
-          border: "1px solid #fde68a",
           borderRadius: 8,
           fontSize: 13,
           lineHeight: 1.6,

@@ -17,7 +17,11 @@ const STEPS = [
 ]
 
 function RegistrationFlow() {
-  const { currentStep } = useRegistration()
+  const { currentStep, setCurrentStep } = useRegistration()
+
+  const handleStepChange = (stepId: number) => {
+    setCurrentStep(stepId)
+  }
 
   const renderStep = useCallback(() => {
     switch (currentStep) {
@@ -40,9 +44,14 @@ function RegistrationFlow() {
           <RegistrationLogo />
         </div>
 
-        {/* Progress Bar */}
+        {/* Enhanced Stepper - with clickable navigation */}
         <div className="mb-8">
-          <StepProgress steps={STEPS} currentStep={currentStep} />
+          <StepProgress 
+            steps={STEPS} 
+            currentStep={currentStep}
+            onStepClick={handleStepChange}
+            allowBackNavigation={true}
+          />
         </div>
 
         {/* Step Content */}

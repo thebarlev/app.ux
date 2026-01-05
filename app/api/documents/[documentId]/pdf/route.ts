@@ -22,14 +22,23 @@ export async function GET(
     }
 
     // Generate PDF
+    console.log(`[PDF API] Generating PDF for document: ${documentId}`)
     const result = await generatePreviewPDF(documentId)
 
     if (!result.success || !result.buffer) {
+      // Check if error is document not found
+      const isNotFound = result.error?.startsWith('DOCUMENT_NOT_FOUND')
+      const status = isNotFound ? 404 : 500
+      
+      console.error(`[PDF API] Error (${status}):`, result.error)
+      
       return NextResponse.json(
         { error: result.error || "Failed to generate PDF" },
-        { status: 500 }
+        { status }
       )
     }
+
+    console.log(`[PDF API] PDF generated successfully`)
 
     // Return PDF with download headers
     return new NextResponse(result.buffer, {

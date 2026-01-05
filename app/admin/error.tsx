@@ -16,21 +16,21 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen flex items-center justify-center bg-bg p-6">
       <div className="max-w-md w-full text-center space-y-6">
         <div className="flex justify-center">
-          <div className="h-16 w-16 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
-            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+          <div className="h-16 w-16 rounded-full bg-danger/10 flex items-center justify-center">
+            <AlertCircle className="h-8 w-8 text-danger" />
           </div>
         </div>
         
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold">Something went wrong</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl font-bold text-fg">Something went wrong</h2>
+          <p className="text-muted-fg">
             An error occurred in the admin panel. Please try again.
           </p>
           {error.message && (
-            <p className="text-sm text-muted-foreground font-mono bg-muted p-3 rounded-lg mt-4">
+            <p className="text-sm text-muted-fg font-mono bg-muted p-3 rounded-ui mt-4">
               {error.message}
             </p>
           )}

@@ -1,32 +1,17 @@
+/* Updated to use Design Tokens - Jan 5, 2026 */
 export default function DashboardNotFound() {
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: "60vh",
-      textAlign: "center",
-      padding: "24px"
-    }}>
-      <div style={{ fontSize: "72px", marginBottom: "16px" }}>😊</div>
-      <h1 style={{ fontSize: "32px", fontWeight: 900, marginBottom: "12px", color: "#111827" }}>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+      <div className="text-7xl mb-4">😊</div>
+      <h1 className="text-3xl font-black mb-3 text-fg">
         העמוד הזה עדיין בבנייה
       </h1>
-      <p style={{ fontSize: "18px", color: "#6b7280", marginBottom: "32px" }}>
+      <p className="text-lg text-muted-fg mb-8">
         אנחנו עובדים על זה — בקרו שוב מאוחר יותר!
       </p>
       <a 
         href="/dashboard"
-        style={{
-          padding: "12px 24px",
-          background: "#111827",
-          color: "white",
-          borderRadius: "12px",
-          textDecoration: "none",
-          fontWeight: 700,
-          fontSize: "16px"
-        }}
+        className="px-6 py-3 bg-primary text-primary-fg rounded-ui font-bold text-base hover:bg-primary-hover transition-colors"
       >
         חזרה לדף הבית
       </a>

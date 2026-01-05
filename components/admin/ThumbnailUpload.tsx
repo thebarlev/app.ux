@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Upload, X, Image as ImageIcon, Loader2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
-import { uploadTemplateThumbnailAction, deleteTemplateThumbnailAction } from "@/app/admin/templates/actions"
+import { uploadTemplateThumbnailAction, deleteTemplateThumbnailAction } from "@/app/admin/(app)/templates/actions"
 import { cn } from "@/lib/utils"
 
 type Props = {

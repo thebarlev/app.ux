@@ -11,5 +11,9 @@ export default async function NewCustomerPage() {
     redirect("/login");
   }
 
-  return <CustomerFormClient />;
+  return (
+    <div className="ui-page-dark" dir="rtl">
+      <CustomerFormClient />
+    </div>
+  );
 }

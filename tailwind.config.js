@@ -8,43 +8,60 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Flat UI Kit - Zero transparency colors
-        'ui-bg': '#F5F6F7',          // Light tint background (NOT white)
-        'ui-surface': '#FDFCFB',     // Off-white for cards/inputs
-        'ui-border': '#E0E2E5',      // Subtle borders
-        'ui-border-light': '#EAECEF',
-        'ui-text': '#1A1D23',        // Primary text
-        'ui-text-muted': '#6B7280',  // Secondary text
-        'ui-text-light': '#9CA3AF',  // Tertiary text
-        
-        // Primary actions (blue)
-        'ui-primary': '#3B82F6',
-        'ui-primary-hover': '#2563EB',
-        'ui-primary-active': '#1D4ED8',
-        'ui-primary-light': '#DBEAFE',
-        
-        // Success (green)
-        'ui-success': '#10B981',
-        'ui-success-hover': '#059669',
-        'ui-success-light': '#D1FAE5',
-        
-        // Warning (amber)
-        'ui-warning': '#F59E0B',
-        'ui-warning-hover': '#D97706',
-        'ui-warning-light': '#FEF3C7',
-        
-        // Danger (red)
-        'ui-danger': '#EF4444',
-        'ui-danger-hover': '#DC2626',
-        'ui-danger-light': '#FEE2E2',
-        
-        // Modal overlay - solid, not transparent
-        'ui-overlay': '#0F172A',     // Solid dark for overlays
+        // Design Tokens - Semantic Color System
+        bg: 'var(--bg)',
+        fg: 'var(--fg)',
+
+        card: 'var(--card)',
+        'card-fg': 'var(--card-fg)',
+
+        muted: 'var(--muted)',
+        'muted-fg': 'var(--muted-fg)',
+
+        border: 'var(--border)',
+        ring: 'var(--ring)',
+
+        primary: 'var(--primary)',
+        'primary-fg': 'var(--primary-fg)',
+        'primary-hover': 'var(--primary-hover)',
+
+        secondary: 'var(--secondary)',
+        'secondary-fg': 'var(--secondary-fg)',
+
+        danger: 'var(--danger)',
+        'danger-fg': 'var(--danger-fg)',
+
+        input: 'var(--input)',
+        'input-fg': 'var(--input-fg)',
+        placeholder: 'var(--placeholder)',
+
+        success: 'var(--success)',
+        'success-fg': 'var(--success-fg)',
+
+        warning: 'var(--warning)',
+        'warning-fg': 'var(--warning-fg)',
+
+        overlay: 'var(--overlay)',
+
+        sidebar: 'var(--sidebar-bg)',
+        'sidebar-fg': 'var(--sidebar-fg)',
+        'sidebar-muted-fg': 'var(--sidebar-muted-fg)',
+        'sidebar-muted-bg': 'var(--sidebar-muted-bg)',
+        'sidebar-border': 'var(--sidebar-border)',
+        'sidebar-hover': 'var(--sidebar-hover)',
+        'sidebar-active': 'var(--sidebar-active)',
+        'sidebar-active-fg': 'var(--sidebar-active-fg)',
+        'sidebar-ring': 'var(--sidebar-ring)',
+
+        'table-header': 'var(--table-header-bg)',
+        'table-header-fg': 'var(--table-header-fg)',
+        'table-row-hover': 'var(--table-row-hover)',
+        'table-stripe': 'var(--table-stripe)',
+        'table-positive': 'var(--table-positive)',
+        'table-negative': 'var(--table-negative)',
       },
       borderRadius: {
-        'ui': '12px',
-        'ui-sm': '8px',
-        'ui-lg': '16px',
+        ui: 'var(--radius)',
       },
       boxShadow: {
         'ui': '0 1px 3px 0 rgba(0, 0, 0, 0.08)',

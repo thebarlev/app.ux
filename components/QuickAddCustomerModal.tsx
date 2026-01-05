@@ -154,13 +154,13 @@ export default function QuickAddCustomerModal({
     <div
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
+      className="bg-overlay"
       style={{
         position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -171,8 +171,8 @@ export default function QuickAddCustomerModal({
       {/* Modal Content */}
       <div
         dir="rtl"
+        className="bg-card"
         style={{
-          background: "white",
           borderRadius: 16,
           maxWidth: 500,
           width: "100%",
@@ -184,16 +184,17 @@ export default function QuickAddCustomerModal({
       >
         {/* Header */}
         <div
+          className="border-border text-muted-fg"
           style={{
             padding: "20px 24px",
-            borderBottom: "1px solid #e5e7eb",
+            borderBottomWidth: 1,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>
+            <h2 className="text-fg" style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>
               הוספת לקוח חדש
             </h2>
             <p style={{ fontSize: 14, opacity: 0.6, margin: "4px 0 0 0" }}>
@@ -202,12 +203,12 @@ export default function QuickAddCustomerModal({
           </div>
           <button
             onClick={handleClose}
+            className="text-muted-fg hover:text-fg"
             style={{
               background: "none",
               border: "none",
               fontSize: 24,
               cursor: "pointer",
-              color: "#6b7280",
               lineHeight: 1,
               padding: 4,
             }}
@@ -219,12 +220,11 @@ export default function QuickAddCustomerModal({
 
         {/* Info Banner */}
         <div
+          className="bg-primary/10 border-primary/30 text-primary-fg"
           style={{
             padding: 12,
-            background: "#dbeafe",
-            borderBottom: "1px solid #bfdbfe",
+            borderBottomWidth: 1,
             fontSize: 13,
-            color: "#1e40af",
           }}
         >
           ℹ️ מדובר בפרטים ראשוניים בלבד. את שאר הפרטים ניתן לעדכן בהמשך בכרטיס
@@ -246,12 +246,11 @@ export default function QuickAddCustomerModal({
           {/* Global Error */}
           {errors.submit && (
             <div
+              className="bg-danger/10 border-danger text-danger-fg"
               style={{
                 padding: 12,
-                background: "#fee2e2",
-                border: "1px solid #fecaca",
+                borderWidth: 1,
                 borderRadius: 8,
-                color: "#991b1b",
                 fontSize: 14,
               }}
             >
@@ -262,6 +261,7 @@ export default function QuickAddCustomerModal({
           {/* Customer Name */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -269,7 +269,7 @@ export default function QuickAddCustomerModal({
                 fontSize: 14,
               }}
             >
-              שם הלקוח <span style={{ color: "#ef4444" }}>*</span>
+              שם הלקוח <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -279,16 +279,18 @@ export default function QuickAddCustomerModal({
               required
               autoFocus
               placeholder="שם מלא או שם עסק"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.name ? "#ef4444" : "#d1d5db"}`,
+                borderWidth: 1,
+                borderColor: errors.name ? "var(--danger)" : undefined,
                 fontSize: 14,
               }}
             />
             {errors.name && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div className="text-danger" style={{ fontSize: 12, marginTop: 4 }}>
                 {errors.name}
               </div>
             )}
@@ -297,6 +299,7 @@ export default function QuickAddCustomerModal({
           {/* Tax ID */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -312,20 +315,22 @@ export default function QuickAddCustomerModal({
               value={formData.tax_id}
               onChange={handleInputChange}
               placeholder="123456789"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.tax_id ? "#ef4444" : "#d1d5db"}`,
+                borderWidth: 1,
+                borderColor: errors.tax_id ? "var(--danger)" : undefined,
                 fontSize: 14,
               }}
             />
             {errors.tax_id ? (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div className="text-danger" style={{ fontSize: 12, marginTop: 4 }}>
                 {errors.tax_id}
               </div>
             ) : (
-              <div style={{ color: "#6b7280", fontSize: 12, marginTop: 4 }}>
+              <div className="text-muted-fg" style={{ fontSize: 12, marginTop: 4 }}>
                 מאפשר קבלת מספר הקצאה עבור מסמכי הלקוח
               </div>
             )}
@@ -334,6 +339,7 @@ export default function QuickAddCustomerModal({
           {/* Phone */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -349,16 +355,18 @@ export default function QuickAddCustomerModal({
               value={formData.phone}
               onChange={handleInputChange}
               placeholder="03-1234567"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.phone ? "#ef4444" : "#d1d5db"}`,
+                borderWidth: 1,
+                borderColor: errors.phone ? "var(--danger)" : undefined,
                 fontSize: 14,
               }}
             />
             {errors.phone && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div className="text-danger" style={{ fontSize: 12, marginTop: 4 }}>
                 {errors.phone}
               </div>
             )}
@@ -367,6 +375,7 @@ export default function QuickAddCustomerModal({
           {/* Email */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -382,16 +391,18 @@ export default function QuickAddCustomerModal({
               value={formData.email}
               onChange={handleInputChange}
               placeholder="example@domain.com"
+              className="text-fg placeholder:text-muted-fg border-border"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.email ? "#ef4444" : "#d1d5db"}`,
+                borderWidth: 1,
+                borderColor: errors.email ? "var(--danger)" : undefined,
                 fontSize: 14,
               }}
             />
             {errors.email && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div className="text-danger" style={{ fontSize: 12, marginTop: 4 }}>
                 {errors.email}
               </div>
             )}
@@ -400,6 +411,7 @@ export default function QuickAddCustomerModal({
           {/* Country */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -407,20 +419,20 @@ export default function QuickAddCustomerModal({
                 fontSize: 14,
               }}
             >
-              מדינה <span style={{ color: "#ef4444" }}>*</span>
+              מדינה <span className="text-danger">*</span>
             </label>
             <select
               name="address_country"
               value={formData.address_country}
               onChange={handleInputChange}
               required
+              className="text-fg border-border bg-card"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
-                background: "white",
               }}
             >
               {COUNTRIES.map((country) => (
@@ -434,6 +446,7 @@ export default function QuickAddCustomerModal({
           {/* Payment Terms */}
           <div>
             <label
+              className="text-fg"
               style={{
                 display: "block",
                 fontWeight: 600,
@@ -447,13 +460,13 @@ export default function QuickAddCustomerModal({
               name="payment_terms_text"
               value={formData.payment_terms_text}
               onChange={handleInputChange}
+              className="text-fg border-border bg-card"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
+                borderWidth: 1,
                 fontSize: 14,
-                background: "white",
               }}
             >
               {PAYMENT_TERMS.map((term) => (
@@ -467,9 +480,10 @@ export default function QuickAddCustomerModal({
 
         {/* Footer Actions */}
         <div
+          className="border-border"
           style={{
             padding: "16px 24px",
-            borderTop: "1px solid #e5e7eb",
+            borderTopWidth: 1,
             display: "flex",
             gap: 12,
             flexDirection: "column",
@@ -479,10 +493,9 @@ export default function QuickAddCustomerModal({
           <button
             onClick={handleAddToCustomers}
             disabled={isSaving}
+            className="bg-fg text-bg hover:bg-fg/90"
             style={{
               padding: "12px 20px",
-              background: "#111827",
-              color: "white",
               border: "none",
               borderRadius: 10,
               fontWeight: 700,
@@ -499,11 +512,10 @@ export default function QuickAddCustomerModal({
             type="button"
             onClick={handleSaveNameOnly}
             disabled={isSaving}
+            className="bg-card text-fg border-border hover:bg-muted"
             style={{
               padding: "12px 20px",
-              background: "white",
-              color: "#111827",
-              border: "1px solid #d1d5db",
+              borderWidth: 1,
               borderRadius: 10,
               fontWeight: 600,
               fontSize: 15,
@@ -519,10 +531,10 @@ export default function QuickAddCustomerModal({
             type="button"
             onClick={handleClose}
             disabled={isSaving}
+            className="text-muted-fg hover:text-fg"
             style={{
               padding: "10px 20px",
               background: "transparent",
-              color: "#6b7280",
               border: "none",
               borderRadius: 10,
               fontWeight: 600,
