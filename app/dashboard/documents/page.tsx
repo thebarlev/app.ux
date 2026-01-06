@@ -1,31 +1,41 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getAllDocumentsListAction, type DocumentsListFilters } from "./actions";
+import DocumentsListClient from "./DocumentsListClient";
 
-/* Updated to use Design Tokens - Jan 5, 2026 */
-function Tile({ title, desc, href }: { title: string; desc: string; href: string }) {
+type PageProps = {
+  searchParams: Promise<{
+    search?: string;
+    documentType?: string;
+    page?: string;
+  }>;
+};
+
+export default async function DocumentsPage({ searchParams }: PageProps) {
+  const supabase = await createClient();
+  
+  // Authenticate user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const params = await searchParams;
+  
+  // Parse filters from URL params
+  const filters: DocumentsListFilters = {
+    search: params.search,
+    documentType: params.documentType || "all",
+    page: params.page ? parseInt(params.page) : 1,
+    pageSize: 50,
+  };
+
+  // Fetch documents
+  const result = await getAllDocumentsListAction(filters);
+
   return (
-    <Link
-      href={href}
-      className="block rounded-2xl border border-border bg-card p-6 transition hover:bg-muted"
-    >
-      <div className="text-lg font-semibold text-card-fg">{title}</div>
-      <div className="mt-1 text-sm text-muted-fg">{desc}</div>
-    </Link>
-  );
-}
-
-export default function DocumentsPage() {
-  return (
-    <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold text-fg">מסמכים</h1>
-        <p className="text-muted-fg">ניהול מסמכים לפי סוג.</p>
-      </header>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Tile title="ריכוז כל המסמכים" desc="צפייה בכל המסמכים לפי סדר." href="/dashboard/documents/all" />
-        <Tile title="קבלות" desc="רשימת קבלות, חיפוש וניהול." href="/dashboard/documents/receipts" />
-        <Tile title="הפקת קבלה חדשה" desc="יצירת מסמך חדש." href="/dashboard/documents/new/receipt" />
-      </div>
-    </div>
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+      <DocumentsListClient initialData={result} initialFilters={filters} />
+    </main>
   );
 }

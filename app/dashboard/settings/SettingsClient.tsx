@@ -12,6 +12,14 @@ import {
   deleteSignatureAction,
   type BusinessDetailsPayload,
 } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/form-section";
+import { FormActions } from "@/components/ui/form-actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type Company = {
   id: string;
@@ -293,652 +301,385 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   return (
-    <div dir="rtl" className="text-fg" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 className="text-fg" style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
-        <p className="text-muted-fg" style={{ marginTop: 8 }}>ניהול פרטי העסק והלוגו</p>
-      </div>
-
-      {/* Message */}
-      {message && (
-        <div
-          className={message.type === "success" ? "bg-success/10 border-success text-success-fg" : "bg-danger/10 border-danger text-danger-fg"}
-          style={{
-            padding: 16,
-            marginBottom: 24,
-            borderRadius: 12,
-            borderWidth: 1,
-          }}
-        >
-          {message.text}
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+      <div className="ui-container pt-10">
+        {/* Page Header */}
+        <div className="mb-[50px]">
+          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+            הגדרות
+          </h1>
+          <p className="text-right text-[#708993] text-lg">
+            ניהול פרטי העסק והלוגו
+          </p>
         </div>
-      )}
 
-      {/* Logo & Signature Section - Combined */}
-      <div
-        className="bg-card text-fg border-border"
-        style={{
-          padding: 24,
-          borderWidth: 1,
-          borderRadius: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h2 className="text-fg" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו וחתימת העסק</h2>
-
-        {/* Show installation notice if signature_url field doesn't exist */}
-        {company.signature_url === undefined && (
-          <div
-            className="bg-warning/10 border-warning text-warning-fg"
-            style={{
-              padding: 16,
-              marginBottom: 16,
-              borderRadius: 12,
-              borderWidth: 1,
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה לחתימה</div>
-            <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
-              כדי להשתמש בתכונת החתימה, יש להריץ: <code className="bg-bg text-fg" style={{ padding: "2px 6px", borderRadius: 4 }}>scripts/016-add-signature-field.sql</code>
-            </div>
-          </div>
+        {/* Message */}
+        {message && (
+          <Card className={cn(
+            "mb-[50px]",
+            message.type === "success" 
+              ? "border-success bg-success/10" 
+              : "border-danger bg-danger/10"
+          )}>
+            <CardContent className="p-4">
+              <p className={cn(
+                message.type === "success" ? "text-success-fg" : "text-danger-fg"
+              )}>
+                {message.text}
+              </p>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Combined Grid: Logo on Right, Signature on Left */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
-          
-          {/* Logo Section */}
-          <div>
-            <h3 className="text-muted-fg" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>לוגו העסק</h3>
-            
-            {/* Logo Preview */}
-            <div
-              className="border-border bg-muted"
-              style={{
-                width: "100%",
-                minHeight: 160,
-                borderWidth: 2,
-                borderStyle: "dashed",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Company Logo"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "140px",
-                    width: "auto",
-                    height: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <div style={{ textAlign: "center", opacity: 0.4 }}>
-                  <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                  <div style={{ fontSize: 13, color: "#9ca3af" }}>לא הועלה</div>
+        {/* Logo & Signature Section - Combined */}
+        <FormSection title="לוגו וחתימת העסק">
+          {/* Show installation notice if signature_url field doesn't exist */}
+          {company.signature_url === undefined && (
+            <Card className="mb-6 border-warning bg-warning/10">
+              <CardContent className="p-4">
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>📋 נדרשת התקנה לחתימה</div>
+                <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6, color: '#19183B' }}>
+                  כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>scripts/016-add-signature-field.sql</code>
                 </div>
-              )}
-            </div>
+              </CardContent>
+            </Card>
+          )}
 
-            <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>
-              הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
-            </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-              onChange={handleLogoUpload}
-              style={{ display: "none" }}
-            />
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingLogo}
-                className="bg-fg text-bg border-fg hover:bg-fg/90"
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  opacity: isUploadingLogo ? 0.5 : 1,
-                }}
-              >
-                {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
-              </button>
-
-              {logoUrl && (
-                <button
-                  onClick={handleDeleteLogo}
-                  disabled={isUploadingLogo}
-                  className="bg-bg text-danger border-danger hover:bg-danger/10"
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    fontSize: 14,
-                    opacity: isUploadingLogo ? 0.5 : 1,
-                  }}
-                >
-                  מחק
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Signature Section */}
-          <div>
-            <h3 className="text-muted-fg" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>חתימת העסק</h3>
+          {/* Combined Grid: Logo on Right, Signature on Left */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
             
-            {/* Signature Preview */}
-            <div
-              className="border-border bg-muted"
-              style={{
-                width: "100%",
-                minHeight: 160,
-                borderWidth: 2,
-                borderStyle: "dashed",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 20,
-                marginBottom: 16,
-              }}
-            >
-              {signatureUrl ? (
-                <img
-                  src={signatureUrl}
-                  alt="Business Signature"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "140px",
-                    width: "auto",
-                    height: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <div style={{ textAlign: "center", opacity: 0.4 }}>
-                  <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                  <div className="text-muted-fg" style={{ fontSize: 13 }}>לא הועלה</div>
-                </div>
-              )}
-            </div>
-
-            <p style={{ marginBottom: 12, fontSize: 13, opacity: 0.7, lineHeight: 1.5 }}>
-              החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
-            </p>
-
-            <input
-              ref={signatureInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-              onChange={handleSignatureUpload}
-              style={{ display: "none" }}
-            />
-
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                onClick={() => signatureInputRef.current?.click()}
-                disabled={isUploadingSignature}
-                className="bg-fg text-bg border-fg hover:bg-fg/90"
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  cursor: isUploadingSignature ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  opacity: isUploadingSignature ? 0.5 : 1,
-                }}
-              >
-                {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
-              </button>
-
-              {signatureUrl && (
-                <button
-                  onClick={handleDeleteSignature}
-                  disabled={isUploadingSignature}
-                  className="bg-bg text-danger border-danger hover:bg-danger/10"
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 8,
-                    borderWidth: 1,
-                    cursor: isUploadingSignature ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    fontSize: 14,
-                    opacity: isUploadingSignature ? 0.5 : 1,
-                  }}
-                >
-                  מחק
-                </button>
-              )}
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Business Details Section */}
-      <div
-        className="bg-card text-fg border-border"
-        style={{
-          padding: 24,
-          borderWidth: 1,
-          borderRadius: 16,
-        }}
-      >
-        <h2 className="text-fg" style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
-          {/* Company Name */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              שם העסק <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              name="company_name"
-              value={formData.company_name}
-              onChange={handleInputChange}
-              required
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Business Type - READ ONLY */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              סוג עסק <span className="text-danger">*</span>
-            </label>
-            <select
-              name="business_type"
-              value={formData.business_type}
-              onChange={handleInputChange}
-              disabled
-              required
-              className="text-fg bg-muted border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            >
-              {BUSINESS_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Company Number - READ ONLY */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר חברה / תעודת זהות <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              name="company_number"
-              value={formData.company_number}
-              onChange={handleInputChange}
-              disabled
-              required
-              className="text-fg bg-muted border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            />
-          </div>
-
-          {/* Industry */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              תחום פעילות <span className="text-danger">*</span>
-            </label>
-            <select
-              name="industry"
-              value={formData.industry}
-              onChange={handleInputChange}
-              required
-              className="text-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            >
-              <option value="">בחר תחום</option>
-              {INDUSTRIES.map((ind) => (
-                <option key={ind.value} value={ind.value}>
-                  {ind.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Custom Industry - shows if "other" selected */}
-          {formData.industry === "other" && (
+            {/* Logo Section */}
             <div>
-              <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                פרט תחום פעילות <span className="text-danger">*</span>
-              </label>
-              <input
-                type="text"
-                name="custom_industry"
-                value={formData.custom_industry}
-                onChange={handleInputChange}
-                required
-                placeholder="הזן את תחום הפעילות שלך"
-                className="text-fg placeholder:text-muted-fg border-border"
+              <h3 className="text-[#708993]" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>לוגו העסק</h3>
+            
+              {/* Logo Preview */}
+              <div
                 style={{
                   width: "100%",
-                  padding: 10,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  fontSize: 14,
+                  minHeight: 160,
+                  borderWidth: 2,
+                  borderStyle: "dashed",
+                  borderColor: "#EDF1F5",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 20,
+                  marginBottom: 16,
+                  backgroundColor: "#EDF1F5",
                 }}
-              />
-            </div>
-          )}
-
-          {/* Street */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              רחוב ומספר <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              name="street"
-              value={formData.street}
-              onChange={handleInputChange}
-              required
-              placeholder="רחוב הרצל 1"
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* City */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              עיר <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              name="city"
-              value={formData.city}
-              onChange={handleInputChange}
-              required
-              placeholder="תל אביב-יפו"
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Postal Code */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
-            <input
-              type="text"
-              name="postal_code"
-              value={formData.postal_code}
-              onChange={handleInputChange}
-              placeholder="1234567"
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Registration Number - Shows company_number from registration, READ ONLY */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר רישום (ת.ז / ח"פ) <span className="text-danger">*</span>
-            </label>
-            <input
-              type="text"
-              name="company_number"
-              value={formData.company_number}
-              disabled
-              className="text-fg bg-muted border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              אימייל <span className="text-danger">*</span>
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              required
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Mobile Phone */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
-            <input
-              type="tel"
-              name="mobile_phone"
-              value={formData.mobile_phone}
-              onChange={handleInputChange}
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-
-          {/* Website */}
-          <div>
-            <label className="text-fg" style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
-            <input
-              type="url"
-              name="website"
-              value={formData.website}
-              onChange={handleInputChange}
-              placeholder="https://example.com"
-              className="text-fg placeholder:text-muted-fg border-border"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                borderWidth: 1,
-                fontSize: 14,
-              }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Template Selection Section - Simple List */}
-      <div className="bg-card rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-2">בחירת תבניות מסמכים</h2>
-        <p className="text-sm text-muted-fg mb-6">
-          בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.
-        </p>
-        <SimpleTemplateSelector />
-      </div>
-
-      {/* Floating Save Button - Sticky at Bottom */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 24,
-          left: 24,
-          zIndex: 50,
-        }}
-      >
-        <button
-          onClick={handleSaveDetails}
-          disabled={isSaving}
-          className="bg-fg text-bg hover:bg-fg/90"
-          style={{
-            padding: "16px 40px",
-            borderRadius: 16,
-            border: "none",
-            cursor: isSaving ? "not-allowed" : "pointer",
-            fontWeight: 700,
-            fontSize: 18,
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)",
-            transition: "all 0.2s ease",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            opacity: isSaving ? 0.6 : 1,
-          }}
-          onMouseEnter={(e) => {
-            if (!isSaving) {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = "0 15px 30px -5px rgba(0, 0, 0, 0.4), 0 10px 15px -6px rgba(0, 0, 0, 0.3)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow = "0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2)";
-          }}
-        >
-          {isSaving ? (
-            <>
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 18,
-                  height: 18,
-                  border: "3px solid rgba(255,255,255,0.3)",
-                  borderTop: "3px solid white",
-                  borderRadius: "50%",
-                  animation: "spin 0.8s linear infinite",
-                }}
-              />
-              שומר...
-            </>
-          ) : (
-            <>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
               >
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
-              </svg>
-              שמור שינויים
-            </>
-          )}
-        </button>
-      </div>
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Company Logo"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "140px",
+                      width: "auto",
+                      height: "auto",
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", opacity: 0.4 }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                    <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                  </div>
+                )}
+              </div>
 
-      {/* Keyframe animation for spinner */}
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
+              <p style={{ marginBottom: 12, fontSize: 13, color: "#708993", lineHeight: 1.5 }}>
+                הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
+              </p>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                onChange={handleLogoUpload}
+                style={{ display: "none" }}
+              />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingLogo}
+                  style={{ height: '50px', fontSize: '18px' }}
+                >
+                  {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
+                </Button>
+
+                {logoUrl && (
+                  <Button
+                    onClick={handleDeleteLogo}
+                    disabled={isUploadingLogo}
+                    variant="danger"
+                    style={{ height: '50px', fontSize: '18px' }}
+                  >
+                    מחק
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Signature Section */}
+            <div>
+              <h3 className="text-[#708993]" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>חתימת העסק</h3>
+              
+              {/* Signature Preview */}
+              <div
+                style={{
+                  width: "100%",
+                  minHeight: 160,
+                  borderWidth: 2,
+                  borderStyle: "dashed",
+                  borderColor: "#EDF1F5",
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: 20,
+                  marginBottom: 16,
+                  backgroundColor: "#EDF1F5",
+                }}
+              >
+                {signatureUrl ? (
+                  <img
+                    src={signatureUrl}
+                    alt="Business Signature"
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "140px",
+                      width: "auto",
+                      height: "auto",
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", opacity: 0.4 }}>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                    <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                  </div>
+                )}
+              </div>
+
+              <p style={{ marginBottom: 12, fontSize: 13, color: "#708993", lineHeight: 1.5 }}>
+                החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
+              </p>
+
+              <input
+                ref={signatureInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                onChange={handleSignatureUpload}
+                style={{ display: "none" }}
+              />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  onClick={() => signatureInputRef.current?.click()}
+                  disabled={isUploadingSignature}
+                  style={{ height: '50px', fontSize: '18px' }}
+                >
+                  {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
+                </Button>
+
+                {signatureUrl && (
+                  <Button
+                    onClick={handleDeleteSignature}
+                    disabled={isUploadingSignature}
+                    variant="danger"
+                    style={{ height: '50px', fontSize: '18px' }}
+                  >
+                    מחק
+                  </Button>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </FormSection>
+
+        {/* Business Details Section */}
+        <FormSection title="פרטי העסק">
+          <div className="ui-form-grid">
+            {/* Company Name */}
+            <FieldWrapper label="שם העסק" id="company_name" required>
+              <Input
+                type="text"
+                name="company_name"
+                id="company_name"
+                value={formData.company_name}
+                onChange={handleInputChange}
+                required
+              />
+            </FieldWrapper>
+
+            {/* Business Type - READ ONLY */}
+            <FieldWrapper label="סוג עסק" id="business_type" required>
+              <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BUSINESS_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrapper>
+
+            {/* Company Number - READ ONLY */}
+            <FieldWrapper label="מספר חברה / תעודת זהות" id="company_number" required>
+              <Input
+                type="text"
+                name="company_number"
+                id="company_number"
+                value={formData.company_number}
+                onChange={handleInputChange}
+                disabled
+                required
+              />
+            </FieldWrapper>
+
+            {/* Industry */}
+            <FieldWrapper label="תחום פעילות" id="industry" required>
+              <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>
+                <SelectTrigger><SelectValue placeholder="בחר תחום" /></SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map((ind) => (
+                    <SelectItem key={ind.value} value={ind.value}>{ind.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FieldWrapper>
+
+            {/* Custom Industry - shows if "other" selected */}
+            {formData.industry === "other" && (
+              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required>
+                <Input
+                  type="text"
+                  name="custom_industry"
+                  id="custom_industry"
+                  value={formData.custom_industry}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="הזן את תחום הפעילות שלך"
+                />
+              </FieldWrapper>
+            )}
+
+            {/* Street */}
+            <FieldWrapper label="רחוב ומספר" id="street" required>
+              <Input
+                type="text"
+                name="street"
+                id="street"
+                value={formData.street}
+                onChange={handleInputChange}
+                required
+                placeholder="רחוב הרצל 1"
+              />
+            </FieldWrapper>
+
+            {/* City */}
+            <FieldWrapper label="עיר" id="city" required>
+              <Input
+                type="text"
+                name="city"
+                id="city"
+                value={formData.city}
+                onChange={handleInputChange}
+                required
+                placeholder="תל אביב-יפו"
+              />
+            </FieldWrapper>
+
+            {/* Postal Code */}
+            <FieldWrapper label="מיקוד" id="postal_code">
+              <Input
+                type="text"
+                name="postal_code"
+                id="postal_code"
+                value={formData.postal_code}
+                onChange={handleInputChange}
+                placeholder="1234567"
+              />
+            </FieldWrapper>
+
+            {/* Registration Number - Shows company_number from registration, READ ONLY */}
+            <FieldWrapper label='מספר רישום (ת.ז / ח"פ)' id="registration_number" required>
+              <Input
+                type="text"
+                name="registration_number"
+                id="registration_number"
+                value={formData.company_number}
+                disabled
+              />
+            </FieldWrapper>
+
+            {/* Email */}
+            <FieldWrapper label="אימייל" id="email" required>
+              <Input
+                type="email"
+                name="email"
+                id="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+              />
+            </FieldWrapper>
+
+            {/* Mobile Phone */}
+            <FieldWrapper label="נייד" id="mobile_phone">
+              <Input
+                type="tel"
+                name="mobile_phone"
+                id="mobile_phone"
+                value={formData.mobile_phone}
+                onChange={handleInputChange}
+              />
+            </FieldWrapper>
+
+            {/* Phone */}
+            <FieldWrapper label="טלפון" id="phone">
+              <Input
+                type="tel"
+                name="phone"
+                id="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+              />
+            </FieldWrapper>
+
+            {/* Website */}
+            <FieldWrapper label="אתר אינטרנט" id="website">
+              <Input
+                type="url"
+                name="website"
+                id="website"
+                value={formData.website}
+                onChange={handleInputChange}
+                placeholder="https://example.com"
+              />
+            </FieldWrapper>
+          </div>
+        </FormSection>
+
+        {/* Template Selection Section - Simple List */}
+        <FormSection title="בחירת תבניות מסמכים" description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.">
+          <SimpleTemplateSelector />
+        </FormSection>
+
+        {/* Action Buttons */}
+        <FormActions
+          primaryLabel={isSaving ? "שומר..." : "שמור שינויים"}
+          onPrimaryClick={handleSaveDetails}
+          primaryLoading={isSaving}
+          primaryDisabled={isSaving}
+        />
+      </div>
+    </main>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { FileText, TrendingUp, TrendingDown, Receipt, CreditCard, Calculator } from "lucide-react";
 import ReportCard from "./ReportCard";
-import IncomeReportModal from "./IncomeReportModal";
+import { Card, CardContent } from "@/components/ui/card";
 
 type ReportType = "income" | "expenses" | "profit-loss" | "vat" | "advances";
 
@@ -51,11 +51,11 @@ const REPORTS = [
 ];
 
 export default function ReportsPageClient() {
-  const [activeModal, setActiveModal] = useState<ReportType | null>(null);
+  const router = useRouter();
 
   const handleReportClick = (reportId: ReportType) => {
     if (reportId === "income") {
-      setActiveModal("income");
+      router.push("/dashboard/reports/income");
     } else {
       // TODO: Implement other reports
       alert("דוח זה יהיה זמין בקרוב");
@@ -63,34 +63,33 @@ export default function ReportsPageClient() {
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black ui-text-dark mb-2">דוחות והנהלת חשבונות</h1>
-        <p className="text-sm ui-text-dark-muted">
-          הפק דוחות חשבונאיים מקצועיים לניהול ולדיווח עסקי מיטבי
-        </p>
-      </div>
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+      <div className="ui-container pt-10">
+        {/* Page Header */}
+        <div className="mb-[50px]">
+          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+            דוחות והנהלת חשבונות
+          </h1>
+          <p className="text-right text-[#708993] text-lg">
+            הפק דוחות חשבונאיים מקצועיים לניהול ולדיווח עסקי מיטבי
+          </p>
+        </div>
 
-      {/* Reports Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {REPORTS.map((report) => (
-          <ReportCard
-            key={report.id}
-            title={report.title}
-            description={report.description}
-            icon={report.icon}
-            color={report.color}
-            enabled={report.enabled}
-            onGenerate={() => handleReportClick(report.id)}
-          />
-        ))}
+        {/* Reports Grid */}
+        <div className="ui-cards-grid">
+          {REPORTS.map((report) => (
+            <ReportCard
+              key={report.id}
+              title={report.title}
+              description={report.description}
+              icon={report.icon}
+              color={report.color}
+              enabled={report.enabled}
+              onGenerate={() => handleReportClick(report.id)}
+            />
+          ))}
+        </div>
       </div>
-
-      {/* Income Report Modal */}
-      {activeModal === "income" && (
-        <IncomeReportModal onClose={() => setActiveModal(null)} />
-      )}
-    </div>
+    </main>
   );
 }

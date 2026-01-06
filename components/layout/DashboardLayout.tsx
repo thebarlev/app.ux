@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X, Home, FileText, Users, LogOut, BarChart, ChevronDown } from "lucide-react"
+import { Menu, X, Home, FileText, Users, LogOut, BarChart, ChevronDown, Settings } from "lucide-react"
 import { logoutAction } from "@/app/dashboard/actions"
 
 interface DashboardLayoutProps {
@@ -13,7 +14,7 @@ interface DashboardLayoutProps {
 type NavItem = {
   href?: string
   label: string
-  icon: React.ReactNode
+  icon: React.ComponentType<{ className?: string }>
   subItems?: { href: string; label: string }[]
 }
 
@@ -21,16 +22,16 @@ const navItems: NavItem[] = [
   {
     href: "/dashboard",
     label: "דשבורד",
-    icon: <Home className="h-5 w-5" />,
+    icon: Home,
   },
   {
     href: "/dashboard/reports",
     label: "דוחות",
-    icon: <BarChart className="h-5 w-5" />,
+    icon: BarChart,
   },
   {
     label: "לקוחות",
-    icon: <Users className="h-5 w-5" />,
+    icon: Users,
     subItems: [
       { href: "/dashboard/customers/new", label: "לקוח חדש" },
       { href: "/dashboard/customers", label: "הלקוחות שלי" },
@@ -38,7 +39,7 @@ const navItems: NavItem[] = [
   },
   {
     label: "מסמכים",
-    icon: <FileText className="h-5 w-5" />,
+    icon: FileText,
     subItems: [
       { href: "/dashboard/documents", label: "כל המסמכים" },
       { href: "/dashboard/documents/receipts", label: "קבלות" },
@@ -80,18 +81,46 @@ function isSubItemActive(subItemHref: string, pathname: string): boolean {
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const pathname = usePathname()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isFlyoutOpen, setIsFlyoutOpen] = useState(false)
+  const navItemRef = React.useRef<HTMLDivElement>(null)
   const isActive = isItemActive(item, pathname)
   
   // Check if any subitem is active
   const hasActiveSubItem = hasActiveChild(item, pathname)
 
+  React.useEffect(() => {
+    if (isFlyoutOpen && navItemRef.current) {
+      const menu = document.getElementById(`flyout-menu-${item.label}`)
+      if (menu) {
+        const rect = navItemRef.current.getBoundingClientRect()
+        menu.style.display = 'block'
+        menu.style.position = 'fixed'
+        menu.style.right = '250px' // sidebar width
+        menu.style.top = `${rect.top}px`
+      }
+    } else {
+      const menu = document.getElementById(`flyout-menu-${item.label}`)
+      if (menu) {
+        menu.style.display = 'none'
+      }
+    }
+  }, [isFlyoutOpen, item.label])
+
   if (item.subItems) {
     return (
-      <div className="group relative">
+      <div ref={navItemRef} className="relative" style={{ position: 'relative' }}>
         {/* Main Item */}
         <div
-          onClick={() => setIsExpanded(!isExpanded)}
+          onMouseEnter={() => setIsFlyoutOpen(true)}
+          onMouseLeave={() => {
+            // Delay closing to allow moving to menu
+            setTimeout(() => {
+              const menu = document.getElementById(`flyout-menu-${item.label}`)
+              if (menu && !menu.matches(':hover')) {
+                setIsFlyoutOpen(false)
+              }
+            }, 100)
+          }}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
             hasActiveSubItem
               ? "bg-sidebar-active text-sidebar-active-fg font-medium"
@@ -99,60 +128,74 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
           }`}
           style={{ fontSize: '18px' }}
         >
-          <span className="shrink-0 text-sidebar-fg">{item.icon}</span>
+          <span className="shrink-0 text-sidebar-fg">
+            <item.icon className="h-5 w-5" />
+          </span>
           <span className="flex-1">{item.label}</span>
           <ChevronDown
             className={`h-4 w-4 text-sidebar-fg transition-transform duration-200 ${
-              isExpanded ? "rotate-180" : ""
+              isFlyoutOpen ? "rotate-180" : ""
             }`}
           />
         </div>
 
         {/* Flyout Menu - Opens to the LEFT of sidebar (into content area) for RTL */}
-        <div className="hidden group-hover:block absolute left-full top-0 ml-2 w-56 bg-sidebar backdrop-blur rounded-lg shadow-xl border border-sidebar-border py-2 z-50">
-          {item.subItems.map((subItem) => {
-            const isSubActive = isSubItemActive(subItem.href, pathname)
-            return (
-              <Link
-                key={subItem.href}
-                href={subItem.href}
-                onClick={onClick}
-                className={`block px-4 py-2 transition-colors ${
-                  isSubActive
-                    ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-                    : "text-sidebar-fg hover:bg-sidebar-hover"
-                }`}
-                style={{ fontSize: '18px' }}
-              >
-                {subItem.label}
-              </Link>
-            )
-          })}
-        </div>
-
-        {/* Expanded SubItems - Show below main item with proper indent */}
-        {isExpanded && (
-          <div className="mt-1 space-y-1 overflow-hidden">
-            {item.subItems.map((subItem) => {
-              const isSubActive = isSubItemActive(subItem.href, pathname)
-              return (
-                <Link
-                  key={subItem.href}
-                  href={subItem.href}
-                  onClick={onClick}
-                  className={`block pr-12 pl-4 py-2 rounded-lg transition-all duration-150 ${
-                    isSubActive
-                      ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-                      : "text-sidebar-fg hover:bg-sidebar-hover"
-                  }`}
-                  style={{ fontSize: '18px' }}
-                >
-                  {subItem.label}
-                </Link>
-              )
-            })}
-          </div>
-        )}
+        <div
+          id={`flyout-menu-${item.label}`}
+          onMouseEnter={() => setIsFlyoutOpen(true)}
+          onMouseLeave={() => setIsFlyoutOpen(false)}
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+          style={{ 
+            display: 'none',
+            background: '#FFF',
+            borderRadius: '12px',
+            boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
+            border: '1px solid #E5E7EB',
+            minWidth: '160px',
+            zIndex: 100,
+            padding: '8px 0',
+          }}
+        >
+              {item.subItems.map((subItem) => {
+                const isSubActive = isSubItemActive(subItem.href, pathname)
+                return (
+                  <Link
+                    key={subItem.href}
+                    href={subItem.href}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setIsFlyoutOpen(false)
+                      onClick?.()
+                    }}
+                    className={`block px-4 py-2 transition-colors ${
+                      isSubActive
+                        ? "bg-sidebar-active text-sidebar-active-fg font-medium"
+                        : ""
+                    }`}
+                    style={{ 
+                      fontSize: '18px',
+                      color: isSubActive ? '#FFFFFF' : '#19183B',
+                      backgroundColor: isSubActive ? '#1D868F' : 'transparent',
+                      textAlign: 'right',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSubActive) {
+                        e.currentTarget.style.backgroundColor = '#C6EAE5'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSubActive) {
+                        e.currentTarget.style.backgroundColor = 'transparent'
+                      }
+                    }}
+                  >
+                    {subItem.label}
+                  </Link>
+                )
+              })}
+            </div>
       </div>
     )
   }
@@ -168,7 +211,9 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
       }`}
       style={{ fontSize: '18px' }}
     >
-      <span className="shrink-0 text-sidebar-fg">{item.icon}</span>
+      <span className="shrink-0 text-sidebar-fg">
+        <item.icon className="h-5 w-5" />
+      </span>
       <span>{item.label}</span>
     </Link>
   )
@@ -176,11 +221,31 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isNewDocMenuOpen, setIsNewDocMenuOpen] = useState(false)
+  const newDocButtonRef = React.useRef<HTMLButtonElement>(null)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
     await logoutAction()
   }
+
+  React.useEffect(() => {
+    if (isNewDocMenuOpen && newDocButtonRef.current) {
+      const menu = document.getElementById('new-doc-menu')
+      if (menu) {
+        const rect = newDocButtonRef.current.getBoundingClientRect()
+        menu.style.display = 'block'
+        menu.style.position = 'fixed'
+        menu.style.right = '250px' // sidebar width
+        menu.style.top = `${rect.top}px`
+      }
+    } else {
+      const menu = document.getElementById('new-doc-menu')
+      if (menu) {
+        menu.style.display = 'none'
+      }
+    }
+  }, [isNewDocMenuOpen])
 
   return (
     <div className="flex h-full flex-col">
@@ -198,8 +263,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       {/* New Document Button - above logout, 100px margin */}
-      <div style={{ marginBottom: '100px', marginTop: '24px', padding: '0 12px', position: 'relative' }}>
+      <div style={{ marginBottom: '100px', marginTop: '50px', padding: '0 12px', position: 'relative' }}>
         <button
+          ref={newDocButtonRef}
           type="button"
           id="new-doc-btn"
           className="flex items-center justify-center gap-2 w-full rounded-lg transition-all font-bold"
@@ -214,25 +280,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             cursor: 'pointer',
             position: 'relative',
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#FFC669')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#F39600')}
-          onClick={() => {
-            const menu = document.getElementById('new-doc-menu');
-            if (menu) {
-              if (menu.style.display === 'block') {
-                menu.style.display = 'none';
-              } else {
-                // Get button position
-                const btn = document.getElementById('new-doc-btn');
-                if (btn) {
-                  const rect = btn.getBoundingClientRect();
-                  menu.style.display = 'block';
-                  menu.style.position = 'fixed';
-                  menu.style.right = '250px'; // sidebar width
-                  menu.style.top = `${rect.top}px`;
-                }
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#FFC669'
+            setIsNewDocMenuOpen(true)
+          }}
+          onMouseLeave={() => {
+            // Delay closing to allow moving to menu
+            setTimeout(() => {
+              const menu = document.getElementById('new-doc-menu')
+              if (menu && !menu.matches(':hover')) {
+                setIsNewDocMenuOpen(false)
               }
-            }
+            }, 100)
           }}
         >
           <span style={{ fontSize: '22px', fontWeight: 'bold', marginRight: '8px', color: '#19183B' }}>+</span>
@@ -240,13 +299,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </button>
         <div
           id="new-doc-menu"
+          onMouseEnter={() => setIsNewDocMenuOpen(true)}
+          onMouseLeave={() => setIsNewDocMenuOpen(false)}
           style={{
             display: 'none',
             background: '#FFF',
             borderRadius: '12px',
             boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
+            border: '1px solid #E5E7EB',
             minWidth: '160px',
             zIndex: 100,
+            padding: '8px 0',
           }}
         >
             <Link
@@ -262,12 +325,33 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 borderRadius: '12px',
                 transition: 'background 0.2s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#EDF1F5')}
+              onMouseEnter={e => (e.currentTarget.style.background = '#C6EAE5')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
               קבלה
             </Link>
         </div>
+      </div>
+
+      {/* Settings Link - above logout */}
+      <div style={{ marginBottom: '8px', padding: '0 12px' }}>
+        <Link
+          href="/dashboard/settings"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all"
+          style={{ 
+            fontSize: '18px',
+            color: '#FFFFFF',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#1A3954'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+          }}
+        >
+          <Settings className="h-5 w-5" style={{ color: '#FFFFFF' }} />
+          <span>הגדרות</span>
+        </Link>
       </div>
 
       {/* Logout Button - Sticky at bottom */}

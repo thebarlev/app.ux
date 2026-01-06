@@ -1,0 +1,8 @@
+{"location":"date-input.tsx:160","message":"handleCalendarClick called","data":{"hasDateInputRef":true,"dateInputType":"date","dateInputValue":"2026-01-06"},"timestamp":1767711597150,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:163","message":"dateInputRef exists, checking showPicker","data":{"hasShowPicker":true,"pointerEvents":"none"},"timestamp":1767711597160,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:170","message":"showPicker exists, calling it","data":{},"timestamp":1767711597160,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:186","message":"showPicker does not return Promise, clicking","data":{},"timestamp":1767711597160,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:160","message":"handleCalendarClick called","data":{"hasDateInputRef":true,"dateInputType":"date","dateInputValue":"2026-01-06"},"timestamp":1767711619333,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:163","message":"dateInputRef exists, checking showPicker","data":{"hasShowPicker":true,"pointerEvents":"none"},"timestamp":1767711619334,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:170","message":"showPicker exists, calling it","data":{},"timestamp":1767711619334,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}
+{"location":"date-input.tsx:186","message":"showPicker does not return Promise, clicking","data":{},"timestamp":1767711619335,"sessionId":"debug-session","runId":"run1","hypothesisId":"A"}

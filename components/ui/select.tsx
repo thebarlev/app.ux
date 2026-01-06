@@ -48,7 +48,7 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "w-full flex items-center justify-between gap-2 rounded-[5px] px-4 whitespace-nowrap outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors data-[placeholder]:text-[#97B2BD] text-right",
+        "w-full flex items-center justify-between gap-2 rounded-[5px] px-[15px] whitespace-nowrap outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors data-[placeholder]:text-[#97B2BD] text-right",
         heightClass,
         className,
       )}
@@ -89,7 +89,7 @@ function SelectContent({
           className,
         )}
         style={{
-          backgroundColor: '#1e293b',
+          backgroundColor: '#1D868F',
           borderColor: 'rgba(255, 255, 255, 0.1)'
         }}
         position={position}
@@ -143,11 +143,11 @@ function SelectItem({
         height: "50px",
         fontSize: "18px",
         color: "#FFFFFF",
-        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
         backgroundColor: "transparent",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "#1D868F";
+        e.currentTarget.style.backgroundColor = "#1A3954";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = "transparent";

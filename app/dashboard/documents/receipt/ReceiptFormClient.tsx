@@ -19,7 +19,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { FormSection } from "@/components/ui/form-section";
 import { FormActions } from "@/components/ui/form-actions";
 import { cn } from "@/lib/utils";
-import { FileText, Save, CheckCircle, Settings as SettingsIcon, Trash2, Plus } from "lucide-react";
+import { FileText, Save, CheckCircle, Settings as SettingsIcon, Trash2, Plus, CheckCircle2 } from "lucide-react";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -98,7 +98,7 @@ export default function ReceiptFormClient({
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
-  const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: string }>({});
+  const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
 
   const [notes, setNotes] = useState("");
 
@@ -195,7 +195,7 @@ export default function ReceiptFormClient({
   }
 
   // Helper function to focus field with error
-  function focusFieldWithError(fieldRef: React.RefObject<HTMLElement>) {
+  function focusFieldWithError(fieldRef: React.RefObject<HTMLElement | null>) {
     if (!fieldRef?.current) return;
     
     // Scroll to field
@@ -231,12 +231,12 @@ export default function ReceiptFormClient({
     }
     
     // Validation: Check payment rows
-    const errors: { [key: number]: string } = {};
+    const errors: { [key: number]: { method?: string; amount?: string } } = {};
     payments.forEach((payment, i) => {
       if (!payment.method) {
-        errors[i] = "יש לבחור אמצעי תשלום";
+        errors[i] = { method: "יש לבחור אמצעי תשלום" };
       } else if (!payment.amount || payment.amount <= 0) {
-        errors[i] = "סכום חייב להיות גדול מ-0";
+        errors[i] = { amount: "סכום חייב להיות גדול מ-0" };
       }
     });
     
@@ -292,12 +292,17 @@ export default function ReceiptFormClient({
     }
     
     // Validation: Check payment rows
-    const errors: { [key: number]: string } = {};
+    const errors: { [key: number]: { method?: string; amount?: string } } = {};
     payments.forEach((payment, i) => {
+      const rowErrors: { method?: string; amount?: string } = {};
       if (!payment.method) {
-        errors[i] = "יש לבחור אמצעי תשלום";
-      } else if (!payment.amount || payment.amount <= 0) {
-        errors[i] = "סכום חייב להיות גדול מ-0";
+        rowErrors.method = "יש לבחור אמצעי תשלום";
+      }
+      if (!payment.amount || payment.amount <= 0) {
+        rowErrors.amount = "סכום חייב להיות גדול מ-0";
+      }
+      if (Object.keys(rowErrors).length > 0) {
+        errors[i] = rowErrors;
       }
     });
     
@@ -357,8 +362,8 @@ export default function ReceiptFormClient({
     <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
       <div className="ui-container pt-10">
         {/* Page Header */}
-        <h1 className="text-right font-semibold" style={{ fontSize: '32px', color: '#19183B' }}>
-          קבלה / {previewNumber || '---'}
+        <h1 className="text-right font-semibold" style={{ fontSize: '36px', color: '#19183B' }}>
+          קבלה {previewNumber || '---'}
         </h1>
         {initial.companyName && (
           <h2 className="text-right mt-2" style={{ fontSize: '24px', fontWeight: 500, color: '#19183B' }}>{initial.companyName}</h2>
@@ -392,7 +397,7 @@ export default function ReceiptFormClient({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
               <FieldWrapper label="שפה" className="!w-full">
                 <Select value={language} onValueChange={(v) => setLanguage(v as any)} disabled>
-                  <SelectTrigger style={{ backgroundColor: '#EDF1F5', border: 'none', height: '50px', fontSize: '18px' }}>
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -403,7 +408,7 @@ export default function ReceiptFormClient({
 
               <FieldWrapper label="מטבע ברירת מחדל" className="!w-full">
                 <Select value={currency} onValueChange={setCurrency} disabled>
-                  <SelectTrigger style={{ backgroundColor: '#EDF1F5', border: 'none', height: '50px', fontSize: '18px' }}>
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -491,7 +496,15 @@ export default function ReceiptFormClient({
             <DateInput
               id="documentDate"
               value={documentDate}
-              onChange={(value) => setDocumentDate(value)}
+              onChange={(value) => {
+                // Ensure date is not before minAllowedDate
+                if (minAllowedDate && value < minAllowedDate) {
+                  setDocumentDate(minAllowedDate)
+                } else {
+                  setDocumentDate(value)
+                }
+              }}
+              min={minAllowedDate || undefined}
               aria-required="true"
             />
           </FieldWrapper>
@@ -509,11 +522,10 @@ export default function ReceiptFormClient({
           error={descriptionError}
           id="description"
           hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
-          className="w-[555px]"
+          className="ui-field-wide"
         >
           <Input
             id="description"
-            ref={descriptionInputRef}
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);
@@ -556,45 +568,58 @@ export default function ReceiptFormClient({
 
             <div className="space-y-[50px]">
               {payments.map((row, i) => (
-                <Card key={i} className="relative" style={{ backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
+                <div key={i} className="relative" style={{ 
+                  backgroundColor: 'white', 
+                  borderRadius: '20px', 
+                  boxShadow: '0 0 13px 0 rgba(0, 0, 0, 0.10)', 
+                  border: 'none',
+                  padding: '30px 50px',
+                }}>
                   {/* Delete Button - Icon Only, Absolutely Positioned */}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removePaymentRow(i)}
-                    disabled={payments.length === 1}
-                    aria-label="מחיקה"
-                    className="absolute top-3 left-3 text-danger hover:text-danger hover:bg-danger/10 disabled:opacity-30"
-                    title="מחק"
-                  >
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                  <CardContent className="pt-12">
+                  {payments.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePaymentRow(i)}
+                      aria-label="מחיקה"
+                      className="absolute top-3 left-3 text-danger hover:text-danger hover:bg-danger/10"
+                      title="מחק"
+                      style={{ color: '#9B0003' }}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  )}
+                  <div>
                     <div className="ui-form-grid">
                   <FieldWrapper 
                     label="אמצעי תשלום" 
                     required
-                    error={paymentErrors[i]}
+                    error={paymentErrors[i]?.method}
                     id={`payment-method-${i}`}
                   >
                     <Select
                       value={row.method}
                       onValueChange={(v) => {
                         updatePaymentRow(i, { method: v as any });
-                        if (paymentErrors[i]) {
+                        if (paymentErrors[i]?.method) {
                           const newErrors = { ...paymentErrors };
-                          delete newErrors[i];
+                          if (newErrors[i]) {
+                            delete newErrors[i].method;
+                            if (Object.keys(newErrors[i]).length === 0) {
+                              delete newErrors[i];
+                            }
+                          }
                           setPaymentErrors(newErrors);
                         }
                       }}
                     >
                       <SelectTrigger 
                         id={`payment-method-${i}`}
-                        className={paymentErrors[i] ? "border-danger" : ""}
+                        className={paymentErrors[i]?.method ? "border-danger" : ""}
                         aria-required="true"
-                        aria-invalid={!!paymentErrors[i]}
-                        aria-describedby={paymentErrors[i] ? `payment-method-${i}-error` : undefined}
+                        aria-invalid={!!paymentErrors[i]?.method}
+                        aria-describedby={paymentErrors[i]?.method ? `payment-method-${i}-error` : undefined}
                       >
                         <SelectValue placeholder="בחר אמצעי תשלום..." />
                       </SelectTrigger>
@@ -620,31 +645,51 @@ export default function ReceiptFormClient({
                   <FieldWrapper 
                     label="סכום" 
                     required
+                    error={paymentErrors[i]?.amount}
                     id={`payment-amount-${i}`}
+                    className="!w-full"
                   >
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" style={{ alignItems: 'center' }}>
                       <MoneyInput
                         id={`payment-amount-${i}`}
                         value={row.amount}
                         onChange={(v) => {
                           updatePaymentRow(i, { amount: v });
-                          if (paymentErrors[i] && v > 0) {
+                          if (paymentErrors[i]?.amount && v > 0) {
                             const newErrors = { ...paymentErrors };
-                            delete newErrors[i];
+                            if (newErrors[i]) {
+                              delete newErrors[i].amount;
+                              if (Object.keys(newErrors[i]).length === 0) {
+                                delete newErrors[i];
+                              }
+                            }
                             setPaymentErrors(newErrors);
                           }
                         }}
                         currency={row.currency}
-                        error={!!paymentErrors[i]}
-                        style={{ width: '140px' }}
-                        aria-required="true"
-                        aria-invalid={!!paymentErrors[i]}
+                        error={!!paymentErrors[i]?.amount}
+                        style={{ 
+                          flex: '1',
+                          fontSize: '18px',
+                          fontWeight: 600,
+                        }}
+                        aria-required={true}
+                        aria-invalid={!!paymentErrors[i]?.amount}
+                        aria-describedby={paymentErrors[i]?.amount ? `payment-amount-${i}-error` : undefined}
                       />
                       <Select
                         value={row.currency}
                         onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                       >
-                        <SelectTrigger style={{ width: '70px' }} aria-label="מטבע">
+                        <SelectTrigger 
+                          style={{ 
+                            width: '80px',
+                            minWidth: '80px',
+                            fontSize: '18px',
+                            fontWeight: 600,
+                          }} 
+                          aria-label="מטבע"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -659,14 +704,14 @@ export default function ReceiptFormClient({
                   </FieldWrapper>
                     </div>
 
-                    <div className="mt-4">
+                    <div className="mt-[50px]">
                       <PaymentDetailsSection
                         payment={row}
                         onUpdate={(updates) => updatePaymentRow(i, updates)}
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               ))}
             </div>
 
@@ -675,19 +720,20 @@ export default function ReceiptFormClient({
               onClick={addPaymentRow}
               className="mt-[50px]"
               style={{
-                background: 'none',
+                background: 'transparent',
                 border: 'none',
                 fontSize: '18px',
                 color: '#19183B',
                 textDecoration: 'underline',
                 cursor: 'pointer',
                 padding: 0,
+                fontWeight: 500,
               }}
             >
               הוספת תקבול
             </button>
 
-            <div className="pt-[50px] mt-[50px] border-t" style={{ borderColor: '#97B2BD' }}>
+            <div className="pt-[50px] mt-[50px] border-t" style={{ borderColor: '#EDF1F5' }}>
               <div className="flex justify-between items-center">
                 <div className="text-lg font-bold" style={{ color: '#19183B' }}>סה״כ שולם</div>
                 <div className="text-2xl font-bold" style={{ color: '#19183B' }}>{formatMoney(total, currency)}</div>
@@ -706,7 +752,7 @@ export default function ReceiptFormClient({
         <FieldWrapper 
           label="הערות שיופיעו במסמך" 
           id="notes"
-          className="w-[755px]"
+          className="ui-field-wide"
         >
           <Textarea
             id="notes"
@@ -714,12 +760,6 @@ export default function ReceiptFormClient({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="חשוב לדעת..."
             className="min-h-[100px] resize-y"
-            style={{
-              backgroundColor: '#EDF1F5',
-              border: 'none',
-              fontSize: '18px',
-              color: '#19183B'
-            }}
             aria-describedby="notes-hint"
           />
         </FieldWrapper>
@@ -823,37 +863,83 @@ export default function ReceiptFormClient({
         >
           <div
             style={{
-              background: '#19183B',
+              background: '#EDF1F5',
               borderRadius: '20px',
               boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
               width: '100%',
               maxWidth: '420px',
               padding: '50px',
               textAlign: 'center',
-              color: 'white',
+              color: '#19183B',
               position: 'relative',
             }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Success Icon - שמח יותר */}
+            {/* Success Icon */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px auto', height: 80 }}>
-              <span style={{ fontSize: 60, color: '#FFD700', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80 }}>
-                😊
-              </span>
+              <CheckCircle2 
+                size={80} 
+                style={{ color: '#1D868F' }}
+              />
             </div>
             {/* Title */}
-            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: 'white' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, marginBottom: 0, color: '#19183B' }}>
               יצרת בהצלחה קבלה!
             </div>
             {/* Receipt Number */}
-            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'white' }}>
+            <div style={{ fontSize: '24px', fontWeight: 700, marginBottom: 24, color: '#19183B' }}>
               מספר קבלה: <span style={{ fontWeight: 900 }}>{successModal.documentNumber}</span>
             </div>
             {/* Action Buttons */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', marginBottom: 24 }}>
-              <button
+              {/* Primary Button - Download PDF */}
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  try {
+                    const pdfUrl = `/api/receipts/${successModal.receiptId}/pdf`;
+                    const response = await fetch(pdfUrl);
+                    
+                    if (!response.ok) {
+                      throw new Error(`PDF download failed: ${response.statusText}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    
+                    if (blob.size === 0) {
+                      throw new Error("Downloaded PDF is empty");
+                    }
+                    
+                    const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                    const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                    const link = document.createElement("a");
+                    link.href = downloadUrl;
+                    link.download = `receipt-${successModal.documentNumber}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(downloadUrl);
+                    
+                    // Close modal and redirect to dashboard after download
+                    setTimeout(() => {
+                      setSuccessModal(null);
+                      window.location.href = "/dashboard/documents";
+                    }, 500);
+                  } catch (error: any) {
+                    alert(`שגיאה בהורדת PDF: ${error.message}`);
+                  }
+                }}
+                style={{
+                  width: '300px',
+                }}
+              >
+                להורדת הקבלה
+              </Button>
+              
+              {/* Secondary Button - View Receipt */}
+              <Button
+                variant="secondary"
                 onClick={() => {
-                  // Open preview page with auto-download enabled
                   const previewData = {
                     previewNumber: successModal.documentNumber,
                     companyName: successModal.companyName,
@@ -866,31 +952,16 @@ export default function ReceiptFormClient({
                     total: String(successModal.payload.total),
                     currency: successModal.payload.currency,
                     payments: JSON.stringify(successModal.payload.payments),
-                    autoDownload: "true", // Trigger auto-download
                   };
                   const params = new URLSearchParams(previewData as any);
                   window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
-                  // Close modal and redirect after short delay
-                  setTimeout(() => {
-                    setSuccessModal(null);
-                    window.location.href = "/dashboard/documents";
-                  }, 1000);
                 }}
                 style={{
-                  height: '50px',
-                  fontSize: '18px',
                   width: '300px',
-                  background: '#FFD700',
-                  color: '#19183B',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  marginBottom: 0,
                 }}
               >
-                להורדת הקבלה
-              </button>
+                צפייה בקבלה
+              </Button>
             </div>
             {/* Close as text button */}
             <div style={{ textAlign: 'center', marginTop: 0 }}>
@@ -902,8 +973,8 @@ export default function ReceiptFormClient({
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'white',
-                  fontSize: '18px',
+                  color: '#19183B',
+                  fontSize: 18,
                   textDecoration: 'underline',
                   cursor: 'pointer',
                   margin: '0 auto',

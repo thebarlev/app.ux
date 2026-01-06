@@ -6,6 +6,10 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import { Customer, deleteCustomerAction } from "./actions";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FormSection } from "@/components/ui/form-section";
 
 type Props = {
   initialCustomers: Customer[];
@@ -57,29 +61,44 @@ export default function CustomersListClient({ initialCustomers }: Props) {
   };
 
   return (
-    <div>
-      {/* Search Bar */}
-      <div style={{ marginBottom: 24 }}>
-          <input
-            type="text"
-            placeholder="חיפוש לפי שם..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%',
-              maxWidth: 400,
-              padding: '12px 16px',
-              borderRadius: 10,
-              border: 'none',
-              background: '#EDF1F5',
-              fontSize: 18,
-              color: '#19183B',
-              boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-            }}
-          />
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+      <div className="ui-container pt-10">
+        {/* Page Header */}
+        <div className="mb-[50px]">
+          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+            לקוחות
+          </h1>
+          <p className="text-right text-[#708993] text-lg">
+            {customers.length} לקוחות סה״כ
+          </p>
         </div>
 
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-3 mb-[50px]">
+          <Link href="/dashboard/customers/new">
+            <Button 
+              style={{ height: '50px', fontSize: '18px' }}
+            >
+              לקוח חדש
+            </Button>
+          </Link>
+        </div>
+
+        {/* Search Section */}
+        <FormSection title="חיפוש">
+          <FieldWrapper label="חיפוש" id="search" className="!w-full">
+            <Input
+              id="search"
+              type="text"
+              placeholder="חיפוש לפי שם..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </FieldWrapper>
+        </FormSection>
+
         {/* Customers List */}
+        <div className="mt-[50px]">
         {filteredCustomers.length === 0 ? (
           <div
             style={{
@@ -216,26 +235,28 @@ export default function CustomersListClient({ initialCustomers }: Props) {
           </div>
         )}
 
-      {/* Summary */}
-      <div style={{ marginTop: 24, opacity: 0.7, fontSize: 18, color: '#19183B', textAlign: 'left' }}>
-        {searchQuery ? `נמצאו ${filteredCustomers.length} לקוחות` : `סה"כ ${customers.length} לקוחות`}
-      </div>
+          {/* Summary */}
+          <div style={{ marginTop: 24, opacity: 0.7, fontSize: 18, color: '#19183B', textAlign: 'left' }}>
+            {searchQuery ? `נמצאו ${filteredCustomers.length} לקוחות` : `סה"כ ${customers.length} לקוחות`}
+          </div>
+        </div>
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteDialog.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setDeleteDialog({ open: false, customerId: null, customerName: "" });
-          }
-        }}
-        title="מחיקת לקוח"
-        message={`האם יש אישור למחוק את הלקוח "${deleteDialog.customerName}"?`}
-        confirmText="מחק"
-        cancelText="ביטול"
-        onConfirm={handleDeleteConfirm}
-        destructive={true}
-      />
-    </div>
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={deleteDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteDialog({ open: false, customerId: null, customerName: "" });
+            }
+          }}
+          title="מאשרים למחוק לקוח"
+          message={deleteDialog.customerName}
+          confirmText="מחק"
+          cancelText="ביטול"
+          onConfirm={handleDeleteConfirm}
+          destructive={true}
+        />
+      </div>
+    </main>
   );
 }

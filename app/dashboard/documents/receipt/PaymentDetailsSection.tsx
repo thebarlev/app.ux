@@ -6,6 +6,9 @@
  */
 
 import type { PaymentMethod, PaymentRow } from "./actions";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
 
 type PaymentDetailsSectionProps = {
   payment: PaymentRow;
@@ -22,98 +25,64 @@ export default function PaymentDetailsSection({
 }: PaymentDetailsSectionProps) {
   const { method } = payment;
 
-  // Common input style - exactly 50px height
-  const inputStyle: React.CSSProperties = {
-    height: 50,
-    padding: "0 16px",
-    borderRadius: 8,
-    border: "none",
-    backgroundColor: "#EDF1F5",
-    width: "100%",
-    fontSize: 18,
-    color: "#19183B",
-    outline: "none",
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 18,
-    fontWeight: "normal",
-    marginBottom: 6,
-    display: "block",
-    color: "#19183B",
-  };
-
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
     return (
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(4, 1fr)" }}>
-        {/* Field 1 (rightmost): Card number */}
-        <div>
-          <label style={labelStyle}>מספר כרטיס</label>
-          <input
+      <div className="ui-form-grid">
+        <FieldWrapper label="מספר כרטיס" id="cardLastDigits" hint="4 ספרות אחרונות">
+          <Input
             type="text"
             maxLength={4}
             placeholder="1234"
             value={payment.cardLastDigits ?? ""}
             onChange={(e) => onUpdate({ cardLastDigits: e.target.value })}
-            style={inputStyle}
             aria-label="4 ספרות אחרונות של כרטיס האשראי"
-            aria-describedby="card-number-hint"
           />
-          <div style={{ fontSize: 12, marginTop: 4, textAlign: 'right', color: '#666' }}>
-            (4 ספרות אחרונות)
-          </div>
-        </div>
+        </FieldWrapper>
 
-        {/* Field 2: Card type */}
-        <div>
-          <label style={labelStyle}>סוג כרטיס</label>
-          <select
+        <FieldWrapper label="סוג כרטיס" id="cardType">
+          <Select
             value={payment.cardType ?? ""}
-            onChange={(e) => onUpdate({ cardType: e.target.value })}
-            style={inputStyle}
-            aria-label="בחר סוג כרטיס אשראי"
+            onValueChange={(v) => onUpdate({ cardType: v })}
           >
-            <option value="">בחר...</option>
-            <option value="visa">Visa</option>
-            <option value="mastercard">Mastercard</option>
-            <option value="isracard">ישראכרט</option>
-            <option value="amex">American Express</option>
-            <option value="diners">Diners</option>
-            <option value="other">אחר</option>
-          </select>
-        </div>
+            <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="visa">Visa</SelectItem>
+              <SelectItem value="mastercard">Mastercard</SelectItem>
+              <SelectItem value="isracard">ישראכרט</SelectItem>
+              <SelectItem value="amex">American Express</SelectItem>
+              <SelectItem value="diners">Diners</SelectItem>
+              <SelectItem value="other">אחר</SelectItem>
+            </SelectContent>
+          </Select>
+        </FieldWrapper>
 
-        {/* Field 3: Deal type */}
-        <div>
-          <label style={labelStyle}>סוג עסקה</label>
-          <select
+        <FieldWrapper label="סוג עסקה" id="cardDealType">
+          <Select
             value={payment.cardDealType ?? "regular"}
-            onChange={(e) => onUpdate({ cardDealType: e.target.value })}
-            style={inputStyle}
-            aria-label="בחר סוג עסקה"
+            onValueChange={(v) => onUpdate({ cardDealType: v })}
           >
-            <option value="regular">רגיל</option>
-            <option value="payments">תשלומים</option>
-            <option value="credit">קרדיט</option>
-            <option value="deferred">דחוי</option>
-          </select>
-        </div>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="regular">רגיל</SelectItem>
+              <SelectItem value="payments">תשלומים</SelectItem>
+              <SelectItem value="credit">קרדיט</SelectItem>
+              <SelectItem value="deferred">דחוי</SelectItem>
+            </SelectContent>
+          </Select>
+        </FieldWrapper>
 
-        {/* Field 4 (leftmost): Installments */}
-        <div>
-          <label style={labelStyle}>מספר תשלומים</label>
-          <input
+        <FieldWrapper label="מספר תשלומים" id="cardInstallments">
+          <Input
             type="number"
             min={1}
             max={12}
             placeholder="1"
             value={payment.cardInstallments ?? 1}
             onChange={(e) => onUpdate({ cardInstallments: Number(e.target.value) })}
-            style={inputStyle}
             aria-label="מספר תשלומים"
           />
-        </div>
+        </FieldWrapper>
       </div>
     );
   }
@@ -121,39 +90,33 @@ export default function PaymentDetailsSection({
   // Bank transfer: 3 fields (account, branch, bank)
   if (method === "העברה בנקאית") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <div>
-          <label style={labelStyle}>חשבון לקוח</label>
-          <input
+      <div className="ui-form-grid">
+        <FieldWrapper label="חשבון לקוח" id="bankAccount">
+          <Input
             type="text"
             placeholder="מספר חשבון"
             value={payment.bankAccount ?? ""}
             onChange={(e) => onUpdate({ bankAccount: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>סניף</label>
-          <input
+        <FieldWrapper label="סניף" id="bankBranch">
+          <Input
             type="text"
             placeholder="מספר סניף"
             value={payment.bankBranch ?? ""}
             onChange={(e) => onUpdate({ bankBranch: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>בנק</label>
-          <input
+        <FieldWrapper label="בנק" id="bankName">
+          <Input
             type="text"
             placeholder="שם הבנק"
             value={payment.bankName ?? ""}
             onChange={(e) => onUpdate({ bankName: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
       </div>
     );
   }
@@ -161,50 +124,42 @@ export default function PaymentDetailsSection({
   // Check: 4 fields (bank, branch, account, check number)
   if (method === "צ׳ק") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(4, 1fr)" }}>
-        <div>
-          <label style={labelStyle}>בנק לקוח</label>
-          <input
+      <div className="ui-form-grid">
+        <FieldWrapper label="בנק לקוח" id="checkBank">
+          <Input
             type="text"
             placeholder="שם הבנק"
             value={payment.checkBank ?? ""}
             onChange={(e) => onUpdate({ checkBank: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>סניף לקוח</label>
-          <input
+        <FieldWrapper label="סניף לקוח" id="checkBranch">
+          <Input
             type="text"
             placeholder="מספר סניף"
             value={payment.checkBranch ?? ""}
             onChange={(e) => onUpdate({ checkBranch: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>חשבון לקוח</label>
-          <input
+        <FieldWrapper label="חשבון לקוח" id="checkAccount">
+          <Input
             type="text"
             placeholder="מספר חשבון"
             value={payment.checkAccount ?? ""}
             onChange={(e) => onUpdate({ checkAccount: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>מס׳ הצ׳ק</label>
-          <input
+        <FieldWrapper label="מס׳ הצ׳ק" id="checkNumber">
+          <Input
             type="text"
             placeholder="מספר צ׳ק"
             value={payment.checkNumber ?? ""}
             onChange={(e) => onUpdate({ checkNumber: e.target.value })}
-            style={inputStyle}
           />
-        </div>
+        </FieldWrapper>
       </div>
     );
   }
@@ -217,17 +172,15 @@ export default function PaymentDetailsSection({
   // Payoneer: Single full-width transaction field
   if (method === "Payoneer") {
     return (
-      <div>
-        <label style={labelStyle}>מספר עסקה</label>
-        <input
+      <FieldWrapper label="מספר עסקה" id="transactionReference">
+        <Input
           type="text"
           placeholder="הזן מספר עסקה"
           value={payment.transactionReference ?? ""}
           onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
           aria-label="מספר עסקה Payoneer"
         />
-      </div>
+      </FieldWrapper>
     );
   }
 
@@ -242,30 +195,26 @@ export default function PaymentDetailsSection({
     method === "Pay"
   ) {
     return (
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-        <div>
-          <label style={labelStyle}>חשבון משלם</label>
-          <input
+      <div className="ui-form-grid">
+        <FieldWrapper label="חשבון משלם" id="payerAccount">
+          <Input
             type="text"
             placeholder="מזהה חשבון (אופציונלי)"
             value={payment.payerAccount ?? ""}
             onChange={(e) => onUpdate({ payerAccount: e.target.value })}
-            style={inputStyle}
             aria-label="מזהה חשבון משלם"
           />
-        </div>
+        </FieldWrapper>
 
-        <div>
-          <label style={labelStyle}>מספר עסקה</label>
-          <input
+        <FieldWrapper label="מספר עסקה" id="transactionReference">
+          <Input
             type="text"
             placeholder="מזהה עסקה (אופציונלי)"
             value={payment.transactionReference ?? ""}
             onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-            style={inputStyle}
             aria-label="מזהה עסקה או אסמכתא"
           />
-        </div>
+        </FieldWrapper>
       </div>
     );
   }
@@ -273,16 +222,14 @@ export default function PaymentDetailsSection({
   // Partial employee deduction: Single transaction field
   if (method === "ניכוי חלק עובד טל״א") {
     return (
-      <div>
-        <label style={labelStyle}>מס׳ העסקה</label>
-        <input
+      <FieldWrapper label="מס׳ העסקה" id="transactionReference">
+        <Input
           type="text"
           placeholder="מספר עסקה"
           value={payment.transactionReference ?? ""}
           onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
         />
-      </div>
+      </FieldWrapper>
     );
   }
 
@@ -318,32 +265,28 @@ export default function PaymentDetailsSection({
     method === "ביטקוין"
   ) {
     return (
-      <div>
-        <label style={labelStyle}>מס׳ העסקה</label>
-        <input
+      <FieldWrapper label="מס׳ העסקה" id="transactionReference">
+        <Input
           type="text"
           placeholder="מספר עסקה"
           value={payment.transactionReference ?? ""}
           onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
         />
-      </div>
+      </FieldWrapper>
     );
   }
 
   // Other deduction: Single description field
   if (method === "ניכוי אחר") {
     return (
-      <div>
-        <label style={labelStyle}>תיאור</label>
-        <input
+      <FieldWrapper label="תיאור" id="description">
+        <Input
           type="text"
           placeholder="תיאור הניכוי"
           value={payment.description ?? ""}
           onChange={(e) => onUpdate({ description: e.target.value })}
-          style={inputStyle}
         />
-      </div>
+      </FieldWrapper>
     );
   }
 

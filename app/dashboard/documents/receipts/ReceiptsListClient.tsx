@@ -149,14 +149,23 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-3 mb-[50px]">
-        <Button
+        <button
           onClick={handleExport}
           disabled={exporting}
-          variant="secondary"
-          style={{ height: '50px', fontSize: '18px', borderColor: '#1A8299', color: '#1A8299' }}
+          style={{ 
+            height: '50px', 
+            fontSize: '18px', 
+            color: '#19183B',
+            background: 'transparent',
+            border: 'none',
+            textDecoration: 'underline',
+            cursor: exporting ? 'not-allowed' : 'pointer',
+            opacity: exporting ? 0.5 : 1,
+            padding: 0
+          }}
         >
           {exporting ? "מייצא..." : "ייצוא CSV"}
-        </Button>
+        </button>
 
         <Link href="/dashboard/documents/receipt">
           <Button 

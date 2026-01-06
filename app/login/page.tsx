@@ -117,30 +117,30 @@ function LoginForm() {
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5">
               {/* Email Field */}
               <div className="space-y-2">
                 <label htmlFor="email" className="block text-sm font-semibold text-fg text-right">
-                  כתובת אימייל
-                </label>
+                כתובת אימייל
+              </label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="israel@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  dir="ltr"
+                id="email"
+                type="email"
+                placeholder="israel@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                dir="ltr"
                   className="text-left"
-                />
-              </div>
+              />
+            </div>
 
               {/* Password Field */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label htmlFor="password" className="block text-sm font-semibold text-fg text-right">
-                    סיסמה
-                  </label>
+                סיסמה
+              </label>
                   <Link 
                     href="/forgot-password" 
                     className="text-xs text-primary hover:text-primary-hover font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
@@ -148,43 +148,43 @@ function LoginForm() {
                     שכחתי סיסמה
                   </Link>
                 </div>
-                <div className="relative">
+              <div className="relative">
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    dir="ltr"
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  dir="ltr"
                     className="text-left pr-12"
                     placeholder="הזן סיסמה"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
                     className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-fg hover:text-fg transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
                     aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+            </div>
 
               {/* Error Message */}
-              {error && (
+            {error && (
                 <div className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right" role="alert">
-                  {error}
-                </div>
-              )}
+                {error}
+              </div>
+            )}
 
               {/* Submit Button */}
               <Button
-                type="submit"
-                disabled={isLoading}
+              type="submit"
+              disabled={isLoading}
                 className="w-full"
                 variant="default"
-              >
+            >
                 {isLoading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin ml-2" />
@@ -194,7 +194,7 @@ function LoginForm() {
                   "התחבר לחשבון"
                 )}
               </Button>
-            </form>
+          </form>
           </CardContent>
         </Card>
 

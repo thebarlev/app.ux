@@ -32,7 +32,7 @@
     --secondary-border: #1D868F;
 
     --danger: #9B0003;
-    --danger-fg: #9B0003;
+    --danger-fg: #FFFFFF;
 
     /* ===== Forms / States ===== */
     --input: #F5FBF9;
@@ -95,6 +95,8 @@
     color: #708993;
     text-align: right;
     direction: rtl;
+    padding-right: 0;
+    padding-left: 0;
   }
 }
 
@@ -147,6 +149,35 @@
     row-gap: 50px;
     justify-content: center;
     justify-items: center;
+  }
+
+  /* Cards Grid - For report cards and similar wide cards */
+  .ui-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    column-gap: 50px;
+    row-gap: 50px;
+    justify-content: start;
+  }
+
+  @media (max-width: 1024px) {
+    .ui-cards-grid {
+      grid-template-columns: repeat(2, minmax(300px, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ui-cards-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Field Width Utilities */
+  /* Wide field: 555px (equals 2 fields + gap: 300px + 50px + 205px) */
+  .ui-field-wide {
+    width: 555px;
+    max-width: 555px;
+    min-width: 555px;
   }
 
   /* Form Grid for Customer Form - RTL order using direction: rtl (natural RTL placement) */

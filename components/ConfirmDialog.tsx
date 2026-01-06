@@ -2,14 +2,14 @@
 
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { CheckCircle2, AlertTriangle } from "lucide-react"
 
 type ConfirmDialogProps = {
   open: boolean
@@ -37,28 +37,77 @@ export default function ConfirmDialog({
     onOpenChange(false)
   }
 
+  const Icon = destructive ? AlertTriangle : CheckCircle2
+  const iconColor = '#19183B' // Always use #19183B for icon color
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{message}</AlertDialogDescription>
+      <AlertDialogContent
+        className="max-w-[420px] p-[50px] rounded-[20px]"
+        style={{
+          backgroundColor: '#EDF1F5',
+          border: 'none',
+          boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
+          textAlign: 'center',
+          color: '#19183B',
+        }}
+        dir="rtl"
+      >
+        {/* Icon */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px auto', height: 80 }}>
+          <Icon 
+            size={80} 
+            style={{ color: iconColor }}
+          />
+        </div>
+        
+        <AlertDialogHeader className="text-center">
+          <AlertDialogTitle 
+            className="text-[24px] font-bold"
+            style={{ color: '#19183B', marginBottom: 0 }}
+          >
+            {title}
+          </AlertDialogTitle>
+          <AlertDialogDescription 
+            className="text-[18px] mb-8"
+            style={{ color: '#19183B', textAlign: 'center' }}
+          >
+            {message}
+          </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => onOpenChange(false)}>
-            {cancelText}
-          </AlertDialogCancel>
-          <AlertDialogAction
+        
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', marginBottom: 24 }}>
+          <Button
+            variant={destructive ? "danger" : "primary"}
             onClick={handleConfirm}
-            className={
-              destructive
-                ? "bg-danger hover:bg-danger-hover focus:ring-ring"
-                : undefined
-            }
+            style={{
+              width: '300px',
+            }}
           >
             {confirmText}
-          </AlertDialogAction>
-        </AlertDialogFooter>
+          </Button>
+        </div>
+        
+        {/* Close as text button */}
+        <div style={{ textAlign: 'center', marginTop: 0 }}>
+          <button
+            onClick={() => onOpenChange(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#19183B',
+              fontSize: 18,
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              margin: '0 auto',
+              display: 'block',
+              fontWeight: 500,
+            }}
+          >
+            {cancelText}
+          </button>
+        </div>
       </AlertDialogContent>
     </AlertDialog>
   )

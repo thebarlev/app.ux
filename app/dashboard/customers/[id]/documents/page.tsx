@@ -3,7 +3,8 @@ import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { redirect } from "next/navigation";
 import CustomerDocumentsClient from "./CustomerDocumentsClient";
 
-export default async function CustomerDocumentsPage({ params }: { params: { id: string } }) {
+export default async function CustomerDocumentsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
   
   // Verify authentication
@@ -13,7 +14,7 @@ export default async function CustomerDocumentsPage({ params }: { params: { id: 
   }
 
   const companyId = await getCompanyIdForUser();
-  const customerId = params.id;
+  const customerId = id;
 
   // Fetch customer details
   const { data: customer, error: customerError } = await supabase

@@ -175,6 +175,20 @@
 </div>
 ```
 
+### 4.1. Field Width Utilities
+**File:** `app/globals.css` (utility class)
+
+**Wide Field (555px):**
+- Width: `555px` (equals 2 fields + gap: 300px + 50px + 205px)
+- Use for description and notes fields that span 2 columns
+
+**Usage:**
+```tsx
+<FieldWrapper label="תיאור" className="ui-field-wide">
+  <Input />
+</FieldWrapper>
+```
+
 ### 5. Input
 **File:** `components/ui/input.tsx`
 

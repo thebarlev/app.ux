@@ -196,11 +196,18 @@ export async function exportReceiptsCSVAction(
     const csvContent = [
       headers.join(","),
       ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+        row.map((cell) => {
+          // Escape quotes in CSV: double any existing quotes, then wrap in quotes
+          const cellValue = String(cell).replace(/"/g, '""');
+          return `"${cellValue}"`;
+        }).join(",")
       ),
     ].join("\n");
 
-    return { ok: true, csv: csvContent };
+    // Add UTF-8 BOM for proper Excel encoding (especially for Hebrew text)
+    const csvWithBOM = "\uFEFF" + csvContent;
+
+    return { ok: true, csv: csvWithBOM };
   } catch (error: any) {
     return { ok: false, message: error?.message || "Failed to export CSV" };
   }

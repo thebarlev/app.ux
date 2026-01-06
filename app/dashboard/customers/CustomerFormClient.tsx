@@ -124,11 +124,23 @@ export default function CustomerFormClient({ customer }: Props) {
         <div className="h-[50px]" />
         {isEdit && (
           <div className="mb-[50px]">
-            <Link href={`/dashboard/customers/${customer.id}/documents`}>
-              <Button variant="secondary">
-                <FileText className="h-4 w-4 ml-2" />
-                צפה במסמכים
-              </Button>
+            <Link 
+              href={`/dashboard/customers/${customer.id}/documents`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'transparent',
+                border: 'none',
+                color: '#19183B',
+                textDecoration: 'underline',
+                fontSize: '18px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <FileText size={18} />
+              צפה במסמכים
             </Link>
           </div>
         )}
@@ -322,22 +334,11 @@ export default function CustomerFormClient({ customer }: Props) {
                     <SelectTrigger id="payment_terms_text">
                       <SelectValue placeholder="בחר תנאי תשלום" />
                     </SelectTrigger>
-                    <SelectContent style={{ backgroundColor: '#1D868F' }}>
+                    <SelectContent>
                       {PAYMENT_TERMS_OPTIONS.map((option) => (
                         <SelectItem 
                           key={option.value} 
                           value={option.value}
-                          style={{ 
-                            color: 'white', 
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
-                            backgroundColor: 'transparent'
-                          }}
-                          onMouseEnter={(e: any) => {
-                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                          }}
-                          onMouseLeave={(e: any) => {
-                            e.currentTarget.style.backgroundColor = 'transparent';
-                          }}
                         >
                           {option.label}
                         </SelectItem>
