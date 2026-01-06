@@ -31,7 +31,7 @@ export default function CustomerAutocomplete({
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [lastValue, setLastValue] = useState("");
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const justSelectedRef = useRef(false);
 
@@ -156,42 +156,6 @@ export default function CustomerAutocomplete({
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={async () => {
-          // Don't show dropdown if user just selected a customer
-          if (justSelectedRef.current) {
-            return;
-          }
-          
-          // Don't show dropdown if value exists and matches lastValue (already selected)
-          // This prevents reopening after selection
-          if (value && value.trim().length > 0 && value === lastValue) {
-            return;
-          }
-          
-          // Show dropdown only if user is actively searching (empty or typing)
-          if (value.trim().length === 0) {
-            // Empty field - fetch initial customers
-            if (!isLoading) {
-              setIsLoading(true);
-              try {
-                const response = await fetch('/api/customers/search?q=');
-                if (response.ok) {
-                  const data = await response.json();
-                  setSuggestions(data.customers || []);
-                  setShowDropdown(true);
-                  setSelectedIndex(-1);
-                }
-              } catch (error) {
-                console.error('Customer search error:', error);
-              } finally {
-                setIsLoading(false);
-              }
-            }
-          } else if (suggestions.length > 0) {
-            // Has suggestions from typing - show them
-            setShowDropdown(true);
-          }
-        }}
         placeholder={placeholder}
         disabled={disabled}
         style={{

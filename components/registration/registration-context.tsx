@@ -15,10 +15,17 @@ export interface RegistrationData {
   companyNumber: string // מספר חברה / תעודת זהות (חובה)
   industry: string
   customIndustry: string // תחום פעילות מותאם אישית (אם בחר "אחר")
+  // Business Check Step
+  businessNumber: string // מספר עוסק / ח.פ. לבדיקה
+  isBusinessFound: boolean // האם נמצא עסק בבדיקה
   // Step 3: Address (Final Step)
   street: string
   city: string // שדה טקסט חופשי
   postalCode: string
+  // Onboarding Step
+  accountingNeeds: string[] // שירותי הנהלת חשבונות נדרשים
+  howDidYouHear: string // איך הגעת אלינו
+  monthlyDocuments: string // כמות מסמכים בחודש
 }
 
 interface RegistrationContextType {
@@ -45,9 +52,14 @@ const initialData: RegistrationData = {
   companyNumber: "",
   industry: "",
   customIndustry: "",
+  businessNumber: "",
+  isBusinessFound: false,
   street: "",
   city: "",
   postalCode: "",
+  accountingNeeds: [],
+  howDidYouHear: "",
+  monthlyDocuments: "",
 }
 
 const RegistrationContext = createContext<RegistrationContextType | null>(null)

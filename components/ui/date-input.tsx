@@ -252,7 +252,7 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
       <div style={{ position: 'relative', width: '100%' }}>
         {/* Display input with DD/MM/YYYY format */}
         <Input
-          {...props}
+          {...(props as any)}
           ref={inputRef}
           type="text"
           value={isMounted ? displayValue : formatToDisplay(value)}

@@ -224,7 +224,7 @@ export default function PreviewClient({
             // Handle nested conditionals: {{#if this.prop}}...{{/if}}
             itemHtml = itemHtml.replace(
               /\{\{#if\s+this\.(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-              (m, prop, content) => {
+              (m: string, prop: string, content: string) => {
                 const value = item[prop];
                 return value ? content : "";
               }
@@ -233,7 +233,7 @@ export default function PreviewClient({
             // Replace {{this.prop}} with item values (supports spaces)
             itemHtml = itemHtml.replace(
               /\{\{\s*this\.(\w+)\s*\}\}/g,
-              (m, prop) => {
+              (m: string, prop: string) => {
                 const value = item[prop];
                 return value !== undefined && value !== null ? String(value) : "";
               }

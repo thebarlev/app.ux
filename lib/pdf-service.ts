@@ -177,31 +177,31 @@ export async function prepareDocumentData(
   // Build template data structure
   const templateData: ReceiptTemplateData = {
     company: {
-      name: doc.company?.name || "",
-      tax_id: doc.company?.tax_id || null,
-      address: doc.company?.address || null,
-      phone: doc.company?.phone || null,
-      email: doc.company?.email || null,
-      logo_url: doc.company?.logo_url || null,
-      signature_url: doc.company?.signature_url || null,
+      company_name: doc.company?.name || "",
+      company_tax_id: doc.company?.tax_id || null,
+      company_address: doc.company?.address || null,
+      company_phone: doc.company?.phone || null,
+      company_email: doc.company?.email || null,
+      company_logo: doc.company?.logo_url || null,
     },
     customer: doc.customer ? {
-      name: doc.customer.name || "",
-      tax_id: doc.customer.tax_id || null,
-      email: doc.customer.email || null,
-      phone: doc.customer.phone || null,
-      address: doc.customer.address || null,
-    } : null,
+      customer_name: doc.customer.name || "",
+      customer_tax_id: doc.customer.tax_id || null,
+      customer_email: doc.customer.email || null,
+      customer_phone: doc.customer.phone || null,
+      customer_address: doc.customer.address || null,
+    } : {
+      customer_name: "",
+      customer_tax_id: null,
+      customer_email: null,
+      customer_phone: null,
+      customer_address: null,
+    },
     document: {
-      type: doc.document_type,
-      number: doc.document_number || "",
-      issue_date: doc.issue_date,
-      due_date: doc.due_date || null,
-      valid_until: null, // For quotes
-      reference_number: null,
-      description: doc.description || null,
-      currency: doc.currency,
-      status: doc.document_status,
+      document_number: doc.document_number || "",
+      document_date: doc.issue_date,
+      document_type: doc.document_type,
+      reference_number: doc.reference_number || null,
     },
     payments: payments.map((p: any) => ({
       payment_method: p.payment_method,
@@ -213,19 +213,20 @@ export async function prepareDocumentData(
       description: item.description,
       quantity: item.quantity,
       unit_price: parseFloat(item.unit_price),
-      line_total: parseFloat(item.line_total),
+      amount: parseFloat(item.line_total),
       notes: item.notes || null,
     })),
     totals: {
-      subtotal: doc.subtotal ? parseFloat(doc.subtotal) : null,
-      vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : null,
-      vat_amount: doc.vat_amount ? parseFloat(doc.vat_amount) : null,
-      discount_amount: doc.discount_amount ? parseFloat(doc.discount_amount) : null,
+      subtotal: doc.subtotal ? parseFloat(doc.subtotal) : 0,
+      vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : undefined,
+      vat_amount: doc.vat_amount ? parseFloat(doc.vat_amount) : undefined,
+      discount: doc.discount_amount ? parseFloat(doc.discount_amount) : undefined,
       total_amount: parseFloat(doc.total_amount),
+      currency: doc.currency,
     },
-    notes: {
-      internal_notes: doc.internal_notes || null,
-      footer_text: null, // Can be set from company settings or template
+    notes_data: {
+      notes: doc.internal_notes || null,
+      footer_notes: null, // Can be set from company settings or template
     },
   }
 

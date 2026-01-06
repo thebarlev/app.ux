@@ -150,6 +150,9 @@ export interface PDFGenerationOptions {
   displayHeaderFooter?: boolean;
   headerTemplate?: string;
   footerTemplate?: string;
+  landscape?: boolean;
+  scale?: number;
+  outputPath?: string;
 }
 
 export interface PDFGenerationResult {

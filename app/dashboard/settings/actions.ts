@@ -18,7 +18,7 @@ async function getMyCompanyId() {
   }
 
   // Use the centralized helper that checks both paths
-  const companyId = await getCompanyIdForUser(userId);
+  const companyId = await getCompanyIdForUser();
   if (!companyId) {
     throw new Error("No company found for this user");
   }

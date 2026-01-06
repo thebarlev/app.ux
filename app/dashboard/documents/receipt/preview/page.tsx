@@ -1,15 +1,15 @@
-import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { getReceiptStyleSettingsPublic } from "@/lib/receipt-style";
 import { getTemplateForDocument } from "@/lib/pdf-service";
 import PreviewWrapper from "./PreviewWrapper";
 
-async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
-  const supabase = await createClient();
-  
+export default async function ReceiptPreviewPage({ searchParams }: { searchParams: any }) {
   // Await searchParams in Next.js 16
   const params = await searchParams;
+  
+  // Load data directly instead of using Suspense with async component
+  const supabase = await createClient();
   
   // Get customer ID from search params
   const customerId = params.customerId || null;
@@ -80,16 +80,5 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       templateHtml={sanitizedHtml}
       templateCss={templateCss}
     />
-  );
-}
-
-export default async function ReceiptPreviewPage({ searchParams }: { searchParams: any }) {
-  // Await searchParams in Next.js 16
-  const params = await searchParams;
-  
-  return (
-    <Suspense fallback={<div style={{ padding: 40, textAlign: "center" }}>טוען...</div>}>
-      <PreviewDataLoader searchParams={params} />
-    </Suspense>
   );
 }

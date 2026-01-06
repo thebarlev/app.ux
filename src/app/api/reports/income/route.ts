@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildIncomeZip } from '@/lib/reports/income';
+import { buildIncomeZip } from '@/src/lib/reports/income';
 
 export const runtime = 'nodejs';
 

@@ -91,7 +91,7 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
           `הדוח הופק בהצלחה!\n\n` +
           `עסק: ${result.companyName}\n` +
           `תקופה: ${monthText}\n` +
-          `סה"כ מסמכים: ${result.reports.reduce((sum: number, r: any) => sum + r.documentCount, 0)}\n\n` +
+          `סה"כ מסמכים: ${result.reports?.reduce((sum: number, r: any) => sum + r.documentCount, 0) || 0}\n\n` +
           `ההורדה תתחיל בקרוב...`
         );
         

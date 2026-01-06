@@ -181,7 +181,7 @@ ${htmlTemplate}
         css: finalCss,
         isDefault,
         isActive,
-        thumbnailUrl, // Include thumbnail URL in creation
+        thumbnailUrl: thumbnailUrl || undefined, // Include thumbnail URL in creation
       }
 
       console.log("📦 Payload:", payload)

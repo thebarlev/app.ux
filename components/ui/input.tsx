@@ -10,24 +10,27 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   "aria-describedby"?: string;
 }
 
-export function Input({
-  className = "",
-  type = "text",
-  style,
-  ...props
-}: InputProps) {
-  return (
-    <input
-      type={type}
-      className={cn(FIELD_BASE_CLASS, className)}
-      style={{
-        /* אין "קונטור צבע" - border שקוף כדי לא לקפוץ בגובה */
-        border: "1px solid transparent",
-        backgroundColor: "#EDF1F5",
-        fontSize: "18px",
-        ...style,
-      }}
-      {...props}
-    />
-  );
-}
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  function Input({
+    className = "",
+    type = "text",
+    style,
+    ...props
+  }, ref) {
+    return (
+      <input
+        ref={ref}
+        type={type}
+        className={cn(FIELD_BASE_CLASS, className)}
+        style={{
+          /* אין "קונטור צבע" - border שקוף כדי לא לקפוץ בגובה */
+          border: "1px solid transparent",
+          backgroundColor: "#EDF1F5",
+          fontSize: "18px",
+          ...style,
+        }}
+        {...props}
+      />
+    );
+  }
+);

@@ -370,7 +370,7 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                           borderRadius: 12,
                           fontSize: 13,
                           fontWeight: 600,
-                          ...getStatusBadgeStyle(receipt.status),
+                          ...(receipt.status === "final" ? { backgroundColor: "#10b981", color: "white" } : receipt.status === "draft" ? { backgroundColor: "#f59e0b", color: "white" } : { backgroundColor: "#6b7280", color: "white" }),
                         }}
                       >
                         {getStatusLabel(receipt.status)}

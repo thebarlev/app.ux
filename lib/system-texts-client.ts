@@ -31,7 +31,7 @@ async function fetchSystemTexts(): Promise<Record<string, string>> {
     textCache = data.texts || {};
     cacheTimestamp = Date.now();
     
-    return textCache;
+    return textCache || {};
   } catch (error) {
     console.error("[SystemText] Fetch error:", error);
     return {};

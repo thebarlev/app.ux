@@ -94,7 +94,7 @@ export default function IncomeReportClient() {
         const monthText = result.totalMonths === 1 ? "חודש אחד" : `${result.totalMonths} חודשים`;
         setMessage({
           type: "success",
-          text: `הדוח הופק בהצלחה! עסק: ${result.companyName}, תקופה: ${monthText}, סה"כ מסמכים: ${result.reports.reduce((sum: number, r: any) => sum + r.documentCount, 0)}. ההורדה תתחיל בקרוב...`
+          text: `הדוח הופק בהצלחה! עסק: ${result.companyName}, תקופה: ${monthText}, סה"כ מסמכים: ${result.reports?.reduce((sum: number, r: any) => sum + r.documentCount, 0) || 0}. ההורדה תתחיל בקרוב...`
         });
         
         // TODO: Trigger actual PDF download here
