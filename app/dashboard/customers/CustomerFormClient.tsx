@@ -8,6 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/form-section";
+import { FormActions } from "@/components/ui/form-actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Users, Save, ArrowLeft, FileText } from "lucide-react";
 
 type Props = {
@@ -111,314 +115,309 @@ export default function CustomerFormClient({ customer }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 p-6 rounded-2xl border" style={{backgroundColor: '#1e293b', borderColor: '#334155'}}>
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30">
-              <Users className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-black ui-text-dark">
-                {isEdit ? "עריכת לקוח" : "לקוח חדש"}
-              </h1>
-              <p className="text-sm ui-text-dark-muted mt-1">
-                {isEdit ? "עדכן את פרטי הלקוח" : "הוסף לקוח חדש למערכת"}
-              </p>
-            </div>
-          </div>
-        </div>
-
+    <main dir="rtl" className="min-h-screen">
+      <div className="ui-container pt-10">
+        {/* Page Header - Title aligned right, 50px margin bottom */}
+        <h1 className="text-right text-4xl font-semibold text-[#19183B]">
+          {isEdit ? "עריכת לקוח" : "לקוח חדש"}
+        </h1>
+        <div className="h-[50px]" />
         {isEdit && (
-          <Link href={`/dashboard/customers/${customer.id}/documents`}>
-            <Button variant="outline" size="sm" className="ui-button-dark-secondary">
-              <FileText className="h-4 w-4 ml-2" />
-              צפה במסמכים
-            </Button>
-          </Link>
+          <div className="mb-[50px]">
+            <Link href={`/dashboard/customers/${customer.id}/documents`}>
+              <Button variant="secondary">
+                <FileText className="h-4 w-4 ml-2" />
+                צפה במסמכים
+              </Button>
+            </Link>
+          </div>
         )}
-      </div>
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-xl border ${
+        <Card className={cn(
+          "mb-[50px]",
           message.type === "success" 
-            ? "bg-ui-success-light border-ui-success text-ui-success" 
-            : "bg-ui-danger-light border-ui-danger text-ui-danger"
-        }`}>
-          <div className="font-semibold">{message.text}</div>
-        </div>
+            ? "border-success bg-success/10" 
+            : "border-danger bg-danger/10"
+        )}>
+          <CardContent className="p-4">
+            <div className={cn(
+              "font-semibold text-right",
+              message.type === "success" ? "text-success" : "text-danger"
+            )}>
+              {message.text}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit}>
-        <div className="ui-card-dark space-y-6">
-          {/* Basic Info Section */}
-          <div>
-            <h3 className="text-lg font-bold ui-text-dark mb-4">פרטי לקוח בסיסיים</h3>
-            <div className="grid gap-4">
-              <FieldWrapper label="שם העסק / לקוח" required>
-                <Input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="שם מלא או שם עסק"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="מספר עוסק (ת.ז / ח.פ)">
-                <Input
-                  type="text"
-                  name="tax_id"
-                  value={formData.tax_id}
-                  onChange={handleInputChange}
-                  placeholder="123456789"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="עיסוק ומקצוע">
-                <Input
-                  type="text"
-                  name="profession"
-                  value={formData.profession}
-                  onChange={handleInputChange}
-                  placeholder="לדוגמה: עורך דין, רופא, יועץ עסקי"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-            </div>
-          </div>
-
-          {/* Contact Section */}
-          <div className="pt-6 border-t border-ui-border-dark">
-            <h3 className="text-lg font-bold ui-text-dark mb-4">פרטי התקשרות</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldWrapper label="איש קשר">
-                <Input
-                  type="text"
-                  name="contact_person"
-                  value={formData.contact_person}
-                  onChange={handleInputChange}
-                  placeholder="שם איש הקשר"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="טלפון">
-                <Input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  placeholder="03-1234567"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="טלפון נוסף">
-                <Input
-                  type="tel"
-                  name="phone_secondary"
-                  value={formData.phone_secondary}
-                  onChange={handleInputChange}
-                  placeholder="04-7654321"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="נייד">
-                <Input
-                  type="tel"
-                  name="mobile"
-                  value={formData.mobile}
-                  onChange={handleInputChange}
-                  placeholder="050-1234567"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <FieldWrapper label="אימייל" className="md:col-span-2">
-                <Input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="example@domain.com"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-            </div>
-          </div>
-
-          {/* Address Section */}
-          <div className="pt-6 border-t border-ui-border-dark">
-            <h3 className="text-lg font-bold ui-text-dark mb-4">כתובת</h3>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-[1fr_120px] gap-4">
-                <FieldWrapper label="רחוב">
+      <form onSubmit={handleSubmit} className="ui-section-gap">
+        {/* Basic Info Section */}
+        <FormSection title="פרטי לקוח בסיסיים">
+          <div className="ui-form-grid-customer">
+                <FieldWrapper label="שם העסק / לקוח" required id="name">
                   <Input
+                    id="name"
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="שם מלא או שם עסק"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="מספר עוסק (ת.ז / ח.פ)" id="tax_id">
+                  <Input
+                    id="tax_id"
+                    type="text"
+                    name="tax_id"
+                    value={formData.tax_id}
+                    onChange={handleInputChange}
+                    placeholder="123456789"
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="עיסוק ומקצוע" id="profession">
+                  <Input
+                    id="profession"
+                    type="text"
+                    name="profession"
+                    value={formData.profession}
+                    onChange={handleInputChange}
+                    placeholder="לדוגמה: עורך דין, רופא, יועץ עסקי"
+                  />
+                </FieldWrapper>
+          </div>
+        </FormSection>
+
+        {/* Contact Section */}
+        <FormSection title="פרטי התקשרות">
+          <div className="ui-form-grid-customer">
+                <FieldWrapper label="איש קשר" id="contact_person">
+                  <Input
+                    id="contact_person"
+                    type="text"
+                    name="contact_person"
+                    value={formData.contact_person}
+                    onChange={handleInputChange}
+                    placeholder="שם איש הקשר"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="טלפון" id="phone">
+                  <Input
+                    id="phone"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    placeholder="03-1234567"
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="טלפון נוסף" id="phone_secondary">
+                  <Input
+                    id="phone_secondary"
+                    type="tel"
+                    name="phone_secondary"
+                    value={formData.phone_secondary}
+                    onChange={handleInputChange}
+                    placeholder="04-7654321"
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="נייד" id="mobile">
+                  <Input
+                    id="mobile"
+                    type="tel"
+                    name="mobile"
+                    value={formData.mobile}
+                    onChange={handleInputChange}
+                    placeholder="050-1234567"
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="דוא״ל" id="email">
+                  <Input
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="example@domain.com"
+                    dir="ltr"
+                    className="text-left"
+                  />
+                </FieldWrapper>
+          </div>
+        </FormSection>
+
+        {/* Address Section */}
+        <FormSection title="כתובת">
+          <div className="ui-form-grid-customer">
+                <FieldWrapper label="רחוב" id="address_street">
+                  <Input
+                    id="address_street"
                     type="text"
                     name="address_street"
                     value={formData.address_street}
                     onChange={handleInputChange}
                     placeholder="שם הרחוב"
-                    className="ui-input-dark"
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר">
+                <FieldWrapper label="מספר" id="address_number">
                   <Input
+                    id="address_number"
                     type="text"
                     name="address_number"
                     value={formData.address_number}
                     onChange={handleInputChange}
                     placeholder="123"
-                    className="ui-input-dark"
                   />
                 </FieldWrapper>
-              </div>
 
-              <div className="grid grid-cols-[1fr_120px] gap-4">
-                <FieldWrapper label="ישוב">
+                <FieldWrapper label="יישוב" id="address_city">
                   <Input
+                    id="address_city"
                     type="text"
                     name="address_city"
                     value={formData.address_city}
                     onChange={handleInputChange}
                     placeholder="תל אביב"
-                    className="ui-input-dark"
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מיקוד">
+                <FieldWrapper label="מיקוד" id="address_zip">
                   <Input
+                    id="address_zip"
                     type="text"
                     name="address_zip"
                     value={formData.address_zip}
                     onChange={handleInputChange}
                     placeholder="1234567"
-                    className="ui-input-dark"
+                    dir="ltr"
+                    className="text-left"
                   />
                 </FieldWrapper>
-              </div>
-
-              <FieldWrapper label="מדינה">
-                <Input
-                  type="text"
-                  name="address_country"
-                  value={formData.address_country}
-                  onChange={handleInputChange}
-                  placeholder="ישראל"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-            </div>
+            <FieldWrapper label="מדינה" id="address_country">
+              <Input
+                id="address_country"
+                type="text"
+                name="address_country"
+                value={formData.address_country}
+                onChange={handleInputChange}
+                placeholder="ישראל"
+              />
+            </FieldWrapper>
           </div>
+        </FormSection>
 
-          {/* Accounting Section */}
-          <div className="pt-6 border-t border-ui-border-dark">
-            <h3 className="text-lg font-bold ui-text-dark mb-4">פרטים חשבונאיים</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <FieldWrapper label="תנאי תשלום">
-                <Select 
-                  value={formData.payment_terms_text} 
-                  onValueChange={(value) => setFormData(prev => ({...prev, payment_terms_text: value}))}
-                >
-                  <SelectTrigger className="ui-input-dark">
-                    <SelectValue placeholder="בחר תנאי תשלום" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_TERMS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldWrapper>
+        {/* Accounting Section */}
+        <FormSection title="פרטים חשבונאיים">
+          <div className="ui-form-grid-customer">
+                <FieldWrapper label="תנאי תשלום" id="payment_terms_text">
+                  <Select 
+                    value={formData.payment_terms_text} 
+                    onValueChange={(value) => setFormData(prev => ({...prev, payment_terms_text: value}))}
+                  >
+                    <SelectTrigger id="payment_terms_text">
+                      <SelectValue placeholder="בחר תנאי תשלום" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TERMS_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWrapper>
 
-              <FieldWrapper label="מפתח לקוח">
-                <Input
-                  type="text"
-                  name="external_account_key"
-                  value={formData.external_account_key}
-                  onChange={handleInputChange}
-                  placeholder="מפתח חשבון בתוכנה חיצונית"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-            </div>
-          </div>
-
-          {/* Bank Details Section */}
-          <div className="pt-6 border-t border-ui-border-dark">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold ui-text-dark">פרטי חשבון בנק</h3>
-              <p className="text-sm ui-text-dark-muted mt-1">פרטי החשבון יוצגו אוטומטית בקבלות</p>
-            </div>
-            <div className="grid gap-4">
-              <FieldWrapper label="שם הבנק">
-                <Input
-                  type="text"
-                  name="bank_name"
-                  value={formData.bank_name}
-                  onChange={handleInputChange}
-                  placeholder="לדוגמה: בנק הפועלים"
-                  className="ui-input-dark"
-                />
-              </FieldWrapper>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FieldWrapper label="מספר סניף">
+                <FieldWrapper label="מפתח לקוח" id="external_account_key">
                   <Input
+                    id="external_account_key"
+                    type="text"
+                    name="external_account_key"
+                    value={formData.external_account_key}
+                    onChange={handleInputChange}
+                    placeholder="מפתח חשבון בתוכנה חיצונית"
+                  />
+                </FieldWrapper>
+          </div>
+        </FormSection>
+
+        {/* Bank Details Section */}
+        <FormSection 
+          title="פרטי חשבון בנק"
+          description="פרטי החשבון יוצגו אוטומטית בקבלות"
+        >
+          <div className="ui-form-grid-customer">
+                <FieldWrapper label="שם הבנק" id="bank_name">
+                  <Input
+                    id="bank_name"
+                    type="text"
+                    name="bank_name"
+                    value={formData.bank_name}
+                    onChange={handleInputChange}
+                    placeholder="לדוגמה: בנק הפועלים"
+                  />
+                </FieldWrapper>
+
+                <FieldWrapper label="מספר סניף" id="bank_branch">
+                  <Input
+                    id="bank_branch"
                     type="text"
                     name="bank_branch"
                     value={formData.bank_branch}
                     onChange={handleInputChange}
                     placeholder="123"
-                    className="ui-input-dark"
+                    dir="ltr"
+                    className="text-left"
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר חשבון">
+                <FieldWrapper label="מספר חשבון" id="bank_account">
                   <Input
+                    id="bank_account"
                     type="text"
                     name="bank_account"
                     value={formData.bank_account}
                     onChange={handleInputChange}
                     placeholder="1234567"
-                    className="ui-input-dark"
+                    dir="ltr"
+                    className="text-left"
                   />
                 </FieldWrapper>
-              </div>
-            </div>
           </div>
+        </FormSection>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-6 border-t border-ui-border-dark">
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="ui-button-dark-primary"
-            >
-              <Save className="h-4 w-4 ml-2" />
-              {isSaving ? "שומר..." : isEdit ? "עדכן לקוח" : "צור לקוח"}
-            </Button>
-            
-            <Link href="/dashboard/customers">
-              <Button type="button" variant="outline" className="ui-button-dark-secondary">
-                <ArrowLeft className="h-4 w-4 ml-2" />
-                ביטול
-              </Button>
-            </Link>
-          </div>
+        {/* Actions */}
+        <div className="mt-10">
+          <FormActions
+            primaryLabel={isEdit ? "עדכן לקוח" : "צור לקוח"}
+            secondaryLabel="ביטול"
+            onSecondaryClick={() => router.push("/dashboard/customers")}
+            primaryLoading={isSaving}
+            primaryDisabled={isSaving}
+            primaryType="submit"
+            primaryIcon={<Save className="h-4 w-4" />}
+            secondaryIcon={<ArrowLeft className="h-4 w-4" />}
+          />
         </div>
       </form>
-    </div>
+      </div>
+    </main>
   );
 }

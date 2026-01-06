@@ -47,10 +47,10 @@ function NavLink({ href, label, icon, onClick }: NavItem & { onClick?: () => voi
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${
         isActive
           ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-          : "text-sidebar-fg/70 hover:bg-sidebar-hover hover:text-sidebar-fg"
+          : "text-sidebar-fg hover:bg-sidebar-hover"
       }`}
     >
-      {icon && <span className="shrink-0">{icon}</span>}
+      {icon && <span className="shrink-0 text-sidebar-fg">{icon}</span>}
       <span>{label}</span>
     </Link>
   )
@@ -78,7 +78,7 @@ function SidebarContent({ onNavigate, adminName }: { onNavigate?: () => void; ad
           </div>
           <div>
             <div className="text-lg font-bold text-sidebar-fg">System Admin</div>
-            <div className="text-xs text-sidebar-fg/50">Control Panel</div>
+            <div className="text-xs text-sidebar-fg">Control Panel</div>
           </div>
         </div>
         <div className="mt-4 px-4 py-3 bg-card rounded-lg border border-border">
@@ -153,7 +153,7 @@ export function AdminDashboardLayout({ children, adminName }: AdminDashboardLayo
       </div>
 
       {/* Desktop Sidebar - LEFT SIDE (Fixed) */}
-      <aside className="hidden lg:block fixed right-0 top-0 h-full w-80 bg-sidebar/50 backdrop-blur-2xl border-l border-sidebar-border p-6">
+      <aside className="hidden lg:block fixed right-0 top-0 h-full w-80 bg-sidebar border-l border-sidebar-border p-6">
         <SidebarContent adminName={adminName} />
       </aside>
 

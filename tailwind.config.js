@@ -7,6 +7,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Heebo', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', 'sans-serif'],
+      },
       colors: {
         // Design Tokens - Semantic Color System
         bg: 'var(--bg)',
@@ -27,12 +30,14 @@ module.exports = {
 
         secondary: 'var(--secondary)',
         'secondary-fg': 'var(--secondary-fg)',
+        'secondary-border': 'var(--secondary-border)',
 
         danger: 'var(--danger)',
         'danger-fg': 'var(--danger-fg)',
 
         input: 'var(--input)',
         'input-fg': 'var(--input-fg)',
+        'input-border': 'var(--input-border)',
         placeholder: 'var(--placeholder)',
 
         success: 'var(--success)',

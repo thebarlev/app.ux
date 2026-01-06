@@ -44,8 +44,8 @@ export function StepProgress({
               {index > 0 && (
                 <div
                   className={cn(
-                    "absolute top-5 sm:top-6 h-0.5 -right-1/2 w-full transition-colors duration-300",
-                    isCompleted ? "bg-ui-primary" : "bg-ui-muted"
+                    "absolute top-4 h-0.5 -right-1/2 w-full transition-colors duration-300",
+                    isCompleted ? "bg-primary" : "bg-muted"
                   )}
                   aria-hidden="true"
                 />
@@ -59,29 +59,29 @@ export function StepProgress({
                 aria-current={isCurrent ? "step" : undefined}
                 aria-label={`${step.label}${isCompleted ? ' - הושלם' : isCurrent ? ' - שלב נוכחי' : ' - לא הושלם'}`}
                 className={cn(
-                  "relative z-10 flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full text-sm font-semibold transition-all duration-200",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ui-primary focus-visible:ring-offset-2",
-                  isCompleted && "bg-ui-primary text-white shadow-md hover:bg-ui-primary-hover",
-                  isCurrent && "bg-ui-primary text-white shadow-lg ring-2 ring-ui-primary ring-offset-2 scale-110",
-                  !isCompleted && !isCurrent && "bg-ui-muted text-ui-text-muted",
+                  "relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-all duration-200",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                  isCompleted && "bg-primary text-primary-fg shadow-ui hover:bg-primary-hover",
+                  isCurrent && "bg-primary text-primary-fg shadow-ui-lg ring-2 ring-primary ring-offset-2 scale-110",
+                  !isCompleted && !isCurrent && "bg-muted text-muted-fg",
                   isClickable && "cursor-pointer hover:scale-105",
                   !isClickable && !isCurrent && "cursor-not-allowed"
                 )}
               >
                 {isCompleted ? (
-                  <Check className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={3} aria-hidden="true" />
+                  <Check className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
                 ) : (
-                  <span className="text-base sm:text-lg">{step.id}</span>
+                  <span className="text-sm">{step.id}</span>
                 )}
               </button>
 
-              {/* Step Label - 2 words max */}
+              {/* Step Label */}
               <span
                 className={cn(
-                  "text-center text-xs sm:text-sm font-medium transition-colors leading-tight px-1",
-                  isCurrent && "text-ui-primary font-semibold",
-                  isCompleted && "text-ui-text",
-                  !isCompleted && !isCurrent && "text-ui-text-muted"
+                  "text-center text-xs font-medium transition-colors leading-tight px-1",
+                  isCurrent && "text-primary font-semibold",
+                  isCompleted && "text-fg",
+                  !isCompleted && !isCurrent && "text-muted-fg"
                 )}
                 aria-hidden="true"
               >

@@ -67,11 +67,11 @@ function NavLink({ href, label, icon, onClick }: NavItem & { onClick?: () => voi
         ${
           isActive
             ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-            : "text-sidebar-fg/70 hover:bg-sidebar-hover hover:text-sidebar-fg"
+            : "text-sidebar-fg hover:bg-sidebar-hover"
         }
       `}
     >
-      {icon && <span className="shrink-0">{icon}</span>}
+      {icon && <span className="shrink-0 text-sidebar-fg">{icon}</span>}
       <span>{label}</span>
     </Link>
   )
@@ -90,7 +90,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Header */}
       <div className="mb-6 px-4">
         <div className="text-lg font-bold text-sidebar-fg">מערכת ניהול</div>
-        <div className="text-xs text-sidebar-fg/50">Admin Panel</div>
+        <div className="text-xs text-sidebar-fg">Admin Panel</div>
       </div>
 
       {/* Navigation Sections */}
@@ -209,7 +209,7 @@ export function DashboardLayoutResizable({ children }: DashboardLayoutResizableP
 
       {/* Desktop Sidebar - RIGHT SIDE (Resizable, Fixed Position) */}
       <aside
-        className="hidden lg:block fixed left-0 top-0 h-full bg-sidebar/50 backdrop-blur border-l border-sidebar-border"
+        className="hidden lg:block fixed left-0 top-0 h-full bg-sidebar border-l border-sidebar-border"
         style={{ width: `${sidebarWidth}px` }}
       >
         {/* Resize Handle */}

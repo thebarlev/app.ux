@@ -11,7 +11,7 @@ function NavLink({ label, href }: NavItem) {
   return (
     <Link
       href={href}
-      className="block rounded-xl px-3 py-2 text-sm text-sidebar-fg/85 hover:bg-sidebar-hover hover:text-sidebar-fg transition"
+      className="block rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover transition"
     >
       {label}
     </Link>
@@ -22,8 +22,8 @@ export function Sidebar() {
   return (
     <div className="flex h-full flex-col rounded-2xl border border-sidebar-border bg-sidebar p-4">
       <div className="mb-4">
-        <div className="text-base font-semibold">מערכת ניהול</div>
-        <div className="text-xs text-sidebar-fg/60">Admin Panel</div>
+        <div className="text-base font-semibold text-sidebar-fg">מערכת ניהול</div>
+        <div className="text-xs text-sidebar-fg">Admin Panel</div>
       </div>
 
       <nav className="space-y-1">
@@ -34,9 +34,9 @@ export function Sidebar() {
 
       <div className="mt-3">
         <details className="group">
-          <summary className="list-none cursor-pointer rounded-xl px-3 py-2 text-sm text-sidebar-fg/85 hover:bg-sidebar-hover transition flex items-center justify-between">
+          <summary className="list-none cursor-pointer rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover transition flex items-center justify-between">
             <span>קבלות / חשבוניות</span>
-            <span className="text-sidebar-fg/60 group-open:rotate-180 transition">⌄</span>
+            <span className="text-sidebar-fg group-open:rotate-180 transition">⌄</span>
           </summary>
 
           <div className="mt-2 space-y-1 pr-3 border-r border-sidebar-border">

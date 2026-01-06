@@ -10,16 +10,16 @@
 @layer base {
   :root {
     /* ===== App Base ===== */
-    --bg: #F5FBF9;
-    --fg: #19183B;
+    --bg: #F5FBF9;        /* רקע כללי של הדפים */
+    --fg: #F5FBF9;        /* טקסט ראשי על רקע כללי */
 
-    --card: #E7F2EF;
-    --card-fg: #19183B;
+    --card: #EDF1F5;      /* רקע של כרטיסים/משטחים */
+    --card-fg: #F5FBF9;   /* טקסט על כרטיס */
 
-    --muted: #C5E2DA;
+    --muted: none;
     --muted-fg: #708993;
 
-    --border: #A1C2BD;
+    --border: #ffffff;
     --ring: #708993;
 
     /* ===== Actions / Buttons ===== */
@@ -28,59 +28,73 @@
     --primary-hover: #19183B;
 
     --secondary: #F5FBF9;
-    --secondary-fg: #1D868F;
+    --secondary-fg: #EDF1F5;
+    --secondary-border: #1D868F;
 
     --danger: #9B0003;
-    --danger-fg: #FFFFFF;
+    --danger-fg: #9B0003;
 
     /* ===== Forms / States ===== */
     --input: #F5FBF9;
-    --input-fg: #1D868F;
-    --placeholder: #708993;
+    --input-fg: #19183B;
+    --input-border: #1D868F;
+    --placeholder: #97B2BD;
 
     --success: #1D868F;
     --success-fg: #19183B;
 
     --warning: #9B0003;
-    --warning-fg: #FFFFFF;
+    --warning-fg: #ffffff;
 
     /* ===== Overlay ===== */
     --overlay: rgba(25, 24, 59, 0.6);
 
     /* ===== Sidebar (Inverse) ===== */
     --sidebar-bg: #19183B;
-    --sidebar-fg: #E7F2EF;
-    --sidebar-muted-fg: #FFFFFF;
+    --sidebar-fg: #EDF1F5;
+    --sidebar-muted-fg: #EDF1F5;
     --sidebar-muted-bg: #1D868F;
 
-    --sidebar-border: #1D868F;
+    --sidebar-border: none;
     --sidebar-hover: #1D868F;
     --sidebar-active: #1D868F;
     --sidebar-active-fg: #FFFFFF;
-    --sidebar-ring: #E7F2EF;
+    --sidebar-ring: #EDF1F5;
 
     /* ===== Tables ===== */
     --table-header-bg: #19183B;
-    --table-header-fg: #FFFFFF;
+    --table-header-fg: #ffffff;
     --table-row-hover: #A1C2BD;
-    --table-stripe: #E7F2EF;
+    --table-stripe: #EDF1F5;
     --table-positive: #19183B;
-    --table-negative: #9B0003;
+    --table-negative: #19183B;
 
     /* ===== Layout ===== */
-    --radius: 10px;
+    --radius: 5px;
   }
 
   html, body {
     height: 100%;
-    background-color: var(--bg);
+    background-color: #EDF1F5;
+    font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   }
 
   body {
+    /* דרישתך: צבע עמוד Body */
     margin: 0;
-    color: var(--fg);
+    background: var(--card);
+    color: var(--input-fg);
     font-size: 14px;
     line-height: 1.6;
+  }
+
+  /* Placeholder styling - גלובלי לכל השדות, RTL aligned */
+  input::placeholder,
+  textarea::placeholder {
+    font-size: 18px;
+    color: #708993;
+    text-align: right;
+    direction: rtl;
   }
 }
 
@@ -114,10 +128,125 @@
 
   /* Focus visible utility for keyboard navigation */
   .focus-visible-ring:focus-visible {
-    @apply outline-none ring-2 ring-primary ring-offset-2;
+    @apply outline-none ring-2 ring-ring ring-offset-2;
   }
 
-  /* ==================== Input Icon Fixes (Dark Mode) ==================== */
+  /* ==================== UI Kit Utility Classes ==================== */
+  
+  /* Container - Max width 1200px INCLUDING 50px padding on each side */
+  /* Net width for content: 1200 - 100 = 1100px */
+  .ui-container {
+    @apply mx-auto max-w-[1200px] px-[50px];
+  }
+
+  /* Form Grid - Maximum 3 columns, centered, 50px gaps, max-width 300px per field */
+  .ui-form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 300px));
+    column-gap: 50px;
+    row-gap: 50px;
+    justify-content: center;
+    justify-items: center;
+  }
+
+  /* Form Grid for Customer Form - RTL order using direction: rtl (natural RTL placement) */
+  .ui-form-grid-customer {
+    display: grid;
+    direction: rtl;                /* זה עושה את כל ה-"ordering" לבד */
+    grid-template-columns: repeat(3, 300px);
+    column-gap: 50px;
+    row-gap: 50px;
+    justify-content: center;       /* מרכז את בלוק הגריד */
+    align-items: start;            /* חשוב: שלא יהיה center אנכי */
+    justify-items: stretch;        /* שדות ימלאו 300px */
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  /* לא חובה, אבל בסדר להשאיר אם אתה רוצה "נעילה" */
+  .ui-form-grid-customer > * {
+    width: 300px;
+    max-width: 300px;
+  }
+
+  /* Responsive: 2 columns on tablet */
+  @media (max-width: 1024px) {
+    .ui-form-grid-customer {
+      grid-template-columns: repeat(2, 300px);
+    }
+  }
+
+  /* Responsive: 1 column on mobile */
+  @media (max-width: 640px) {
+    .ui-form-grid-customer {
+      grid-template-columns: 1fr;
+      justify-content: stretch;
+    }
+    .ui-form-grid-customer > * {
+      width: 100%;
+      max-width: 300px; /* אם אתה רוצה להשאיר 300 גם במובייל, או להסיר כדי להיות full */
+    }
+  }
+
+  /* Section Gap - 50px spacing between sections */
+  .ui-section-gap {
+    @apply space-y-[50px];
+  }
+
+  /* Card */
+  .ui-card {
+    @apply bg-card border border-border rounded-[5px] shadow-ui;
+  }
+
+  /* Page Titles */
+  .ui-page-title {
+    @apply text-2xl font-bold text-fg text-right;
+  }
+
+  .ui-page-subtitle {
+    @apply text-sm text-muted-fg mt-1 text-right;
+  }
+
+  /* Page Header - Title with 50px margin bottom */
+  .ui-page-header {
+    @apply mb-[50px];
+  }
+
+  /* Divider */
+  .ui-divider {
+    @apply border-t border-border;
+  }
+
+  /* Focus Ring */
+  .ui-focus {
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+
+  /* ==================== Sidebar Utilities ==================== */
+  
+  /* Sidebar Container */
+  .ui-sidebar {
+    @apply bg-sidebar text-sidebar-fg border-r border-sidebar-border;
+  }
+
+  /* Sidebar Item */
+  .ui-sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-[10px] text-sidebar-fg transition-colors;
+    @apply hover:bg-sidebar-hover hover:text-sidebar-fg;
+    @apply focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:ring-offset-2;
+  }
+
+  /* Sidebar Active Item */
+  .ui-sidebar-item-active {
+    @apply bg-sidebar-active text-sidebar-active-fg font-medium;
+  }
+
+  /* Sidebar Sub Item (aligned to text, not icon) */
+  .ui-sidebar-sub-item {
+    @apply pr-12;
+  }
+
+  /* ==================== Input Icon Fixes ==================== */
   
   /* Fix calendar icon color in date inputs on dark backgrounds */
   input[type="date"]::-webkit-calendar-picker-indicator,

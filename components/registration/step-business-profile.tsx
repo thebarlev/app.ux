@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicSelect } from "./neumorphic-select"
-import { NeumorphicButton } from "./neumorphic-button"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { HelperText } from "@/components/ui/helper-text"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
@@ -29,7 +30,7 @@ const INDUSTRIES = [
 ]
 
 export function StepBusinessProfile() {
-  const { data, updateData, nextStep } = useRegistration()
+  const { data, updateData, nextStep, prevStep } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = () => {
@@ -57,105 +58,145 @@ export function StepBusinessProfile() {
   }
 
   return (
-    <div className="ui-card">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-ui-text">פרופיל עסקי</h2>
-        <p className="mt-2 ui-text-muted">ספר לנו על העסק שלך</p>
-      </div>
+    <Card className="shadow-ui-lg">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-2xl font-bold text-card-fg text-right">
+          פרופיל עסקי
+        </CardTitle>
+        <CardDescription className="text-muted-fg text-right">
+          ספר לנו על העסק שלך
+        </CardDescription>
+      </CardHeader>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="businessName" className="ui-label">
-            שם העסק
-          </label>
-          <input
-            id="businessName"
-            type="text"
-            className={errors.businessName ? "ui-input-error" : "ui-input"}
-            placeholder="שם העסק המלא"
-            value={data.businessName}
-            onChange={(e) => updateData({ businessName: e.target.value })}
-          />
-          {errors.businessName && <p className="text-sm text-ui-danger mt-1">{errors.businessName}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="businessType" className="ui-label">
-            סוג העסק
-          </label>
-          <select
-            id="businessType"
-            className={errors.businessType ? "ui-select border-ui-danger" : "ui-select"}
-            value={data.businessType}
-            onChange={(e) => updateData({ businessType: e.target.value as typeof data.businessType })}
-          >
-            <option value="">בחר סוג עסק</option>
-            {BUSINESS_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-          {errors.businessType && <p className="text-sm text-ui-danger mt-1">{errors.businessType}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="companyNumber" className="ui-label">
-            מספר חברה / תעודת זהות
-          </label>
-          <input
-            id="companyNumber"
-            type="text"
-            className={errors.companyNumber ? "ui-input-error text-left" : "ui-input text-left"}
-            placeholder="123456789"
-            value={data.companyNumber}
-            onChange={(e) => updateData({ companyNumber: e.target.value })}
-            dir="ltr"
-          />
-          {errors.companyNumber && <p className="text-sm text-ui-danger mt-1">{errors.companyNumber}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="industry" className="ui-label">
-            תחום פעילות
-          </label>
-          <select
-            id="industry"
-            className={errors.industry ? "ui-select border-ui-danger" : "ui-select"}
-            value={data.industry}
-            onChange={(e) => updateData({ industry: e.target.value })}
-          >
-            <option value="">בחר תחום</option>
-            {INDUSTRIES.map((ind) => (
-              <option key={ind.value} value={ind.value}>
-                {ind.label}
-              </option>
-            ))}
-          </select>
-          {errors.industry && <p className="text-sm text-ui-danger mt-1">{errors.industry}</p>}
-        </div>
-
-        {data.industry === "other" && (
-          <div>
-            <label htmlFor="customIndustry" className="ui-label">
-              פרט תחום פעילות
-            </label>
-            <input
-              id="customIndustry"
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="businessName" className="text-right">
+              שם העסק <span className="text-danger" aria-label="שדה חובה">*</span>
+            </Label>
+            <Input
+              id="businessName"
               type="text"
-              className={errors.customIndustry ? "ui-input-error" : "ui-input"}
-              placeholder="הזן את תחום הפעילות שלך"
-              value={data.customIndustry}
-              onChange={(e) => updateData({ customIndustry: e.target.value })}
+              className={errors.businessName ? "border-danger focus:ring-danger" : ""}
+              placeholder="שם העסק המלא"
+              value={data.businessName}
+              onChange={(e) => updateData({ businessName: e.target.value })}
             />
-            {errors.customIndustry && <p className="text-sm text-ui-danger mt-1">{errors.customIndustry}</p>}
+            {errors.businessName && (
+              <HelperText error>{errors.businessName}</HelperText>
+            )}
           </div>
-        )}
 
-        <button type="submit" className="ui-button-primary w-full">
-          המשך לשלב הבא
-        </button>
-      </form>
-    </div>
+          <div className="space-y-2">
+            <Label htmlFor="businessType" className="text-right">
+              סוג העסק <span className="text-danger" aria-label="שדה חובה">*</span>
+            </Label>
+            <Select
+              value={data.businessType}
+              onValueChange={(value) => updateData({ businessType: value as typeof data.businessType })}
+            >
+              <SelectTrigger 
+                id="businessType"
+                className={errors.businessType ? "border-danger focus:ring-danger" : ""}
+              >
+                <SelectValue placeholder="בחר סוג עסק" />
+              </SelectTrigger>
+              <SelectContent>
+                {BUSINESS_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.businessType && (
+              <HelperText error>{errors.businessType}</HelperText>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="companyNumber" className="text-right">
+              מספר חברה / תעודת זהות <span className="text-danger" aria-label="שדה חובה">*</span>
+            </Label>
+            <Input
+              id="companyNumber"
+              type="text"
+              className={`text-left ${errors.companyNumber ? "border-danger focus:ring-danger" : ""}`}
+              placeholder="123456789"
+              value={data.companyNumber}
+              onChange={(e) => updateData({ companyNumber: e.target.value })}
+              dir="ltr"
+            />
+            {errors.companyNumber && (
+              <HelperText error>{errors.companyNumber}</HelperText>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="industry" className="text-right">
+              תחום פעילות <span className="text-danger" aria-label="שדה חובה">*</span>
+            </Label>
+            <Select
+              value={data.industry}
+              onValueChange={(value) => updateData({ industry: value })}
+            >
+              <SelectTrigger 
+                id="industry"
+                className={errors.industry ? "border-danger focus:ring-danger" : ""}
+              >
+                <SelectValue placeholder="בחר תחום" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRIES.map((ind) => (
+                  <SelectItem key={ind.value} value={ind.value}>
+                    {ind.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.industry && (
+              <HelperText error>{errors.industry}</HelperText>
+            )}
+          </div>
+
+          {data.industry === "other" && (
+            <div className="space-y-2">
+              <Label htmlFor="customIndustry" className="text-right">
+                פרט תחום פעילות <span className="text-danger" aria-label="שדה חובה">*</span>
+              </Label>
+              <Input
+                id="customIndustry"
+                type="text"
+                className={errors.customIndustry ? "border-danger focus:ring-danger" : ""}
+                placeholder="הזן את תחום הפעילות שלך"
+                value={data.customIndustry}
+                onChange={(e) => updateData({ customIndustry: e.target.value })}
+              />
+              {errors.customIndustry && (
+                <HelperText error>{errors.customIndustry}</HelperText>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <Button 
+              type="button" 
+              onClick={prevStep} 
+              variant="secondary"
+              className="flex-1"
+            >
+              חזור
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary"
+              className="flex-1"
+            >
+              המשך לשלב הבא
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

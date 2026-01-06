@@ -2,14 +2,18 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
+function Textarea({ className, style, ...props }: React.ComponentProps<'textarea'>) {
   return (
     <textarea
       data-slot="textarea"
       className={cn(
-        'w-full min-h-[100px] rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-[14px] text-white placeholder:text-white/40 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-y',
+        'w-full min-h-[100px] rounded-[5px] bg-white px-4 py-3 text-[14px] text-[#19183B] placeholder:text-[#97B2BD] outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-y text-right',
         className,
       )}
+      style={{
+        border: "1px solid transparent",
+        ...style,
+      }}
       {...props}
     />
   )

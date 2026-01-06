@@ -1,13 +1,14 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicButton } from "./neumorphic-button"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { HelperText } from "@/components/ui/helper-text"
 import { createClient } from "@/lib/supabase/client"
 
 export function StepAddress() {
@@ -128,87 +129,100 @@ export function StepAddress() {
   }
 
   return (
-    <div className="ui-card">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-ui-text">כתובת העסק</h2>
-        <p className="mt-2 ui-text-muted">היכן ממוקם העסק שלך</p>
-      </div>
+    <Card className="shadow-ui-lg">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-2xl font-bold text-card-fg text-right">
+          כתובת העסק
+        </CardTitle>
+        <CardDescription className="text-muted-fg text-right">
+          היכן ממוקם העסק שלך
+        </CardDescription>
+      </CardHeader>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
+      <CardContent>
+        {error && (
+          <div className="mb-4 bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-[10px] text-sm font-medium text-right" role="alert">
+            {error}
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="street" className="ui-label">
-            רחוב ומספר
-          </label>
-          <input
-            id="street"
-            type="text"
-            className={errors.street ? "ui-input-error" : "ui-input"}
-            placeholder="רחוב הרצל 1"
-            value={data.street}
-            onChange={(e) => updateData({ street: e.target.value })}
-            disabled={isLoading}
-          />
-          {errors.street && <p className="text-sm text-ui-danger mt-1">{errors.street}</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="city" className="ui-label">
-              עיר
-            </label>
-            <input
-              id="city"
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="street" className="text-right">
+              רחוב ומספר <span className="text-danger" aria-label="שדה חובה">*</span>
+            </Label>
+            <Input
+              id="street"
               type="text"
-              className={errors.city ? "ui-input-error" : "ui-input"}
-              placeholder="תל אביב-יפו"
-              value={data.city}
-              onChange={(e) => updateData({ city: e.target.value })}
+              className={errors.street ? "border-danger focus:ring-danger" : ""}
+              placeholder="רחוב הרצל 1"
+              value={data.street}
+              onChange={(e) => updateData({ street: e.target.value })}
               disabled={isLoading}
             />
-            {errors.city && <p className="text-sm text-ui-danger mt-1">{errors.city}</p>}
+            {errors.street && (
+              <HelperText error>{errors.street}</HelperText>
+            )}
           </div>
 
-          <div>
-            <label htmlFor="postalCode" className="ui-label">
-              מיקוד
-            </label>
-            <input
-              id="postalCode"
-              type="text"
-              className="ui-input text-left"
-              placeholder="1234567"
-              value={data.postalCode}
-              onChange={(e) => updateData({ postalCode: e.target.value })}
-              dir="ltr"
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="city" className="text-right">
+                עיר <span className="text-danger" aria-label="שדה חובה">*</span>
+              </Label>
+              <Input
+                id="city"
+                type="text"
+                className={errors.city ? "border-danger focus:ring-danger" : ""}
+                placeholder="תל אביב-יפו"
+                value={data.city}
+                onChange={(e) => updateData({ city: e.target.value })}
+                disabled={isLoading}
+              />
+              {errors.city && (
+                <HelperText error>{errors.city}</HelperText>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="postalCode" className="text-right">
+                מיקוד
+              </Label>
+              <Input
+                id="postalCode"
+                type="text"
+                className="text-left"
+                placeholder="1234567"
+                value={data.postalCode}
+                onChange={(e) => updateData({ postalCode: e.target.value })}
+                dir="ltr"
+                disabled={isLoading}
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button 
+              type="button" 
+              onClick={prevStep} 
+              variant="secondary"
+              className="flex-1"
               disabled={isLoading}
-            />
+            >
+              חזור
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary"
+              className="flex-1"
+              loading={isLoading}
+              disabled={isLoading}
+            >
+              {isLoading ? "יוצר חשבון..." : "השלם הרשמה"}
+            </Button>
           </div>
-        </div>
-
-        <div className="flex gap-3">
-          <button 
-            type="button" 
-            onClick={prevStep} 
-            className="ui-button-secondary flex-1"
-            disabled={isLoading}
-          >
-            חזור לשלב הקודם
-          </button>
-          <button 
-            type="submit" 
-            className="ui-button-primary flex-1"
-            disabled={isLoading}
-          >
-            {isLoading ? "יוצר חשבון..." : "השלם הרשמה"}
-          </button>
-        </div>
-      </form>
-    </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

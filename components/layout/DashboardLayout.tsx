@@ -67,13 +67,13 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
           className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all cursor-pointer ${
             hasActiveSubItem
               ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-              : "text-sidebar-fg/70 hover:text-sidebar-fg hover:bg-sidebar-hover"
+              : "text-sidebar-fg hover:bg-sidebar-hover"
           }`}
         >
-          <span className="shrink-0">{item.icon}</span>
+          <span className="shrink-0 text-sidebar-fg">{item.icon}</span>
           <span className="flex-1">{item.label}</span>
           <ChevronDown
-            className={`h-4 w-4 transition-transform duration-200 ${
+            className={`h-4 w-4 text-sidebar-fg transition-transform duration-200 ${
               isExpanded ? "rotate-180" : ""
             }`}
           />
@@ -91,7 +91,7 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
                 className={`block px-4 py-2 text-sm transition-colors ${
                   isSubActive
                     ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-                    : "text-sidebar-fg/70 hover:bg-sidebar-hover hover:text-sidebar-fg"
+                    : "text-sidebar-fg hover:bg-sidebar-hover"
                 }`}
               >
                 {subItem.label}
@@ -113,7 +113,7 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
                   className={`block pr-12 pl-4 py-2 text-sm rounded-lg transition-all duration-150 ${
                     isSubActive
                       ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-                      : "text-sidebar-fg/60 hover:text-sidebar-fg hover:bg-sidebar-hover"
+                      : "text-sidebar-fg hover:bg-sidebar-hover"
                   }`}
                 >
                   {subItem.label}
@@ -133,10 +133,10 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
       className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-all ${
         isActive
           ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-          : "text-sidebar-fg/70 hover:bg-sidebar-hover hover:text-sidebar-fg"
+          : "text-sidebar-fg hover:bg-sidebar-hover"
       }`}
     >
-      <span className="shrink-0">{item.icon}</span>
+      <span className="shrink-0 text-sidebar-fg">{item.icon}</span>
       <span>{item.label}</span>
     </Link>
   )
@@ -155,7 +155,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Header */}
       <div className="mb-8 px-4 pt-6">
         <div className="text-xl font-bold text-sidebar-fg">מערכת ניהול</div>
-        <div className="text-xs text-sidebar-fg/50 mt-1">Dashboard</div>
+        <div className="text-xs text-sidebar-fg mt-1">Dashboard</div>
       </div>
 
       {/* Navigation */}
@@ -221,7 +221,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Desktop Sidebar - Fixed Right */}
-      <aside className="hidden lg:block fixed right-0 top-0 h-screen w-[250px] max-w-[250px] bg-sidebar/50 backdrop-blur border-l border-sidebar-border overflow-hidden">
+      <aside className="hidden lg:block fixed right-0 top-0 h-screen w-[250px] max-w-[250px] bg-sidebar border-l border-sidebar-border overflow-hidden">
         <SidebarContent />
       </aside>
 

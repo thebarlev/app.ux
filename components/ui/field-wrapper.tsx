@@ -1,3 +1,6 @@
+import { Label } from "./label"
+import { HelperText } from "./helper-text"
+
 interface FieldWrapperProps {
   label: string
   required?: boolean
@@ -36,39 +39,31 @@ export function FieldWrapper({
   const hintId = id ? `${id}-hint` : undefined;
   
   return (
-    <div className={className}>
-      <label 
+    <div className={`w-[300px] ${className}`}>
+      <Label 
         htmlFor={id}
-        className="block mb-2 text-sm font-semibold text-white"
+        className="text-right text-white"
       >
         {label}
         {required && (
           <span 
-            className="text-red-500 mr-1" 
+            className="text-white mr-1" 
             aria-label="שדה חובה"
           >
             *
           </span>
         )}
-      </label>
+      </Label>
       {children}
       {hint && !error && (
-        <p 
-          id={hintId}
-          className="mt-1.5 text-xs text-slate-400"
-        >
+        <HelperText id={hintId}>
           {hint}
-        </p>
+        </HelperText>
       )}
       {error && (
-        <div 
-          id={errorId}
-          role="alert"
-          className="mt-2 flex items-center gap-1.5 text-sm text-red-400 font-medium"
-        >
-          <span aria-hidden="true">⚠️</span>
-          <span>{error}</span>
-        </div>
+        <HelperText id={errorId} error>
+          {error}
+        </HelperText>
       )}
     </div>
   )

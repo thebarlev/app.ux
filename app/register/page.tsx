@@ -37,15 +37,15 @@ function RegistrationFlow() {
   }, [currentStep])
 
   return (
-    <div className="min-h-svh w-full flex flex-col items-center justify-center bg-ui-bg px-4 py-8" dir="rtl">
-      <div className="w-full max-w-[540px]">
+    <div className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
+      <div className="w-full max-w-[420px]">
         {/* Logo */}
-        <div className="mb-8 flex justify-center">
+        <div className="mb-10 flex justify-center">
           <RegistrationLogo />
         </div>
 
-        {/* Enhanced Stepper - with clickable navigation */}
-        <div className="mb-8">
+        {/* Step Indicator */}
+        <div className="mb-6">
           <StepProgress 
             steps={STEPS} 
             currentStep={currentStep}
@@ -68,9 +68,12 @@ function RegistrationFlow() {
         </AnimatePresence>
 
         {/* Sign In Link */}
-        <p className="mt-6 text-center ui-text-muted">
+        <p className="mt-6 text-center text-muted-fg text-sm">
           כבר יש לך חשבון?{" "}
-          <Link href="/login" className="text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors">
+          <Link 
+            href="/login" 
+            className="text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+          >
             התחברות לחשבון
           </Link>
         </p>

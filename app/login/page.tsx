@@ -4,12 +4,12 @@ import type React from "react"
 import { useState, useEffect, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { NeumorphicCard } from "@/components/registration/neumorphic-card"
-import { NeumorphicInput } from "@/components/registration/neumorphic-input"
-import { NeumorphicButton } from "@/components/registration/neumorphic-button"
 import { RegistrationLogo } from "@/components/registration/registration-logo"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 function LoginForm() {
   const router = useRouter()
@@ -98,80 +98,113 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-svh w-full flex items-center justify-center bg-ui-bg" dir="rtl">
-      <div className="w-full max-w-[460px] px-4 py-8">
+    <div className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
+      <div className="w-full max-w-[420px]">
         {/* Logo */}
-        <div className="mb-8 flex justify-center">
+        <div className="mb-10 flex justify-center">
           <RegistrationLogo />
         </div>
 
-        <div className="ui-card">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-ui-text mb-2">התחברות לחשבון</h1>
-            <p className="ui-text-muted">הזן את פרטי ההתחברות שלך כדי להמשיך</p>
-          </div>
+        {/* Login Card */}
+        <Card className="shadow-ui-lg">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-2xl font-bold text-card-fg text-right">
+              התחברות לחשבון
+            </CardTitle>
+            <CardDescription className="text-muted-fg text-right">
+              הזן את פרטי ההתחברות שלך כדי להמשיך
+            </CardDescription>
+          </CardHeader>
 
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label htmlFor="email" className="ui-label">
-                כתובת אימייל
-              </label>
-              <input
-                id="email"
-                type="email"
-                className="ui-input text-left"
-                placeholder="israel@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="ui-label">
-                סיסמה
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  className="ui-input text-left pl-12"
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-5">
+              {/* Email Field */}
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-semibold text-fg text-right">
+                  כתובת אימייל
+                </label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="israel@example.com"
                   required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   dir="ltr"
+                  className="text-left"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
               </div>
-            </div>
 
-            {error && (
-              <div className="ui-alert-danger">
-                {error}
+              {/* Password Field */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="block text-sm font-semibold text-fg text-right">
+                    סיסמה
+                  </label>
+                  <Link 
+                    href="/forgot-password" 
+                    className="text-xs text-primary hover:text-primary-hover font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+                  >
+                    שכחתי סיסמה
+                  </Link>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    dir="ltr"
+                    className="text-left pr-12"
+                    placeholder="הזן סיסמה"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-fg hover:text-fg transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
+                    aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="ui-button-primary w-full"
-            >
-              {isLoading ? "מתחבר..." : "התחבר לחשבון"}
-            </button>
-          </form>
-        </div>
+              {/* Error Message */}
+              {error && (
+                <div className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right" role="alert">
+                  {error}
+                </div>
+              )}
 
-        <p className="mt-6 text-center ui-text-muted">
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full"
+                variant="default"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    מתחבר...
+                  </>
+                ) : (
+                  "התחבר לחשבון"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Sign Up Link */}
+        <p className="mt-6 text-center text-muted-fg text-sm">
           אין לך חשבון?{" "}
-          <Link href="/register" className="text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors">
+          <Link 
+            href="/register" 
+            className="text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+          >
             הרשמה לחשבון חדש
           </Link>
         </p>
