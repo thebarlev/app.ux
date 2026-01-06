@@ -8,55 +8,59 @@
 // BEFORE - Inconsistent labels
 // ============================================
 
+/*
 // Credit Card - Some fields had no labels (placeholder-only)
 <div>
-  <input placeholder="מס' הכרטיס" />  {/* ❌ No label */}
+  <input placeholder="מס' הכרטיס" />  // ❌ No label
 </div>
 <div>
   <select>
-    <option>סוג הכרטיס</option>  {/* ❌ Placeholder as first option */}
+    <option>סוג הכרטיס</option>  // ❌ Placeholder as first option
   </select>
 </div>
 
 // Digital Wallets - All placeholder-only
 <div>
-  <input placeholder="חשבון משלם (לא חובה)" />  {/* ❌ No label */}
-  <input placeholder="מס' העסקה (לא חובה)" />   {/* ❌ No label */}
+  <input placeholder="חשבון משלם (לא חובה)" />  // ❌ No label
+  <input placeholder="מס' העסקה (לא חובה)" />   // ❌ No label
 </div>
+*/
 
 
 // ============================================
 // AFTER - Persistent labels everywhere
 // ============================================
 
+/*
 // Credit Card - All fields have clear labels
 <div>
-  <label style={labelStyle}>מספר כרטיס (4 ספרות אחרונות)</label>  {/* ✅ */}
+  <label style={labelStyle}>מספר כרטיס (4 ספרות אחרונות)</label>  // ✅
   <input placeholder="1234" aria-label="4 ספרות אחרונות של כרטיס האשראי" />
 </div>
 <div>
-  <label style={labelStyle}>סוג כרטיס</label>  {/* ✅ */}
+  <label style={labelStyle}>סוג כרטיס</label>  // ✅
   <select aria-label="בחר סוג כרטיס אשראי">
-    <option value="">בחר...</option>  {/* Neutral placeholder */}
+    <option value="">בחר...</option>  // Neutral placeholder
     <option value="visa">Visa</option>
   </select>
 </div>
 
 // Digital Wallets - Labels + helpful placeholders
 <div>
-  <label style={labelStyle}>חשבון משלם</label>  {/* ✅ */}
+  <label style={labelStyle}>חשבון משלם</label>  // ✅
   <input 
-    placeholder="מזהה חשבון (אופציונלי)"  {/* Shorter, clearer */}
+    placeholder="מזהה חשבון (אופציונלי)"  // Shorter, clearer
     aria-label="מזהה חשבון משלם"
   />
 </div>
 <div>
-  <label style={labelStyle}>מספר עסקה</label>  {/* ✅ */}
+  <label style={labelStyle}>מספר עסקה</label>  // ✅
   <input 
     placeholder="מזהה עסקה (אופציונלי)"
     aria-label="מזהה עסקה או אסמכתא"
   />
 </div>
+*/
 
 
 // ============================================
