@@ -65,7 +65,8 @@ export function FormActions({
         onClick={onPrimaryClick}
         disabled={primaryDisabled}
         loading={primaryLoading}
-        className="min-w-[200px]"
+        className=""
+        style={{ fontSize: '18px', height: '50px', width: '300px' }}
       >
         {primaryIcon && <span className="ml-2">{primaryIcon}</span>}
         {primaryLabel}
@@ -78,7 +79,8 @@ export function FormActions({
           onClick={onSecondaryClick}
           disabled={secondaryDisabled}
           loading={secondaryLoading}
-          className="min-w-[200px]"
+          className=""
+          style={{ borderColor: '#1A8299', color: '#1A8299', height: '50px', fontSize: '18px', width: '300px' }}
         >
           {secondaryIcon && <span className="ml-2">{secondaryIcon}</span>}
           {secondaryLabel}

@@ -199,16 +199,15 @@ export default function CustomerAutocomplete({
           height: 50,
           padding: "0 16px",
           borderRadius: 12,
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
-          fontSize: 14,
-          color: "white",
+          border: "none",
+          backgroundColor: "#EDF1F5",
+          fontSize: 18,
+          color: "#19183B",
           outline: "none",
           transition: "border-color 200ms, box-shadow 200ms",
         }}
         onFocus={async (e) => {
-          e.currentTarget.style.borderColor = "#3b82f6";
-          e.currentTarget.style.boxShadow = "0 0 0 2px rgba(59, 130, 246, 0.3)";
+          e.currentTarget.style.boxShadow = "0 0 0 2px rgba(29, 134, 143, 0.3)";
           
           // Don't show dropdown if user just selected a customer
           if (justSelectedRef.current) {
@@ -246,7 +245,6 @@ export default function CustomerAutocomplete({
           }
         }}
         onBlur={(e) => {
-          e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.1)";
           e.currentTarget.style.boxShadow = "none";
         }}
       />
@@ -289,24 +287,20 @@ export default function CustomerAutocomplete({
               onClick={() => handleSelectCustomer(customer)}
               onMouseEnter={() => setSelectedIndex(index)}
               style={{
-                padding: 12,
+                height: 50,
+                display: "flex",
+                alignItems: "center",
+                paddingLeft: 12,
+                paddingRight: 12,
                 cursor: "pointer",
-                background: index === selectedIndex ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                background: index === selectedIndex ? "#1D868F" : "transparent",
                 borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
                 transition: "background 150ms",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 4, color: "white" }}>
+              <div style={{ fontWeight: 500, color: "white", fontSize: 18 }}>
                 {customer.name}
               </div>
-              {(customer.tax_id || customer.external_account_key) && (
-                <div style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.6)" }}>
-                  {customer.tax_id && `ת.ז/ח.פ: ${customer.tax_id}`}
-                  {customer.tax_id && customer.external_account_key && " • "}
-                  {customer.external_account_key &&
-                    `מפתח: ${customer.external_account_key}`}
-                </div>
-              )}
             </div>
           ))}
 
@@ -333,20 +327,22 @@ export default function CustomerAutocomplete({
               }}
               onMouseEnter={() => setSelectedIndex(suggestions.length)}
               style={{
-                padding: 12,
+                height: 50,
+                paddingLeft: 12,
+                paddingRight: 12,
                 cursor: "pointer",
-                background: selectedIndex === suggestions.length ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                background: "#1D868F",
                 borderTop: suggestions.length > 0 ? "2px solid rgba(255, 255, 255, 0.1)" : "none",
-                color: "#60a5fa",
+                color: "white",
                 fontWeight: 600,
-                fontSize: 14,
+                fontSize: 18,
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
                 transition: "background 150ms",
               }}
             >
-              <span style={{ fontSize: 16 }}>➕</span>
+              <span style={{ fontSize: 20, color: '#FFFFFF', fontWeight: 'bold' }}>+</span>
               <span>לקוח חדש</span>
             </div>
           )}

@@ -115,7 +115,7 @@ export default function CustomerFormClient({ customer }: Props) {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen">
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
       <div className="ui-container pt-10">
         {/* Page Header - Title aligned right, 50px margin bottom */}
         <h1 className="text-right text-4xl font-semibold text-[#19183B]">
@@ -165,7 +165,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    placeholder="שם מלא או שם עסק"
                   />
                 </FieldWrapper>
 
@@ -176,7 +175,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="tax_id"
                     value={formData.tax_id}
                     onChange={handleInputChange}
-                    placeholder="123456789"
                     dir="ltr"
                     className="text-left"
                   />
@@ -189,7 +187,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="profession"
                     value={formData.profession}
                     onChange={handleInputChange}
-                    placeholder="לדוגמה: עורך דין, רופא, יועץ עסקי"
                   />
                 </FieldWrapper>
           </div>
@@ -205,7 +202,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="contact_person"
                     value={formData.contact_person}
                     onChange={handleInputChange}
-                    placeholder="שם איש הקשר"
                   />
                 </FieldWrapper>
 
@@ -216,7 +212,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    placeholder="03-1234567"
                     dir="ltr"
                     className="text-left"
                   />
@@ -229,7 +224,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="phone_secondary"
                     value={formData.phone_secondary}
                     onChange={handleInputChange}
-                    placeholder="04-7654321"
                     dir="ltr"
                     className="text-left"
                   />
@@ -242,7 +236,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="mobile"
                     value={formData.mobile}
                     onChange={handleInputChange}
-                    placeholder="050-1234567"
                     dir="ltr"
                     className="text-left"
                   />
@@ -255,7 +248,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    placeholder="example@domain.com"
                     dir="ltr"
                     className="text-left"
                   />
@@ -273,7 +265,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="address_street"
                     value={formData.address_street}
                     onChange={handleInputChange}
-                    placeholder="שם הרחוב"
                   />
                 </FieldWrapper>
 
@@ -284,7 +275,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="address_number"
                     value={formData.address_number}
                     onChange={handleInputChange}
-                    placeholder="123"
                   />
                 </FieldWrapper>
 
@@ -295,7 +285,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="address_city"
                     value={formData.address_city}
                     onChange={handleInputChange}
-                    placeholder="תל אביב"
                   />
                 </FieldWrapper>
 
@@ -306,7 +295,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="address_zip"
                     value={formData.address_zip}
                     onChange={handleInputChange}
-                    placeholder="1234567"
                     dir="ltr"
                     className="text-left"
                   />
@@ -318,7 +306,6 @@ export default function CustomerFormClient({ customer }: Props) {
                 name="address_country"
                 value={formData.address_country}
                 onChange={handleInputChange}
-                placeholder="ישראל"
               />
             </FieldWrapper>
           </div>
@@ -335,9 +322,23 @@ export default function CustomerFormClient({ customer }: Props) {
                     <SelectTrigger id="payment_terms_text">
                       <SelectValue placeholder="בחר תנאי תשלום" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent style={{ backgroundColor: '#1D868F' }}>
                       {PAYMENT_TERMS_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
+                        <SelectItem 
+                          key={option.value} 
+                          value={option.value}
+                          style={{ 
+                            color: 'white', 
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+                            backgroundColor: 'transparent'
+                          }}
+                          onMouseEnter={(e: any) => {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+                          }}
+                          onMouseLeave={(e: any) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                        >
                           {option.label}
                         </SelectItem>
                       ))}
@@ -352,7 +353,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="external_account_key"
                     value={formData.external_account_key}
                     onChange={handleInputChange}
-                    placeholder="מפתח חשבון בתוכנה חיצונית"
                   />
                 </FieldWrapper>
           </div>
@@ -361,7 +361,6 @@ export default function CustomerFormClient({ customer }: Props) {
         {/* Bank Details Section */}
         <FormSection 
           title="פרטי חשבון בנק"
-          description="פרטי החשבון יוצגו אוטומטית בקבלות"
         >
           <div className="ui-form-grid-customer">
                 <FieldWrapper label="שם הבנק" id="bank_name">
@@ -371,7 +370,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="bank_name"
                     value={formData.bank_name}
                     onChange={handleInputChange}
-                    placeholder="לדוגמה: בנק הפועלים"
                   />
                 </FieldWrapper>
 
@@ -382,7 +380,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="bank_branch"
                     value={formData.bank_branch}
                     onChange={handleInputChange}
-                    placeholder="123"
                     dir="ltr"
                     className="text-left"
                   />
@@ -395,7 +392,6 @@ export default function CustomerFormClient({ customer }: Props) {
                     name="bank_account"
                     value={formData.bank_account}
                     onChange={handleInputChange}
-                    placeholder="1234567"
                     dir="ltr"
                     className="text-left"
                   />
@@ -412,8 +408,6 @@ export default function CustomerFormClient({ customer }: Props) {
             primaryLoading={isSaving}
             primaryDisabled={isSaving}
             primaryType="submit"
-            primaryIcon={<Save className="h-4 w-4" />}
-            secondaryIcon={<ArrowLeft className="h-4 w-4" />}
           />
         </div>
       </form>

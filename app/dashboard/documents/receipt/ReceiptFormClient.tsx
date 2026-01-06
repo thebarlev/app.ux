@@ -11,6 +11,7 @@ import PaymentDetailsSection from "./PaymentDetailsSection";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -353,77 +354,98 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <main dir="rtl" className="min-h-screen">
+    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
       <div className="ui-container pt-10">
         {/* Page Header */}
-        <h1 className="text-right text-4xl font-semibold text-[#19183B]">
-          יצירת קבלה
+        <h1 className="text-right font-semibold" style={{ fontSize: '32px', color: '#19183B' }}>
+          קבלה / {previewNumber || '---'}
         </h1>
-        {previewNumber && (
-          <p className="text-right text-sm text-muted-fg mt-2">
-            מספר תצוגה מקדימה: <span className="font-semibold text-primary">{previewNumber}</span>
-          </p>
-        )}
         {initial.companyName && (
-          <p className="text-right text-sm text-muted-fg mt-1">{initial.companyName}</p>
+          <h2 className="text-right mt-2" style={{ fontSize: '24px', fontWeight: 500, color: '#19183B' }}>{initial.companyName}</h2>
         )}
         <div className="h-[50px]" />
         <div className="mb-[50px]">
-          <Button
-            variant="secondary"
+          <button
             onClick={() => setSettingsOpen((v) => !v)}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '18px', 
+              color: '#19183B', 
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              padding: 0,
+            }}
           >
-            <SettingsIcon className="h-4 w-4 ml-2" />
             הגדרות
-          </Button>
+          </button>
         </div>
 
       {/* Settings Panel */}
       {settingsOpen && (
-        <Card className="mb-[50px]">
+        <Card className="mb-[50px]" style={{ backgroundColor: 'white' }}>
           <CardHeader>
-            <CardTitle>הגדרות מסמך</CardTitle>
-            <CardDescription>התאם את ברירות המחדל למסמך זה</CardDescription>
+            <CardTitle style={{ color: '#19183B', fontSize: '20px', fontWeight: 500 }}>הגדרות מסמך</CardTitle>
+            <CardDescription style={{ color: '#19183B', fontSize: '18px' }}>התאם את ברירות המחדל למסמך זה</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="ui-form-grid">
-              <FieldWrapper label="שפה">
-                <Select value={language} onValueChange={(v) => setLanguage(v as any)}>
-                  <SelectTrigger>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+              <FieldWrapper label="שפה" className="!w-full">
+                <Select value={language} onValueChange={(v) => setLanguage(v as any)} disabled>
+                  <SelectTrigger style={{ backgroundColor: '#EDF1F5', border: 'none', height: '50px', fontSize: '18px' }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="he">עברית</SelectItem>
-                    <SelectItem value="en">אנגלית</SelectItem>
                   </SelectContent>
                 </Select>
               </FieldWrapper>
 
-              <FieldWrapper label="מטבע ברירת מחדל">
-                <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger>
+              <FieldWrapper label="מטבע ברירת מחדל" className="!w-full">
+                <Select value={currency} onValueChange={setCurrency} disabled>
+                  <SelectTrigger style={{ backgroundColor: '#EDF1F5', border: 'none', height: '50px', fontSize: '18px' }}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {allowedCurrencies.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="₪">₪</SelectItem>
                   </SelectContent>
                 </Select>
               </FieldWrapper>
 
-              <FieldWrapper label="עיגול סכומים">
-                <label className="flex items-center gap-3 p-4 rounded-ui border border-border bg-card cursor-pointer transition-colors hover:bg-muted">
-                  <input
-                    type="checkbox"
-                    checked={roundTotals}
-                    onChange={(e) => setRoundTotals(e.target.checked)}
-                    className="w-4 h-4 text-primary border-border rounded"
-                  />
-                  <span className="text-sm text-card-fg">עיגול למטבע שלם</span>
-                </label>
+              <FieldWrapper label="עיגול סכומים" className="!w-full" hint="סכומים עם עשרוני יעוגלו למספר שלם (לדוגמה: 100.50 → 101)">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '8px', backgroundColor: '#EDF1F5', height: '50px' }}>
+                  <span style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
+                    {roundTotals ? 'פעיל' : 'כבוי'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setRoundTotals(!roundTotals)}
+                    style={{
+                      width: '56px',
+                      height: '28px',
+                      borderRadius: '14px',
+                      backgroundColor: roundTotals ? '#1D868F' : '#ccc',
+                      border: 'none',
+                      position: 'relative',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '12px',
+                        backgroundColor: 'white',
+                        position: 'absolute',
+                        top: '2px',
+                        right: roundTotals ? '2px' : '30px',
+                        transition: 'right 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      }}
+                    />
+                  </button>
+                </div>
               </FieldWrapper>
             </div>
           </CardContent>
@@ -466,12 +488,10 @@ export default function ReceiptFormClient({
           </FieldWrapper>
 
           <FieldWrapper label="תאריך מסמך" required id="documentDate">
-            <Input
+            <DateInput
               id="documentDate"
-              type="date"
               value={documentDate}
-              onChange={(e) => setDocumentDate(e.target.value)}
-              min={minAllowedDate || undefined}
+              onChange={(value) => setDocumentDate(value)}
               aria-required="true"
             />
           </FieldWrapper>
@@ -489,6 +509,7 @@ export default function ReceiptFormClient({
           error={descriptionError}
           id="description"
           hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
+          className="w-[555px]"
         >
           <Input
             id="description"
@@ -516,19 +537,26 @@ export default function ReceiptFormClient({
         >
           <div ref={paymentsTableRef} className="space-y-[50px]">
             {Object.keys(paymentErrors).length > 0 && (
-              <Card className="border-danger bg-danger/10">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 text-sm font-semibold text-danger">
-                    <span>⚠️</span>
-                    <span>יש לתקן את השדות המסומנים באדום</span>
-                  </div>
-                </CardContent>
-              </Card>
+              <div 
+                style={{ 
+                  backgroundColor: '#FEF2F2', 
+                  border: '1px solid #9B0003',
+                  borderRadius: '8px',
+                  padding: '16px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '20px' }}>⚠️</span>
+                  <span style={{ fontSize: '16px', fontWeight: 600, color: '#9B0003' }}>
+                    יש לתקן את השדות המסומנים באדום
+                  </span>
+                </div>
+              </div>
             )}
 
             <div className="space-y-[50px]">
               {payments.map((row, i) => (
-                <Card key={i} className="relative">
+                <Card key={i} className="relative" style={{ backgroundColor: 'white', border: '1px solid #E5E7EB' }}>
                   {/* Delete Button - Icon Only, Absolutely Positioned */}
                   <Button
                     type="button"
@@ -581,12 +609,10 @@ export default function ReceiptFormClient({
                   </FieldWrapper>
 
                   <FieldWrapper label="תאריך תשלום" required id={`payment-date-${i}`}>
-                    <Input
+                    <DateInput
                       id={`payment-date-${i}`}
-                      type="date"
                       value={row.date}
-                      onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
-                      min={minAllowedDate || undefined}
+                      onChange={(value) => updatePaymentRow(i, { date: value })}
                       aria-required="true"
                     />
                   </FieldWrapper>
@@ -610,7 +636,7 @@ export default function ReceiptFormClient({
                         }}
                         currency={row.currency}
                         error={!!paymentErrors[i]}
-                        className="flex-1"
+                        style={{ width: '140px' }}
                         aria-required="true"
                         aria-invalid={!!paymentErrors[i]}
                       />
@@ -618,7 +644,7 @@ export default function ReceiptFormClient({
                         value={row.currency}
                         onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                       >
-                        <SelectTrigger className="w-28" aria-label="מטבע">
+                        <SelectTrigger style={{ width: '70px' }} aria-label="מטבע">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -644,23 +670,30 @@ export default function ReceiptFormClient({
               ))}
             </div>
 
-            <Button
+            <button
               type="button"
-              variant="secondary"
               onClick={addPaymentRow}
-              className="w-full border-dashed border-2 border-border mt-[50px]"
+              className="mt-[50px]"
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                color: '#19183B',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: 0,
+              }}
             >
-              <Plus className="h-4 w-4 ml-2" />
               הוספת תקבול
-            </Button>
+            </button>
 
-            <div className="pt-[50px] mt-[50px] border-t border-white">
+            <div className="pt-[50px] mt-[50px] border-t" style={{ borderColor: '#97B2BD' }}>
               <div className="flex justify-between items-center">
-                <div className="text-lg font-bold text-white">סה״כ שולם</div>
-                <div className="text-2xl font-bold text-white">{formatMoney(total, currency)}</div>
+                <div className="text-lg font-bold" style={{ color: '#19183B' }}>סה״כ שולם</div>
+                <div className="text-2xl font-bold" style={{ color: '#19183B' }}>{formatMoney(total, currency)}</div>
               </div>
               {roundTotals && (
-                <p className="text-xs text-white/80 mt-2 text-right">כולל עיגול לסכום סופי</p>
+                <p className="text-xs mt-2 text-right" style={{ color: '#19183B', opacity: 0.8 }}>כולל עיגול לסכום סופי</p>
               )}
             </div>
           </div>
@@ -669,19 +702,24 @@ export default function ReceiptFormClient({
         {/* Notes Section */}
         <FormSection 
           title="הערות"
-          description="הערות שיופיעו במסמך הסופי"
         >
         <FieldWrapper 
-          label="הערות נוספות" 
+          label="הערות שיופיעו במסמך" 
           id="notes"
-          hint="הערות אלו יופיעו במסמך הסופי שישלח ללקוח"
+          className="w-[755px]"
         >
           <Textarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="לדוגמה: תודה על העסקה..."
+            placeholder="חשוב לדעת..."
             className="min-h-[100px] resize-y"
+            style={{
+              backgroundColor: '#EDF1F5',
+              border: 'none',
+              fontSize: '18px',
+              color: '#19183B'
+            }}
             aria-describedby="notes-hint"
           />
         </FieldWrapper>
@@ -699,8 +737,6 @@ export default function ReceiptFormClient({
             primaryDisabled={busy != null || !sequenceLocked}
             secondaryDisabled={busy != null}
             primaryType="button"
-            primaryIcon={<CheckCircle className="h-4 w-4" />}
-            secondaryIcon={<Save className="h-4 w-4" />}
           />
         </div>
       </form>
@@ -777,79 +813,108 @@ export default function ReceiptFormClient({
       {/* Success Modal - Receipt Created Successfully */}
       {successModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(25, 24, 59, 0.9)' }}
           onClick={() => {
             setSuccessModal(null);
             window.location.href = "/dashboard/documents";
           }}
           dir="rtl"
         >
-          <Card
-            className="w-full max-w-md shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+          <div
+            style={{
+              background: '#19183B',
+              borderRadius: '20px',
+              boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
+              width: '100%',
+              maxWidth: '420px',
+              padding: '50px',
+              textAlign: 'center',
+              color: 'white',
+              position: 'relative',
+            }}
+            onClick={e => e.stopPropagation()}
           >
-            <CardContent className="p-8 text-center">
-              {/* Success Icon */}
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-success mx-auto mb-6">
-                <CheckCircle className="h-10 w-10 text-success-fg" />
-              </div>
-
-              {/* Title */}
-              <CardTitle className="text-2xl mb-3">יצרת בהצלחה קבלה!</CardTitle>
-
-              {/* Receipt Number */}
-              <CardDescription className="text-base mb-8">
-                מספר קבלה: <span className="font-bold text-card-fg">{successModal.documentNumber}</span>
-              </CardDescription>
-
-              {/* Action Buttons */}
-              <div className="space-y-3">
-                <Button
-                  onClick={() => {
-                    // Open preview page with auto-download enabled
-                    const previewData = {
-                      previewNumber: successModal.documentNumber,
-                      companyName: successModal.companyName,
-                      customerName: successModal.payload.customerName,
-                      customerId: successModal.payload.customerId || "",
-                      documentDate: successModal.payload.documentDate,
-                      description: successModal.payload.description || "",
-                      notes: successModal.payload.notes,
-                      footerNotes: successModal.payload.notes,
-                      total: String(successModal.payload.total),
-                      currency: successModal.payload.currency,
-                      payments: JSON.stringify(successModal.payload.payments),
-                      autoDownload: "true", // Trigger auto-download
-                    };
-                    
-                    const params = new URLSearchParams(previewData as any);
-                    window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
-                    
-                    // Close modal and redirect after short delay
-                    setTimeout(() => {
-                      setSuccessModal(null);
-                      window.location.href = "/dashboard/documents";
-                    }, 1000);
-                  }}
-                  className="w-full"
-                >
-                  <FileText className="h-4 w-4 ml-2" />
-                  הורדת קבלה (PDF)
-                </Button>
-
-                <Button
-                  variant="secondary"
-                  onClick={() => {
+            {/* Success Icon - שמח יותר */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px auto', height: 80 }}>
+              <span style={{ fontSize: 60, color: '#FFD700', margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80 }}>
+                😊
+              </span>
+            </div>
+            {/* Title */}
+            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 12, color: 'white' }}>
+              יצרת בהצלחה קבלה!
+            </div>
+            {/* Receipt Number */}
+            <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 24, color: 'white' }}>
+              מספר קבלה: <span style={{ fontWeight: 900 }}>{successModal.documentNumber}</span>
+            </div>
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', marginBottom: 24 }}>
+              <button
+                onClick={() => {
+                  // Open preview page with auto-download enabled
+                  const previewData = {
+                    previewNumber: successModal.documentNumber,
+                    companyName: successModal.companyName,
+                    customerName: successModal.payload.customerName,
+                    customerId: successModal.payload.customerId || "",
+                    documentDate: successModal.payload.documentDate,
+                    description: successModal.payload.description || "",
+                    notes: successModal.payload.notes,
+                    footerNotes: successModal.payload.notes,
+                    total: String(successModal.payload.total),
+                    currency: successModal.payload.currency,
+                    payments: JSON.stringify(successModal.payload.payments),
+                    autoDownload: "true", // Trigger auto-download
+                  };
+                  const params = new URLSearchParams(previewData as any);
+                  window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
+                  // Close modal and redirect after short delay
+                  setTimeout(() => {
                     setSuccessModal(null);
                     window.location.href = "/dashboard/documents";
-                  }}
-                  className="w-full"
-                >
-                  סגירה
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                  }, 1000);
+                }}
+                style={{
+                  height: '50px',
+                  fontSize: '18px',
+                  width: '300px',
+                  background: '#FFD700',
+                  color: '#19183B',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginBottom: 0,
+                }}
+              >
+                להורדת הקבלה
+              </button>
+            </div>
+            {/* Close as text button */}
+            <div style={{ textAlign: 'center', marginTop: 0 }}>
+              <button
+                onClick={() => {
+                  setSuccessModal(null);
+                  window.location.href = "/dashboard/documents";
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '18px',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  margin: '0 auto',
+                  display: 'block',
+                  fontWeight: 500,
+                }}
+              >
+                סגירה
+              </button>
+            </div>
+          </div>
         </div>
       )}
       </div>

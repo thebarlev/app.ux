@@ -3,6 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/form-section";
 import type { ReceiptsListFilters, ReceiptsListResult } from "./actions";
 import { exportReceiptsCSVAction, getReceiptPreviewUrlAction } from "./actions";
 
@@ -131,279 +136,283 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="ui-page-title mb-0">קבלות</h1>
-          <p className="ui-text-muted mt-1">
-            {totalCount} קבלות סה״כ
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="ui-button-secondary"
-          >
-            {exporting ? "מייצא..." : "ייצוא CSV"}
-          </button>
-
-          <Link
-            href="/dashboard/documents/receipt"
-            className="ui-button-primary"
-          >
-            קבלה חדשה +
-          </Link>
-        </div>
+    <div className="ui-container pt-10" style={{ minHeight: '100vh' }}>
+      {/* Page Header */}
+      <div className="mb-[50px]">
+        <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          קבלות
+        </h1>
+        <p className="text-right text-[#708993] text-lg">
+          {totalCount} קבלות סה״כ
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="ui-card">
-        <div className="ui-section-title mb-4">סינון</div>
+      {/* Action Buttons */}
+      <div className="flex justify-end gap-3 mb-[50px]">
+        <Button
+          onClick={handleExport}
+          disabled={exporting}
+          variant="secondary"
+          style={{ height: '50px', fontSize: '18px', borderColor: '#1A8299', color: '#1A8299' }}
+        >
+          {exporting ? "מייצא..." : "ייצוא CSV"}
+        </Button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label htmlFor="search" className="ui-label">חיפוש חופשי</label>
-            <input
+        <Link href="/dashboard/documents/receipt">
+          <Button 
+            style={{ height: '50px', fontSize: '18px' }}
+          >
+            קבלה חדשה
+          </Button>
+        </Link>
+      </div>
+
+      {/* Filters Section */}
+      <FormSection title="סינון וחיפוש">
+        <div style={{ display: 'grid', gridTemplateColumns: '220px 180px 180px 180px auto auto', gap: '20px', alignItems: 'end' }}>
+          <FieldWrapper label="חיפוש חופשי" id="search" className="!w-[220px]">
+            <Input
               id="search"
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="מספר, לקוח, תיאור..."
-              className="ui-input"
             />
-          </div>
+          </FieldWrapper>
 
-          <div>
-            <label htmlFor="status" className="ui-label">סטטוס</label>
-            <select
-              id="status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as "all" | "draft" | "final" | "void")}
-              className="ui-select"
+          <FieldWrapper label="סטטוס" id="status" className="!w-[180px]">
+            <Select 
+              value={status} 
+              onValueChange={(value) => setStatus(value as "all" | "draft" | "final" | "void")}
             >
-              <option value="all">הכל</option>
-              <option value="draft">טיוטות בלבד</option>
-              <option value="final">הופקו בלבד</option>
-              <option value="void">מבוטלים</option>
-            </select>
-          </div>
+              <SelectTrigger id="status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">הכל</SelectItem>
+                <SelectItem value="draft">טיוטות בלבד</SelectItem>
+                <SelectItem value="final">הופקו בלבד</SelectItem>
+                <SelectItem value="void">מבוטלים</SelectItem>
+              </SelectContent>
+            </Select>
+          </FieldWrapper>
 
-          <div>
-            <label htmlFor="dateFrom" className="ui-label">מתאריך</label>
-            <input
+          <FieldWrapper label="מתאריך" id="dateFrom" className="!w-[180px]">
+            <Input
               id="dateFrom"
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="ui-input"
             />
-          </div>
+          </FieldWrapper>
 
-          <div>
-            <label htmlFor="dateTo" className="ui-label">עד תאריך</label>
-            <input
+          <FieldWrapper label="עד תאריך" id="dateTo" className="!w-[180px]">
+            <Input
               id="dateTo"
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="ui-input"
             />
-          </div>
-        </div>
+          </FieldWrapper>
 
-        <div className="flex gap-3">
-          <button
+          <Button
             onClick={applyFilters}
-            className="ui-button-primary"
+            variant="ghost"
+            style={{ height: '50px', fontSize: '18px', color: '#19183B', fontWeight: 600, textDecoration: 'underline', background: 'transparent', border: 'none' }}
           >
             החל סינון
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={resetFilters}
-            className="ui-button-secondary"
+            variant="ghost"
+            style={{ height: '50px', fontSize: '18px', color: '#19183B', fontWeight: 400, background: 'transparent', border: 'none', marginLeft: '20px' }}
           >
             איפוס
-          </button>
+          </Button>
         </div>
-      </div>
+      </FormSection>
 
-      {/* Table */}
-      <div className="ui-card p-0">
-        <div className="overflow-x-auto">
-          <table className="ui-table">
-            <thead>
-              <tr>
-                <th>מספר קבלה</th>
-                <th>תאריך</th>
-                <th>לקוח</th>
-                <th>תיאור</th>
-                <th>סכום</th>
-                <th>סטטוס</th>
-                <th>פעולות</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {receipts.length === 0 ? (
+      {/* Table Section */}
+      <div className="mt-[50px]">
+        <FormSection title="רשימת קבלות">
+          <div className="overflow-x-auto -mx-[50px] -mb-[30px] pl-[50px]">
+            <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+              <thead style={{ borderBottom: '2px solid #19183B' }}>
                 <tr>
-                  <td colSpan={7} className="text-center py-12">
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="text-5xl">📭</div>
-                      <div className="text-lg font-semibold text-ui-text">
-                        {search || status !== "all" || dateFrom || dateTo 
-                          ? "לא נמצאו קבלות התואמות את החיפוש"
-                          : "עדיין לא יצרת קבלות"
-                        }
-                      </div>
-                      {!search && status === "all" && !dateFrom && !dateTo && (
-                        <Link
-                          href="/dashboard/documents/receipt"
-                          className="ui-button-success mt-2"
-                        >
-                          ➕ צור קבלה ראשונה
-                        </Link>
-                      )}
-                      {(search || status !== "all" || dateFrom || dateTo) && (
-                        <button
-                          onClick={resetFilters}
-                          className="ui-button-secondary mt-2"
-                        >
-                          נקה סינונים
-                        </button>
-                      )}
-                      <div className="mt-3 ui-text-light">
-                        <Link href="/dashboard/debug-receipts" className="text-ui-primary hover:text-ui-primary-hover underline">
-                          🔍 עמוד Debug - בדוק מדוע אין קבלות
-                        </Link>
-                      </div>
-                    </div>
-                  </td>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>מספר קבלה</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>תאריך</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>לקוח</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>תיאור</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>סכום</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>סטטוס</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'right', fontSize: '18px', fontWeight: 500, color: '#19183B' }}>פעולות</th>
                 </tr>
-              ) : (
-                receipts.map((receipt) => (
-                  <tr key={receipt.id}>
-                    <td className="font-semibold">
-                      {receipt.status === "draft" ? (
-                        <span className="ui-text-light text-xs">טיוטה</span>
-                      ) : (
-                        receipt.document_number || (
-                          <span className="ui-text-light">—</span>
-                        )
-                      )}
-                    </td>
-                    <td>{formatDate(receipt.document_date)}</td>
-                    <td>{receipt.customer_name}</td>
-                    <td className="max-w-[200px] truncate">
-                      {receipt.description || (
-                        <span className="ui-text-light">—</span>
-                      )}
-                    </td>
-                    <td className="font-semibold">
-                      {formatAmount(receipt.amount, receipt.currency)}
-                    </td>
-                    <td>
-                      <span className={getStatusBadgeClass(receipt.status)}>
-                        {getStatusLabel(receipt.status)}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex gap-2">
-                        {receipt.status === "draft" ? (
-                          <Link
-                            href={`/dashboard/documents/receipt?draftId=${receipt.id}`}
-                            className="ui-button-secondary ui-button-sm"
-                          >
-                            עריכה
+              </thead>
+
+              <tbody>
+                {receipts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: '48px 24px', textAlign: 'center' }}>
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="text-5xl">📭</div>
+                        <div className="text-lg font-semibold" style={{ color: '#19183B' }}>
+                          {search || status !== "all" || dateFrom || dateTo 
+                            ? "לא נמצאו קבלות התואמות את החיפוש"
+                            : "עדיין לא יצרת קבלות"
+                          }
+                        </div>
+                        {!search && status === "all" && !dateFrom && !dateTo && (
+                          <Link href="/dashboard/documents/receipt">
+                            <Button className="mt-2" style={{ height: '50px', fontSize: '18px' }}>
+                              צור קבלה ראשונה
+                            </Button>
                           </Link>
-                        ) : (
-                          <>
-                            <button
-                              onClick={async () => {
-                                const result = await getReceiptPreviewUrlAction(receipt.id);
-                                if (result.ok && result.url) {
-                                  window.open(result.url, "_blank");
-                                } else {
-                                  alert(result.message || "Failed to open preview");
-                                }
-                              }}
-                              className="ui-button-success ui-button-sm"
-                            >
-                              👁 צפייה
-                            </button>
-                            <button
-                              onClick={async () => {
-                                try {
-                                  const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
-                                  const response = await fetch(pdfUrl);
-                                  
-                                  if (!response.ok) {
-                                    throw new Error(`PDF download failed: ${response.statusText}`);
-                                  }
-                                  
-                                  const blob = await response.blob();
-                                  
-                                  if (blob.size === 0) {
-                                    throw new Error("Downloaded PDF is empty");
-                                  }
-                                  
-                                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
-                                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
-                                  const link = document.createElement("a");
-                                  link.href = downloadUrl;
-                                  link.download = `receipt-${receipt.document_number}.pdf`;
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  document.body.removeChild(link);
-                                  window.URL.revokeObjectURL(downloadUrl);
-                                } catch (error: any) {
-                                  alert(`שגיאה בהורדת PDF: ${error.message}`);
-                                }
-                              }}
-                              className="ui-button-primary ui-button-sm"
-                            >
-                              📥 PDF
-                            </button>
-                          </>
+                        )}
+                        {(search || status !== "all" || dateFrom || dateTo) && (
+                          <Button
+                            onClick={resetFilters}
+                            variant="secondary"
+                            className="mt-2"
+                            style={{ height: '50px', fontSize: '18px', borderColor: '#1A8299', color: '#1A8299' }}
+                          >
+                            נקה סינונים
+                          </Button>
                         )}
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="border-t border-ui-border p-4 flex items-center justify-between">
-            <div className="ui-text-muted">
-              עמוד {page} מתוך {totalPages}
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
-                className="ui-button-secondary ui-button-sm"
-              >
-                הקודם
-              </button>
-
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page === totalPages}
-                className="ui-button-secondary ui-button-sm"
-              >
-                הבא
-              </button>
-            </div>
+                ) : (
+                  receipts.map((receipt) => (
+                    <tr key={receipt.id} style={{ borderBottom: '1px solid #FFFFFF' }}>
+                      <td style={{ padding: '16px 12px', fontSize: '18px', color: '#19183B', fontWeight: 600 }}>
+                        {receipt.status === "draft" ? (
+                          <span style={{ color: '#708993', fontSize: '14px', fontWeight: 400 }}>טיוטה</span>
+                        ) : (
+                          receipt.document_number || <span style={{ color: '#708993' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '16px 12px', fontSize: '18px', color: '#19183B' }}>{formatDate(receipt.document_date)}</td>
+                      <td style={{ padding: '16px 12px', fontSize: '18px', color: '#19183B' }}>{receipt.customer_name}</td>
+                      <td style={{ padding: '16px 12px', fontSize: '18px', color: '#19183B', maxWidth: '200px' }} className="truncate">
+                        {receipt.description || <span style={{ color: '#708993' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '16px 12px', fontSize: '18px', color: '#19183B', fontWeight: 600 }}>
+                        {formatAmount(receipt.amount, receipt.currency)}
+                      </td>
+                      <td style={{ padding: '16px 12px' }}>
+                        <span 
+                          style={{ 
+                            padding: '4px 12px', 
+                            borderRadius: '5px',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            backgroundColor: receipt.status === 'draft' ? '#FEF3C7' : receipt.status === 'final' ? '#D1FAE5' : '#FEE2E2',
+                            color: receipt.status === 'draft' ? '#92400E' : receipt.status === 'final' ? '#065F46' : '#991B1B'
+                          }}
+                        >
+                          {getStatusLabel(receipt.status)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '16px 12px' }}>
+                        <div className="flex gap-2">
+                          {receipt.status === "draft" ? (
+                            <Link href={`/dashboard/documents/receipt?draftId=${receipt.id}`}>
+                              <Button 
+                                variant="secondary"
+                                style={{ height: '40px', fontSize: '16px', borderColor: '#1A8299', color: '#1A8299' }}
+                              >
+                                עריכה
+                              </Button>
+                            </Link>
+                          ) : (
+                            <>
+                              <Button
+                                onClick={async () => {
+                                  const result = await getReceiptPreviewUrlAction(receipt.id);
+                                  if (result.ok && result.url) {
+                                    window.open(result.url, "_blank");
+                                  } else {
+                                    alert(result.message || "Failed to open preview");
+                                  }
+                                }}
+                                variant="secondary"
+                                style={{ height: '40px', fontSize: '16px', borderColor: '#1A8299', color: '#1A8299' }}
+                              >
+                                צפייה
+                              </Button>
+                              <Button
+                                onClick={async () => {
+                                  try {
+                                    const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
+                                    const response = await fetch(pdfUrl);
+                                    
+                                    if (!response.ok) {
+                                      throw new Error(`PDF download failed: ${response.statusText}`);
+                                    }
+                                    
+                                    const blob = await response.blob();
+                                    
+                                    if (blob.size === 0) {
+                                      throw new Error("Downloaded PDF is empty");
+                                    }
+                                    
+                                    const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                                    const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                                    const link = document.createElement("a");
+                                    link.href = downloadUrl;
+                                    link.download = `receipt-${receipt.document_number}.pdf`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    window.URL.revokeObjectURL(downloadUrl);
+                                  } catch (error: any) {
+                                    alert(`שגיאה בהורדת PDF: ${error.message}`);
+                                  }
+                                }}
+                                style={{ height: '40px', fontSize: '16px' }}
+                              >
+                                PDF
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ borderTop: '2px solid #FFFFFF', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ color: '#708993', fontSize: '16px' }}>
+                עמוד {page} מתוך {totalPages}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page === 1}
+                  variant="secondary"
+                  style={{ height: '40px', fontSize: '16px', borderColor: '#1A8299', color: '#1A8299' }}
+                >
+                  הקודם
+                </Button>
+
+                <Button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page === totalPages}
+                  variant="secondary"
+                  style={{ height: '40px', fontSize: '16px', borderColor: '#1A8299', color: '#1A8299' }}
+                >
+                  הבא
+                </Button>
+              </div>
+            </div>
+          )}
+        </FormSection>
       </div>
     </div>
   );

@@ -48,20 +48,23 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "w-full flex items-center justify-between gap-2 rounded-[5px] bg-white px-4 text-[14px] text-[#19183B] whitespace-nowrap outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors data-[placeholder]:text-[#97B2BD] text-right",
+        "w-full flex items-center justify-between gap-2 rounded-[5px] px-4 whitespace-nowrap outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors data-[placeholder]:text-[#97B2BD] text-right",
         heightClass,
         className,
       )}
       dir="rtl"
       style={{
         border: "1px solid transparent",
+        backgroundColor: "#EDF1F5",
+        color: "#19183B",
+        fontSize: "18px",
         ...style,
       }}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50 text-current" />
+        <ChevronDownIcon className="size-4" style={{ color: '#19183B', opacity: 1 }} />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -80,11 +83,15 @@ function SelectContent({
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(
-          'bg-card text-card-fg border border-border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden rounded-[5px] shadow-ui-lg',
+          'border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden rounded-[5px] shadow-ui-lg',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className,
         )}
+        style={{
+          backgroundColor: '#1e293b',
+          borderColor: 'rgba(255, 255, 255, 0.1)'
+        }}
         position={position}
         side={side}
         sideOffset={sideOffset}
@@ -128,15 +135,28 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-[5px] py-2.5 pr-8 pl-3 text-[14px] text-card-fg outline-none select-none hover:bg-muted focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors text-right",
+        "relative flex w-full cursor-pointer items-center gap-2 pr-8 pl-3 outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors text-right",
         className,
       )}
       dir="rtl"
+      style={{
+        height: "50px",
+        fontSize: "18px",
+        color: "#FFFFFF",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+        backgroundColor: "transparent",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "#1D868F";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+      }}
       {...props}
     >
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4 text-current" />
+          <CheckIcon className="size-4" style={{ color: '#FFFFFF' }} />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

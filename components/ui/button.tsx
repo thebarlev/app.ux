@@ -21,7 +21,7 @@ export function buttonVariants(opts?: { variant?: ButtonVariant; size?: ButtonSi
     "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed";
 
   const variants: Record<ButtonVariant, string> = {
-    primary: "bg-primary text-primary-fg hover:bg-primary-hover active:bg-primary-hover",
+    primary: "text-white hover:opacity-100 active:opacity-100",
     secondary: "bg-secondary text-secondary-fg border border-secondary-border hover:bg-muted active:bg-muted",
     danger: "bg-danger text-danger-fg hover:opacity-90 active:opacity-80",
     ghost: "bg-transparent text-fg hover:bg-muted active:bg-muted",
@@ -38,13 +38,30 @@ export function buttonVariants(opts?: { variant?: ButtonVariant; size?: ButtonSi
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "default", loading, children, disabled, ...props }, ref) => {
+  ({ className, variant = "primary", size = "default", loading, children, disabled, style, ...props }, ref) => {
+    const isPrimary = variant === "primary";
+    const primaryStyle = isPrimary ? {
+      backgroundColor: "#1D868F",
+      ...style,
+    } : style;
+
     return (
       <button
         ref={ref}
         type="button"
         disabled={disabled || loading}
         className={buttonVariants({ variant, size, className })}
+        style={primaryStyle}
+        onMouseEnter={(e) => {
+          if (isPrimary && !disabled && !loading) {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#19183B";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isPrimary && !disabled && !loading) {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D868F";
+          }
+        }}
         {...props}
       >
         {loading ? (

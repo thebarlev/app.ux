@@ -56,7 +56,7 @@
     --sidebar-muted-bg: #1D868F;
 
     --sidebar-border: none;
-    --sidebar-hover: #1D868F;
+    --sidebar-hover: #1A3954;
     --sidebar-active: #1D868F;
     --sidebar-active-fg: #FFFFFF;
     --sidebar-ring: #EDF1F5;
@@ -76,13 +76,13 @@
   html, body {
     height: 100%;
     background-color: #EDF1F5;
-    font-family: 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    font-family: 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   }
 
   body {
     /* דרישתך: צבע עמוד Body */
     margin: 0;
-    background: var(--card);
+    background: #EDF1F5;
     color: var(--input-fg);
     font-size: 14px;
     line-height: 1.6;

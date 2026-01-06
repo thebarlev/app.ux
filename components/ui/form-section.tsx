@@ -35,8 +35,9 @@ export function FormSection({
       className={cn(className)}
       style={{
         /* Background and border radius */
-        backgroundColor: '#1A8299',
+        backgroundColor: '#FFF',
         borderRadius: '20px',
+        boxShadow: '0 0 13px 0 rgba(0, 0, 0, 0.10)',
         /* 50px padding מכל הצדדים למעט top/bottom שזה 30px */
         paddingTop: '30px',
         paddingRight: '50px',
@@ -47,13 +48,13 @@ export function FormSection({
     >
       {/* Title - aligned to right, 30px from top, 50px from right edge */}
       <h2 
-        className="text-right text-2xl font-semibold text-white"
-        style={{ marginBottom: '30px' }}
+        className="text-right"
+        style={{ marginBottom: description ? '5px' : '30px', color: '#19183B', fontSize: '20px', fontWeight: 500 }}
       >
         {title}
       </h2>
       {description && (
-        <p className="text-sm text-white/80 text-right mb-[30px]">{description}</p>
+        <p className="text-sm text-right mb-[30px]" style={{ color: '#19183B' }}>{description}</p>
       )}
       
       {/* Content - grid with fields */}

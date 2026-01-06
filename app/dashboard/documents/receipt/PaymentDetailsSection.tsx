@@ -26,21 +26,21 @@ export default function PaymentDetailsSection({
   const inputStyle: React.CSSProperties = {
     height: 50,
     padding: "0 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 8,
+    border: "none",
+    backgroundColor: "#EDF1F5",
     width: "100%",
-    fontSize: 14,
-    color: "white",
+    fontSize: 18,
+    color: "#19183B",
     outline: "none",
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 600,
+    fontSize: 18,
+    fontWeight: "normal",
     marginBottom: 6,
     display: "block",
-    color: "white",
+    color: "#19183B",
   };
 
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
@@ -60,7 +60,7 @@ export default function PaymentDetailsSection({
             aria-label="4 ספרות אחרונות של כרטיס האשראי"
             aria-describedby="card-number-hint"
           />
-          <div className="text-xs text-muted-fg mt-1 text-right">
+          <div style={{ fontSize: 12, marginTop: 4, textAlign: 'right', color: '#666' }}>
             (4 ספרות אחרונות)
           </div>
         </div>

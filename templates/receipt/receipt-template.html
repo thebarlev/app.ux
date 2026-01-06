@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>קבלה {{RECEIPTNNUMBER}}</title>
+  <link rel="stylesheet" href="receipt-styles.css">
+</head>
+<body>
+  <div class="page">
+    <!-- HEADER -->
+    <header class="receipt-header">
+      <!-- LEFT SIDE – LOGO + BUSINESS DETAILS -->
+      <div class="header-left">
+        <div class="header-logo">
+          <img src="{{USERCOMPANYNAME}}" alt="BARLEV" class="company-logo-main">
+        </div>
+
+        <div class="header-business">
+          <div class="business-name">{{USERCOMPANYNAME}}</div>
+          <div class="business-line">עוסק מורשה (ח.פ) {{USERID}}</div>
+          <div class="business-line">{{USERADDRESS}}</div>
+          <div class="business-line">נייד {{PHONE}}</div>
+          <div class="business-line">{{EMAIL}}</div>
+          <div class="business-line">{{DOMAIN}}</div>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDE – GREY BLOCK WITH DOCUMENT INFO + CLIENT -->
+      <div class="header-right">
+        <div class="doc-date">{{Datecreation}}</div>
+
+        <div class="doc-title-block">
+          <div class="doc-title">קבלה</div>
+          <div class="doc-number">{{RECEIPTNNUMBER}}</div>
+        </div>
+
+        <div class="doc-subtitle">העתק נאמן למקור</div>
+
+        <div class="doc-client-block">
+          <div class="doc-client-label">לכבוד</div>
+          <div class="doc-client-name">{{CLIENTNAME}}</div>
+          <div class="doc-client-meta">
+            <span class="doc-client-id">ח.פ / ת.ז {{BUSINESSID}}</span>
+            <span class="doc-client-sep">טלפון{{PHONE}}</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- DESCRIPTION -->
+    <section class="description-section">
+      <div class="description-text">בגין: {{DESCRIPTION}}</div>
+    </section>
+
+    <!-- PAYMENTS TABLE -->
+    <section class="payments-section">
+      <table class="payments-table">
+        <thead>
+          <tr>
+            <th class="col-method">אמצעי תשלום</th>
+            <th class="col-desc">פירוט</th>
+            <th class="col-date">תאריך</th>
+            <th class="col-amount">סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-bold">מזומן</td>
+            <td>
+              <div class="payment-details">
+                <span class="payment-details-item">בגין: {{DESCRIPTION}}</span>
+              </div>
+            </td>
+            <td>{{DATE}}</td>
+            <td class="text-bold amount-cell">{{AMOUNT}} ₪</td>
+          </tr>
+          <tr>
+            <td class="text-bold">ניכוי במקור</td>
+            <td>
+              <div class="payment-details">
+                <span class="payment-details-item">בגין: {{DESCRIPTION}}</span>
+              </div>
+            </td>
+            <td>{{DATE}}</td>
+            <td class="text-bold amount-cell">{{AMOUNT}} ₪</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- TOTAL BAR -->
+    <section class="total-section">
+      <div class="total-box">
+        <span class="total-label">סה״כ</span>
+        <span class="total-amount">{{TOTAL}} ₪</span>
+      </div>
+    </section>
+
+    <!-- LOWER AREA : SIGNATURE + NOTE BOX -->
+    <section class="lower-section">
+      <!-- SIGNATURE -->
+      <div class="signature-box">
+        <img src="signature.png" alt="חתימה" class="signature-image">
+        <div class="signature-line"></div>
+        <div class="signature-label">חתימה</div>
+      </div>
+
+      <!-- NOTE -->
+      <div class="notes-box">
+        <div class="notes-title">חשוב לדעת</div>
+        <div class="notes-content">{{NOTES}}</div>
+      </div>
+    </section>
+
+    <!-- PAGE FOOTER -->
+    <div class="page-footer">
+      <div>מסמך ממוחשב הופק על ידי israel.green</div>
+      <div>הופק ב- {{Datecreation}} | שעה {{TIME}} | קבלה {{RECEIPTNNUMBER}} | עמוד 1 מתוך 1</div>
+    </div>
+  </div>
+</body>
+</html>

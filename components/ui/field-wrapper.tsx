@@ -1,5 +1,6 @@
 import { Label } from "./label"
 import { HelperText } from "./helper-text"
+import { cn } from "@/lib/utils"
 
 interface FieldWrapperProps {
   label: string
@@ -39,15 +40,17 @@ export function FieldWrapper({
   const hintId = id ? `${id}-hint` : undefined;
   
   return (
-    <div className={`w-[300px] ${className}`}>
+    <div className={cn("w-[300px]", className)}>
       <Label 
         htmlFor={id}
-        className="text-right text-white"
+        className="text-right"
+        style={{ color: '#19183B' }}
       >
         {label}
         {required && (
           <span 
-            className="text-white mr-1" 
+            className="mr-1" 
+            style={{ color: '#19183B' }}
             aria-label="שדה חובה"
           >
             *

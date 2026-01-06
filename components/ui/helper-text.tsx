@@ -14,9 +14,12 @@ export function HelperText({
     <p
       className={cn(
         'text-xs mt-1',
-        error ? 'text-white' : 'text-white/80',
         className
       )}
+      style={{
+        color: error ? '#9B0003' : '#97B2BD',
+        fontSize: '14px'
+      }}
       {...props}
     />
   )

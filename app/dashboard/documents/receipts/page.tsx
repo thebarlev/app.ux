@@ -32,7 +32,7 @@ export default async function ReceiptsListPage({ searchParams }: PageProps) {
   const result = await getReceiptsListAction(filters);
 
   return (
-    <div dir="rtl">
+    <div dir="rtl" style={{ backgroundColor: '#EDF1F5', minHeight: '100vh' }}>
       <ReceiptsListClient initialData={result} initialFilters={filters} />
     </div>
   );
