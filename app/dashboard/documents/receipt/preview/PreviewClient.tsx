@@ -35,7 +35,11 @@ type CompanyData = {
   company_name: string;
   business_type?: string;
   registration_number?: string;
+  company_number?: string;
   address?: string;
+  street?: string;
+  city?: string;
+  postal_code?: string;
   phone?: string;
   mobile_phone?: string;
   email?: string;
@@ -90,15 +94,36 @@ export default function PreviewClient({
   const customerPhone = customerData?.phone || customerData?.mobile || "";
   const companyPhone = companyData?.mobile_phone || companyData?.phone || "";
 
-  // Parse payments JSON
+  // Parse payments JSON - includes all dynamic payment fields
   let payments: Array<{
     method: string;
     date: string;
     amount: number;
     currency: string;
+    // Bank transfer fields
     bankName?: string;
     branch?: string;
     accountNumber?: string;
+    bankAccount?: string;
+    bankBranch?: string;
+    // Credit card fields
+    cardLastDigits?: string;
+    cardType?: string;
+    cardDealType?: string;
+    cardInstallments?: number;
+    // Check fields
+    checkBank?: string;
+    checkBranch?: string;
+    checkAccount?: string;
+    checkNumber?: string;
+    // Digital wallet fields
+    payerAccount?: string;
+    transactionReference?: string;
+    // Other fields
+    description?: string;
+    reference?: string;
+    reference_number?: string;
+    notes?: string;
   }> = [];
   try {
     const paymentsStr = searchParams.get("payments");
@@ -128,9 +153,185 @@ export default function PreviewClient({
     return () => window.removeEventListener('message', handleMessage);
   }, [previewNumber, companyName]);
   
+  // Helper function to escape HTML and prevent XSS
+  const escapeHtml = (text: string | null | undefined): string => {
+    if (!text) return "";
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  // Helper function to build payment details based on payment method
+  const buildPaymentDetails = (payment: any): string => {
+    const parts: string[] = [];
+    
+    if (payment.method === "כרטיס אשראי") {
+      if (payment.cardLastDigits) parts.push(`כרטיס: *${payment.cardLastDigits}`);
+      if (payment.cardType) parts.push(payment.cardType);
+      if (payment.cardDealType && payment.cardDealType !== "regular") parts.push(payment.cardDealType);
+      if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments} תשלומים`);
+    } else if (payment.method === "העברה בנקאית") {
+      if (payment.bankName) parts.push(payment.bankName);
+      if (payment.bankBranch) parts.push(`סניף: ${payment.bankBranch}`);
+      if (payment.bankAccount) parts.push(`חשבון: ${payment.bankAccount}`);
+      // Also check alternative field names
+      if (payment.branch) parts.push(`סניף: ${payment.branch}`);
+      if (payment.accountNumber) parts.push(`חשבון: ${payment.accountNumber}`);
+    } else if (payment.method === "צ׳ק") {
+      if (payment.checkNumber) parts.push(`צ׳ק מס׳ ${payment.checkNumber}`);
+      if (payment.checkBank) parts.push(payment.checkBank);
+      if (payment.checkBranch) parts.push(`סניף: ${payment.checkBranch}`);
+      if (payment.checkAccount) parts.push(`חשבון: ${payment.checkAccount}`);
+    } else if ([
+      "Bit", "PayBox", "PayPal", "Apple Pay", "Google Pay", 
+      "Colu", "Pay", "Payoneer", "V-CHECK", "שווה כסף", 
+      "שובר מתנה", "שובר BuyME", "אתריום", "ביטקוין", 
+      "ניכוי חלק עובד טל״א"
+    ].includes(payment.method)) {
+      if (payment.payerAccount) parts.push(`חשבון: ${payment.payerAccount}`);
+      if (payment.transactionReference) parts.push(`עסקה: ${payment.transactionReference}`);
+    } else if (payment.method === "ניכוי אחר" && payment.description) {
+      return payment.description;
+    }
+    
+    // Add generic fields if no method-specific details found
+    if (parts.length === 0) {
+      if (payment.reference_number) parts.push(payment.reference_number);
+      if (payment.reference) parts.push(payment.reference);
+      if (payment.notes) parts.push(payment.notes);
+      if (payment.description) parts.push(payment.description);
+    }
+    
+    return parts.join(" | ");
+  };
+
+  // Generate PAYMENTS_ROWS_HTML (same logic as in lib/pdf-service.ts)
+  const generatePaymentsRowsHTML = () => {
+    if (payments.length === 0) return "";
+    
+    return payments.map((p) => {
+      // Build payment details based on payment method
+      const paymentDetails = buildPaymentDetails(p);
+      
+      // Format date
+      const formattedDate = formatDate(p.date);
+      
+      // Format amount
+      const formattedAmount = formatMoney(p.amount, p.currency || currency);
+      
+      // Escape HTML to prevent XSS
+      const escapedMethod = escapeHtml(p.method);
+      const escapedDetails = escapeHtml(paymentDetails);
+      const escapedDate = escapeHtml(formattedDate);
+      const escapedAmount = escapeHtml(formattedAmount);
+      
+      // Generate table row HTML
+      return `<tr>
+  <td>${escapedMethod}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedDate}</td>
+  <td>${escapedAmount}</td>
+</tr>`;
+    }).join("\n");
+  };
+
+  const paymentsRowsHTML = generatePaymentsRowsHTML();
+  
   // Prepare template data for rendering
   const templateData = {
-    // Document metadata
+    // Company data - structured as object (matches template expectations)
+    company: {
+      company_name: companyName,
+      company_tax_id: companyData?.registration_number || "",
+      company_address: companyData?.address || "",
+      company_phone: companyPhone,
+      company_email: companyData?.email || "",
+      company_website: companyData?.website || "",
+      company_logo: companyData?.logo_url || "",
+    },
+    
+    // Customer data - structured as object (matches template expectations)
+    customer: customerName ? {
+      customer_name: customerName,
+      customer_tax_id: customerData?.tax_id || "",
+      customer_phone: customerPhone,
+      customer_email: customerData?.email || "",
+      customer_address: customerData?.address_street ? 
+        `${customerData.address_street}${customerData.address_city ? ', ' + customerData.address_city : ''}` : "",
+    } : null,
+    
+    // Document data
+    document: {
+      document_number: previewNumber || "",
+      document_date: documentDate,
+      document_type: "receipt",
+    },
+    
+    // Payments - with correct field names for template
+    payments: payments.map((p, idx) => {
+      // Build payment details based on payment method
+      const paymentDetails = buildPaymentDetails(p);
+      
+      return {
+        method: p.method || "",
+        details: paymentDetails,
+        display_date: formatDate(p.date),
+        display_amount: formatMoney(p.amount, p.currency || currency),
+        // Keep original fields for compatibility
+        date: p.date,
+        amount: p.amount,
+        currency: p.currency || currency,
+        formattedDate: formatDate(p.date),
+        formattedAmount: formatMoney(p.amount, p.currency || currency),
+        // Extended fields
+        reference: (p as any).reference || (p as any).reference_number || null,
+        description: (p as any).description || (p as any).notes || null,
+        // All payment-specific fields for template access
+        bankName: p.bankName,
+        bankBranch: p.bankBranch || p.branch,
+        bankAccount: p.bankAccount || p.accountNumber,
+        cardLastDigits: p.cardLastDigits,
+        cardType: p.cardType,
+        cardDealType: p.cardDealType,
+        cardInstallments: p.cardInstallments,
+        checkBank: p.checkBank,
+        checkBranch: p.checkBranch,
+        checkAccount: p.checkAccount,
+        checkNumber: p.checkNumber,
+        payerAccount: p.payerAccount,
+        transactionReference: p.transactionReference,
+        index: idx,
+        isEven: idx % 2 === 0,
+      };
+    }),
+    
+    // Pre-rendered HTML for payments table rows
+    PAYMENTS_ROWS_HTML: paymentsRowsHTML,
+    
+    // Formatted values (matches template expectations)
+    formatted_total: formatMoney(total, currency),
+    formatted_date: formatDate(documentDate),
+    
+    // Total amount (for {{TOTAL_AMOUNT}})
+    TOTAL_AMOUNT: formatMoney(total, currency),
+    
+    // Notes data (matches template expectations)
+    notes_data: {
+      notes: notes || null,
+      footer_notes: footerNotes || null,
+      signature: companyData?.signature_url || null,
+    },
+    
+    // Totals
+    totals: {
+      total_amount: total,
+      currency: currency,
+    },
+    
+    // Document metadata (for backward compatibility)
     previewNumber: previewNumber || "",
     documentDate: formatDate(documentDate),
     description: description || "",
@@ -140,7 +341,7 @@ export default function PreviewClient({
     currency: currency,
     formattedTotal: formatMoney(total, currency),
     
-    // Company data
+    // Company data (flat structure for backward compatibility)
     companyName: companyName,
     companyRegistration: companyData?.registration_number || "",
     companyAddress: companyData?.address || "",
@@ -150,7 +351,7 @@ export default function PreviewClient({
     companyLogoUrl: companyData?.logo_url || "",
     companySignatureUrl: companyData?.signature_url || "",
     
-    // Customer data  
+    // Customer data (flat structure for backward compatibility)
     customerName: customerName || "",
     customerTaxId: customerData?.tax_id || "",
     customerPhone: customerPhone,
@@ -158,14 +359,6 @@ export default function PreviewClient({
     customerAddress: customerData?.address_street ? 
       `${customerData.address_street}${customerData.address_city ? ', ' + customerData.address_city : ''}` : "",
     
-    // Payments
-    payments: payments.map((p, idx) => ({
-      ...p,
-      formattedDate: formatDate(p.date),
-      formattedAmount: formatMoney(p.amount, p.currency),
-      index: idx,
-      isEven: idx % 2 === 0
-    })),
     hasPayments: payments.length > 0,
     
     // Current time - using documentDate to avoid hydration mismatch
@@ -195,7 +388,21 @@ export default function PreviewClient({
     PAYMENT_DESC: "",
     PAYMENT_DATE: payments[0] ? formatDate(payments[0].date) : "",
     PAYMENT_AMOUNT: payments[0] ? formatMoney(payments[0].amount, payments[0].currency) : "",
-    TOTAL: formatMoney(total, currency)
+    TOTAL: formatMoney(total, currency),
+    
+    // Page numbers - will be calculated dynamically
+    // For now, default to 1 of 1, but these can be updated after rendering
+    PAGE_NUMBER: "1",
+    TOTAL_PAGES: "1",
+    
+    // Current date and time for footer
+    CURRENT_DATE_TIME: new Date().toLocaleString("he-IL", { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })
   };
   
   // Function to process template with data
@@ -204,6 +411,24 @@ export default function PreviewClient({
       let processed = html;
       
       console.log("🔵 [processTemplate] Starting with template length:", html.length);
+
+    // 0. Handle triple braces first (raw HTML): {{{ var }}} or {{{var}}}
+    processed = processed.replace(
+      /\{\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}\}/g,
+      (match, path) => {
+        const value = path
+          .split(".")
+          .reduce((obj: any, key: string) => obj?.[key], templateData);
+        
+        if (value === undefined || value === null) {
+          console.warn(`⚠️ [processTemplate] Variable {{{${path}}}} not found in templateData`);
+          return "";
+        }
+        
+        // Return raw HTML without escaping
+        return String(value);
+      }
+    );
 
     // 1. Handle loops first: {{#each payments}}...{{/each}}
     processed = processed.replace(

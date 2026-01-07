@@ -42,6 +42,10 @@ export type InitialReceiptCreateData =
 async function getMinAllowedDate(companyId: string, documentType: string): Promise<string | null> {
   const supabase = await createClient();
   
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:42',message:'getMinAllowedDate entry',data:{companyId:companyId.substring(0,8),documentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+  
   const { data, error } = await supabase
     .from("documents")
     .select("issue_date")
@@ -52,8 +56,24 @@ async function getMinAllowedDate(companyId: string, documentType: string): Promi
     .limit(1)
     .maybeSingle();
 
-  if (error || !data) return null;
-  return data.issue_date; // YYYY-MM-DD format
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:55',message:'getMinAllowedDate query result',data:{hasError:!!error,hasData:!!data,issueDate:data?.issue_date,issueDateType:typeof data?.issue_date,issueDateLength:data?.issue_date?.length,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+
+  if (error || !data) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:58',message:'getMinAllowedDate returning null',data:{reason:error?'error':'no_data'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    return null;
+  }
+  
+  const result = data.issue_date; // YYYY-MM-DD format
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:65',message:'getMinAllowedDate returning date',data:{result,resultType:typeof result,resultLength:result?.length,isValidFormat:/^\d{4}-\d{2}-\d{2}$/.test(result||'')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
+  
+  return result;
 }
 
 export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreateData> {
@@ -111,13 +131,29 @@ export async function getInitialReceiptCreateData(): Promise<InitialReceiptCreat
 // ReceiptDraftPayload type now imported from @/lib/types/receipt
 
 function validatePayload(p: ReceiptDraftPayload, minAllowedDate?: string | null) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:133',message:'validatePayload entry',data:{documentDate:p.documentDate,minAllowedDate,minAllowedDateType:typeof minAllowedDate,hasMinDate:!!minAllowedDate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   if (!p.customerName.trim()) return "חובה למלא שם לקוח.";
   if (!p.documentDate) return "חובה לבחור תאריך.";
   
   // Enforce date locking: document date cannot be earlier than last issued document
   if (minAllowedDate && p.documentDate < minAllowedDate) {
-    return "date_validation_failed"; // Silent error - UI already prevents this
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:142',message:'date validation failed',data:{documentDate:p.documentDate,minAllowedDate,comparison:p.documentDate+' < '+minAllowedDate,result:p.documentDate < minAllowedDate,documentDateLength:p.documentDate?.length,minAllowedDateLength:minAllowedDate?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    // Format date for display (DD/MM/YYYY)
+    const formatDateForDisplay = (dateStr: string) => {
+      const [year, month, day] = dateStr.split('-');
+      return `${day}/${month}/${year}`;
+    };
+    return `תאריך המסמך חייב להיות ${formatDateForDisplay(minAllowedDate)} או מאוחר יותר. המסמך האחרון הונפק ב-${formatDateForDisplay(minAllowedDate)}.`;
   }
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:150',message:'date validation passed',data:{documentDate:p.documentDate,minAllowedDate,hasMinDate:!!minAllowedDate},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   
   if (!Array.isArray(p.payments) || p.payments.length === 0) return "חובה להוסיף לפחות תקבול אחד.";
   for (const [i, row] of p.payments.entries()) {
@@ -189,12 +225,26 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
  * Returns the receipt ID instead of redirecting (for PDF download)
  */
 export async function issueReceiptAction(payload: ReceiptDraftPayload) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:191',message:'issueReceiptAction entry',data:{documentDate:payload.documentDate,payloadKeys:Object.keys(payload)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   const supabase = await createClient();
   const companyId = await getCompanyIdForUser();
   
   // Get min allowed date for validation
   const minAllowedDate = await getMinAllowedDate(companyId, "receipt");
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:197',message:'before validatePayload',data:{documentDate:payload.documentDate,minAllowedDate,companyId:companyId.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   const err = validatePayload(payload, minAllowedDate);
+  
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'actions.ts:200',message:'after validatePayload',data:{error:err,hasError:!!err},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   if (err) return { ok: false as const, message: err };
 
   // First create as draft (no number yet)

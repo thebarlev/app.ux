@@ -23,7 +23,11 @@ type CompanyData = {
   company_name: string
   business_type?: string
   registration_number?: string
+  company_number?: string
   address?: string
+  street?: string
+  city?: string
+  postal_code?: string
   phone?: string
   mobile_phone?: string
   email?: string

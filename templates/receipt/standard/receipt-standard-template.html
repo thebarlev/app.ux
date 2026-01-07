@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>קבלה {{document.document_number}}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Heebo", "Arial", sans-serif;
+      color: #1f1f1f;
+      background: #ffffff;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 18mm 16mm 22mm;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header Section */
+    .header {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-logo img {
+      width: 150px;
+      height: auto;
+      max-height: 60px;
+      object-fit: contain;
+    }
+
+    .company-info {
+      font-size: 12px;
+      line-height: 1.7;
+      color: #1f1f1f;
+    }
+
+    .company-info strong {
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .header-card {
+      background: #5b6c57;
+      color: #ffffff;
+      border-radius: 10px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 160px;
+    }
+
+    .header-card h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    .header-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .header-meta span {
+      display: block;
+    }
+
+    .client-info {
+      font-size: 12px;
+      line-height: 1.7;
+      text-align: right;
+    }
+
+    .client-info .muted {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 11px;
+    }
+
+    .client-info strong {
+      font-weight: 700;
+      display: block;
+      margin-top: 4px;
+    }
+
+    /* Payments Table */
+    .payments-section {
+      width: 100%;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: #ffffff;
+    }
+
+    .table thead th {
+      text-align: right;
+      padding: 10px 8px;
+      border-bottom: 2px solid #1f1f1f;
+      font-weight: 700;
+      background: #f9fafb;
+    }
+
+    .table tbody td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table tbody tr:nth-child(even) {
+      background: #f9fafb;
+    }
+
+    /* Summary Block */
+    .summary {
+      width: 160px;
+      background: #f1f1f1;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-self: flex-start;
+      font-weight: 700;
+    }
+
+    /* Notes Section */
+    .notes-section {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f9fafb;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.6;
+      color: #4b5563;
+    }
+
+    .notes-section:empty {
+      display: none;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: auto;
+      font-size: 10px;
+      color: #6b7280;
+      text-align: center;
+      line-height: 1.6;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .footer-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+
+    /* Print Styles */
+    @media print {
+      .page {
+        box-shadow: none;
+        margin: 0;
+        padding: 16mm;
+      }
+
+      .table tbody tr {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <!-- Header Section -->
+    <section class="header">
+      <div class="brand">
+        {{#if company.company_logo}}
+        <div class="brand-logo">
+          <img src="{{company.company_logo}}" alt="{{company.company_name}}" />
+        </div>
+        {{/if}}
+        <div class="company-info">
+          <div><strong>{{company.company_name}}</strong></div>
+          {{#if company.company_tax_id}}
+          <div>עוסק מורשה (ח.פ) {{company.company_tax_id}}</div>
+          {{/if}}
+          {{#if company.company_address}}
+          <div>{{company.company_address}}</div>
+          {{/if}}
+          {{#if company.company_phone}}
+          <div>נייד {{company.company_phone}}</div>
+          {{/if}}
+          {{#if company.company_email}}
+          <div>{{company.company_email}}</div>
+          {{/if}}
+          {{#if company.company_website}}
+          <div>{{company.company_website}}</div>
+          {{/if}}
+        </div>
+      </div>
+      <div class="header-card">
+        <div class="header-meta">
+          <span>{{formatted_date}}</span>
+          <span>קבלה</span>
+        </div>
+        <h1>{{document.document_number}}</h1>
+        {{#if customer}}
+        <div class="client-info">
+          <div class="muted">לכבוד</div>
+          <div><strong>{{customer.customer_name}}</strong></div>
+          {{#if customer.customer_tax_id}}
+          <div>{{customer.customer_tax_id}} ח.פ / ע.מ</div>
+          {{/if}}
+          {{#if customer.customer_phone}}
+          <div>טלפון {{customer.customer_phone}}</div>
+          {{/if}}
+        </div>
+        {{/if}}
+      </div>
+    </section>
+
+    <!-- Payments Table -->
+    <section class="payments-section">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>אמצעי תשלום</th>
+            <th>פירוט</th>
+            <th>תאריך</th>
+            <th>סכום</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each payments}}
+          <tr>
+            <td>{{this.method}}</td>
+            <td>{{this.details}}</td>
+            <td>{{this.display_date}}</td>
+            <td>{{this.display_amount}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Summary -->
+    <div class="summary">
+      <span>סה"כ</span>
+      <strong>{{formatted_total}}</strong>
+    </div>
+
+    <!-- Notes Section -->
+    {{#if notes_data.notes}}
+    <div class="notes-section">
+      <strong>הערות:</strong>
+      <div>{{{notes_data.notes}}}</div>
+    </div>
+    {{/if}}
+
+    {{#if notes_data.footer_notes}}
+    <div class="notes-section">
+      {{{notes_data.footer_notes}}}
+    </div>
+    {{/if}}
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div>מסמך ממוחשב הופק על ידי israel.green</div>
+      <div class="footer-meta">
+        <span>הופק ב-{{CURRENT_DATE_TIME}}</span>
+        <span>עמוד {{PAGE_NUMBER}} מתוך {{TOTAL_PAGES}}</span>
+      </div>
+    </footer>
+  </main>
+</body>
+</html>

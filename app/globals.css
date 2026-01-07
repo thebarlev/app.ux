@@ -243,6 +243,13 @@
     @apply mb-[50px];
   }
 
+  /* Table Cell - Shared alignment for th and td */
+  .table-cell {
+    padding: 16px;
+    text-align: right;
+    vertical-align: middle;
+  }
+
   /* Divider */
   .ui-divider {
     @apply border-t border-border;

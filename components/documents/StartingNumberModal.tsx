@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
-import { AlertCircle, Hash, Loader2, X } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { AlertCircle, Hash, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { HelperText } from "@/components/ui/helper-text";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FormSection } from "@/components/ui/form-section";
 
 type Props = {
   documentType: string;
@@ -89,60 +89,61 @@ export default function StartingNumberModal({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
       onClick={(e) => e.target === e.currentTarget && !loading && onClose()}
       role="presentation"
       dir="rtl"
     >
-      <Card 
-        className="w-full max-w-2xl shadow-xl"
+      <div 
+        className="w-full max-w-[600px] bg-card rounded-[5px] shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
         aria-describedby="modal-description"
+        onClick={(e) => e.stopPropagation()}
       >
-        <CardHeader className="pb-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4 flex-1">
-              <div className="flex h-12 w-12 items-center justify-center rounded-ui bg-primary/10 flex-shrink-0">
-                <Hash className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <CardTitle id="modal-title" className="text-2xl mb-2">
-                  בחירת מספר מסמך ראשון
-                </CardTitle>
-                <CardDescription id="modal-description" className="text-sm leading-relaxed">
-                  זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
-                </CardDescription>
-              </div>
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 p-[30px] pb-0">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-primary/10 flex-shrink-0">
+              <Hash className="h-6 w-6 text-primary" />
             </div>
-            <Button
-              ref={closeButtonRef}
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              disabled={loading}
-              aria-label="סגור חלון"
-              className="flex-shrink-0"
-            >
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex-1 min-w-0">
+              <h2 id="modal-title" className="text-2xl font-semibold text-fg mb-2">
+                בחירת מספר מסמך ראשון
+              </h2>
+              <p id="modal-description" className="text-sm text-muted-fg leading-relaxed">
+                זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
+              </p>
+            </div>
           </div>
-        </CardHeader>
+          <Button
+            ref={closeButtonRef}
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="סגור חלון"
+            className="flex-shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
 
-        <CardContent className="space-y-6">
+        {/* Content */}
+        <div className="p-[30px] space-y-[50px]">
           {/* Warning Alert */}
-          <div className="flex items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-ui" role="alert">
+          <div className="flex items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-[5px]" role="alert">
             <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="text-sm text-card-fg">
+            <div className="text-sm text-fg">
               <strong className="font-semibold">חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
             </div>
           </div>
 
           {/* Error announcement */}
           {error && (
-            <div className="p-4 bg-danger/10 border border-danger/20 rounded-ui" role="alert" aria-live="assertive">
+            <div className="p-4 bg-danger/10 border border-danger/20 rounded-[5px]" role="alert" aria-live="assertive">
               <HelperText error className="mb-0">
                 {error}
               </HelperText>
@@ -150,14 +151,14 @@ export default function StartingNumberModal({
           )}
 
           {/* Quick Options */}
-          <div className="space-y-3">
+          <div className="space-y-[25px]">
             <Label>בחירה מהירה</Label>
-            <div className="grid grid-cols-3 gap-3" role="group" aria-label="אפשרויות מספר התחלתי">
+            <div className="ui-form-grid" role="group" aria-label="אפשרויות מספר התחלתי">
               {quickOptions.map((num) => (
                 <Button
                   key={num}
                   type="button"
-                  variant={startingNumber === num ? "default" : "secondary"}
+                  variant={startingNumber === num ? "primary" : "secondary"}
                   onClick={() => {
                     setStartingNumber(num);
                     setError(null);
@@ -165,7 +166,6 @@ export default function StartingNumberModal({
                   disabled={loading}
                   aria-pressed={startingNumber === num}
                   aria-label={`בחר מספר ${num}`}
-                  className="h-[50px]"
                 >
                   {num}
                 </Button>
@@ -200,41 +200,42 @@ export default function StartingNumberModal({
           </FieldWrapper>
 
           {/* Preview */}
-          <div className="p-4 bg-muted/50 border border-border rounded-ui" aria-live="polite">
+          <div className="p-4 bg-muted/30 border border-border rounded-[5px]" aria-live="polite">
             <div className="text-sm font-semibold text-muted-fg mb-2">
               תצוגה מקדימה של המיספור:
             </div>
-            <div className="text-lg font-bold text-card-fg">
+            <div className="text-lg font-bold text-fg">
               {startingNumber}, {startingNumber + 1}, {startingNumber + 2}...
             </div>
           </div>
-        </CardContent>
+        </div>
 
-        <CardFooter className="flex gap-3 pt-6">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-            disabled={loading}
-            aria-label="ביטול ללא שמירה"
-            className="flex-1"
-          >
-            ביטול
-          </Button>
-          <Button
-            ref={confirmButtonRef}
-            type="button"
-            onClick={onConfirm}
-            disabled={loading || startingNumber < 1}
-            isLoading={loading}
-            aria-busy={loading}
-            aria-label={loading ? "שומר מספר התחלתי" : "אישור והתחלת מיספור"}
-            className="flex-1"
-          >
-            {loading ? "שומר..." : "אישור והתחלת מיספור"}
-          </Button>
-        </CardFooter>
-      </Card>
+        {/* Footer Actions */}
+        <div className="p-[30px] pt-0">
+          <div className="flex gap-3 justify-start">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={loading}
+              aria-label="ביטול ללא שמירה"
+            >
+              ביטול
+            </Button>
+            <Button
+              ref={confirmButtonRef}
+              type="button"
+              onClick={onConfirm}
+              disabled={loading || startingNumber < 1}
+              loading={loading}
+              aria-busy={loading}
+              aria-label={loading ? "שומר מספר התחלתי" : "אישור והתחלת מיספור"}
+            >
+              {loading ? "שומר..." : "אישור והתחלת מיספור"}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

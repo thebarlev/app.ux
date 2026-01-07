@@ -33,16 +33,18 @@ export default async function TemplatesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <Suspense
-        fallback={
-          <div className="flex items-center justify-center h-[50vh]">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        }
-      >
-        <TemplatesClient initialTemplates={result.templates} />
-      </Suspense>
-    </div>
+    <main dir="rtl" style={{ backgroundColor: '#EDF1F5', minHeight: '100vh' }}>
+      <div className="ui-container pt-10">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center h-[50vh]">
+              <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#1D868F' }} />
+            </div>
+          }
+        >
+          <TemplatesClient initialTemplates={result.templates} />
+        </Suspense>
+      </div>
+    </main>
   )
 }

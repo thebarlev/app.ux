@@ -37,8 +37,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ customers: data || [] });
   } catch (error: any) {
     console.error("Customer search error:", error);
+    
+    // Handle network/DNS errors gracefully
+    if (error?.cause?.code === 'ENOTFOUND' || error?.code === 'ENOTFOUND') {
+      console.error("Network error - Supabase host not found:", error.cause?.hostname || error.hostname);
+      return NextResponse.json(
+        { 
+          error: "Connection error. Please check your internet connection.",
+          customers: [] 
+        },
+        { status: 503 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error?.message || "Internal server error" },
+      { 
+        error: error?.message || "Internal server error",
+        customers: []
+      },
       { status: 500 }
     );
   }

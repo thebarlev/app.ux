@@ -492,7 +492,12 @@ export default function ReceiptFormClient({
             </div>
           </FieldWrapper>
 
-          <FieldWrapper label="תאריך מסמך" required id="documentDate">
+          <FieldWrapper 
+            label="תאריך מסמך" 
+            required 
+            id="documentDate"
+            hint={minAllowedDate ? `תאריך מינימלי: ${minAllowedDate.split('-').reverse().join('/')} (לפי המסמך האחרון שהונפק)` : undefined}
+          >
             <DateInput
               id="documentDate"
               value={documentDate}

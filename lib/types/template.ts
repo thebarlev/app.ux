@@ -117,6 +117,7 @@ export interface ReceiptTemplateData {
   payments: PaymentItem[];
   payments_table?: string; // Pre-rendered HTML for payments table rows
   payments_table_simple?: string; // Simplified version
+  PAYMENTS_ROWS_HTML?: string; // Pre-rendered HTML rows for payments (inject inside <tbody>)
   
   // Line items (for invoices/quotes)
   items?: LineItem[];
@@ -131,6 +132,13 @@ export interface ReceiptTemplateData {
   // Formatted values for display
   formatted_total?: string; // e.g., "1,234.56 ₪"
   formatted_date?: string; // e.g., "01/01/2026"
+  
+  // Page numbering
+  PAGE_NUMBER?: string; // Current page number (e.g., "1")
+  TOTAL_PAGES?: string; // Total number of pages (e.g., "1")
+  
+  // Current date and time for footer
+  CURRENT_DATE_TIME?: string; // Formatted date and time (e.g., "07/01/2026, 15:30")
 }
 
 // ============================================

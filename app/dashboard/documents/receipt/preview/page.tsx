@@ -34,11 +34,34 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     const companyId = await getCompanyIdForUser();
     const { data } = await supabase
       .from("companies")
-      .select("company_name, business_type, registration_number, address, phone, mobile_phone, email, website, logo_url, signature_url")
+      .select("company_name, business_type, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url")
       .eq("id", companyId)
       .maybeSingle();
     
-    companyData = data;
+    // Build address from separate fields if available, otherwise use address field
+    if (data) {
+      let fullAddress = data.address || "";
+      if (data.street || data.city) {
+        const addressParts = [];
+        if (data.street) addressParts.push(data.street);
+        if (data.city) addressParts.push(data.city);
+        if (data.postal_code) addressParts.push(data.postal_code);
+        if (addressParts.length > 0) {
+          fullAddress = addressParts.join(", ");
+        }
+      }
+      
+      // Use company_number if registration_number is not available
+      const registrationNumber = data.registration_number || data.company_number || "";
+      
+      companyData = {
+        ...data,
+        address: fullAddress,
+        registration_number: registrationNumber,
+      };
+    } else {
+      companyData = null;
+    }
     
     // Get template from database
     console.log("🔵 [PreviewPage] Fetching template for company:", companyId.substring(0, 8));

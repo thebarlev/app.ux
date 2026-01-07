@@ -138,10 +138,15 @@ export async function prepareDocumentData(
       *,
       company:companies(
         id,
-        name,
-        tax_id,
+        company_name,
+        registration_number,
+        company_number,
         address,
+        street,
+        city,
+        postal_code,
         phone,
+        mobile_phone,
         email,
         logo_url,
         signature_url
@@ -152,7 +157,10 @@ export async function prepareDocumentData(
         tax_id,
         email,
         phone,
-        address
+        mobile,
+        address_street,
+        address_city,
+        address_zip
       )
     `)
     .eq("id", documentId)
@@ -174,59 +182,216 @@ export async function prepareDocumentData(
   const paymentMetadata = doc.payment_metadata as any
   const payments = paymentMetadata?.payments || []
 
+  // ✅ helpers MUST be outside templateData object
+  // Map currency symbol to currency code for Intl.NumberFormat
+  const getCurrencyCode = (currencySymbol: string): string => {
+    const currencyMap: Record<string, string> = {
+      "₪": "ILS",
+      "$": "USD",
+      "€": "EUR",
+      "£": "GBP",
+    }
+    return currencyMap[currencySymbol] || currencySymbol || "ILS"
+  }
+
+  const currencySymbol = doc.currency || "₪"
+  const currencyCode = getCurrencyCode(currencySymbol)
+
+  const formatCurrency = (amount: number) => {
+    try {
+      return new Intl.NumberFormat("he-IL", {
+        style: "currency",
+        currency: currencyCode,
+        currencyDisplay: "narrowSymbol",
+      }).format(amount)
+    } catch {
+      return `${amount.toFixed(2)} ${currencySymbol}`
+    }
+  }
+
+  const formatDate = (value: any) => {
+    if (!value) return ""
+    const d = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(d.getTime())) return ""
+    return new Intl.DateTimeFormat("he-IL").format(d)
+  }
+
+  const buildPaymentDetails = (p: any) => {
+    const parts: string[] = []
+    if (p.reference_number) parts.push(p.reference_number)
+    if (p.notes) parts.push(p.notes)
+    return parts.join(" ").trim()
+  }
+
+  // Helper function to escape HTML and prevent XSS
+  const escapeHtml = (text: string | null | undefined): string => {
+    if (!text) return ""
+    return String(text)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;")
+  }
+
+
+  const mappedPayments = payments.map((p: any) => {
+    const amount = Number(p.amount ?? 0)
+    const date = p.date || p.payment_date || doc.issue_date || ""
+
+    return {
+      method: p.payment_method || "",
+      date: date,
+      amount: amount,
+      currency: currencyCode,
+      reference: p.reference_number || null,
+      description: p.notes || null,
+      // Extended fields
+      bank_name: p.bank_name || null,
+      branch: p.branch || null,
+      account_number: p.account_number || null,
+      check_number: p.check_number || null,
+      card_last4: p.card_last4 || null,
+      transaction_id: p.transaction_id || null,
+      // ✅ Display fields used by template
+      details: buildPaymentDetails(p),
+      display_date: formatDate(date),
+      display_amount: formatCurrency(amount),
+    } as any // Using 'as any' to allow extra display fields
+  })
+
+  // Build company address from separate fields if available, otherwise use address field
+  let companyAddress = doc.company?.address || "";
+  if (doc.company?.street || doc.company?.city) {
+    const addressParts = [];
+    if (doc.company.street) addressParts.push(doc.company.street);
+    if (doc.company.city) addressParts.push(doc.company.city);
+    if (doc.company.postal_code) addressParts.push(doc.company.postal_code);
+    if (addressParts.length > 0) {
+      companyAddress = addressParts.join(", ");
+    }
+  }
+  
+  // Use registration_number or company_number for tax ID
+  const companyTaxId = doc.company?.registration_number || doc.company?.company_number || null;
+  
+  // Use mobile_phone or phone for company phone
+  const companyPhone = doc.company?.mobile_phone || doc.company?.phone || null;
+  
+  // Build customer address from separate fields if available
+  let customerAddress = null;
+  if (doc.customer) {
+    if (doc.customer.address_street || doc.customer.address_city) {
+      const addressParts = [];
+      if (doc.customer.address_street) addressParts.push(doc.customer.address_street);
+      if (doc.customer.address_city) addressParts.push(doc.customer.address_city);
+      if (doc.customer.address_zip) addressParts.push(doc.customer.address_zip);
+      if (addressParts.length > 0) {
+        customerAddress = addressParts.join(", ");
+      }
+    }
+  }
+  
+  // Use mobile or phone for customer phone
+  const customerPhone = doc.customer?.mobile || doc.customer?.phone || null;
+
   // Build template data structure
   const templateData: ReceiptTemplateData = {
     company: {
-      name: doc.company?.name || "",
-      tax_id: doc.company?.tax_id || null,
-      address: doc.company?.address || null,
-      phone: doc.company?.phone || null,
-      email: doc.company?.email || null,
-      logo_url: doc.company?.logo_url || null,
-      signature_url: doc.company?.signature_url || null,
+      company_name: doc.company?.company_name || "",
+      company_tax_id: companyTaxId,
+      company_address: companyAddress || null,
+      company_phone: companyPhone,
+      company_email: doc.company?.email || null,
+      company_logo: doc.company?.logo_url || null,
     },
     customer: doc.customer ? {
-      name: doc.customer.name || "",
-      tax_id: doc.customer.tax_id || null,
-      email: doc.customer.email || null,
-      phone: doc.customer.phone || null,
-      address: doc.customer.address || null,
-    } : null,
-    document: {
-      type: doc.document_type,
-      number: doc.document_number || "",
-      issue_date: doc.issue_date,
-      due_date: doc.due_date || null,
-      valid_until: null, // For quotes
-      reference_number: null,
-      description: doc.description || null,
-      currency: doc.currency,
-      status: doc.document_status,
+      customer_name: doc.customer.name || "",
+      customer_tax_id: doc.customer.tax_id || null,
+      customer_email: doc.customer.email || null,
+      customer_phone: customerPhone,
+      customer_address: customerAddress,
+    } : {
+      customer_name: "",
     },
-    payments: payments.map((p: any) => ({
-      payment_method: p.payment_method,
-      amount: parseFloat(p.amount),
-      reference_number: p.reference_number || null,
-      notes: p.notes || null,
-    })),
+    document: {
+      document_type: doc.document_type as any,
+      document_number: doc.document_number || "",
+      document_date: doc.issue_date || "",
+      reference_number: null,
+    },
+    payments: mappedPayments,
     items: (items || []).map((item) => ({
       description: item.description,
       quantity: item.quantity,
       unit_price: parseFloat(item.unit_price),
-      line_total: parseFloat(item.line_total),
+      amount: parseFloat(item.line_total),
       notes: item.notes || null,
     })),
     totals: {
-      subtotal: doc.subtotal ? parseFloat(doc.subtotal) : null,
-      vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : null,
-      vat_amount: doc.vat_amount ? parseFloat(doc.vat_amount) : null,
-      discount_amount: doc.discount_amount ? parseFloat(doc.discount_amount) : null,
-      total_amount: parseFloat(doc.total_amount),
+      subtotal: doc.subtotal ? parseFloat(doc.subtotal) : 0,
+      vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : undefined,
+      vat_amount: doc.vat_amount ? parseFloat(doc.vat_amount) : undefined,
+      discount: doc.discount_amount ? parseFloat(doc.discount_amount) : undefined,
+      total_amount: parseFloat(doc.total_amount || 0),
+      currency: currencyCode,
     },
-    notes: {
-      internal_notes: doc.internal_notes || null,
-      footer_text: null, // Can be set from company settings or template
+    notes_data: {
+      notes: doc.internal_notes || null,
+      footer_notes: null,
+      signature: doc.company?.signature_url || null,
     },
+    formatted_total: formatCurrency(parseFloat(doc.total_amount || 0)),
+    formatted_date: formatDate(doc.issue_date),
+    // Page numbers - default to 1 of 1, can be calculated dynamically if needed
+    PAGE_NUMBER: "1",
+    TOTAL_PAGES: "1",
+    // Current date and time for footer
+    CURRENT_DATE_TIME: new Date().toLocaleString("he-IL", { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit',
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }),
+  }
+
+  // Generate HTML rows for payments table
+  // This is used when template engine doesn't support {{#each}}
+  if (mappedPayments.length > 0) {
+    const paymentRows = mappedPayments.map((payment: any) => {
+      // Get payment date (fallback to document date if missing)
+      const paymentDate = payment.date || doc.issue_date || ""
+      const formattedPaymentDate = formatDate(paymentDate)
+      
+      // Format amount with currency
+      const formattedAmount = formatCurrency(payment.amount)
+      
+      // Build payment details (reference_number + notes)
+      const paymentDetails = buildPaymentDetails({
+        reference_number: payment.reference,
+        notes: payment.description,
+      })
+      
+      // Escape HTML to prevent XSS
+      const escapedMethod = escapeHtml(payment.method)
+      const escapedDetails = escapeHtml(paymentDetails)
+      const escapedDate = escapeHtml(formattedPaymentDate)
+      const escapedAmount = escapeHtml(formattedAmount)
+      
+      // Generate table row HTML
+      return `<tr>
+  <td>${escapedMethod}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedDate}</td>
+  <td>${escapedAmount}</td>
+</tr>`
+    })
+    
+    templateData.PAYMENTS_ROWS_HTML = paymentRows.join("\n")
+  } else {
+    // Empty string if no payments (not null)
+    templateData.PAYMENTS_ROWS_HTML = ""
   }
 
   return templateData

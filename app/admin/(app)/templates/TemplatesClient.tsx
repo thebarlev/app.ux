@@ -113,178 +113,376 @@ export default function TemplatesClient({ initialTemplates }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ paddingBottom: '50px' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">ניהול תבניות מסמכים</h1>
-          <p className="text-muted-foreground mt-1">
-            נהל תבניות HTML/CSS למסמכים שונים
-          </p>
+      <div className="ui-page-header">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+          <div>
+            <h1 className="ui-page-title" style={{ fontSize: '36px', fontWeight: 700, color: '#19183B', marginBottom: '8px' }}>
+              ניהול תבניות מסמכים
+            </h1>
+            <p style={{ fontSize: '18px', color: '#19183B', opacity: 0.7 }}>
+              נהל תבניות HTML/CSS למסמכים שונים
+            </p>
+          </div>
+          <Button onClick={() => router.push("/admin/templates/new")}>
+            <Plus className="h-4 w-4 ml-2" />
+            תבנית חדשה
+          </Button>
         </div>
-        <Button onClick={() => router.push("/admin/templates/new")}>
-          <Plus className="h-4 w-4 ml-2" />
-          תבנית חדשה
-        </Button>
+
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1', minWidth: '250px', maxWidth: '400px' }}>
+            <Input
+              placeholder="חיפוש תבניות..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger style={{ width: '180px' }}>
+              <SelectValue placeholder="סוג מסמך" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">כל הסוגים</SelectItem>
+              <SelectItem value="receipt">קבלה</SelectItem>
+              <SelectItem value="invoice">חשבונית</SelectItem>
+              <SelectItem value="quote">הצעת מחיר</SelectItem>
+              <SelectItem value="delivery_note">תעודת משלוח</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterScope} onValueChange={setFilterScope}>
+            <SelectTrigger style={{ width: '180px' }}>
+              <SelectValue placeholder="היקף" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">הכל</SelectItem>
+              <SelectItem value="company">תבניות החברה</SelectItem>
+              <SelectItem value="global">תבניות גלובליות</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        <Input
-          placeholder="חיפוש תבניות..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="max-w-xs"
-        />
-        <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="סוג מסמך" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">כל הסוגים</SelectItem>
-            <SelectItem value="receipt">קבלה</SelectItem>
-            <SelectItem value="invoice">חשבונית</SelectItem>
-            <SelectItem value="quote">הצעת מחיר</SelectItem>
-            <SelectItem value="delivery_note">תעודת משלוח</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterScope} onValueChange={setFilterScope}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="היקף" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">הכל</SelectItem>
-            <SelectItem value="company">תבניות החברה</SelectItem>
-            <SelectItem value="global">תבניות גלובליות</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Templates Grid */}
+      {/* Templates Table */}
       {filteredTemplates.length === 0 ? (
-        <div className="text-center py-12 border rounded-lg">
-          <FileCode className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">לא נמצאו תבניות</p>
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          background: '#FFFFFF',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <FileCode style={{ height: '48px', width: '48px', margin: '0 auto 16px', color: '#708993' }} />
+          <p style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>לא נמצאו תבניות</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTemplates.map((template) => (
-            <Card key={template.id} className="overflow-hidden">
-              {/* Thumbnail */}
-              <div className="aspect-video bg-muted relative group">
-                {template.thumbnail_url ? (
-                  <img
-                    src={template.thumbnail_url}
-                    alt={template.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <FileCode className="h-16 w-16 text-muted-foreground/30" />
-                  </div>
-                )}
-                {/* Quick Actions Overlay */}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => router.push(`/admin/templates/${template.id}`)}
-                  >
-                    <Edit className="h-4 w-4 ml-2" />
-                    עריכה
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => handleDuplicate(template.id)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <CardHeader>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg truncate">{template.name}</CardTitle>
-                    <CardDescription className="line-clamp-2">
-                      {template.description || "אין תיאור"}
-                    </CardDescription>
-                  </div>
-                  <Badge variant={template.is_active ? "default" : "outline"}>
-                    {template.is_active ? "פעיל" : "מושבת"}
-                  </Badge>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">סוג:</span>
-                  <Badge variant="secondary">
-                    {DOCUMENT_TYPE_LABELS[template.document_type]}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">היקף:</span>
-                  <Badge variant={template.company_id ? "default" : "outline"}>
-                    {template.company_id ? "חברה" : "גלובלי"}
-                  </Badge>
-                </div>
-                {template.is_default && (
-                  <Badge variant="outline" className="w-full justify-center">
-                    ברירת מחדל
-                  </Badge>
-                )}
-              </CardContent>
-
-              <CardFooter className="gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() =>
-                    handleToggleActive(template.id, template.is_active)
-                  }
-                >
-                  <Power className="h-4 w-4 ml-2" />
-                  {template.is_active ? "השבת" : "הפעל"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(`/admin/templates/${template.id}/preview`, '_blank')}
-                >
-                  <Eye className="h-4 w-4 ml-2" />
-                  תצוגה לדוגמה
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedTemplateId(template.id)
-                    setDeleteDialogOpen(true)
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '8px',
+          border: '1px solid #e5e7eb',
+          overflow: 'hidden'
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                <th className="table-cell" style={{ padding: '16px', textAlign: 'right', fontWeight: 600, color: '#19183B', fontSize: '14px' }}>
+                  שם תבנית
+                </th>
+                <th className="table-cell" style={{ padding: '16px', textAlign: 'right', fontWeight: 600, color: '#19183B', fontSize: '14px' }}>
+                  סוג מסמך
+                </th>
+                <th className="table-cell" style={{ padding: '16px', textAlign: 'right', fontWeight: 600, color: '#19183B', fontSize: '14px' }}>
+                  היקף
+                </th>
+                <th className="table-cell" style={{ padding: '16px', textAlign: 'center', fontWeight: 600, color: '#19183B', fontSize: '14px' }}>
+                  סטטוס
+                </th>
+                <th className="table-cell" style={{ padding: '16px', textAlign: 'center', fontWeight: 600, color: '#19183B', fontSize: '14px' }}>
+                  פעולות
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTemplates.map((template, idx) => (
+                <tr
+                  key={template.id}
+                  style={{
+                    borderBottom: idx < filteredTemplates.length - 1 ? '1px solid #e5e7eb' : 'none',
+                    background: idx % 2 === 0 ? '#FFFFFF' : '#f9fafb',
+                    transition: 'background-color 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#FFFFFF' : '#f9fafb'
                   }}
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
+                  <td className="table-cell" style={{ padding: '16px', color: '#19183B', fontSize: '16px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>{template.name}</div>
+                      {template.description && (
+                        <div style={{ fontSize: '14px', color: '#19183B', opacity: 0.7 }}>
+                          {template.description}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="table-cell" style={{ padding: '16px', color: '#19183B', fontSize: '16px' }}>
+                    <Badge
+                      variant="secondary"
+                      style={{
+                        background: '#EDF1F5',
+                        color: '#19183B',
+                        border: '1px solid #d1d5db',
+                        fontSize: '14px',
+                        fontWeight: 500
+                      }}
+                    >
+                      {DOCUMENT_TYPE_LABELS[template.document_type]}
+                    </Badge>
+                  </td>
+                  <td className="table-cell" style={{ padding: '16px', color: '#19183B', fontSize: '16px' }}>
+                    <Badge
+                      variant={template.company_id ? "default" : "outline"}
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        ...(template.company_id ? {
+                          background: '#1D868F',
+                          color: '#FFFFFF',
+                          border: 'none'
+                        } : {
+                          background: 'transparent',
+                          color: '#19183B',
+                          border: '1px solid #d1d5db'
+                        })
+                      }}
+                    >
+                      {template.company_id ? "חברה" : "גלובלי"}
+                    </Badge>
+                    {template.is_default && (
+                      <Badge
+                        variant="outline"
+                        style={{
+                          marginRight: '8px',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          background: '#fef3c7',
+                          color: '#92400e',
+                          border: '1px solid #fbbf24'
+                        }}
+                      >
+                        ברירת מחדל
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="table-cell" style={{ padding: '16px', textAlign: 'center' }}>
+                    <Badge
+                      variant={template.is_active ? "default" : "outline"}
+                      style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        ...(template.is_active ? {
+                          background: '#1D868F',
+                          color: '#FFFFFF',
+                          border: 'none'
+                        } : {
+                          background: '#f3f4f6',
+                          color: '#6b7280',
+                          border: '1px solid #d1d5db'
+                        })
+                      }}
+                    >
+                      {template.is_active ? "פעיל" : "מושבת"}
+                    </Badge>
+                  </td>
+                  <td className="table-cell" style={{ padding: '16px', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                      <button
+                        onClick={() => router.push(`/admin/templates/${template.id}`)}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '5px',
+                          color: '#19183B',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f3f4f6'
+                          e.currentTarget.style.borderColor = '#9ca3af'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#d1d5db'
+                        }}
+                      >
+                        <Edit style={{ height: '16px', width: '16px' }} />
+                        עריכה
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(template.id)}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '5px',
+                          color: '#19183B',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f3f4f6'
+                          e.currentTarget.style.borderColor = '#9ca3af'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#d1d5db'
+                        }}
+                      >
+                        <Copy style={{ height: '16px', width: '16px' }} />
+                      </button>
+                      <button
+                        onClick={() => window.open(`/admin/templates/${template.id}/preview`, '_blank')}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '5px',
+                          color: '#19183B',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f3f4f6'
+                          e.currentTarget.style.borderColor = '#9ca3af'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#d1d5db'
+                        }}
+                      >
+                        <Eye style={{ height: '16px', width: '16px' }} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleToggleActive(template.id, template.is_active)
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '5px',
+                          color: '#19183B',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#f3f4f6'
+                          e.currentTarget.style.borderColor = '#9ca3af'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#d1d5db'
+                        }}
+                      >
+                        <Power style={{ height: '16px', width: '16px' }} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedTemplateId(template.id)
+                          setDeleteDialogOpen(true)
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'transparent',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '5px',
+                          color: '#9B0003',
+                          fontSize: '14px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#fee2e2'
+                          e.currentTarget.style.borderColor = '#9B0003'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.borderColor = '#d1d5db'
+                        }}
+                      >
+                        <Trash2 style={{ height: '16px', width: '16px' }} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent style={{ background: '#FFFFFF', borderRadius: '8px' }}>
           <AlertDialogHeader>
-            <AlertDialogTitle>האם למחוק תבנית זו?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle style={{ fontSize: '20px', fontWeight: 700, color: '#19183B' }}>
+              האם למחוק תבנית זו?
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: '16px', color: '#19183B', opacity: 0.8, marginTop: '8px' }}>
               פעולה זו לא ניתנת לביטול. התבנית תימחק לצמיתות.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogFooter style={{ marginTop: '24px', gap: '12px' }}>
+            <AlertDialogCancel style={{
+              background: 'transparent',
+              border: '1px solid #d1d5db',
+              color: '#19183B',
+              fontSize: '16px',
+              fontWeight: 500
+            }}>
+              ביטול
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              style={{
+                background: '#9B0003',
+                color: '#FFFFFF',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: 500
+              }}
+            >
               מחק
             </AlertDialogAction>
           </AlertDialogFooter>
