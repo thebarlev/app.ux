@@ -285,6 +285,7 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
   }
 
   // Then finalize it (THIS is where the number gets allocated)
+  // This also generates the PDF automatically (regulatory requirement)
   const result = await finalizeDocument(draft.id, companyId, "receipt");
 
   if (!result.ok) {
@@ -294,20 +295,8 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload) {
     };
   }
 
-  // Generate PDF asynchronously (don't block user response)
-  // Import dynamically to avoid circular dependencies
-  import("@/lib/pdf-service")
-    .then(({ generateDocumentPDF }) => generateDocumentPDF(draft.id))
-    .then((pdfResult) => {
-      if (pdfResult.success) {
-        console.log(`PDF generated successfully for document ${draft.id}:`, pdfResult.path);
-      } else {
-        console.error(`PDF generation failed for document ${draft.id}:`, pdfResult.error);
-      }
-    })
-    .catch((error) => {
-      console.error(`PDF generation error for document ${draft.id}:`, error);
-    });
+  // PDF is generated automatically in finalizeDocument
+  // No need to call generateDocumentPDF again here
 
   // Get company name for preview
   const { data: company } = await supabase

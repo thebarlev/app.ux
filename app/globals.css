@@ -284,6 +284,23 @@
     @apply pr-12;
   }
 
+  /* Sidebar Flyout Link - Fixed height 50px for default and hover */
+  .sidebar-flyout-link {
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    transition: background-color 150ms;
+  }
+
+  .sidebar-flyout-link:hover {
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+  }
+
   /* ==================== Input Icon Fixes ==================== */
   
   /* Fix calendar icon color in date inputs on dark backgrounds */

@@ -164,22 +164,33 @@ export default function PreviewClient({
       .replace(/'/g, "&#039;");
   };
 
-  // Helper function to build payment details based on payment method
+  // Helper function to build payment details based on payment method - includes ALL fields user fills
   const buildPaymentDetails = (payment: any): string => {
     const parts: string[] = [];
     
     if (payment.method === "כרטיס אשראי") {
       if (payment.cardLastDigits) parts.push(`כרטיס: *${payment.cardLastDigits}`);
       if (payment.cardType) parts.push(payment.cardType);
-      if (payment.cardDealType && payment.cardDealType !== "regular") parts.push(payment.cardDealType);
+      if (payment.cardDealType && payment.cardDealType !== "regular") {
+        const dealTypeMap: Record<string, string> = {
+          "regular": "רגיל",
+          "payments": "תשלומים",
+          "credit": "אשראי",
+          "deferred": "דחוי"
+        };
+        parts.push(dealTypeMap[payment.cardDealType] || payment.cardDealType);
+      }
       if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments} תשלומים`);
     } else if (payment.method === "העברה בנקאית") {
-      if (payment.bankName) parts.push(payment.bankName);
-      if (payment.bankBranch) parts.push(`סניף: ${payment.bankBranch}`);
-      if (payment.bankAccount) parts.push(`חשבון: ${payment.bankAccount}`);
-      // Also check alternative field names
-      if (payment.branch) parts.push(`סניף: ${payment.branch}`);
-      if (payment.accountNumber) parts.push(`חשבון: ${payment.accountNumber}`);
+      // Check all possible field names for bank transfer
+      const bankName = payment.bankName || payment.bank_name || null;
+      const bankBranch = payment.bankBranch || payment.branch || payment.bank_branch || null;
+      const bankAccount = payment.bankAccount || payment.accountNumber || payment.account_number || payment.bank_account || null;
+      
+      // Add all three fields if they exist (בנק | סניף | חשבון לקוח)
+      if (bankName) parts.push(bankName);
+      if (bankBranch) parts.push(bankBranch);
+      if (bankAccount) parts.push(bankAccount);
     } else if (payment.method === "צ׳ק") {
       if (payment.checkNumber) parts.push(`צ׳ק מס׳ ${payment.checkNumber}`);
       if (payment.checkBank) parts.push(payment.checkBank);
@@ -197,13 +208,13 @@ export default function PreviewClient({
       return payment.description;
     }
     
-    // Add generic fields if no method-specific details found
-    if (parts.length === 0) {
-      if (payment.reference_number) parts.push(payment.reference_number);
-      if (payment.reference) parts.push(payment.reference);
-      if (payment.notes) parts.push(payment.notes);
-      if (payment.description) parts.push(payment.description);
-    }
+    // Add ALL generic fields that user might fill (reference, notes, description)
+    // These are shown for all payment methods if filled
+    if (payment.reference_number) parts.push(`אסמכתא: ${payment.reference_number}`);
+    if (payment.reference && payment.reference !== payment.reference_number) parts.push(`אסמכתא: ${payment.reference}`);
+    if (payment.transactionReference && !parts.some(p => p.includes("עסקה:"))) parts.push(`עסקה: ${payment.transactionReference}`);
+    if (payment.notes) parts.push(`הערות: ${payment.notes}`);
+    if (payment.description && payment.method !== "ניכוי אחר") parts.push(`תיאור: ${payment.description}`);
     
     return parts.join(" | ");
   };
@@ -250,7 +261,7 @@ export default function PreviewClient({
       company_phone: companyPhone,
       company_email: companyData?.email || "",
       company_website: companyData?.website || "",
-      company_logo: companyData?.logo_url || "",
+      company_logo: companyData?.logo_url && companyData.logo_url.trim() ? companyData.logo_url : null,
     },
     
     // Customer data - structured as object (matches template expectations)
@@ -322,7 +333,7 @@ export default function PreviewClient({
     notes_data: {
       notes: notes || null,
       footer_notes: footerNotes || null,
-      signature: companyData?.signature_url || null,
+      signature: companyData?.signature_url && companyData.signature_url.trim() ? companyData.signature_url : null,
     },
     
     // Totals
@@ -348,8 +359,8 @@ export default function PreviewClient({
     companyPhone: companyPhone,
     companyEmail: companyData?.email || "",
     companyWebsite: companyData?.website || "",
-    companyLogoUrl: companyData?.logo_url || "",
-    companySignatureUrl: companyData?.signature_url || "",
+    companyLogoUrl: companyData?.logo_url && companyData.logo_url.trim() ? companyData.logo_url : null,
+    companySignatureUrl: companyData?.signature_url && companyData.signature_url.trim() ? companyData.signature_url : null,
     
     // Customer data (flat structure for backward compatibility)
     customerName: customerName || "",
@@ -368,7 +379,8 @@ export default function PreviewClient({
     styleSettings: styleSettings,
     
     // Aliases for backward compatibility with different template variable names
-    LOGO_URL: companyData?.logo_url || "",
+    // Use null instead of empty string for logo/signature so template can use {{#if}} properly
+    LOGO_URL: companyData?.logo_url && companyData.logo_url.trim() ? companyData.logo_url : null,
     USERCOMPANYNAME: companyName,
     USERID: companyData?.registration_number || "",
     USERADDRESS: companyData?.address || "",
@@ -380,7 +392,7 @@ export default function PreviewClient({
     CLIENTNAME: customerName || "",
     BUSINESSID: customerData?.tax_id || "",
     CLIENTPHONE: customerPhone,
-    SIGNATURE_URL: companyData?.signature_url || "",
+    SIGNATURE_URL: companyData?.signature_url && companyData.signature_url.trim() ? companyData.signature_url : null,
     DOC_SUBTITLE: description || "",
     FOOTER_TEXT: footerNotes || "",
     FOOTER_META: documentDate ? `הופק ב- תאריך ${formatDate(documentDate)} שעה ${new Date(documentDate).toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' })}` : "",
@@ -528,32 +540,46 @@ export default function PreviewClient({
   });
 
   const handleDownloadPDF = async () => {
-    const element = document.getElementById("receipt-pdf-root");
-    if (!element) return;
-
-    // Dynamic import to avoid SSR issues
-    const html2pdf = (await import("html2pdf.js")).default;
-
-    const opt = {
-      margin: 10,
-      filename: `receipt-${previewNumber || "draft"}.pdf`,
-      image: { type: "jpeg" as const, quality: 0.95 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        letterRendering: true,
-        logging: false,
-        imageTimeout: 0,
-        backgroundColor: styleSettings.colors.background,
-      },
-      jsPDF: {
-        unit: "pt" as const,
-        format: "a4" as const,
-        orientation: "portrait" as const,
-      },
-    };
-
-    html2pdf().set(opt).from(element).save();
+    // Get documentId from URL params (if available - for finalized receipts)
+    const documentId = searchParams.get("documentId");
+    
+    if (!documentId) {
+      // Draft/preview documents cannot generate PDF - must be finalized first
+      alert("כדי להוריד PDF יש לסיים (Finalize) את המסמך.\n\nPDF ניתן להוריד רק למסמכים שסויימו.");
+      return;
+    }
+    
+    // For finalized receipts, use the API endpoint (single source of truth)
+    try {
+      const pdfUrl = `/api/documents/${documentId}/pdf`;
+      const response = await fetch(pdfUrl);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.details || errorData.error || response.statusText;
+        throw new Error(`PDF download failed: ${errorMessage}`);
+      }
+      
+      // API now returns PDF blob directly, not a redirect
+      const blob = await response.blob();
+      
+      if (blob.size === 0) {
+        throw new Error("Downloaded PDF is empty");
+      }
+      
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      const downloadUrl = window.URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `receipt-${previewNumber || documentId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error: any) {
+      console.error("[PreviewClient] PDF download error:", error);
+      alert(`שגיאה בהורדת PDF: ${error.message}\n\nאנא נסה שוב או פנה לתמיכה.`);
+    }
   };
 
   return (
@@ -663,59 +689,61 @@ export default function PreviewClient({
         <style dangerouslySetInnerHTML={{ __html: templateCss }} />
       )}
 
-      {/* Download PDF Button - Floating */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: 40,
-          left: 40,
-          zIndex: 1000,
-        }}
-      >
-        <button
-          onClick={handleDownloadPDF}
+      {/* Download PDF Button - Only show if documentId exists (finalized document) */}
+      {searchParams.get("documentId") && (
+        <div
           style={{
-            padding: "16px 32px",
-            background: "#111827",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            fontSize: 16,
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#1f2937";
-            e.currentTarget.style.transform = "translateY(-2px)";
-            e.currentTarget.style.boxShadow =
-              "0 6px 16px rgba(0,0,0,0.2)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#111827";
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow =
-              "0 4px 12px rgba(0,0,0,0.15)";
+            position: "fixed",
+            bottom: 40,
+            left: 40,
+            zIndex: 1000,
           }}
         >
-          <span>הורד PDF</span>
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <button
+            onClick={handleDownloadPDF}
+            style={{
+              padding: "16px 32px",
+              background: "#111827",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#1f2937";
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow =
+                "0 6px 16px rgba(0,0,0,0.2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#111827";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow =
+                "0 4px 12px rgba(0,0,0,0.15)";
+            }}
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-        </button>
-      </div>
+            <span>הורד PDF</span>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+        </div>
+      )}
       
       {/* Render template HTML or fallback to hardcoded */}
       {renderError ? (
@@ -737,20 +765,26 @@ export default function PreviewClient({
           <p>{renderError}</p>
           <p style={{marginTop: "20px", fontSize: "14px"}}>משתמש בתצוגה המוגדרת כברירת מחדל במקום...</p>
         </div>
-      ) : useTemplate && isMounted ? (
-        <iframe
-          id="receipt-pdf-root"
-          title="Receipt Preview"
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            margin: "0 auto",
-            display: "block",
-            border: "1px solid #e5e7eb",
-            boxShadow: "0 0 10px rgba(0,0,0,0.1)",
-            background: "#ffffff",
-          }}
-          srcDoc={`<!DOCTYPE html>
+      ) : useTemplate && isMounted ? (() => {
+        // Remove external CSS links from template HTML before rendering
+        // This prevents 404 errors when the browser tries to load external CSS files
+        let processedTemplateHtml = templateHtml || '';
+        processedTemplateHtml = processedTemplateHtml.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, '');
+        
+        return (
+          <iframe
+            id="receipt-pdf-root"
+            title="Receipt Preview"
+            style={{
+              width: "210mm",
+              minHeight: "297mm",
+              margin: "0 auto",
+              display: "block",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+              background: "#ffffff",
+            }}
+            srcDoc={`<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -775,12 +809,30 @@ export default function PreviewClient({
       line-height: 1.6;
     }
     
-    /* Hide broken images */
+    /* Hide broken images and images with empty/null src */
     img[src=""],
     img:not([src]),
     img[src="null"],
-    img[src="undefined"] {
-      display: none;
+    img[src="undefined"],
+    img[src*="undefined"],
+    img[src*="null"] {
+      display: none !important;
+    }
+    
+    /* Ensure logo and signature images are visible when they have valid URLs */
+    img[src*="logo"],
+    img[src*="signature"],
+    img[src*="business-logos"],
+    img[src*="business-signatures"],
+    .brand-logo img,
+    .company-logo img,
+    .receipt-logo img,
+    .signature img,
+    .stamp img {
+      display: block !important;
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
     }
     
     img {
@@ -813,11 +865,12 @@ export default function PreviewClient({
   </script>
 </head>
 <body>
-  ${processTemplate(templateHtml!)}
+  ${processTemplate(processedTemplateHtml)}
 </body>
 </html>`}
-        />
-      ) : useTemplate && !isMounted ? (
+          />
+        );
+      })() : useTemplate && !isMounted ? (
         <div 
           id="receipt-pdf-root"
           className="receipt-document receipt-pdf"
@@ -941,19 +994,21 @@ export default function PreviewClient({
               </div>
 
               {/* Customer ID */}
-              <div
-                className="receipt-customer-id"
-                style={{
-                  color: "#000",
-                  textAlign: "right",
-                  fontSize: "14px",
-                  fontWeight: 400,
-                  lineHeight: "normal",
-                  marginBottom: "15px",
-                }}
-              >
-                ח.פ. / ת.ז. {customerData?.tax_id || ""}
-              </div>
+              {customerData?.tax_id && (
+                <div
+                  className="receipt-customer-id"
+                  style={{
+                    color: "#000",
+                    textAlign: "right",
+                    fontSize: "14px",
+                    fontWeight: 400,
+                    lineHeight: "normal",
+                    marginBottom: "15px",
+                  }}
+                >
+                  {customerData.tax_id}
+                </div>
+              )}
 
               {/* Customer phone */}
               {customerPhone && (
@@ -1045,7 +1100,7 @@ export default function PreviewClient({
                   marginBottom: "15px",
                 }}
               >
-                ע.מ. / ח.פ. {companyData.registration_number}
+                {companyData.registration_number}
               </div>
             )}
 
@@ -1062,7 +1117,7 @@ export default function PreviewClient({
                   marginBottom: "15px",
                 }}
               >
-                כתובת {companyData.address}
+                {companyData.address}
               </div>
             )}
 
@@ -1080,7 +1135,7 @@ export default function PreviewClient({
                   direction: "ltr",
                 }}
               >
-                נייד {companyPhone}
+                {companyPhone}
               </div>
             )}
 
@@ -1097,7 +1152,7 @@ export default function PreviewClient({
                   direction: "ltr",
                 }}
               >
-                אתר {companyData.website}
+                {companyData.website}
               </div>
             )}
           </div>
@@ -1198,51 +1253,9 @@ export default function PreviewClient({
 
               {/* Table Rows */}
               {payments.map((p, idx) => {
-                // Format additional payment details based on payment method
+                // Format additional payment details based on payment method - use buildPaymentDetails for consistency
                 const getPaymentDetails = (payment: any) => {
-                  if (payment.method === "כרטיס אשראי") {
-                    const parts = [];
-                    if (payment.cardLastDigits) parts.push(`כרטיס: *${payment.cardLastDigits}`);
-                    if (payment.cardType) parts.push(payment.cardType);
-                    if (payment.cardDealType && payment.cardDealType !== "regular") parts.push(payment.cardDealType);
-                    if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments} תשלומים`);
-                    return parts.join(" | ");
-                  }
-                  
-                  if (payment.method === "העברה בנקאית") {
-                    const parts = [];
-                    if (payment.bankName) parts.push(payment.bankName);
-                    if (payment.bankBranch) parts.push(`סניף: ${payment.bankBranch}`);
-                    if (payment.bankAccount) parts.push(`חשבון: ${payment.bankAccount}`);
-                    return parts.join(" | ");
-                  }
-                  
-                  if (payment.method === "צ׳ק") {
-                    const parts = [];
-                    if (payment.checkNumber) parts.push(`צ׳ק מס׳ ${payment.checkNumber}`);
-                    if (payment.checkBank) parts.push(payment.checkBank);
-                    if (payment.checkBranch) parts.push(`סניף: ${payment.checkBranch}`);
-                    if (payment.checkAccount) parts.push(`חשבון: ${payment.checkAccount}`);
-                    return parts.join(" | ");
-                  }
-                  
-                  if ([
-                    "Bit", "PayBox", "PayPal", "Apple Pay", "Google Pay", 
-                    "Colu", "Pay", "Payoneer", "V-CHECK", "שווה כסף", 
-                    "שובר מתנה", "שובר BuyME", "אתריום", "ביטקוין", 
-                    "ניכוי חלק עובד טל״א"
-                  ].includes(payment.method)) {
-                    const parts = [];
-                    if (payment.payerAccount) parts.push(`חשבון: ${payment.payerAccount}`);
-                    if (payment.transactionReference) parts.push(`עסקה: ${payment.transactionReference}`);
-                    return parts.join(" | ");
-                  }
-                  
-                  if (payment.method === "ניכוי אחר" && payment.description) {
-                    return payment.description;
-                  }
-                  
-                  return "";
+                  return buildPaymentDetails(payment);
                 };
                 
                 return (
@@ -1389,16 +1402,6 @@ export default function PreviewClient({
                   marginBottom: "4px",
                 }}
               />
-              <div
-                className="receipt-signature-label"
-                style={{
-                  fontSize: "11px",
-                  color: "#666",
-                  fontWeight: 600,
-                }}
-              >
-                חתימה
-              </div>
             </div>
           </div>
         )}
@@ -1417,17 +1420,6 @@ export default function PreviewClient({
               border: "1px solid #fde68a",
             }}
           >
-            <div
-              className="receipt-notes-internal-label"
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#92400e",
-                marginBottom: 4,
-              }}
-            >
-              <span className="receipt-notes-internal-label-text">הערות פנימיות:</span>
-            </div>
             <div className="receipt-notes-internal-text">
               <span className="receipt-notes-internal-value" style={{ fontSize: 13, color: "#78350f" }}>{notes}</span>
             </div>
@@ -1447,17 +1439,6 @@ export default function PreviewClient({
               border: "1px solid #bae6fd",
             }}
           >
-            <div
-              className="receipt-notes-customer-label"
-              style={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: "#075985",
-                marginBottom: 4,
-              }}
-            >
-              <span className="receipt-notes-customer-label-text">הערות ללקוח:</span>
-            </div>
             <div className="receipt-notes-customer-text">
               <span className="receipt-notes-customer-value" style={{ fontSize: 13, color: "#0c4a6e" }}>{footerNotes}</span>
             </div>

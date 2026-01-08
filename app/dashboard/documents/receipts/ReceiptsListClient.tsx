@@ -352,7 +352,7 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                               <Button
                                 onClick={async () => {
                                   try {
-                                    const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
+                                    const pdfUrl = `/api/documents/${receipt.id}/pdf`;
                                     const response = await fetch(pdfUrl);
                                     
                                     if (!response.ok) {

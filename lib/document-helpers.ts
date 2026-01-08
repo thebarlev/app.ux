@@ -215,23 +215,122 @@ export async function finalizeDocument(
     return { ok: false, message: rpcError.message }
   }
 
-  // Update document to finalized status
-  const { data, error } = await supabase
+  // CRITICAL: Update document_number BEFORE generating PDF
+  // This ensures document_number is available in prepareDocumentData when rendering the template
+  // Order: Generate number → Update document_number (still draft) → Generate PDF → Set status to 'final'
+  console.log(`[finalizeDocument] Updating document ${draftId} with document_number: ${docNumber} (before PDF generation)...`)
+  
+  const { error: updateNumberError } = await supabase
     .from("documents")
     .update({
       document_number: docNumber,
+    })
+    .eq("id", draftId)
+    .eq("company_id", companyId)
+    .eq("document_status", "draft") // Only drafts can be updated
+  
+  if (updateNumberError) {
+    console.error(`[finalizeDocument] Failed to update document_number for document ${draftId}:`, updateNumberError)
+    return { ok: false, message: `Failed to update document number: ${updateNumberError.message}` }
+  }
+  
+  console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
+
+  // CRITICAL: Generate PDF AFTER updating document_number but BEFORE finalizing
+  // This ensures PDF is uploaded to Storage before the document becomes immutable
+  // Order: Update document_number → Generate PDF → Upload to Storage → Get storageKey from result → Set status to 'final'
+  // NOTE: We use storageKey from generateDocumentPDF result directly, not from DB
+  console.log(`[finalizeDocument] Generating PDF for document ${draftId} (document_number is now set)...`)
+  
+  let pdfStorageKey: string | null = null
+  
+  try {
+    const { generateDocumentPDF } = await import("@/lib/pdf-service")
+    const pdfResult = await generateDocumentPDF(draftId)
+    
+    if (!pdfResult.success) {
+      const errorDetails = pdfResult.error || "Unknown error"
+      console.error(`❌ [finalizeDocument] PDF generation failed for document ${draftId}:`, {
+        error: errorDetails,
+        documentId: draftId
+      })
+      // CRITICAL: PDF generation failure should block finalization
+      // Document cannot be finalized without PDF (regulatory requirement)
+      return { 
+        ok: false, 
+        message: `Cannot finalize document: PDF generation failed: ${errorDetails}. Please try again or contact support.`
+      }
+    }
+    
+    // Use storageKey from result directly (don't rely on DB - it may be blocked)
+    pdfStorageKey = pdfResult.storageKey || pdfResult.path || null
+    
+    if (!pdfStorageKey) {
+      console.error(`[finalizeDocument] PDF was generated but storageKey is missing from result for document ${draftId}`)
+      return { 
+        ok: false, 
+        message: `PDF was generated but storageKey was not returned. Please try again or contact support.`
+      }
+    }
+    
+    console.log(`✅ [finalizeDocument] PDF generated and uploaded to storage: ${pdfStorageKey}`)
+    
+    // Verify file exists in Storage (don't rely on DB - it may be blocked)
+    const adminClient = (await import("@/lib/supabase/admin")).createAdminClient()
+    const { data: fileList, error: listError } = await adminClient.storage
+      .from("business-assets")
+      .list(`documents/${draftId}`, {
+        limit: 1,
+        search: "source.pdf"
+      })
+    
+    if (listError || !fileList || fileList.length === 0) {
+      console.error(`[finalizeDocument] PDF file not found in Storage for document ${draftId}:`, listError)
+      return { 
+        ok: false, 
+        message: `PDF was generated but file was not found in storage. Please try again or contact support.`
+      }
+    }
+    
+    console.log(`✅ [finalizeDocument] Verified PDF file exists in Storage: ${pdfStorageKey}`)
+    
+  } catch (pdfError: any) {
+    const errorMessage = pdfError?.message || String(pdfError)
+    const errorStack = pdfError?.stack || "No stack trace"
+    console.error(`❌ [finalizeDocument] PDF generation exception for document ${draftId}:`, {
+      error: errorMessage,
+      stack: errorStack,
+      documentId: draftId,
+      errorType: pdfError?.constructor?.name || typeof pdfError
+    })
+    // CRITICAL: PDF generation exception should block finalization
+    return { 
+      ok: false, 
+      message: `Cannot finalize document: PDF generation threw exception: ${errorMessage}. Please try again or contact support.`
+    }
+  }
+
+  // Now update document to finalized status
+  // document_number was already updated above (before PDF generation)
+  // pdf_storage_key was already saved by generateDocumentPDF (while document was still 'draft')
+  // This update only changes status to 'final', which is allowed
+  const { data, error } = await supabase
+    .from("documents")
+    .update({
       document_status: "final",
       finalized_at: new Date().toISOString(),
     })
     .eq("id", draftId)
     .eq("company_id", companyId)
     .eq("document_status", "draft") // Only drafts can be finalized
-    .select("id, document_number")
+    .select("id, document_number, document_type")
     .single()
 
   if (error) {
+    console.error(`[finalizeDocument] Failed to update document ${draftId} to finalized status:`, error)
     return { ok: false, message: error.message }
   }
 
+  console.log(`✅ [finalizeDocument] Document ${draftId} finalized successfully with PDF`)
   return { ok: true, documentNumber: data.document_number }
 }

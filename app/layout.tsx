@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: {
@@ -26,6 +27,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           דלג לתוכן הראשי
         </a>
         {children}
+        {/* Toast notifications provider - global for all pages */}
+        <Toaster position="top-center" richColors dir="rtl" />
       </body>
     </html>
   );

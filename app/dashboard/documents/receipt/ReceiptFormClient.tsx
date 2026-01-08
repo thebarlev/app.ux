@@ -4,9 +4,13 @@ import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import type { InitialReceiptCreateData } from "./actions";
 import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
 import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } from "./actions";
+import { getReceiptPreviewUrlAction } from "../receipts/actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
+import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
+import ReceiptConfirmationModal from "@/components/documents/ReceiptConfirmationModal";
+import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
 import PaymentDetailsSection from "./PaymentDetailsSection";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -17,9 +21,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
-import { FormActions } from "@/components/ui/form-actions";
 import { cn } from "@/lib/utils";
-import { FileText, Save, CheckCircle, Settings as SettingsIcon, Trash2, Plus, CheckCircle2 } from "lucide-react";
+import { FileText, Save, CheckCircle, Settings as SettingsIcon, Trash2, Plus, CheckCircle2, Eye } from "lucide-react";
+import { toast } from "sonner";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -111,14 +115,24 @@ export default function ReceiptFormClient({
     { method: "", date: todayYmd(), amount: 0, currency },
   ]);
 
-  const [busy, setBusy] = useState<null | "draft" | "issue">(null);
+  const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [successModal, setSuccessModal] = useState<{
-    receiptId: string;
+  
+  // Modal states
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  
+  // Success modal data
+  const [successModalData, setSuccessModalData] = useState<{
+    documentId: string;
     documentNumber: string;
     companyName: string;
-    payload: ReceiptDraftPayload;
   } | null>(null);
+  
+  // Preview state
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   // Check if sequence is locked, and show modal if not
   useEffect(() => {
@@ -210,42 +224,59 @@ export default function ReceiptFormClient({
     }, 3000);
   }
 
-  async function onSaveDraft() {
-    setMessage(null);
-    setDescriptionError(null);
-    setCustomerNameError(null);
-    setPaymentErrors({});
-    
-    // Validation: Customer name is required
+  // Handle Preview
+  async function handlePreview() {
+    // Basic validation
     if (!customerName || customerName.trim().length === 0) {
+      toast.error("חובה למלא שם לקוח");
       setCustomerNameError("שם הלקוח הוא שדה חובה");
       focusFieldWithError(customerNameRef);
       return;
     }
     
-    // Validation: Description must be at least 5 characters
-    if (!description || description.trim().length < 5) {
-      setDescriptionError("התיאור חובה, לפחות 5 תווים");
-      focusFieldWithError(descriptionInputRef);
+    if (!documentDate) {
+      toast.error("חובה לבחור תאריך");
       return;
     }
     
-    // Validation: Check payment rows
-    const errors: { [key: number]: { method?: string; amount?: string } } = {};
-    payments.forEach((payment, i) => {
-      if (!payment.method) {
-        errors[i] = { method: "יש לבחור אמצעי תשלום" };
-      } else if (!payment.amount || payment.amount <= 0) {
-        errors[i] = { amount: "סכום חייב להיות גדול מ-0" };
-      }
-    });
-    
-    if (Object.keys(errors).length > 0) {
-      setPaymentErrors(errors);
-      focusFieldWithError(paymentsTableRef);
+    if (!payments || payments.length === 0) {
+      toast.error("חובה להוסיף לפחות תקבול אחד");
       return;
     }
     
+    // Open preview modal
+    setPreviewModalOpen(true);
+    setBusy("preview");
+    setPreviewError(null);
+    setPreviewPdfUrl(null);
+    
+    // TODO: Replace placeholder with real PDF generation API call
+    // API endpoint: POST /api/documents/preview or /api/pdf/preview
+    // Request body: ReceiptDraftPayload (current form data)
+    // Response: application/pdf as ArrayBuffer/Blob
+    // Steps:
+    // 1. Call API with payload
+    // 2. Receive Blob response
+    // 3. Create object URL: const url = URL.createObjectURL(blob)
+    // 4. Set previewPdfUrl(url)
+    // 5. Clean up URL on modal close: URL.revokeObjectURL(url)
+    // Error handling: If API fails, show error in modal + toast
+    // For now, just show loading state
+    setTimeout(() => {
+      setBusy(null);
+      // Placeholder - will be replaced with actual PDF generation
+      setPreviewError("תצוגה מקדימה תהיה זמינה בקרוב - API integration pending");
+    }, 1000);
+  }
+
+  // Handle Save Draft
+  async function handleSaveDraft() {
+    setMessage(null);
+    setDescriptionError(null);
+    setCustomerNameError(null);
+    setPaymentErrors({});
+    
+    // Minimal validation - draft can be saved even if incomplete
     setBusy("draft");
     try {
       let result;
@@ -258,36 +289,53 @@ export default function ReceiptFormClient({
       }
       
       if (!result.ok) {
-        setMessage(result.message || "שגיאה בשמירת הטיוטה");
+        toast.error(result.message || "שמירת טיוטה נכשלה");
         setBusy(null);
         return;
       }
       
-      // Success! Redirect to documents list
-      window.location.href = "/dashboard/documents";
+      // Success! Show toast and stay on page
+      toast.success("הטיוטה נשמרה");
+      setBusy(null);
     } catch (error: any) {
-      setMessage(error.message || "שגיאה בשמירת הטיוטה");
+      toast.error(error.message || "שמירת טיוטה נכשלה");
       setBusy(null);
     }
   }
 
-  async function onIssue() {
+  // Handle Issue Confirmation
+  function handleIssueConfirmation() {
+    // Open confirmation modal
+    setConfirmationModalOpen(true);
+  }
+
+  // Handle Issue Confirm (after confirmation)
+  async function handleIssueConfirm() {
     setMessage(null);
     setDescriptionError(null);
     setCustomerNameError(null);
     setPaymentErrors({});
     
-    // Validation: Customer name is required
-    if (!customerName || customerName.trim().length === 0) {
-      setCustomerNameError("שם הלקוח הוא שדה חובה");
-      focusFieldWithError(customerNameRef);
+    // Prevent issue if sequence not locked
+    if (!sequenceLocked) {
+      toast.error("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
+      setConfirmationModalOpen(false);
+      setShowStartingNumberModal(true);
       return;
     }
     
-    // Validation: Description must be at least 5 characters
+    // Full validation
+    if (!customerName || customerName.trim().length === 0) {
+      setCustomerNameError("שם הלקוח הוא שדה חובה");
+      focusFieldWithError(customerNameRef);
+      setConfirmationModalOpen(false);
+      return;
+    }
+    
     if (!description || description.trim().length < 5) {
       setDescriptionError("התיאור חובה, לפחות 5 תווים");
       focusFieldWithError(descriptionInputRef);
+      setConfirmationModalOpen(false);
       return;
     }
     
@@ -297,8 +345,7 @@ export default function ReceiptFormClient({
       const rowErrors: { method?: string; amount?: string } = {};
       if (!payment.method) {
         rowErrors.method = "יש לבחור אמצעי תשלום";
-      }
-      if (!payment.amount || payment.amount <= 0) {
+      } else if (!payment.amount || payment.amount <= 0) {
         rowErrors.amount = "סכום חייב להיות גדול מ-0";
       }
       if (Object.keys(rowErrors).length > 0) {
@@ -309,81 +356,155 @@ export default function ReceiptFormClient({
     if (Object.keys(errors).length > 0) {
       setPaymentErrors(errors);
       focusFieldWithError(paymentsTableRef);
-      return;
-    }
-    
-    // Prevent issue if sequence not locked
-    if (!sequenceLocked) {
-      setMessage("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
-      setShowStartingNumberModal(true);
+      setConfirmationModalOpen(false);
       return;
     }
     
     setBusy("issue");
     try {
-      if (draftId && editData) {
-        // Cannot issue from edit mode - must save first
-        setMessage("יש לשמור את הטיוטה ולהפיק מהרשימה");
-        setBusy(null);
-        return;
-      }
-      
-      console.log("Issuing receipt with payload:", payload);
-      
-      // Issue the receipt
       const result = await issueReceiptAction(payload);
       
-      console.log("Issue result:", result);
-      
       if (!result.ok) {
-        setMessage(result.message || "שגיאה בהפקת המסמך");
+        toast.error(result.message || "הפקת המסמך נכשלה");
         setBusy(null);
+        setConfirmationModalOpen(false);
         return;
       }
       
-      // Success! Show modal with options
-      if (result.receiptId && result.documentNumber && result.companyName && result.payload) {
-        setBusy(null);
-        setSuccessModal({
-          receiptId: result.receiptId,
-          documentNumber: result.documentNumber,
-          companyName: result.companyName,
-          payload: result.payload,
-        });
+      // Success! Close confirmation modal and open success modal
+      setConfirmationModalOpen(false);
+      setSuccessModalData({
+        documentId: result.receiptId,
+        documentNumber: result.documentNumber,
+        companyName: result.companyName,
+      });
+      setSuccessModalOpen(true);
+      setBusy(null);
+      
+      // Automatically download PDF after successful finalization
+      try {
+        // Wait a bit for PDF to be fully generated and uploaded
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const pdfUrl = `/api/documents/${result.receiptId}/pdf`;
+        const response = await fetch(pdfUrl);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage = errorData.details || errorData.error || response.statusText;
+          console.warn(`[ReceiptFormClient] Auto PDF download failed: ${errorMessage}`);
+          // Don't show error to user - PDF generation succeeded, just download failed
+          // User can download manually later from the success modal
+          return;
+        }
+        
+        const blob = await response.blob();
+        
+        if (blob.size === 0) {
+          console.warn(`[ReceiptFormClient] Auto PDF download failed: PDF is empty`);
+          return;
+        }
+        
+        const pdfBlob = new Blob([blob], { type: "application/pdf" });
+        const downloadUrl = window.URL.createObjectURL(pdfBlob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `receipt-${result.documentNumber || result.receiptId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      } catch (error: any) {
+        console.error("[ReceiptFormClient] Auto PDF download error:", error);
+        // Don't show error to user - PDF generation succeeded, just download failed
+        // User can download manually later from the success modal
       }
     } catch (error: any) {
-      console.error("Issue error:", error);
-      setMessage(error.message || "שגיאה בהפקת המסמך");
+      toast.error(error.message || "הפקת המסמך נכשלה");
       setBusy(null);
+      setConfirmationModalOpen(false);
     }
   }
 
+
   return (
     <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+      <style>{`
+        /* Typography styles for receipt page only - scoped to this page */
+        main[dir="rtl"] .ui-container p {
+          font-size: 18px !important;
+        }
+        main[dir="rtl"] .ui-container h2 {
+          font-size: 26px !important;
+        }
+        main[dir="rtl"] .ui-container h1 {
+          font-size: 56px !important;
+          font-weight: 700 !important;
+        }
+        /* Set font size to 18px for all text elements except h1 and h2 */
+        main[dir="rtl"] .ui-container button:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container input:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container select:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container label,
+        main[dir="rtl"] .ui-container span:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
+        main[dir="rtl"] .ui-container p {
+          font-size: 18px !important;
+        }
+        /* Ensure h1 and h2 keep their sizes */
+        main[dir="rtl"] .ui-container h1 {
+          font-size: 56px !important;
+          font-weight: 700 !important;
+        }
+        main[dir="rtl"] .ui-container h2 {
+          font-size: 26px !important;
+        }
+      `}</style>
       <div className="ui-container pt-10">
-        {/* Page Header */}
-        <h1 className="text-right font-semibold" style={{ fontSize: '36px', color: '#19183B' }}>
-          קבלה {previewNumber || '---'}
-        </h1>
-        {initial.companyName && (
-          <h2 className="text-right mt-2" style={{ fontSize: '24px', fontWeight: 500, color: '#19183B' }}>{initial.companyName}</h2>
+        {/* Message Alert - Yellow background section - moved to top */}
+        {message && (
+          <Card className={cn(
+            "mb-[50px]",
+            message.includes("שגיאה") ? "border-danger bg-danger/10" : "border-success bg-success/10"
+          )}>
+            <CardContent className="p-4">
+              <div className={cn(
+                "flex items-center gap-3 font-medium",
+                message.includes("שגיאה") ? "text-danger" : "text-success"
+              )}>
+                {message.includes("שגיאה") && "⚠️"}
+                {!message.includes("שגיאה") && "✓"}
+                <span>{message}</span>
+              </div>
+            </CardContent>
+          </Card>
         )}
-        <div className="h-[50px]" />
+
+        {/* Page Header - Title */}
         <div className="mb-[50px]">
-          <button
-            onClick={() => setSettingsOpen((v) => !v)}
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              fontSize: '18px', 
-              color: '#19183B', 
-              textDecoration: 'underline',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            הגדרות
-          </button>
+          <div className="flex justify-between items-center">
+            <h1 className="text-right" style={{ fontSize: '56px', fontWeight: 700, color: '#19183B' }}>
+              קבלה {previewNumber || '---'}
+            </h1>
+            <button
+              onClick={() => setSettingsOpen((v) => !v)}
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                fontSize: '18px', 
+                color: '#19183B', 
+                textDecoration: 'underline',
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              הגדרות
+            </button>
+          </div>
+          {initial.companyName && (
+            <h2 className="text-right mt-[10px] mb-[40px]" style={{ fontSize: '26px', fontWeight: 500, color: '#19183B' }}>{initial.companyName}</h2>
+          )}
         </div>
 
       {/* Settings Panel */}
@@ -496,7 +617,6 @@ export default function ReceiptFormClient({
             label="תאריך מסמך" 
             required 
             id="documentDate"
-            hint={minAllowedDate ? `תאריך מינימלי: ${minAllowedDate.split('-').reverse().join('/')} (לפי המסמך האחרון שהונפק)` : undefined}
           >
             <DateInput
               id="documentDate"
@@ -770,19 +890,43 @@ export default function ReceiptFormClient({
         </FieldWrapper>
         </FormSection>
 
-        {/* Action Buttons */}
-        <div className="mt-10">
-          <FormActions
-            primaryLabel={busy === "issue" ? "יוצר קבלה..." : "יצירת קבלה"}
-            secondaryLabel={busy === "draft" ? "שומר בטיוטות..." : "שמירה בטיוטות"}
-            onPrimaryClick={onIssue}
-            onSecondaryClick={onSaveDraft}
-            primaryLoading={busy === "issue"}
-            secondaryLoading={busy === "draft"}
-            primaryDisabled={busy != null || !sequenceLocked}
-            secondaryDisabled={busy != null}
-            primaryType="button"
-          />
+        {/* Action Buttons - 3 buttons only */}
+        <div className="mt-10 flex gap-4 justify-end">
+          {/* תצוגה מקדימה */}
+          <Button
+            variant="ghost"
+            onClick={handlePreview}
+            disabled={busy != null || !sequenceLocked}
+            loading={busy === "preview"}
+            className="flex items-center gap-2"
+          >
+            <Eye className="h-4 w-4" />
+            תצוגה מקדימה
+          </Button>
+          
+          {/* שמירת טיוטה */}
+          <Button
+            variant="secondary"
+            onClick={handleSaveDraft}
+            disabled={busy != null}
+            loading={busy === "draft"}
+            className="flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            שמירת טיוטה
+          </Button>
+          
+          {/* הפקת מסמך */}
+          <Button
+            variant="primary"
+            onClick={handleIssueConfirmation}
+            disabled={busy != null || !sequenceLocked}
+            loading={busy === "issue"}
+            className="flex items-center gap-2"
+          >
+            <CheckCircle className="h-4 w-4" />
+            הפקת מסמך
+          </Button>
         </div>
       </form>
 
@@ -805,19 +949,7 @@ export default function ReceiptFormClient({
           </Card>
         )}
 
-        {/* Footer Text from Admin Settings */}
-        {footerText && footerText.trim() && (
-          <Card className="mt-[50px]">
-            <CardHeader>
-              <CardTitle className="text-base">📌 הערות מערכת</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm text-muted-fg whitespace-pre-wrap leading-relaxed">
-                {footerText}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {/* Footer Text from Admin Settings - REMOVED (blue section) */}
 
         {/* Quick Add Customer Modal */}
       <QuickAddCustomerModal
@@ -855,143 +987,84 @@ export default function ReceiptFormClient({
         />
       )}
 
-      {/* Success Modal - Receipt Created Successfully */}
-      {successModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(25, 24, 59, 0.9)' }}
-          onClick={() => {
-            setSuccessModal(null);
-            window.location.href = "/dashboard/documents";
+      {/* Preview Modal */}
+      <ReceiptPreviewModal
+        isOpen={previewModalOpen}
+        onClose={() => setPreviewModalOpen(false)}
+        pdfUrl={previewPdfUrl || undefined}
+        isLoading={busy === "preview"}
+        error={previewError}
+      />
+
+      {/* Confirmation Modal */}
+      <ReceiptConfirmationModal
+        isOpen={confirmationModalOpen}
+        onClose={() => setConfirmationModalOpen(false)}
+        onConfirm={handleIssueConfirm}
+        documentDate={documentDate}
+        customerName={customerName}
+        total={total}
+        currency={currency}
+        isLoading={busy === "issue"}
+        hasEmail={false} // TODO: Check if email exists
+      />
+
+      {/* Success Modal */}
+      {successModalData && (
+        <ReceiptSuccessModal
+          isOpen={successModalOpen}
+          onClose={() => {
+            setSuccessModalOpen(false);
+            setSuccessModalData(null);
           }}
-          dir="rtl"
-        >
-          <div
-            style={{
-              background: '#EDF1F5',
-              borderRadius: '20px',
-              boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-              width: '100%',
-              maxWidth: '420px',
-              padding: '50px',
-              textAlign: 'center',
-              color: '#19183B',
-              position: 'relative',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Success Icon */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px auto', height: 80 }}>
-              <CheckCircle2 
-                size={80} 
-                style={{ color: '#1D868F' }}
-              />
-            </div>
-            {/* Title */}
-            <div style={{ fontSize: '24px', fontWeight: 700, marginBottom: 0, color: '#19183B' }}>
-              יצרת בהצלחה קבלה!
-            </div>
-            {/* Receipt Number */}
-            <div style={{ fontSize: '24px', fontWeight: 700, marginBottom: 24, color: '#19183B' }}>
-              מספר קבלה: <span style={{ fontWeight: 900 }}>{successModal.documentNumber}</span>
-            </div>
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', marginBottom: 24 }}>
-              {/* Primary Button - Download PDF */}
-              <Button
-                variant="primary"
-                onClick={async () => {
-                  try {
-                    const pdfUrl = `/api/receipts/${successModal.receiptId}/pdf`;
-                    const response = await fetch(pdfUrl);
-                    
-                    if (!response.ok) {
-                      throw new Error(`PDF download failed: ${response.statusText}`);
-                    }
-                    
-                    const blob = await response.blob();
-                    
-                    if (blob.size === 0) {
-                      throw new Error("Downloaded PDF is empty");
-                    }
-                    
-                    const pdfBlob = new Blob([blob], { type: "application/pdf" });
-                    const downloadUrl = window.URL.createObjectURL(pdfBlob);
-                    const link = document.createElement("a");
-                    link.href = downloadUrl;
-                    link.download = `receipt-${successModal.documentNumber}.pdf`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(downloadUrl);
-                    
-                    // Close modal and redirect to dashboard after download
-                    setTimeout(() => {
-                      setSuccessModal(null);
-                      window.location.href = "/dashboard/documents";
-                    }, 500);
-                  } catch (error: any) {
-                    alert(`שגיאה בהורדת PDF: ${error.message}`);
-                  }
-                }}
-                style={{
-                  width: '300px',
-                }}
-              >
-                להורדת הקבלה
-              </Button>
+          documentNumber={successModalData.documentNumber}
+          companyName={successModalData.companyName}
+          documentId={successModalData.documentId}
+          onViewDocument={async () => {
+            try {
+              // Use getReceiptPreviewUrlAction to build the correct preview URL
+              const result = await getReceiptPreviewUrlAction(successModalData.documentId);
+              if (result.ok && result.url) {
+                window.location.href = result.url;
+              } else {
+                toast.error(result.message || "לא ניתן לפתוח את תצוגת המסמך");
+              }
+            } catch (error: any) {
+              toast.error(`שגיאה בפתיחת תצוגת המסמך: ${error.message}`);
+            }
+          }}
+          onDownloadOriginal={async () => {
+            try {
+              const pdfUrl = `/api/documents/${successModalData.documentId}/pdf`;
+              const response = await fetch(pdfUrl);
               
-              {/* Secondary Button - View Receipt */}
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const previewData = {
-                    previewNumber: successModal.documentNumber,
-                    companyName: successModal.companyName,
-                    customerName: successModal.payload.customerName,
-                    customerId: successModal.payload.customerId || "",
-                    documentDate: successModal.payload.documentDate,
-                    description: successModal.payload.description || "",
-                    notes: successModal.payload.notes,
-                    footerNotes: successModal.payload.notes,
-                    total: String(successModal.payload.total),
-                    currency: successModal.payload.currency,
-                    payments: JSON.stringify(successModal.payload.payments),
-                  };
-                  const params = new URLSearchParams(previewData as any);
-                  window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
-                }}
-                style={{
-                  width: '300px',
-                }}
-              >
-                צפייה בקבלה
-              </Button>
-            </div>
-            {/* Close as text button */}
-            <div style={{ textAlign: 'center', marginTop: 0 }}>
-              <button
-                onClick={() => {
-                  setSuccessModal(null);
-                  window.location.href = "/dashboard/documents";
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#19183B',
-                  fontSize: 18,
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                  margin: '0 auto',
-                  display: 'block',
-                  fontWeight: 500,
-                }}
-              >
-                סגירה
-              </button>
-            </div>
-          </div>
-        </div>
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.details || errorData.error || response.statusText;
+                throw new Error(`PDF download failed: ${errorMessage}`);
+              }
+              
+              // API now returns PDF blob directly
+              const blob = await response.blob();
+              
+              if (blob.size === 0) {
+                throw new Error("Downloaded PDF is empty");
+              }
+              
+              const pdfBlob = new Blob([blob], { type: "application/pdf" });
+              const downloadUrl = window.URL.createObjectURL(pdfBlob);
+              const link = document.createElement("a");
+              link.href = downloadUrl;
+              link.download = `receipt-${successModalData.documentNumber || successModalData.documentId}.pdf`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(downloadUrl);
+            } catch (error: any) {
+              toast.error(`שגיאה בהורדת PDF: ${error.message}`);
+            }
+          }}
+        />
       )}
       </div>
     </main>

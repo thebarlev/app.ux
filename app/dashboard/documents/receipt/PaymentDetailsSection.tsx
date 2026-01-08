@@ -87,16 +87,16 @@ export default function PaymentDetailsSection({
     );
   }
 
-  // Bank transfer: 3 fields (account, branch, bank)
+  // Bank transfer: 3 fields (bank, branch, account) - order: בנק | סניף | חשבון לקוח
   if (method === "העברה בנקאית") {
     return (
       <div className="ui-form-grid">
-        <FieldWrapper label="חשבון לקוח" id="bankAccount">
+        <FieldWrapper label="בנק" id="bankName">
           <Input
             type="text"
-            placeholder="מספר חשבון"
-            value={payment.bankAccount ?? ""}
-            onChange={(e) => onUpdate({ bankAccount: e.target.value })}
+            placeholder="שם הבנק"
+            value={payment.bankName ?? ""}
+            onChange={(e) => onUpdate({ bankName: e.target.value })}
           />
         </FieldWrapper>
 
@@ -109,12 +109,12 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="בנק" id="bankName">
+        <FieldWrapper label="חשבון לקוח" id="bankAccount">
           <Input
             type="text"
-            placeholder="שם הבנק"
-            value={payment.bankName ?? ""}
-            onChange={(e) => onUpdate({ bankName: e.target.value })}
+            placeholder="מספר חשבון"
+            value={payment.bankAccount ?? ""}
+            onChange={(e) => onUpdate({ bankAccount: e.target.value })}
           />
         </FieldWrapper>
       </div>

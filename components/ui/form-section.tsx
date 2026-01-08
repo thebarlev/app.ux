@@ -47,12 +47,12 @@ export function FormSection({
       {...props}
     >
       {/* Title - aligned to right, 30px from top, 50px from right edge */}
-      <h2 
+      <h3 
         className="text-right"
-        style={{ marginBottom: description ? '5px' : '30px', color: '#19183B', fontSize: '20px', fontWeight: 500 }}
+        style={{ marginBottom: description ? '5px' : '30px', color: '#19183B', fontSize: '26px', fontWeight: 600 }}
       >
         {title}
-      </h2>
+      </h3>
       {description && (
         <p className="text-sm text-right mb-[30px]" style={{ color: '#19183B' }}>{description}</p>
       )}

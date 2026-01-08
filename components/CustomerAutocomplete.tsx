@@ -285,9 +285,21 @@ export default function CustomerAutocomplete({
             <div
               key={customer.id}
               onClick={() => handleSelectCustomer(customer)}
-              onMouseEnter={() => setSelectedIndex(index)}
+              onMouseEnter={(e) => {
+                setSelectedIndex(index);
+                e.currentTarget.style.height = "50px";
+                e.currentTarget.style.minHeight = "50px";
+                e.currentTarget.style.maxHeight = "50px";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.height = "50px";
+                e.currentTarget.style.minHeight = "50px";
+                e.currentTarget.style.maxHeight = "50px";
+              }}
               style={{
                 height: 50,
+                minHeight: 50,
+                maxHeight: 50,
                 display: "flex",
                 alignItems: "center",
                 paddingLeft: 12,
@@ -325,9 +337,21 @@ export default function CustomerAutocomplete({
                 onAddNewCustomer?.();
                 setShowDropdown(false);
               }}
-              onMouseEnter={() => setSelectedIndex(suggestions.length)}
+              onMouseEnter={(e) => {
+                setSelectedIndex(suggestions.length);
+                e.currentTarget.style.height = "50px";
+                e.currentTarget.style.minHeight = "50px";
+                e.currentTarget.style.maxHeight = "50px";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.height = "50px";
+                e.currentTarget.style.minHeight = "50px";
+                e.currentTarget.style.maxHeight = "50px";
+              }}
               style={{
                 height: 50,
+                minHeight: 50,
+                maxHeight: 50,
                 paddingLeft: 12,
                 paddingRight: 12,
                 cursor: "pointer",

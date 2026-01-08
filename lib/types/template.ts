@@ -163,7 +163,8 @@ export interface PDFGenerationOptions {
 export interface PDFGenerationResult {
   success: boolean;
   buffer?: Buffer;
-  path?: string; // Path in Supabase Storage
+  path?: string; // Path in Supabase Storage (legacy, use storageKey)
+  storageKey?: string; // Storage key (e.g., "documents/<id>/source.pdf")
   error?: string;
 }
 

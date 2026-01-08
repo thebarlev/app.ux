@@ -175,17 +175,28 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
                         : ""
                     }`}
                     style={{ 
+                      height: '50px',
+                      minHeight: '50px',
+                      maxHeight: '50px',
                       fontSize: '18px',
                       color: isSubActive ? '#FFFFFF' : '#19183B',
                       backgroundColor: isSubActive ? '#1D868F' : 'transparent',
                       textAlign: 'right',
+                      display: 'flex',
+                      alignItems: 'center',
                     }}
                     onMouseEnter={(e) => {
+                      e.currentTarget.style.height = '50px';
+                      e.currentTarget.style.minHeight = '50px';
+                      e.currentTarget.style.maxHeight = '50px';
                       if (!isSubActive) {
                         e.currentTarget.style.backgroundColor = '#C6EAE5'
                       }
                     }}
                     onMouseLeave={(e) => {
+                      e.currentTarget.style.height = '50px';
+                      e.currentTarget.style.minHeight = '50px';
+                      e.currentTarget.style.maxHeight = '50px';
                       if (!isSubActive) {
                         e.currentTarget.style.backgroundColor = 'transparent'
                       }
@@ -315,8 +326,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <Link
               href="/dashboard/documents/receipt"
               style={{
-                display: 'block',
-                padding: '12px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                height: '50px',
+                minHeight: '50px',
+                maxHeight: '50px',
+                padding: '0 24px',
                 color: '#19183B',
                 fontSize: '18px',
                 fontWeight: 500,
@@ -325,8 +340,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 borderRadius: '12px',
                 transition: 'background 0.2s',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#C6EAE5')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              onMouseEnter={e => {
+                e.currentTarget.style.height = '50px';
+                e.currentTarget.style.minHeight = '50px';
+                e.currentTarget.style.maxHeight = '50px';
+                e.currentTarget.style.background = '#C6EAE5';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.height = '50px';
+                e.currentTarget.style.minHeight = '50px';
+                e.currentTarget.style.maxHeight = '50px';
+                e.currentTarget.style.background = 'transparent';
+              }}
             >
               קבלה
             </Link>

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { getReceiptStyleSettingsPublic } from "@/lib/receipt-style";
 import { getTemplateForDocument } from "@/lib/pdf-service";
@@ -54,10 +55,100 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       // Use company_number if registration_number is not available
       const registrationNumber = data.registration_number || data.company_number || "";
       
+      // Create signed URLs for logo and signature if they exist and are from private storage
+      let logoUrl = data.logo_url || null;
+      let signatureUrl = data.signature_url || null;
+      
+      // Helper to extract storage path from URL
+      const getStoragePathFromUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null;
+        // If URL contains storage path, extract it
+        const storageMatch = url.match(/business-(logos|signatures)\/[^/]+\/[^/]+/);
+        if (storageMatch) {
+          return storageMatch[0];
+        }
+        // If it's already a storage path (relative)
+        if (url.startsWith('business-logos/') || url.startsWith('business-signatures/')) {
+          return url;
+        }
+        // If it's a full URL, try to extract path after /business-assets/
+        const assetsMatch = url.match(/business-assets\/(.+)$/);
+        if (assetsMatch) {
+          return assetsMatch[1];
+        }
+        return null;
+      };
+      
+      // Process logo URL - create signed URL if from private storage
+      if (data.logo_url) {
+        const storagePath = getStoragePathFromUrl(data.logo_url);
+        if (storagePath) {
+          try {
+            const adminClient = createAdminClient();
+            const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+              .from("business-assets")
+              .createSignedUrl(storagePath, 3600); // 1 hour expiry
+            
+            if (!signedUrlError && signedUrlData?.signedUrl) {
+              logoUrl = signedUrlData.signedUrl;
+              console.log(`[PreviewPage] Created signed URL for logo: ${storagePath}`);
+            } else {
+              // If signed URL fails, try public URL (bucket might be public)
+              const { data: publicUrlData } = adminClient.storage
+                .from("business-assets")
+                .getPublicUrl(storagePath);
+              logoUrl = publicUrlData.publicUrl || data.logo_url;
+              console.log(`[PreviewPage] Using public URL for logo: ${publicUrlData.publicUrl || data.logo_url}`);
+            }
+          } catch (error) {
+            // Fallback to original URL
+            logoUrl = data.logo_url;
+            console.warn(`[PreviewPage] Failed to create signed URL for logo, using original:`, error);
+          }
+        } else {
+          // If we can't extract storage path, use original URL (might be external URL)
+          logoUrl = data.logo_url;
+        }
+      }
+      
+      // Process signature URL - create signed URL if from private storage
+      if (data.signature_url) {
+        const storagePath = getStoragePathFromUrl(data.signature_url);
+        if (storagePath) {
+          try {
+            const adminClient = createAdminClient();
+            const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+              .from("business-assets")
+              .createSignedUrl(storagePath, 3600); // 1 hour expiry
+            
+            if (!signedUrlError && signedUrlData?.signedUrl) {
+              signatureUrl = signedUrlData.signedUrl;
+              console.log(`[PreviewPage] Created signed URL for signature: ${storagePath}`);
+            } else {
+              // If signed URL fails, try public URL (bucket might be public)
+              const { data: publicUrlData } = adminClient.storage
+                .from("business-assets")
+                .getPublicUrl(storagePath);
+              signatureUrl = publicUrlData.publicUrl || data.signature_url;
+              console.log(`[PreviewPage] Using public URL for signature: ${publicUrlData.publicUrl || data.signature_url}`);
+            }
+          } catch (error) {
+            // Fallback to original URL
+            signatureUrl = data.signature_url;
+            console.warn(`[PreviewPage] Failed to create signed URL for signature, using original:`, error);
+          }
+        } else {
+          // If we can't extract storage path, use original URL (might be external URL)
+          signatureUrl = data.signature_url;
+        }
+      }
+      
       companyData = {
         ...data,
         address: fullAddress,
         registration_number: registrationNumber,
+        logo_url: logoUrl,
+        signature_url: signatureUrl,
       };
     } else {
       companyData = null;

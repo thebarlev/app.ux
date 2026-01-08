@@ -30,13 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus, Edit, Copy, Trash2, Power, Eye, FileCode } from "lucide-react"
+import { Plus, Edit, Copy, Trash2, Power, Eye, FileCode, Wrench } from "lucide-react"
 import { useRouter } from "next/navigation"
 import {
   deleteTemplateAction,
   duplicateTemplateAction,
   toggleTemplateActiveAction,
 } from "./actions"
+import { fixReceiptTemplatesAction } from "./fix-template-action"
 import { toast } from "sonner"
 
 type Props = {
@@ -97,6 +98,17 @@ export default function TemplatesClient({ initialTemplates }: Props) {
     }
   }
 
+  // Handle fix templates
+  const handleFixTemplates = async () => {
+    const result = await fixReceiptTemplatesAction()
+    if (result.ok) {
+      toast.success(result.message || `תוקנו ${result.fixed} תבניות`)
+      router.refresh()
+    } else {
+      toast.error(result.message)
+    }
+  }
+
   // Handle toggle active
   const handleToggleActive = async (templateId: string, currentStatus: boolean) => {
     const result = await toggleTemplateActiveAction(templateId, !currentStatus)
@@ -125,10 +137,20 @@ export default function TemplatesClient({ initialTemplates }: Props) {
               נהל תבניות HTML/CSS למסמכים שונים
             </p>
           </div>
-          <Button onClick={() => router.push("/admin/templates/new")}>
-            <Plus className="h-4 w-4 ml-2" />
-            תבנית חדשה
-          </Button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Button 
+              variant="secondary" 
+              onClick={handleFixTemplates}
+              style={{ background: '#EDF1F5', color: '#19183B', border: '1px solid #d1d5db' }}
+            >
+              <Wrench className="h-4 w-4 ml-2" />
+              תיקון תבניות קבלה
+            </Button>
+            <Button onClick={() => router.push("/admin/templates/new")}>
+              <Plus className="h-4 w-4 ml-2" />
+              תבנית חדשה
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

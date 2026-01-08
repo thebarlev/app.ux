@@ -141,6 +141,8 @@ function SelectItem({
       dir="rtl"
       style={{
         height: "50px",
+        minHeight: "50px",
+        maxHeight: "50px",
         fontSize: "18px",
         color: "#FFFFFF",
         borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
@@ -148,9 +150,15 @@ function SelectItem({
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.backgroundColor = "#1A3954";
+        e.currentTarget.style.height = "50px";
+        e.currentTarget.style.minHeight = "50px";
+        e.currentTarget.style.maxHeight = "50px";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = "transparent";
+        e.currentTarget.style.height = "50px";
+        e.currentTarget.style.minHeight = "50px";
+        e.currentTarget.style.maxHeight = "50px";
       }}
       {...props}
     >

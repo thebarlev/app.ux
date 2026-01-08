@@ -1,3 +1,5 @@
+"use client"
+
 import Link from "next/link"
 import { FileQuestion } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,12 +22,12 @@ export default function NotFound() {
         </div>
 
         <div className="flex gap-3 justify-center">
-          <Button asChild>
-            <Link href="/admin">Go to Admin Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/login">Login</Link>
-          </Button>
+          <Link href="/admin">
+            <Button>Go to Admin Dashboard</Button>
+          </Link>
+          <Link href="/admin/login">
+            <Button variant="secondary">Login</Button>
+          </Link>
         </div>
       </div>
     </div>
