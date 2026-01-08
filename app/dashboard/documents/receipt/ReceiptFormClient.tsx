@@ -503,7 +503,7 @@ export default function ReceiptFormClient({
             </button>
           </div>
           {initial.companyName && (
-            <h2 className="text-right mt-[10px] mb-[40px]" style={{ fontSize: '26px', fontWeight: 500, color: '#19183B' }}>{initial.companyName}</h2>
+            <h2 className="text-right mt-[10px] mb-[40px]" style={{ fontSize: '36px', fontWeight: 600, color: '#19183B' }}>{initial.companyName}</h2>
           )}
         </div>
 
