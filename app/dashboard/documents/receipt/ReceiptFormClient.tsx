@@ -92,7 +92,6 @@ export default function ReceiptFormClient({
 }) {
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   // הגדרות קבלה (state)
-  // TODO: להוסיף vatType אם קיים ב-initial.settings
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
@@ -107,9 +106,7 @@ export default function ReceiptFormClient({
     initial.ok ? initial.settings.allowedCurrencies : ["₪", "$", "€"]
   );
   const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "₪");
-  // VAT type (רגיל/פטור/אחר) - נדרש להוסיף ל-initial.settings במידת הצורך
-  const initialVatType = initial.ok ? (initial.settings as any)?.vatType : null;
-  const [vatType, setVatType] = useState<string>(initialVatType || "רגיל");
+  // Removed: vatType state
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -121,6 +118,7 @@ export default function ReceiptFormClient({
   const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
 
   const [notes, setNotes] = useState("");
+  const [emailNotes, setEmailNotes] = useState(""); // UI only - for future email feature
 
   // Refs for focus management
   const descriptionInputRef = useRef<HTMLInputElement>(null);
@@ -207,8 +205,11 @@ export default function ReceiptFormClient({
   }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language]);
 
   // Keep all payment rows in sync with selected document currency
+  // Only sync if currency is NOT ₪ (ILS), because when it's ₪, each payment can have its own currency
   useEffect(() => {
-    setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+    if (currency !== "₪") {
+      setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+    }
   }, [currency]);
 
   if (!initial.ok) {
@@ -664,7 +665,7 @@ export default function ReceiptFormClient({
         }
       `}</style>
 
-      <div className="w-full pt-10 px-4 sm:px-6 lg:px-8">
+      <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div
           className="ui-container"
           style={{
@@ -692,6 +693,31 @@ export default function ReceiptFormClient({
           </Card>
         )}
 
+        {/* Receipt Settings Summary - moved above H1 */}
+        <ReceiptSettingsSummary
+          settings={{
+            currency,
+            language,
+            vatType: "", // Required by interface but not used
+            roundTotals,
+            allowedCurrencies,
+            allowedLanguages: [
+              { value: "he", label: "עברית" },
+              { value: "en", label: "English" },
+            ],
+            canEdit: {
+              currency: true,
+              language: true,
+              roundTotals: true,
+            },
+          }}
+          onChange={(patch) => {
+            if (patch.currency !== undefined) setCurrency(patch.currency);
+            if (patch.language !== undefined) setLanguage(patch.language as "he" | "en");
+            if (patch.roundTotals !== undefined) setRoundTotals(patch.roundTotals);
+          }}
+        />
+
         {/* Page Header - Title */}
         <div className="mb-[50px]">
           <div className="flex justify-between items-center">
@@ -703,33 +729,6 @@ export default function ReceiptFormClient({
             <h2 className="text-right mt-[10px] mb-[40px]">{initial.companyName}</h2>
           )}
         </div>
-
-        {/* Receipt Settings Summary - always on top */}
-        <ReceiptSettingsSummary
-          settings={{
-            currency,
-            language,
-            vatType,
-            roundTotals,
-            allowedCurrencies,
-            allowedLanguages: [
-              { value: "he", label: "עברית" },
-              { value: "en", label: "English" },
-            ],
-            canEdit: {
-              currency: true,
-              language: true,
-              vatType: true,
-              roundTotals: true,
-            },
-          }}
-          onChange={(patch) => {
-            if (patch.currency !== undefined) setCurrency(patch.currency);
-            if (patch.language !== undefined) setLanguage(patch.language as "he" | "en");
-            if (patch.vatType !== undefined) setVatType(patch.vatType);
-            if (patch.roundTotals !== undefined) setRoundTotals(patch.roundTotals);
-          }}
-        />
 
       {/* Form Sections */}
       <form className="ui-section-gap">
@@ -936,9 +935,9 @@ export default function ReceiptFormClient({
                     <CurrencyAmountGroup
                       currencyControl={
                         <Select
-                        value={currency}
-                        disabled
-                        onValueChange={() => {}}
+                        value={row.currency || currency}
+                        disabled={currency !== "₪"}
+                        onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                         >
                           <SelectTrigger 
                             style={{ 
@@ -1035,20 +1034,35 @@ export default function ReceiptFormClient({
         <FormSection 
           title="הערות"
         >
-        <FieldWrapper 
-          label="הערות שיופיעו במסמך" 
-          id="notes"
-          className="ui-field-wide"
-        >
-          <Textarea
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FieldWrapper 
+            label="הערות שיופיעו במסמך" 
             id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="חשוב לדעת..."
-            className="min-h-[100px] resize-y"
-            aria-describedby="notes-hint"
-          />
-        </FieldWrapper>
+            className="min-w-0"
+          >
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="חשוב לדעת..."
+              className="min-h-[100px] resize-y"
+              aria-describedby="notes-hint"
+            />
+          </FieldWrapper>
+          <FieldWrapper 
+            label="הערות שיופיעו בגוף המייל" 
+            id="emailNotes"
+            className="min-w-0"
+          >
+            <Textarea
+              id="emailNotes"
+              value={emailNotes}
+              onChange={(e) => setEmailNotes(e.target.value)}
+              placeholder="חשוב לדעת..."
+              className="min-h-[100px] resize-y"
+            />
+          </FieldWrapper>
+        </div>
         </FormSection>
 
         {/* Action Buttons - 3 buttons only */}

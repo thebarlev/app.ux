@@ -79,32 +79,64 @@ export async function getTemplatesForDocumentTypeAction(
   | { ok: true; templates: TemplateWithSelection[] }
   | { ok: false; message: string }
 > {
+  const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
   try {
     const supabase = await createClient()
-    const companyId = await getCompanyIdForUser()
+    
+    // Get company ID - if user has no company, they can still see global templates
+    let companyId: string | null = null
+    try {
+      companyId = await getCompanyIdForUser()
+    } catch (error) {
+      // User might not have a company - they can still see global templates
+      if (DEBUG_TEMPLATES) {
+        console.log("[TEMPLATE_FETCH] No company for user, loading global templates only")
+      }
+    }
+
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] getTemplatesForDocumentTypeAction - documentType:", documentType)
+      console.log("[TEMPLATE_FETCH] companyId:", companyId)
+    }
 
     // Get available templates
-    const { data: templates, error: templatesError } = await supabase
+    let query = supabase
       .from("templates")
       .select("id, name, description, document_type, thumbnail_url, is_default, is_active, company_id")
       .eq("document_type", documentType)
       .eq("is_active", true)
-      .or(`company_id.eq.${companyId},company_id.is.null`)
+
+    if (companyId) {
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`)
+    } else {
+      // Only global templates if user has no company
+      query = query.is("company_id", null)
+    }
+
+    const { data: templates, error: templatesError } = await query
       .order("is_default", { ascending: false })
       .order("company_id", { ascending: true }) // Company templates first
       .order("name")
+
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] Query result:", { count: templates?.length || 0, error: templatesError?.message })
+    }
 
     if (templatesError) {
       return { ok: false, message: templatesError.message }
     }
 
-    // Get current selection
-    const { data: selection } = await supabase
-      .from("company_template_selections")
-      .select("template_id")
-      .eq("company_id", companyId)
-      .eq("document_type", documentType)
-      .maybeSingle()
+    // Get current selection (only if user has a company)
+    let selection = null
+    if (companyId) {
+      const { data: selectionData } = await supabase
+        .from("company_template_selections")
+        .select("template_id")
+        .eq("company_id", companyId)
+        .eq("document_type", documentType)
+        .maybeSingle()
+      selection = selectionData
+    }
 
     // Mark selected template
     const templatesWithSelection = (templates || []).map((t) => ({

@@ -88,6 +88,12 @@ export default async function SettingsPage() {
     }
 
     // Fetch available templates
+    const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+    
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] settings/page.tsx - companyId:", companyId)
+    }
+
     const { data: templates } = await supabase
       .from("templates")
       .select("id, name, description, thumbnail_url, is_default, company_id")
@@ -96,6 +102,10 @@ export default async function SettingsPage() {
       .eq("document_type", "receipt")
       .order("is_default", { ascending: false })
       .order("name");
+
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] Query result:", { count: templates?.length || 0 })
+    }
 
     if (error || !company) {
       return (

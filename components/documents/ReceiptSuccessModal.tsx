@@ -1,6 +1,6 @@
 "use client";
 
-import { X, CheckCircle2, Eye, Download, FileText, Send, MessageCircle, Upload } from "lucide-react";
+import { X, CheckCircle2, Eye, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import type React from "react";
@@ -143,20 +143,27 @@ export default function ReceiptSuccessModal({
       variant: "secondary",
     };
 
+    // Always show 3 active buttons: after original is downloaded, 
+    // the "original" button becomes "copy" but stays active
     const hebrewOriginal: ModalAction = {
       id: "original_he",
-      label: args.baseLanguage === "en" ? "הורדת מקור בעברית" : "הורדת מסמך מקור",
+      label: hasDownloadedOriginal 
+        ? "הורדת העתק נאמן למקור"
+        : (args.baseLanguage === "en" ? "הורדת מקור בעברית" : "הורדת מסמך מקור"),
       icon: <Download className="h-6 w-6 text-modal-fg" />,
       onClick: () => {
-        // Regulatory: original is Hebrew-only
-        onDownloadHebrew({ issue: "original" });
-        setOriginalIssued(true);
+        if (hasDownloadedOriginal) {
+          // After original was issued, this button downloads a copy
+          onDownloadHebrew({ issue: "copy" });
+        } else {
+          // Regulatory: original is Hebrew-only
+          onDownloadHebrew({ issue: "original" });
+          setOriginalIssued(true);
+        }
       },
       title: hasDownloadedOriginal
-        ? "מסמך המקור כבר הורד בעבר (חד-פעמי)"
+        ? "הורדת העתק נאמן למקור (עברית)"
         : "הורדת מסמך מקור (עברית, פעם אחת)",
-      // UX: after original was issued, keep the button in place but disable it.
-      disabled: hasDownloadedOriginal,
       variant: "primary",
     };
 
@@ -180,7 +187,7 @@ export default function ReceiptSuccessModal({
 
     if (args.baseLanguage === "en") {
       return {
-        // EN: 3 actions in one row (RTL): View, Hebrew original, English copy
+        // EN: 3 actions in one row (RTL): View, Hebrew original/copy, English copy
         topRow: [
           view,
           hebrewOriginal,
@@ -189,22 +196,13 @@ export default function ReceiptSuccessModal({
       };
     }
 
-    // HE: Always keep 3 actions in one row (never swap positions): View, Original, Copy (HE)
+    // HE: Always keep 3 actions in one row: View, Original/Copy, Copy (HE)
     return {
       topRow: [view, hebrewOriginal, hebrewCopy],
     };
   };
 
   const actions = buildReceiptSuccessActions({ baseLanguage, originalIssued });
-  // WhatsApp share handler
-  const handleWhatsAppShare = () => {
-    // TODO: Generate signed URL from /api/documents/{documentId}/pdf and create share link
-    // The signed URL should have longer TTL (e.g., 24 hours) for sharing
-    // Current implementation uses placeholder URL - replace with actual signed URL
-    const message = `מצורפת קבלה מספר ${documentNumber}`;
-    const url = encodeURIComponent(window.location.origin + `/dashboard/documents/${documentId}`);
-    window.open(`https://wa.me/?text=${encodeURIComponent(message + " " + url)}`, "_blank");
-  };
 
   return (
     <div
@@ -239,13 +237,23 @@ export default function ReceiptSuccessModal({
             <CheckCircle2 className="h-20 w-20 text-primary" />
           </div>
 
-          {/* Title */}
+          {/* Company Name */}
           <h2
             id="success-modal-title"
             className="text-2xl font-bold text-modal-fg mb-2"
           >
-            קבלה מספר {documentNumber} | {companyName}
+            {companyName}
           </h2>
+
+          {/* Success Title */}
+          <h3 className="text-lg font-semibold text-modal-fg mb-2">
+            המסמך נוצר בהצלחה
+          </h3>
+
+          {/* Receipt Number */}
+          <p className="text-base text-modal-fg mb-4">
+            קבלה #{documentNumber}
+          </p>
 
           {/* Actions Grid */}
           <div className="mt-8 mb-6">
@@ -271,45 +279,6 @@ export default function ReceiptSuccessModal({
                 </button>
               ))}
             </div>
-
-            {/* Other actions (keep existing layout) */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <button
-                disabled
-                className="flex flex-col items-center gap-2 p-4 rounded-lg opacity-50 cursor-not-allowed"
-                title="שיתוף ב-Telegram (בקרוב)"
-              >
-                <Send className="h-6 w-6 text-modal-fg" />
-                <span className="text-xs text-modal-fg">שיתוף ב-Telegram</span>
-              </button>
-
-              <button
-                onClick={handleWhatsAppShare}
-                className="flex flex-col items-center gap-2 p-4 rounded-lg transition-colors"
-                style={{ backgroundColor: "#E8F5E9" }}
-                title="שיתוף ב-WhatsApp"
-              >
-                <MessageCircle className="h-6 w-6 text-[#25D366]" />
-                <span className="text-xs text-modal-fg font-medium">שיתוף ב-WhatsApp</span>
-              </button>
-
-              <button
-                disabled
-                className="flex flex-col items-center gap-2 p-4 rounded-lg opacity-50 cursor-not-allowed"
-                title="העלאה ל-Google Drive (בקרוב)"
-              >
-                <Upload className="h-6 w-6 text-modal-fg" />
-                <span className="text-xs text-modal-fg">העלאה ל-Google Drive</span>
-                <span className="text-[10px] text-muted-fg">למנויי Best ומעלה</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Info Message */}
-          <div id="success-modal-description" className="mb-6 p-4 rounded-lg" style={{ backgroundColor: "#DBEAFE", border: "1px solid #93C5FD" }}>
-            <p className="text-sm text-blue-900 leading-relaxed">
-              המסמך הופק ובעוד מספר רגעים אפשרי לצפות בו. אם עברת לעמוד המסמכים והוא עדיין לא שם – כדאי לרפרש את הדפדפן.
-            </p>
           </div>
 
           {/* Action Buttons */}

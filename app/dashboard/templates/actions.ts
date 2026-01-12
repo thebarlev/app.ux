@@ -8,11 +8,16 @@ import { revalidatePath } from "next/cache"
  */
 export async function getAvailableTemplatesAction() {
   const supabase = await createClient()
+  const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
 
   // Get current user's company
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return { ok: false, message: "לא מחובר", templates: [] }
+  }
+
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] getAvailableTemplatesAction - userId:", user.id)
   }
 
   // Get company_id from company_members
@@ -34,22 +39,39 @@ export async function getAvailableTemplatesAction() {
       .eq("auth_user_id", user.id)
       .maybeSingle()
 
-    if (!company) {
-      return { ok: false, message: "לא נמצאה חברה", templates: [] }
+    if (company) {
+      companyId = company.id;
     }
-    
-    companyId = company.id;
+    // If no company found, companyId remains null - user can still see global templates
+  }
+
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] companyId resolved:", companyId)
+    console.log("[TEMPLATE_FETCH] Query filter: is_active=true, company_id=", companyId, "OR NULL, document_type=receipt")
   }
 
   // Get active templates (company-specific OR global)
-  const { data: templates, error } = await supabase
+  // If companyId is null, only return global templates
+  let query = supabase
     .from("templates")
     .select("id, name, description, document_type, thumbnail_url, is_default, company_id")
     .eq("is_active", true)
-    .or(`company_id.eq.${companyId},company_id.is.null`)
     .eq("document_type", "receipt") // For now, only receipts
+
+  if (companyId) {
+    query = query.or(`company_id.eq.${companyId},company_id.is.null`)
+  } else {
+    // Only global templates if user has no company
+    query = query.is("company_id", null)
+  }
+
+  const { data: templates, error } = await query
     .order("is_default", { ascending: false })
     .order("name")
+
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] Query result:", { count: templates?.length || 0, error: error?.message })
+  }
 
   if (error) {
     return { ok: false, message: error.message, templates: [] }

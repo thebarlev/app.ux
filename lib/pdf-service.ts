@@ -22,6 +22,7 @@ import type {
 /**
  * Get template for document type (company-specific or global default)
  * Priority:
+ * 0) User's explicit selection from settings (company_template_selections)
  * 1) Company's default template (is_default = TRUE for this company)
  * 2) Global default template (is_default = TRUE, company_id IS NULL)
  * 3) Any active company template for this document type
@@ -70,6 +71,35 @@ export async function getTemplateForDocument(
       return { html: heHtml, css: heCss || "", resolvedLanguage: "he" as const, didFallbackToHe: false }
     }
     throw new Error("TEMPLATE_MISSING_LANGUAGE:he")
+  }
+
+  // PRIORITY 0: User's explicit selection from settings (highest priority)
+  const { data: userSelection } = await supabase
+    .from("company_template_selections")
+    .select("template_id")
+    .eq("company_id", companyId)
+    .eq("document_type", documentType)
+    .maybeSingle()
+
+  if (userSelection?.template_id) {
+    const { data: selectedTemplate } = await supabase
+      .from("templates")
+      .select("id, html_he, css_he, html_en, css_en, is_active, name")
+      .eq("id", userSelection.template_id)
+      .eq("is_active", true)
+      .maybeSingle()
+
+    if (selectedTemplate) {
+      console.log(`✅ Using user-selected template from settings: ${selectedTemplate.name || selectedTemplate.id} (${selectedTemplate.id})`)
+      const picked = pickVariant(selectedTemplate)
+      return {
+        ...picked,
+        templateId: selectedTemplate.id,
+      }
+    } else {
+      // Selection exists but template is inactive or deleted - log warning and continue to fallbacks
+      console.warn(`⚠️ User selected template ${userSelection.template_id} is inactive or not found, falling back to defaults`)
+    }
   }
 
   // PRIORITY 1: Company's default template
