@@ -48,14 +48,18 @@ export default function NewTemplateClient() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [selectedDocumentTypes, setSelectedDocumentTypes] = useState<string[]>([DOCUMENT_TYPES.RECEIPT])
-  const [htmlTemplate, setHtmlTemplate] = useState("")
-  const [css, setCss] = useState("")
+  const [templateLang, setTemplateLang] = useState<"he" | "en">("he")
+  const [htmlTemplate, setHtmlTemplate] = useState("") // HE
+  const [css, setCss] = useState("") // HE
+  const [htmlTemplateEn, setHtmlTemplateEn] = useState("")
+  const [cssEn, setCssEn] = useState("")
   const [isDefault, setIsDefault] = useState(false)
   const [isActive, setIsActive] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
-  const [useFullHtml, setUseFullHtml] = useState(false)
+  const [useFullHtml, setUseFullHtml] = useState(false) // HE
+  const [useFullHtmlEn, setUseFullHtmlEn] = useState(false)
 
   // Extract CSS from <style> tags in HTML
   const extractCssFromHtml = (html: string): { cleanHtml: string; extractedCss: string } => {
@@ -81,38 +85,47 @@ export default function NewTemplateClient() {
   }
 
   // Handle full HTML mode toggle
-  const handleFullHtmlToggle = (checked: boolean) => {
-    setUseFullHtml(checked)
-    
+  const handleFullHtmlToggle = (lang: "he" | "en", checked: boolean) => {
+    if (lang === "he") setUseFullHtml(checked)
+    else setUseFullHtmlEn(checked)
+
+    const currentHtml = lang === "he" ? htmlTemplate : htmlTemplateEn
+    const currentCss = lang === "he" ? css : cssEn
+
     if (checked) {
-      // Switching to full HTML mode - combine HTML + CSS
-      if (css) {
+      if (currentCss) {
+        const meta = lang === "en" ? { dir: "ltr", lang: "en" } : { dir: "rtl", lang: "he" }
         const fullHtml = `<!DOCTYPE html>
-<html dir="rtl" lang="he">
+<html dir="${meta.dir}" lang="${meta.lang}">
 <head>
   <meta charset="UTF-8">
   <style>
-${css}
+${currentCss}
   </style>
 </head>
 <body>
-${htmlTemplate}
+${currentHtml}
 </body>
 </html>`
-        setHtmlTemplate(fullHtml)
-        toast.info("מצב HTML מלא הופעל - ה-CSS שולב ב-HTML")
+        if (lang === "he") setHtmlTemplate(fullHtml)
+        else setHtmlTemplateEn(fullHtml)
+        toast.info(`מצב HTML מלא הופעל (${lang.toUpperCase()}) - ה-CSS שולב ב-HTML`)
       }
-    } else {
-      // Switching to separate mode - extract CSS from HTML
-      const { cleanHtml, extractedCss } = extractCssFromHtml(htmlTemplate)
-      
-      if (extractedCss) {
+      return
+    }
+
+    const { cleanHtml, extractedCss } = extractCssFromHtml(currentHtml)
+    if (extractedCss) {
+      if (lang === "he") {
         setHtmlTemplate(cleanHtml)
         setCss(extractedCss)
-        toast.success("CSS חולץ מה-HTML בהצלחה")
       } else {
-        toast.info("מצב HTML מופרד הופעל")
+        setHtmlTemplateEn(cleanHtml)
+        setCssEn(extractedCss)
       }
+      toast.success(`CSS חולץ מה-HTML בהצלחה (${lang.toUpperCase()})`)
+    } else {
+      toast.info(`מצב HTML מופרד הופעל (${lang.toUpperCase()})`)
     }
   }
 
@@ -172,13 +185,23 @@ ${htmlTemplate}
         finalCss = extractedCss || css // Use extracted CSS or fallback to existing
         console.log("📤 Extracted CSS from full HTML:", { htmlLength: cleanHtml.length, cssLength: extractedCss.length })
       }
+
+      let finalHtmlEn = htmlTemplateEn
+      let finalCssEn = cssEn
+      if (useFullHtmlEn) {
+        const { cleanHtml, extractedCss } = extractCssFromHtml(htmlTemplateEn)
+        finalHtmlEn = cleanHtml
+        finalCssEn = extractedCss || cssEn
+      }
       
       const payload: CreateTemplatePayload = {
         name,
         description,
         documentType: selectedDocumentTypes[0] as any, // Use first type for backward compatibility
-        htmlTemplate: finalHtml,
-        css: finalCss,
+        htmlHe: finalHtml,
+        cssHe: finalCss,
+        htmlEn: finalHtmlEn,
+        cssEn: finalCssEn,
         isDefault,
         isActive,
         thumbnailUrl, // Include thumbnail URL in creation
@@ -421,103 +444,152 @@ ${htmlTemplate}
                     השתמש ב-Handlebars placeholders להזרמת נתונים דינמיים
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="fullHtml" className="text-sm cursor-pointer">
-                      HTML מלא (כולל CSS)
-                    </Label>
-                    <Switch
-                      id="fullHtml"
-                      checked={useFullHtml}
-                      onCheckedChange={handleFullHtmlToggle}
-                    />
-                  </div>
-                </div>
+                <div className="flex items-center gap-3" />
               </div>
             </CardHeader>
             <CardContent>
-              {useFullHtml ? (
-                // Full HTML mode - single textarea
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-sm text-muted-foreground">
-                      HTML מלא (כולל &lt;style&gt; tags)
-                    </Label>
-                    <Badge variant="secondary" className="text-xs">
-                      CSS יחולץ אוטומטית בשמירה
-                    </Badge>
-                  </div>
-                  <Textarea
-                    value={htmlTemplate}
-                    onChange={(e) => setHtmlTemplate(e.target.value)}
-                    placeholder="<!DOCTYPE html>
-<html dir='rtl'>
-<head>
-  <meta charset='UTF-8'>
-  <style>
-    body { font-family: Arial; direction: rtl; }
-    .total { font-size: 32px; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <h1>{{companyName}}</h1>
-  <div class='total'>{{formattedTotal}}</div>
-</body>
-</html>"
-                    rows={30}
-                    className="font-mono text-sm"
-                    dir="ltr"
-                  />
-                </div>
-              ) : (
-                // Separate HTML/CSS mode - tabs
-                <Tabs defaultValue="html">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="html">
-                      <Code className="h-4 w-4 ml-2" />
-                      HTML
-                    </TabsTrigger>
-                    <TabsTrigger value="css">
-                      <Palette className="h-4 w-4 ml-2" />
-                      CSS
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="html" className="space-y-4">
-                    <Textarea
-                      value={htmlTemplate}
-                      onChange={(e) => setHtmlTemplate(e.target.value)}
-                      placeholder="<div class='receipt'>
-  <h1>{{company.name}}</h1>
-  <p>קבלה מס' {{document.number}}</p>
-  <p>סכום: {{formatCurrency totals.total_amount document.currency}}</p>
-</div>"
-                      rows={25}
-                      className="font-mono text-sm"
-                      dir="ltr"
-                    />
-                  </TabsContent>
-                  <TabsContent value="css" className="space-y-4">
-                    <Textarea
-                      value={css}
-                      onChange={(e) => setCss(e.target.value)}
-                      placeholder=".receipt {
-  font-family: 'Heebo', sans-serif;
-  direction: rtl;
-  padding: 40px;
-}
+              <Tabs value={templateLang} onValueChange={(v) => setTemplateLang(v as any)} defaultValue="he">
+                <TabsList>
+                  <TabsTrigger value="he">עברית</TabsTrigger>
+                  <TabsTrigger value="en">English</TabsTrigger>
+                </TabsList>
 
-h1 {
-  font-size: 24px;
-  font-weight: 700;
-  margin-bottom: 20px;
-}"
-                      rows={25}
-                      className="font-mono text-sm"
-                      dir="ltr"
+                <TabsContent value="he" className="mt-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="fullHtmlHe" className="text-sm cursor-pointer">
+                      HTML מלא (כולל CSS)
+                    </Label>
+                    <Switch
+                      id="fullHtmlHe"
+                      checked={useFullHtml}
+                      onCheckedChange={(checked) => handleFullHtmlToggle("he", !!checked)}
                     />
-                  </TabsContent>
-                </Tabs>
-              )}
+                  </div>
+
+                  {useFullHtml ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm text-muted-foreground">
+                          HTML מלא (כולל &lt;style&gt; tags)
+                        </Label>
+                        <Badge variant="secondary" className="text-xs">
+                          CSS יחולץ אוטומטית בשמירה
+                        </Badge>
+                      </div>
+                      <Textarea
+                        value={htmlTemplate}
+                        onChange={(e) => setHtmlTemplate(e.target.value)}
+                        placeholder="<!DOCTYPE html>
+<html dir='rtl' lang='he'>...</html>"
+                        rows={30}
+                        className="font-mono text-sm"
+                        dir="ltr"
+                      />
+                    </div>
+                  ) : (
+                    <Tabs defaultValue="html">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="html">
+                          <Code className="h-4 w-4 ml-2" />
+                          HTML
+                        </TabsTrigger>
+                        <TabsTrigger value="css">
+                          <Palette className="h-4 w-4 ml-2" />
+                          CSS
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="html" className="space-y-4">
+                        <Textarea
+                          value={htmlTemplate}
+                          onChange={(e) => setHtmlTemplate(e.target.value)}
+                          placeholder="<div class='receipt'>...</div>"
+                          rows={25}
+                          className="font-mono text-sm"
+                          dir="ltr"
+                        />
+                      </TabsContent>
+                      <TabsContent value="css" className="space-y-4">
+                        <Textarea
+                          value={css}
+                          onChange={(e) => setCss(e.target.value)}
+                          placeholder=".receipt { direction: rtl; }"
+                          rows={25}
+                          className="font-mono text-sm"
+                          dir="ltr"
+                        />
+                      </TabsContent>
+                    </Tabs>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="en" className="mt-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="fullHtmlEn" className="text-sm cursor-pointer">
+                      Full HTML (with CSS)
+                    </Label>
+                    <Switch
+                      id="fullHtmlEn"
+                      checked={useFullHtmlEn}
+                      onCheckedChange={(checked) => handleFullHtmlToggle("en", !!checked)}
+                    />
+                  </div>
+
+                  {useFullHtmlEn ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm text-muted-foreground">
+                          Full HTML (with &lt;style&gt; tags)
+                        </Label>
+                        <Badge variant="secondary" className="text-xs">
+                          CSS will be extracted on save
+                        </Badge>
+                      </div>
+                      <Textarea
+                        value={htmlTemplateEn}
+                        onChange={(e) => setHtmlTemplateEn(e.target.value)}
+                        placeholder="<!DOCTYPE html>
+<html dir='ltr' lang='en'>...</html>"
+                        rows={30}
+                        className="font-mono text-sm"
+                        dir="ltr"
+                      />
+                    </div>
+                  ) : (
+                    <Tabs defaultValue="html">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="html">
+                          <Code className="h-4 w-4 ml-2" />
+                          HTML
+                        </TabsTrigger>
+                        <TabsTrigger value="css">
+                          <Palette className="h-4 w-4 ml-2" />
+                          CSS
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="html" className="space-y-4">
+                        <Textarea
+                          value={htmlTemplateEn}
+                          onChange={(e) => setHtmlTemplateEn(e.target.value)}
+                          placeholder="<div class='receipt'>...</div>"
+                          rows={25}
+                          className="font-mono text-sm"
+                          dir="ltr"
+                        />
+                      </TabsContent>
+                      <TabsContent value="css" className="space-y-4">
+                        <Textarea
+                          value={cssEn}
+                          onChange={(e) => setCssEn(e.target.value)}
+                          placeholder=".receipt { direction: ltr; }"
+                          rows={25}
+                          className="font-mono text-sm"
+                          dir="ltr"
+                        />
+                      </TabsContent>
+                    </Tabs>
+                  )}
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </div>

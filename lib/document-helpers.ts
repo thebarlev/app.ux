@@ -246,7 +246,8 @@ export async function finalizeDocument(
   
   try {
     const { generateDocumentPDF } = await import("@/lib/pdf-service")
-    const pdfResult = await generateDocumentPDF(draftId)
+    // Regulatory: originals are Hebrew-only (immutable)
+    const pdfResult = await generateDocumentPDF(draftId, { mode: "final", language: "he" })
     
     if (!pdfResult.success) {
       const errorDetails = pdfResult.error || "Unknown error"
@@ -277,15 +278,21 @@ export async function finalizeDocument(
     
     // Verify file exists in Storage (don't rely on DB - it may be blocked)
     const adminClient = (await import("@/lib/supabase/admin")).createAdminClient()
+    const pdfFileName = pdfStorageKey.split("/").pop() || "source.pdf"
     const { data: fileList, error: listError } = await adminClient.storage
       .from("business-assets")
       .list(`documents/${draftId}`, {
         limit: 1,
-        search: "source.pdf"
+        search: pdfFileName
       })
     
     if (listError || !fileList || fileList.length === 0) {
-      console.error(`[finalizeDocument] PDF file not found in Storage for document ${draftId}:`, listError)
+      console.error(`[finalizeDocument] PDF file not found in Storage for document ${draftId}:`, {
+        listError,
+        pdfStorageKey,
+        pdfFileName,
+        fileCount: fileList?.length || 0,
+      })
       return { 
         ok: false, 
         message: `PDF was generated but file was not found in storage. Please try again or contact support.`
@@ -332,5 +339,8 @@ export async function finalizeDocument(
   }
 
   console.log(`✅ [finalizeDocument] Document ${draftId} finalized successfully with PDF`)
-  return { ok: true, documentNumber: data.document_number }
+  
+  const successResponse = { ok: true, documentNumber: data.document_number };
+  
+  return successResponse;
 }

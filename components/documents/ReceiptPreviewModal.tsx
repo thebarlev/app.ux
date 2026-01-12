@@ -95,7 +95,7 @@ export default function ReceiptPreviewModal({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-4xl bg-[#EDF1F5] rounded-[20px] shadow-xl relative"
+        className="w-full max-w-4xl bg-modal rounded-[20px] shadow-xl relative text-modal-fg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="preview-modal-title"
@@ -110,7 +110,7 @@ export default function ReceiptPreviewModal({
           className="absolute top-4 left-4 z-10 p-2 rounded-full hover:bg-black/10 transition-colors disabled:opacity-50"
           aria-label="סגירה"
         >
-          <X className="h-5 w-5 text-[#19183B]" />
+          <X className="h-5 w-5 text-modal-fg" />
         </button>
 
         {/* Modal Content */}
@@ -118,7 +118,7 @@ export default function ReceiptPreviewModal({
           {/* Title */}
           <h2
             id="preview-modal-title"
-            className="text-2xl font-bold text-[#19183B] mb-6 text-center"
+            className="text-2xl font-bold text-modal-fg mb-6 text-center"
           >
             תצוגה מקדימה
           </h2>
@@ -128,8 +128,8 @@ export default function ReceiptPreviewModal({
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                 <div className="text-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#1D868F] mx-auto mb-4" />
-                  <p className="text-[#19183B]">טוען תצוגה מקדימה...</p>
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+                  <p className="text-modal-fg">טוען תצוגה מקדימה...</p>
                 </div>
               </div>
             )}
@@ -138,22 +138,26 @@ export default function ReceiptPreviewModal({
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                 <div className="text-center p-8">
                   <p className="text-red-600 font-medium mb-4">לא הצלחנו ליצור תצוגה מקדימה</p>
-                  <p className="text-sm text-[#708993]">{error}</p>
+                  <p className="text-sm text-muted-fg">{error}</p>
                 </div>
               </div>
             )}
 
             {!isLoading && !error && pdfUrl && (
               <>
-                {/* PDF iframe */}
-                {/* TODO: Replace placeholder PDF URL with real PDF from API: POST /api/documents/preview or /api/pdf/preview */}
-                {/* The API should return application/pdf as ArrayBuffer/Blob, then use URL.createObjectURL(blob) */}
+                {/* Preview iframe - loads HTML preview page */}
                 <iframe
                   src={pdfUrl}
                   className="w-full h-full"
                   style={{ minHeight: "600px", border: "none" }}
                   title="תצוגה מקדימה של הקבלה"
                   aria-label="תצוגה מקדימה של הקבלה"
+                  onLoad={() => {
+                    console.log("[ReceiptPreviewModal] Preview iframe loaded successfully");
+                  }}
+                  onError={(e) => {
+                    console.error("[ReceiptPreviewModal] Preview iframe error:", e);
+                  }}
                 />
 
                 {/* Watermark CSS Overlay - UI ONLY, not embedded in PDF */}
@@ -182,13 +186,13 @@ export default function ReceiptPreviewModal({
 
             {!isLoading && !error && !pdfUrl && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <p className="text-[#708993]">טוען PDF...</p>
+                <p className="text-muted-fg">טוען PDF...</p>
               </div>
             )}
           </div>
 
           {/* Info Text */}
-          <p id="preview-modal-description" className="text-sm text-[#708993] text-center mt-4">
+          <p id="preview-modal-description" className="text-sm text-muted-fg text-center mt-4">
             זהו תצוגה מקדימה בלבד. המסמך הסופי יופק רק לאחר לחיצה על "הפקת מסמך".
           </p>
         </div>

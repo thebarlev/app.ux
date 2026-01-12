@@ -6,6 +6,7 @@
  */
 
 import type { PaymentMethod, PaymentRow } from "./actions";
+import type { ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
@@ -14,6 +15,14 @@ type PaymentDetailsSectionProps = {
   payment: PaymentRow;
   onUpdate: (updates: Partial<PaymentRow>) => void;
 };
+
+function PaymentGrid({ children }: { children: ReactNode }) {
+  // Responsive behavior tuned for narrow content areas (e.g. sidebar):
+  // - 1 col on mobile
+  // - 2 cols only when there's actual space (sm+)
+  // - 3 cols only on very wide screens (xl+)
+  return <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
+}
 
 /**
  * Renders additional detail fields based on the selected payment type.
@@ -28,8 +37,8 @@ export default function PaymentDetailsSection({
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
     return (
-      <div className="ui-form-grid">
-        <FieldWrapper label="מספר כרטיס" id="cardLastDigits" hint="4 ספרות אחרונות">
+      <PaymentGrid>
+        <FieldWrapper label="מספר כרטיס" id="cardLastDigits" hint="4 ספרות אחרונות" className="min-w-0">
           <Input
             type="text"
             maxLength={4}
@@ -40,7 +49,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סוג כרטיס" id="cardType">
+        <FieldWrapper label="סוג כרטיס" id="cardType" className="min-w-0">
           <Select
             value={payment.cardType ?? ""}
             onValueChange={(v) => onUpdate({ cardType: v })}
@@ -57,7 +66,7 @@ export default function PaymentDetailsSection({
           </Select>
         </FieldWrapper>
 
-        <FieldWrapper label="סוג עסקה" id="cardDealType">
+        <FieldWrapper label="סוג עסקה" id="cardDealType" className="min-w-0">
           <Select
             value={payment.cardDealType ?? "regular"}
             onValueChange={(v) => onUpdate({ cardDealType: v })}
@@ -72,7 +81,7 @@ export default function PaymentDetailsSection({
           </Select>
         </FieldWrapper>
 
-        <FieldWrapper label="מספר תשלומים" id="cardInstallments">
+        <FieldWrapper label="מספר תשלומים" id="cardInstallments" className="min-w-0">
           <Input
             type="number"
             min={1}
@@ -83,15 +92,15 @@ export default function PaymentDetailsSection({
             aria-label="מספר תשלומים"
           />
         </FieldWrapper>
-      </div>
+      </PaymentGrid>
     );
   }
 
   // Bank transfer: 3 fields (bank, branch, account) - order: בנק | סניף | חשבון לקוח
   if (method === "העברה בנקאית") {
     return (
-      <div className="ui-form-grid">
-        <FieldWrapper label="בנק" id="bankName">
+      <PaymentGrid>
+        <FieldWrapper label="בנק" id="bankName" className="min-w-0">
           <Input
             type="text"
             placeholder="שם הבנק"
@@ -100,7 +109,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סניף" id="bankBranch">
+        <FieldWrapper label="סניף" id="bankBranch" className="min-w-0">
           <Input
             type="text"
             placeholder="מספר סניף"
@@ -109,7 +118,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="חשבון לקוח" id="bankAccount">
+        <FieldWrapper label="חשבון לקוח" id="bankAccount" className="min-w-0">
           <Input
             type="text"
             placeholder="מספר חשבון"
@@ -117,15 +126,15 @@ export default function PaymentDetailsSection({
             onChange={(e) => onUpdate({ bankAccount: e.target.value })}
           />
         </FieldWrapper>
-      </div>
+      </PaymentGrid>
     );
   }
 
   // Check: 4 fields (bank, branch, account, check number)
   if (method === "צ׳ק") {
     return (
-      <div className="ui-form-grid">
-        <FieldWrapper label="בנק לקוח" id="checkBank">
+      <PaymentGrid>
+        <FieldWrapper label="בנק לקוח" id="checkBank" className="min-w-0">
           <Input
             type="text"
             placeholder="שם הבנק"
@@ -134,7 +143,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סניף לקוח" id="checkBranch">
+        <FieldWrapper label="סניף לקוח" id="checkBranch" className="min-w-0">
           <Input
             type="text"
             placeholder="מספר סניף"
@@ -143,7 +152,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="חשבון לקוח" id="checkAccount">
+        <FieldWrapper label="חשבון לקוח" id="checkAccount" className="min-w-0">
           <Input
             type="text"
             placeholder="מספר חשבון"
@@ -152,7 +161,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="מס׳ הצ׳ק" id="checkNumber">
+        <FieldWrapper label="מס׳ הצ׳ק" id="checkNumber" className="min-w-0">
           <Input
             type="text"
             placeholder="מספר צ׳ק"
@@ -160,7 +169,7 @@ export default function PaymentDetailsSection({
             onChange={(e) => onUpdate({ checkNumber: e.target.value })}
           />
         </FieldWrapper>
-      </div>
+      </PaymentGrid>
     );
   }
 
@@ -172,15 +181,19 @@ export default function PaymentDetailsSection({
   // Payoneer: Single full-width transaction field
   if (method === "Payoneer") {
     return (
-      <FieldWrapper label="מספר עסקה" id="transactionReference">
-        <Input
-          type="text"
-          placeholder="הזן מספר עסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          aria-label="מספר עסקה Payoneer"
-        />
-      </FieldWrapper>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FieldWrapper label="מספר עסקה" id="transactionReference" className="min-w-0">
+            <Input
+              type="text"
+              placeholder="הזן מספר עסקה"
+              value={payment.transactionReference ?? ""}
+              onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+              aria-label="מספר עסקה Payoneer"
+            />
+          </FieldWrapper>
+        </div>
+      </PaymentGrid>
     );
   }
 
@@ -195,8 +208,8 @@ export default function PaymentDetailsSection({
     method === "Pay"
   ) {
     return (
-      <div className="ui-form-grid">
-        <FieldWrapper label="חשבון משלם" id="payerAccount">
+      <PaymentGrid>
+        <FieldWrapper label="חשבון משלם" id="payerAccount" className="min-w-0">
           <Input
             type="text"
             placeholder="מזהה חשבון (אופציונלי)"
@@ -206,7 +219,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="מספר עסקה" id="transactionReference">
+        <FieldWrapper label="מספר עסקה" id="transactionReference" className="min-w-0">
           <Input
             type="text"
             placeholder="מזהה עסקה (אופציונלי)"
@@ -215,43 +228,51 @@ export default function PaymentDetailsSection({
             aria-label="מזהה עסקה או אסמכתא"
           />
         </FieldWrapper>
-      </div>
+      </PaymentGrid>
     );
   }
 
   // Partial employee deduction: Single transaction field
   if (method === "ניכוי חלק עובד טל״א") {
     return (
-      <FieldWrapper label="מס׳ העסקה" id="transactionReference">
-        <Input
-          type="text"
-          placeholder="מספר עסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-        />
-      </FieldWrapper>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="min-w-0">
+            <Input
+              type="text"
+              placeholder="מספר עסקה"
+              value={payment.transactionReference ?? ""}
+              onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+            />
+          </FieldWrapper>
+        </div>
+      </PaymentGrid>
     );
   }
 
   // Withholding tax: Explanatory text only (no input fields)
   if (method === "ניכוי במקור") {
     return (
-      <div
-        className="bg-warning/10 border border-warning/30 text-warning-fg"
-        style={{
-          padding: 12,
-          borderRadius: 8,
-          fontSize: 13,
-          lineHeight: 1.6,
-        }}
-      >
-        <div style={{ textDecoration: "underline", marginBottom: 4 }}>
-          הסכום ששולם למס הכנסה על ידי הלקוח, להסבר
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <div
+            className="bg-warning/10 border border-warning/30 text-warning-fg"
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ textDecoration: "underline", marginBottom: 4 }}>
+              הסכום ששולם למס הכנסה על ידי הלקוח, להסבר
+            </div>
+            <div style={{ fontWeight: 700 }}>
+              הסכום צריך להיות חיובי אם המסמך חיובי
+            </div>
+          </div>
         </div>
-        <div style={{ fontWeight: 700 }}>
-          הסכום צריך להיות חיובי אם המסמך חיובי
-        </div>
-      </div>
+      </PaymentGrid>
     );
   }
 
@@ -265,28 +286,36 @@ export default function PaymentDetailsSection({
     method === "ביטקוין"
   ) {
     return (
-      <FieldWrapper label="מס׳ העסקה" id="transactionReference">
-        <Input
-          type="text"
-          placeholder="מספר עסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-        />
-      </FieldWrapper>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="min-w-0">
+            <Input
+              type="text"
+              placeholder="מספר עסקה"
+              value={payment.transactionReference ?? ""}
+              onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+            />
+          </FieldWrapper>
+        </div>
+      </PaymentGrid>
     );
   }
 
   // Other deduction: Single description field
   if (method === "ניכוי אחר") {
     return (
-      <FieldWrapper label="תיאור" id="description">
-        <Input
-          type="text"
-          placeholder="תיאור הניכוי"
-          value={payment.description ?? ""}
-          onChange={(e) => onUpdate({ description: e.target.value })}
-        />
-      </FieldWrapper>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FieldWrapper label="תיאור" id="description" className="min-w-0">
+            <Input
+              type="text"
+              placeholder="תיאור הניכוי"
+              value={payment.description ?? ""}
+              onChange={(e) => onUpdate({ description: e.target.value })}
+            />
+          </FieldWrapper>
+        </div>
+      </PaymentGrid>
     );
   }
 

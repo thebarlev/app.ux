@@ -104,8 +104,10 @@ export type CreateTemplatePayload = {
   name: string
   description?: string
   documentType: "receipt" | "invoice" | "quote" | "delivery_note"
-  htmlTemplate: string
-  css?: string
+  htmlHe: string
+  cssHe?: string
+  htmlEn?: string
+  cssEn?: string
   thumbnailUrl?: string
   isDefault?: boolean
   isActive?: boolean
@@ -122,7 +124,7 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
       return { ok: false as const, message: "שם התבנית חייב להכיל לפחות 3 תווים" }
     }
 
-    if (!payload.htmlTemplate || payload.htmlTemplate.trim().length < 50) {
+    if (!payload.htmlHe || payload.htmlHe.trim().length < 50) {
       console.error("❌ Validation failed: HTML too short")
       return { ok: false as const, message: "תבנית HTML חייבת להכיל לפחות 50 תווים" }
     }
@@ -189,8 +191,10 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
         name: payload.name,
         description: payload.description || null,
         document_type: payload.documentType,
-        html_template: payload.htmlTemplate,
-        css: payload.css || null,
+        html_he: payload.htmlHe,
+        css_he: payload.cssHe || null,
+        html_en: payload.htmlEn || null,
+        css_en: payload.cssEn || null,
         thumbnail_url: payload.thumbnailUrl || null,
         is_default: payload.isDefault || false,
         is_active: payload.isActive !== false,
@@ -235,7 +239,7 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       return { ok: false as const, message: "שם התבנית חייב להכיל לפחות 3 תווים" }
     }
 
-    if (!payload.htmlTemplate || payload.htmlTemplate.trim().length < 50) {
+    if (!payload.htmlHe || payload.htmlHe.trim().length < 50) {
       return { ok: false as const, message: "תבנית HTML חייבת להכיל לפחות 50 תווים" }
     }
 
@@ -273,8 +277,10 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
         name: payload.name,
         description: payload.description || null,
         document_type: payload.documentType,
-        html_template: payload.htmlTemplate,
-        css: payload.css || null,
+        html_he: payload.htmlHe,
+        css_he: payload.cssHe || null,
+        html_en: payload.htmlEn || null,
+        css_en: payload.cssEn || null,
         thumbnail_url: payload.thumbnailUrl || null,
         is_default: payload.isDefault || false,
         is_active: payload.isActive !== false,
@@ -394,8 +400,11 @@ export async function duplicateTemplateAction(templateId: string) {
         name: `${original.name} (עותק)`,
         description: original.description,
         document_type: original.document_type,
-        html_template: original.html_template,
-        css: original.css,
+        html_he: (original as any).html_he || (original as any).html_template || null,
+        css_he: (original as any).css_he || (original as any).css || null,
+        html_en: (original as any).html_en || null,
+        css_en: (original as any).css_en || null,
+        // Legacy fields intentionally not copied as source of truth.
         is_default: false, // Never set duplicate as default
         is_active: true,
         created_by: user.id,

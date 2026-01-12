@@ -159,9 +159,10 @@ export async function fixReceiptTemplatesAction() {
     const results: Array<{ id: string; name: string; fixed: boolean; reason: string }> = []
 
     for (const template of templates) {
+      const templateHtml = (template as any).html_he || template.html_template || ""
       // Count {{#if}} and {{/if}} blocks
-      const ifMatches = template.html_template.match(/\{\{#if/g) || []
-      const ifEndMatches = template.html_template.match(/\{\{\/if\}\}/g) || []
+      const ifMatches = templateHtml.match(/\{\{#if/g) || []
+      const ifEndMatches = templateHtml.match(/\{\{\/if\}\}/g) || []
       const ifCount = ifMatches.length
       const ifEndCount = ifEndMatches.length
       const unclosedCount = ifCount - ifEndCount
@@ -171,7 +172,7 @@ export async function fixReceiptTemplatesAction() {
         const { error: updateError } = await supabase
           .from("templates")
           .update({
-            html_template: fixedTemplate,
+            html_he: fixedTemplate,
             updated_at: new Date().toISOString(),
           })
           .eq("id", template.id)

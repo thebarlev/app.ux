@@ -6,14 +6,12 @@ import { RegistrationProvider, useRegistration } from "@/components/registration
 import { StepProgress } from "@/components/registration/step-progress"
 import { StepPersonalDetails } from "@/components/registration/step-personal-details"
 import { StepBusinessProfile } from "@/components/registration/step-business-profile"
-import { StepAddress } from "@/components/registration/step-address"
 import { RegistrationLogo } from "@/components/registration/registration-logo"
 import Link from "next/link"
 
 const STEPS = [
   { id: 1, label: "פרטים אישיים" },
   { id: 2, label: "פרופיל עסקי" },
-  { id: 3, label: "כתובת" },
 ]
 
 function RegistrationFlow() {
@@ -29,23 +27,21 @@ function RegistrationFlow() {
         return <StepPersonalDetails />
       case 2:
         return <StepBusinessProfile />
-      case 3:
-        return <StepAddress />
       default:
         return <StepPersonalDetails />
     }
   }, [currentStep])
 
   return (
-    <div className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
-      <div className="w-full max-w-[420px]">
+    <div className="min-h-svh w-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }} dir="rtl">
+      <div className="w-full max-w-[600px] px-4">
         {/* Logo */}
         <div className="mb-10 flex justify-center">
           <RegistrationLogo />
         </div>
 
         {/* Step Indicator */}
-        <div className="mb-6">
+        <div className="mb-8">
           <StepProgress 
             steps={STEPS} 
             currentStep={currentStep}
@@ -68,11 +64,12 @@ function RegistrationFlow() {
         </AnimatePresence>
 
         {/* Sign In Link */}
-        <p className="mt-6 text-center text-muted-fg text-sm">
+        <p className="mt-8 text-center" style={{ color: 'var(--muted-fg)', fontSize: '14px' }}>
           כבר יש לך חשבון?{" "}
           <Link 
             href="/login" 
-            className="text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+            className="font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-[5px]"
+            style={{ color: 'var(--link)' }}
           >
             התחברות לחשבון
           </Link>

@@ -123,12 +123,12 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
         <div
-          className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto"
+          className="bg-modal rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto pointer-events-auto text-modal-fg"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="sticky top-0 bg-card border-b border-border p-6 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-fg">
+          <div className="sticky top-0 bg-modal border-b border-border p-6 flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-modal-fg">
               דוח הכנסות להנהלת חשבונות
             </h2>
             <button
@@ -136,7 +136,7 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
               className="p-2 hover:bg-muted rounded-lg transition-colors"
               aria-label="סגירה"
             >
-              <X className="h-5 w-5 text-muted-fg" />
+              <X className="h-5 w-5 text-modal-fg" />
             </button>
           </div>
 
@@ -227,7 +227,7 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
                     className="mt-1"
                   />
                   <div className="flex-1">
-                    <div className="text-fg font-medium">הקובץ מכיל עד 10,000 מסמכים</div>
+                    <div className="text-modal-fg font-medium">הקובץ מכיל עד 10,000 מסמכים</div>
                   </div>
                 </label>
 
@@ -241,7 +241,7 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
                     className="mt-1"
                   />
                   <div className="flex-1">
-                    <div className="text-fg font-medium">הקובץ מכיל עד 500,000 מסמכים</div>
+                    <div className="text-modal-fg font-medium">הקובץ מכיל עד 500,000 מסמכים</div>
                   </div>
                 </label>
               </div>
@@ -267,7 +267,7 @@ export default function IncomeReportModal({ onClose }: IncomeReportModalProps) {
                     {emails.map((email, index) => (
                       <div
                         key={index}
-                        className="inline-flex items-center gap-1 bg-muted text-fg px-3 py-1 rounded-full text-sm"
+                        className="inline-flex items-center gap-1 bg-muted text-modal-fg px-3 py-1 rounded-full text-sm"
                       >
                         <span>{email}</span>
                         <button

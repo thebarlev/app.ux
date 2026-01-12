@@ -108,7 +108,7 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
   if (item.subItems) {
     return (
-      <div ref={navItemRef} className="relative" style={{ position: 'relative' }}>
+      <div ref={navItemRef} className="relative block" style={{ position: 'relative' }}>
         {/* Main Item */}
         <div
           onMouseEnter={() => setIsFlyoutOpen(true)}
@@ -121,12 +121,12 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
               }
             }, 100)
           }}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+          className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
             hasActiveSubItem
               ? "bg-sidebar-active text-sidebar-active-fg font-medium"
               : "text-sidebar-fg hover:bg-sidebar-hover"
           }`}
-          style={{ fontSize: '18px' }}
+          style={{ fontSize: '18px', lineHeight: '1', margin: 0 }}
         >
           <span className="shrink-0 text-sidebar-fg">
             <item.icon className="h-5 w-5" />
@@ -215,12 +215,12 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
     <Link
       href={item.href!}
       onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+      className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
         isActive
           ? "bg-sidebar-active text-sidebar-active-fg font-medium"
           : "text-sidebar-fg hover:bg-sidebar-hover"
       }`}
-      style={{ fontSize: '18px' }}
+      style={{ fontSize: '18px', lineHeight: '1', margin: 0 }}
     >
       <span className="shrink-0 text-sidebar-fg">
         <item.icon className="h-5 w-5" />
@@ -267,9 +267,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       {/* Navigation */}
-      <nav aria-label="ניווט ראשי" className="flex-1 space-y-2 px-3 overflow-y-auto">
+      <nav aria-label="ניווט ראשי" className="flex-1 px-3 overflow-y-auto">
         {navItems.map((item, idx) => (
-          <NavLink key={idx} item={item} onClick={onNavigate} />
+          <div key={idx} style={{ margin: 0, padding: 0 }}>
+            <NavLink item={item} onClick={onNavigate} />
+          </div>
         ))}
       </nav>
 

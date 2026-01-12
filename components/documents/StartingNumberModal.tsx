@@ -95,7 +95,7 @@ export default function StartingNumberModal({
       dir="rtl"
     >
       <div 
-        className="w-full max-w-[600px] bg-card rounded-[5px] shadow-xl"
+        className="w-full max-w-[600px] bg-modal rounded-[5px] shadow-xl text-modal-fg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
@@ -109,10 +109,10 @@ export default function StartingNumberModal({
               <Hash className="h-6 w-6 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 id="modal-title" className="text-2xl font-semibold text-fg mb-2">
+              <h2 id="modal-title" className="mb-2">
                 בחירת מספר מסמך ראשון
               </h2>
-              <p id="modal-description" className="text-sm text-muted-fg leading-relaxed">
+              <p id="modal-description" className="leading-relaxed">
                 זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
               </p>
             </div>

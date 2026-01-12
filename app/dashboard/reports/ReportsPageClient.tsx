@@ -67,16 +67,16 @@ export default function ReportsPageClient() {
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             דוחות והנהלת חשבונות
           </h1>
-          <p className="text-right text-[#708993] text-lg">
+          <p className="text-right">
             הפק דוחות חשבונאיים מקצועיים לניהול ולדיווח עסקי מיטבי
           </p>
         </div>
 
         {/* Reports Grid */}
-        <div className="ui-cards-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1100px] mx-auto w-full">
           {REPORTS.map((report) => (
             <ReportCard
               key={report.id}

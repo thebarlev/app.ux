@@ -16,10 +16,36 @@ export default async function SettingsPage() {
   try {
     const companyId = await getCompanyIdForUser();
     
-    // Fetch company data with all settings
-    const { data: company, error } = await supabase
-      .from("companies")
-      .select(`
+    // Fetch company data with all settings.
+    // Some deployments may not have optional English columns yet (company_name_en, contact_first_name_en).
+    // We'll try the full select first, and on 42703 retry without EN columns.
+    const selectWithEnglish = `
+        id,
+        company_name,
+        company_name_en,
+        business_type,
+        company_number,
+        industry,
+        custom_industry,
+        street,
+        city,
+        postal_code,
+        registration_number,
+        address,
+        phone,
+        mobile_phone,
+        contact_first_name,
+        contact_first_name_en,
+        books_region,
+        notified_tax_officer_at,
+        notified_tax_officer_notes,
+        email,
+        website,
+        logo_url,
+        signature_url
+      `;
+
+    const selectWithoutEnglish = `
         id,
         company_name,
         business_type,
@@ -33,13 +59,33 @@ export default async function SettingsPage() {
         address,
         phone,
         mobile_phone,
+        contact_first_name,
+        books_region,
+        notified_tax_officer_at,
+        notified_tax_officer_notes,
         email,
         website,
         logo_url,
         signature_url
-      `)
-      .eq("id", companyId)
-      .single();
+      `;
+
+    let company: any = null;
+    let error: any = null;
+
+    // Attempt 1: with EN columns
+    const r1 = await supabase.from("companies").select(selectWithEnglish).eq("id", companyId).single();
+    company = r1.data;
+    error = r1.error;
+
+    // Retry on missing optional EN columns
+    const msg = (error?.message || "") as string;
+    const code = (error?.code || "") as string;
+    const missingEnglishCols = msg.includes("company_name_en") || msg.includes("contact_first_name_en");
+    if (error && code === "42703" && missingEnglishCols) {
+      const r2 = await supabase.from("companies").select(selectWithoutEnglish).eq("id", companyId).single();
+      company = r2.data;
+      error = r2.error;
+    }
 
     // Fetch available templates
     const { data: templates } = await supabase

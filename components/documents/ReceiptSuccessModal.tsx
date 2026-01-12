@@ -2,7 +2,8 @@
 
 import { X, CheckCircle2, Eye, Download, FileText, Send, MessageCircle, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type React from "react";
 
 type Props = {
   isOpen: boolean;
@@ -11,7 +12,9 @@ type Props = {
   companyName: string;
   documentId: string;
   onViewDocument: () => void;
-  onDownloadOriginal: () => void;
+  onDownloadHebrew: (opts?: { issue?: "original" | "copy" }) => void;
+  onDownloadEnglish: (opts?: { issue?: "original" | "copy" }) => void;
+  baseLanguage: "he" | "en";
 };
 
 export default function ReceiptSuccessModal({
@@ -21,16 +24,19 @@ export default function ReceiptSuccessModal({
   companyName,
   documentId,
   onViewDocument,
-  onDownloadOriginal,
+  onDownloadHebrew,
+  onDownloadEnglish,
+  baseLanguage,
 }: Props) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const [originalIssued, setOriginalIssued] = useState<boolean | null>(null);
+  const englishCopyLabelRef = useRef<HTMLSpanElement | null>(null);
 
   // Focus trap and escape key handler
   useEffect(() => {
     if (!isOpen) return;
-
     // Store the element that had focus before modal opened
     previousActiveElementRef.current = document.activeElement as HTMLElement;
 
@@ -73,6 +79,7 @@ export default function ReceiptSuccessModal({
     document.addEventListener("keydown", handleTab);
     document.body.style.overflow = "hidden";
 
+    // Measure EN copy label layout (wrap/overflow) to debug truncation issues in RTL screens.
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.removeEventListener("keydown", handleTab);
@@ -85,8 +92,110 @@ export default function ReceiptSuccessModal({
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadIssuance() {
+      if (!isOpen) return;
+      try {
+        const res = await fetch(`/api/documents/${documentId}/issuance`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) {
+          const next = !!json?.originalIssued;
+          setOriginalIssued(next);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadIssuance();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, documentId]);
+
   if (!isOpen) return null;
 
+  type ModalAction = {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    variant?: "primary" | "secondary";
+    disabled?: boolean;
+    title?: string;
+  };
+
+  const buildReceiptSuccessActions = (args: {
+    baseLanguage: "he" | "en";
+    originalIssued: boolean | null;
+  }): {
+    topRow: [ModalAction, ModalAction, ModalAction];
+  } => {
+    const hasDownloadedOriginal = args.originalIssued === true;
+
+    const view: ModalAction = {
+      id: "view",
+      label: "צפייה בעמוד המסמך",
+      icon: <Eye className="h-6 w-6 text-modal-fg" />,
+      onClick: onViewDocument,
+      title: "צפייה בעמוד המסמך",
+      variant: "secondary",
+    };
+
+    const hebrewOriginal: ModalAction = {
+      id: "original_he",
+      label: args.baseLanguage === "en" ? "הורדת מקור בעברית" : "הורדת מסמך מקור",
+      icon: <Download className="h-6 w-6 text-modal-fg" />,
+      onClick: () => {
+        // Regulatory: original is Hebrew-only
+        onDownloadHebrew({ issue: "original" });
+        setOriginalIssued(true);
+      },
+      title: hasDownloadedOriginal
+        ? "מסמך המקור כבר הורד בעבר (חד-פעמי)"
+        : "הורדת מסמך מקור (עברית, פעם אחת)",
+      // UX: after original was issued, keep the button in place but disable it.
+      disabled: hasDownloadedOriginal,
+      variant: "primary",
+    };
+
+    const hebrewCopy: ModalAction = {
+      id: "copy_he",
+      label: "הורדת העתק נאמן למקור",
+      icon: <Download className="h-6 w-6 text-modal-fg" />,
+      onClick: () => onDownloadHebrew({ issue: "copy" }),
+      title: "הורדת העתק נאמן למקור (עברית)",
+      variant: "secondary",
+    };
+
+    const englishCopy: ModalAction = {
+      id: "copy_en",
+      label: "הורדת העתק באנגלית",
+      icon: <FileText className="h-6 w-6 text-modal-fg" />,
+      onClick: () => onDownloadEnglish({ issue: "copy" }),
+      title: "הורדת העתק באנגלית (Certified Copy)",
+      variant: "secondary",
+    };
+
+    if (args.baseLanguage === "en") {
+      return {
+        // EN: 3 actions in one row (RTL): View, Hebrew original, English copy
+        topRow: [
+          view,
+          hebrewOriginal,
+          englishCopy,
+        ],
+      };
+    }
+
+    // HE: Always keep 3 actions in one row (never swap positions): View, Original, Copy (HE)
+    return {
+      topRow: [view, hebrewOriginal, hebrewCopy],
+    };
+  };
+
+  const actions = buildReceiptSuccessActions({ baseLanguage, originalIssued });
   // WhatsApp share handler
   const handleWhatsAppShare = () => {
     // TODO: Generate signed URL from /api/documents/{documentId}/pdf and create share link
@@ -106,7 +215,7 @@ export default function ReceiptSuccessModal({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-[500px] bg-[#EDF1F5] rounded-[20px] shadow-xl relative"
+        className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto bg-modal rounded-[20px] shadow-xl relative text-modal-fg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="success-modal-title"
@@ -120,63 +229,58 @@ export default function ReceiptSuccessModal({
           className="absolute top-4 left-4 z-10 p-2 rounded-full hover:bg-black/10 transition-colors"
           aria-label="סגירה"
         >
-          <X className="h-5 w-5 text-[#19183B]" />
+          <X className="h-5 w-5 text-modal-fg" />
         </button>
 
         {/* Modal Content */}
         <div className="p-8 text-center">
           {/* Success Icon */}
           <div className="flex items-center justify-center mb-6">
-            <CheckCircle2 className="h-20 w-20 text-[#1D868F]" />
+            <CheckCircle2 className="h-20 w-20 text-primary" />
           </div>
 
           {/* Title */}
           <h2
             id="success-modal-title"
-            className="text-2xl font-bold text-[#19183B] mb-2"
+            className="text-2xl font-bold text-modal-fg mb-2"
           >
-            חשבונית עסקה מספר {documentNumber} | {companyName}
+            קבלה מספר {documentNumber} | {companyName}
           </h2>
 
           {/* Actions Grid */}
           <div className="mt-8 mb-6">
+            {/* Top actions (regulatory + UX) */}
             <div className="grid grid-cols-3 gap-4">
-              {/* Row 1 */}
-              <button
-                onClick={onViewDocument}
-                className="flex flex-col items-center gap-2 p-4 rounded-lg hover:bg-white/50 transition-colors"
-                title="צפייה בעמוד המסמך"
-              >
-                <Eye className="h-6 w-6 text-[#19183B]" />
-                <span className="text-xs text-[#19183B]">צפייה בעמוד המסמך</span>
-              </button>
+              {actions.topRow.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={a.onClick}
+                  disabled={a.disabled}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-lg transition-colors min-w-0 ${
+                    a.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/50"
+                  }`}
+                  title={a.title}
+                >
+                  {a.icon}
+                  <span
+                    ref={a.id === "copy_en" ? englishCopyLabelRef : undefined}
+                    className="text-xs text-modal-fg w-full min-w-0 whitespace-normal break-words leading-snug text-center min-h-[32px] flex items-center justify-center"
+                  >
+                    {a.label}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-              <button
-                onClick={onDownloadOriginal}
-                className="flex flex-col items-center gap-2 p-4 rounded-lg hover:bg-white/50 transition-colors"
-                title="הורדת מסמך מקור"
-              >
-                <Download className="h-6 w-6 text-[#19183B]" />
-                <span className="text-xs text-[#19183B]">הורדת מסמך מקור</span>
-              </button>
-
-              <button
-                onClick={onDownloadOriginal}
-                className="flex flex-col items-center gap-2 p-4 rounded-lg hover:bg-white/50 transition-colors"
-                title="הורדת העתק נאמן למקור"
-              >
-                <FileText className="h-6 w-6 text-[#19183B]" />
-                <span className="text-xs text-[#19183B]">הורדת העתק נאמן למקור</span>
-              </button>
-
-              {/* Row 2 */}
+            {/* Other actions (keep existing layout) */}
+            <div className="grid grid-cols-3 gap-4 mt-6">
               <button
                 disabled
                 className="flex flex-col items-center gap-2 p-4 rounded-lg opacity-50 cursor-not-allowed"
                 title="שיתוף ב-Telegram (בקרוב)"
               >
-                <Send className="h-6 w-6 text-[#19183B]" />
-                <span className="text-xs text-[#19183B]">שיתוף ב-Telegram</span>
+                <Send className="h-6 w-6 text-modal-fg" />
+                <span className="text-xs text-modal-fg">שיתוף ב-Telegram</span>
               </button>
 
               <button
@@ -186,7 +290,7 @@ export default function ReceiptSuccessModal({
                 title="שיתוף ב-WhatsApp"
               >
                 <MessageCircle className="h-6 w-6 text-[#25D366]" />
-                <span className="text-xs text-[#19183B] font-medium">שיתוף ב-WhatsApp</span>
+                <span className="text-xs text-modal-fg font-medium">שיתוף ב-WhatsApp</span>
               </button>
 
               <button
@@ -194,9 +298,9 @@ export default function ReceiptSuccessModal({
                 className="flex flex-col items-center gap-2 p-4 rounded-lg opacity-50 cursor-not-allowed"
                 title="העלאה ל-Google Drive (בקרוב)"
               >
-                <Upload className="h-6 w-6 text-[#19183B]" />
-                <span className="text-xs text-[#19183B]">העלאה ל-Google Drive</span>
-                <span className="text-[10px] text-[#708993]">למנויי Best ומעלה</span>
+                <Upload className="h-6 w-6 text-modal-fg" />
+                <span className="text-xs text-modal-fg">העלאה ל-Google Drive</span>
+                <span className="text-[10px] text-muted-fg">למנויי Best ומעלה</span>
               </button>
             </div>
           </div>

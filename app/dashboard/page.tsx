@@ -11,17 +11,17 @@ export default function DashboardPage() {
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             לוח בקרה
           </h1>
-          <p className="text-right text-[#708993] text-lg">
+          <p className="text-right">
             ברוכים הבאים למערכת הניהול
           </p>
         </div>
 
         {/* Quick Actions */}
         <FormSection title="פעולות מהירות">
-          <div className="ui-cards-grid">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1100px] mx-auto w-full">
             <DashboardCard
               href="/dashboard/documents/receipt"
               icon={PlusCircle}
@@ -71,7 +71,7 @@ export default function DashboardPage() {
         <FormSection title="פעילות אחרונה" className="mt-[50px]">
           <Card style={{ backgroundColor: 'white', border: 'none', boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)' }}>
             <CardContent style={{ padding: '60px 30px', textAlign: 'center' }}>
-              <p style={{ fontSize: '18px', color: '#708993' }}>אין פעילות אחרונה להצגה</p>
+              <p>אין פעילות אחרונה להצגה</p>
             </CardContent>
           </Card>
         </FormSection>

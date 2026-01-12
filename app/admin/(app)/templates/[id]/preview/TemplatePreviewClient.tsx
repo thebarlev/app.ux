@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import type { TemplateDefinition } from "@/lib/types/template"
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
 
 export default function TemplatePreviewClient({ template }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isMounted, setIsMounted] = useState(false)
 
   // Ensure client-side rendering to avoid hydration issues
@@ -213,10 +214,24 @@ export default function TemplatePreviewClient({ template }: Props) {
     )
   }
 
-  const processedHtml = processTemplate(template.html_template)
+  const requestedLangParam = searchParams.get("lang")
+  const requestedLang = requestedLangParam === "en" ? "en" : "he"
+
+  const heHtml = template.html_he || template.html_template || ""
+  const heCss = template.css_he || template.css || ""
+  const enHtml = template.html_en || ""
+  const enCss = template.css_en || ""
+
+  const canUseEn = !!enHtml?.trim()
+  const effectiveLang = requestedLang === "en" && canUseEn ? "en" : "he"
+  const didFallback = requestedLang === "en" && effectiveLang === "he"
+
+  const html = effectiveLang === "en" ? enHtml : heHtml
+  const css = effectiveLang === "en" ? enCss : heCss
+  const processedHtml = processTemplate(html)
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8" dir="rtl">
+    <div className="min-h-screen bg-gray-100 p-8" dir={effectiveLang === "en" ? "ltr" : "rtl"}>
       <div className="max-w-[210mm] mx-auto space-y-6">
         {/* Header - sticky toolbar */}
         <div className="sticky top-0 z-50 bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-6">
@@ -235,17 +250,19 @@ export default function TemplatePreviewClient({ template }: Props) {
           </div>
         </div>
 
+        {didFallback && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+            חסרה תבנית באנגלית (html_en/css_en). התצוגה מוצגת בעברית (fallback) לצרכי preview בלבד.
+          </div>
+        )}
+
         {/* Preview Container - A4 paper simulation */}
         <div className="bg-white rounded-lg shadow-2xl overflow-hidden" style={{
           width: "210mm",
           minHeight: "297mm",
           margin: "0 auto",
         }}>
-          <style
-            dangerouslySetInnerHTML={{
-              __html: template.css || "",
-            }}
-          />
+          <style dangerouslySetInnerHTML={{ __html: css }} />
           <div
             className="p-8"
             dangerouslySetInnerHTML={{ __html: processedHtml }}

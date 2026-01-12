@@ -6,82 +6,83 @@
    Design Tokens - Global Theme System
    Single Theme with Semantic Tokens + Inverse Sidebar
    ============================================ */
-
-@layer base {
-  :root {
-    
-    /* ===== App Base ===== */
-    --bg: #EDF1F5;        /* רקע כללי של הדפים */
-    --fg: #19183B;        /* טקסט ראשי על רקע כללי */
-
-    --card: #FFFFFF;      /* רקע של כרטיסים/משטחים */
-    --card-fg: #19183B;   /* טקסט על כרטיס */
-
-    --muted: #EDF1F5;
-    --muted-fg: #708993;
-
-    --border: #ffffff;
-    --ring: #708993;
-
+   @layer base {
+    :root {
   
+      /* ===== App Base ===== */
+      --bg: #EDF1F5;
+      --fg: #19183B;
+  
+      --card: #FFFFFF;
+      --card-fg: #19183B;
+  
+      --muted: #EDF1F5;
+      --muted-fg: #708993;
+  
+      --border: #ffffff;
+      --ring: #708993;
+  
+      /* ===== Actions / Buttons ===== */
+      --primary: #1D868F;
+      --primary-fg: #FFFFFF;
+      --primary-hover: #19183B;
+  
+      --secondary: #F5FBF9;
+      --secondary-fg: #19183B;
+      --secondary-border: #1D868F;
+  
+      --danger: #9B0003;
+      --danger-fg: #ffffff;
+  
+      /* ===== Links ===== */
+      --link: #1D868F;
+      --link-hover: #97B2BD;
+      --link-visited: #97B2BD;
+      --link-focus: #F39600;
+  
+      /* ===== Forms / States ===== */
+      --input: #F5FBF9;
+      --input-fg: #19183B;
+      --input-border: #1D868F;
+      --placeholder: #97B2BD;
+  
+      --success: #1D868F;
+      --success-fg: #19183B;
+  
+      --warning: #9B0003;
+      --warning-fg: #ffffff;
+  
+      /* ===== Overlay ===== */
+      --overlay: rgba(25, 24, 59, 0.6);
 
+      /* ===== Modals / Popups ===== */
+      --modal-bg: #FFFFFF;
+      --modal-fg: #19183B;
+  
+      /* ===== Sidebar (Inverse) ===== */
+      --sidebar-bg: #19183B;
+      --sidebar-fg: #EDF1F5;
+      --sidebar-muted-fg: #EDF1F5;
+      --sidebar-muted-bg: #1D868F;
+  
+      --sidebar-border: none;
+      --sidebar-hover: #1A3954;
+      --sidebar-active: #1D868F;
+      --sidebar-active-fg: #FFFFFF;
+      --sidebar-ring: #EDF1F5;
+  
+      /* ===== Tables ===== */
+      --table-header-bg: #19183B;
+      --table-header-fg: #ffffff;
+      --table-row-hover: #A1C2BD;
+      --table-stripe: #EDF1F5;
+      --table-positive: #19183B;
+      --table-negative: #19183B;
+  
+      /* ===== Layout ===== */
+      --radius: 5px;
+    }
 
-    /* ===== Actions / Buttons ===== */
-    --primary: #1D868F;
-    --primary-fg: #FFFFFF;
-    --primary-hover: #19183B;
-
-    --secondary: #F5FBF9;
-    --secondary-fg: #19183B;
-    --secondary-border: #1D868F;
-
-    --danger: #9B0003;
-    --danger-fg: #9B0003;
-    /* ===== Actions / Hyperlik ===== */
-
-    --link: #1D868F;
---link-hover: #97B2BD;   /* לדוגמה */
---link-visited: #97B2BD;
---link-focus: #F39600;
-
-    /* ===== Forms / States ===== */
-    --input: #F5FBF9;
-    --input-fg: #19183B;
-    --input-border: #1D868F;
-    --placeholder: #97B2BD;
-
-    --success: #1D868F;
-    --success-fg: #19183B;
-
-    --warning: #9B0003;
-    --warning-fg: #ffffff;
-
-    /* ===== Overlay ===== */
-    --overlay: rgba(25, 24, 59, 0.6);
-
-    /* ===== Sidebar (Inverse) ===== */
-    --sidebar-bg: #19183B;
-    --sidebar-fg: #EDF1F5;
-    --sidebar-muted-fg: #EDF1F5;
-    --sidebar-muted-bg: #1D868F;
-
-    --sidebar-border: none;
-    --sidebar-hover: #1A3954;
-    --sidebar-active: #1D868F;
-    --sidebar-active-fg: #FFFFFF;
-    --sidebar-ring: #EDF1F5;
-
-    /* ===== Tables ===== */
-    --table-header-bg: #19183B;
-    --table-header-fg: #ffffff;
-    --table-row-hover: #A1C2BD;
-    --table-stripe: #EDF1F5;
-    --table-positive: #19183B;
-    --table-negative: #19183B;
-
-    /* ===== Layout ===== */
-    --radius: 5px;
-  }
 
   html, body {
     height: 100%;
@@ -92,10 +93,23 @@
   body {
     /* דרישתך: צבע עמוד Body */
     margin: 0;
-    color: var(--input-fg);
+    background-color: var(--bg);
+    color: var(--fg);
     font-size: 18px;
     line-height: 1.6;
     min-height: 100%;
+  }
+
+  p {
+    color: var(--fg);
+    font-size: 18px;
+    line-height: 1.6;
+  }
+
+  label {
+    color: var(--muted-fg);
+    font-size: 18px;
+    line-height: 1.6;
   }
 
   /* Placeholder styling - גלובלי לכל השדות, RTL aligned */

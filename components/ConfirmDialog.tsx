@@ -38,18 +38,15 @@ export default function ConfirmDialog({
   }
 
   const Icon = destructive ? AlertTriangle : CheckCircle2
-  const iconColor = '#19183B' // Always use #19183B for icon color
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent
-        className="max-w-[420px] p-[50px] rounded-[20px]"
+        className="max-w-[420px] p-[50px] rounded-[20px] bg-modal text-modal-fg"
         style={{
-          backgroundColor: '#EDF1F5',
           border: 'none',
           boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
           textAlign: 'center',
-          color: '#19183B',
         }}
         dir="rtl"
       >
@@ -57,20 +54,20 @@ export default function ConfirmDialog({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 32px auto', height: 80 }}>
           <Icon 
             size={80} 
-            style={{ color: iconColor }}
+            className="text-modal-fg"
           />
         </div>
         
         <AlertDialogHeader className="text-center">
           <AlertDialogTitle 
-            className="text-[24px] font-bold"
-            style={{ color: '#19183B', marginBottom: 0 }}
+            className="text-[24px] font-bold text-modal-fg"
+            style={{ marginBottom: 0 }}
           >
             {title}
           </AlertDialogTitle>
           <AlertDialogDescription 
-            className="text-[18px] mb-8"
-            style={{ color: '#19183B', textAlign: 'center' }}
+            className="text-[18px] mb-8 text-modal-fg"
+            style={{ textAlign: 'center' }}
           >
             {message}
           </AlertDialogDescription>
@@ -93,10 +90,10 @@ export default function ConfirmDialog({
         <div style={{ textAlign: 'center', marginTop: 0 }}>
           <button
             onClick={() => onOpenChange(false)}
+            className="text-modal-fg"
             style={{
               background: 'none',
               border: 'none',
-              color: '#19183B',
               fontSize: 18,
               textDecoration: 'underline',
               cursor: 'pointer',

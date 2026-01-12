@@ -16,6 +16,8 @@ export type DocumentListItem = {
   document_type: string;
   document_date: string | null;
   customer_name: string | null;
+  document_description: string | null;
+  payment_method: string | null;
   total_amount: number | null;
   currency: string | null;
   document_status: string;
@@ -62,10 +64,22 @@ export async function getAllDocumentsListAction(
       pageSize = 50,
     } = filters;
 
-    // Build query
+    // Build query - select specific fields including description
     let query = supabase
       .from("documents")
-      .select("*", { count: "exact" })
+      .select(`
+        id,
+        document_number,
+        document_type,
+        issue_date,
+        created_at,
+        customer_name,
+        document_description,
+        total_amount,
+        currency,
+        document_status,
+        company_id
+      `, { count: "exact" })
       .eq("company_id", companyId);
 
     // Document type filter
@@ -94,6 +108,23 @@ export async function getAllDocumentsListAction(
       return { ok: false, message: error.message };
     }
 
+    // Fetch payment methods for each document (first payment method from line items)
+    const documentIds = (documents || []).map(d => d.id);
+    const { data: lineItemsData } = await supabase
+      .from("document_line_items")
+      .select("document_id, description")
+      .in("document_id", documentIds)
+      .order("line_number", { ascending: true })
+      .limit(1000); // Reasonable limit
+    
+    // Create a map of document_id -> first payment method
+    const paymentMethodMap = new Map<string, string>();
+    (lineItemsData || []).forEach((item: any) => {
+      if (!paymentMethodMap.has(item.document_id) && item.description) {
+        paymentMethodMap.set(item.document_id, item.description);
+      }
+    });
+
     // Transform to DocumentListItem format
     const items: DocumentListItem[] = (documents || []).map((doc) => ({
       id: doc.id,
@@ -101,6 +132,8 @@ export async function getAllDocumentsListAction(
       document_type: doc.document_type,
       document_date: doc.issue_date || doc.created_at,
       customer_name: doc.customer_name || null,
+      document_description: doc.document_description || null,
+      payment_method: paymentMethodMap.get(doc.id) || null,
       total_amount: doc.total_amount || null,
       currency: doc.currency || "ILS",
       document_status: doc.document_status,

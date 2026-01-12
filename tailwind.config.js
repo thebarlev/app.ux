@@ -48,6 +48,9 @@ module.exports = {
 
         overlay: 'var(--overlay)',
 
+        modal: 'var(--modal-bg)',
+        'modal-fg': 'var(--modal-fg)',
+
         sidebar: 'var(--sidebar-bg)',
         'sidebar-fg': 'var(--sidebar-fg)',
         'sidebar-muted-fg': 'var(--sidebar-muted-fg)',

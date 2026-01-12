@@ -4,9 +4,10 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicButton } from "./neumorphic-button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { checkEmailExists } from "@/app/register/actions"
 import Link from "next/link"
@@ -89,80 +90,86 @@ export function StepPersonalDetails() {
   }
 
   return (
-    <div className="ui-card">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-ui-text">פרטים אישיים</h2>
-        <p className="mt-2 ui-text-muted">נתחיל עם הפרטים שלך</p>
-      </div>
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">פרטים אישיים</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>נתחיל עם הפרטים שלך</p>
+        </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Form-level error announcement region */}
         {error && (
-          <div className="ui-alert-danger" role="alert" aria-live="assertive">
+          <div 
+            className="p-4 rounded-[5px]" 
+            role="alert" 
+            aria-live="assertive"
+            style={{ backgroundColor: 'rgba(155, 0, 3, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+          >
             {error}
           </div>
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="firstName" className="ui-label">
-              שם פרטי <span className="text-ui-danger" aria-label="שדה חובה">*</span>
-            </label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="firstName" className="text-right">
+              שם פרטי <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+            </Label>
+            <Input
               id="firstName"
               type="text"
               required
               aria-required="true"
               aria-invalid={!!errors.firstName}
               aria-describedby={errors.firstName ? "firstName-error" : undefined}
-              className={errors.firstName ? "ui-input-error" : "ui-input"}
+              className={errors.firstName ? "border-danger focus:ring-danger" : ""}
               placeholder="ישראל"
               value={data.firstName}
               onChange={(e) => updateData({ firstName: e.target.value })}
             />
             {errors.firstName && (
-              <p id="firstName-error" className="text-sm text-ui-danger mt-1" role="alert">
+              <p id="firstName-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
                 {errors.firstName}
               </p>
             )}
           </div>
           
-          <div>
-            <label htmlFor="lastName" className="ui-label">
-              שם משפחה <span className="text-ui-danger" aria-label="שדה חובה">*</span>
-            </label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="lastName" className="text-right">
+              שם משפחה <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+            </Label>
+            <Input
               id="lastName"
               type="text"
               required
               aria-required="true"
               aria-invalid={!!errors.lastName}
               aria-describedby={errors.lastName ? "lastName-error" : undefined}
-              className={errors.lastName ? "ui-input-error" : "ui-input"}
+              className={errors.lastName ? "border-danger focus:ring-danger" : ""}
               placeholder="ישראלי"
               value={data.lastName}
               onChange={(e) => updateData({ lastName: e.target.value })}
             />
             {errors.lastName && (
-              <p id="lastName-error" className="text-sm text-ui-danger mt-1" role="alert">
+              <p id="lastName-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
                 {errors.lastName}
               </p>
             )}
           </div>
         </div>
 
-        <div>
-          <label htmlFor="email" className="ui-label">
-            כתובת אימייל <span className="text-ui-danger" aria-label="שדה חובה">*</span>
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-right">
+            כתובת אימייל <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+          </Label>
+          <Input
             id="email"
             type="email"
             required
             aria-required="true"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? "email-error" : "email-hint"}
-            className={errors.email ? "ui-input-error text-left" : "ui-input text-left"}
+            className={errors.email ? "border-danger focus:ring-danger text-left" : "text-left"}
             placeholder="israel@example.com"
             value={data.email}
             onChange={(e) => {
@@ -176,20 +183,21 @@ export function StepPersonalDetails() {
             dir="ltr"
           />
           {!errors.email && (
-            <p id="email-hint" className="text-xs text-ui-text-muted mt-1">
+            <p id="email-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
               נשתמש בכתובת זו להתחברות למערכת
             </p>
           )}
           {errors.email && (
             <div className="mt-1">
-              <p id="email-error" className="text-sm text-ui-danger" role="alert">
+              <p id="email-error" className="text-sm" style={{ color: 'var(--danger)' }} role="alert">
                 {errors.email}
               </p>
               {emailExists && (
                 <div className="mt-2">
                   <Link 
                     href="/login" 
-                    className="inline-flex items-center gap-1 text-sm text-ui-primary hover:text-ui-primary-hover font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded-sm"
+                    className="inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+                    style={{ color: 'var(--link)' }}
                   >
                     ← חזרה להתחברות
                   </Link>
@@ -199,48 +207,48 @@ export function StepPersonalDetails() {
           )}
         </div>
 
-        <div>
-          <label htmlFor="phone" className="ui-label">
-            טלפון נייד <span className="text-ui-danger" aria-label="שדה חובה">*</span>
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="phone" className="text-right">
+            טלפון נייד <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+          </Label>
+          <Input
             id="phone"
             type="tel"
             required
             aria-required="true"
             aria-invalid={!!errors.phone}
             aria-describedby={errors.phone ? "phone-error" : "phone-hint"}
-            className={errors.phone ? "ui-input-error text-left" : "ui-input text-left"}
+            className={errors.phone ? "border-danger focus:ring-danger text-left" : "text-left"}
             placeholder="050-1234567"
             value={data.phone}
             onChange={(e) => updateData({ phone: e.target.value })}
             dir="ltr"
           />
           {!errors.phone && (
-            <p id="phone-hint" className="text-xs text-ui-text-muted mt-1">
+            <p id="phone-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
               פורמט: 050-1234567
             </p>
           )}
           {errors.phone && (
-            <p id="phone-error" className="text-sm text-ui-danger mt-1" role="alert">
+            <p id="phone-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
               {errors.phone}
             </p>
           )}
         </div>
 
-        <div>
-          <label htmlFor="password" className="ui-label">
-            סיסמה <span className="text-ui-danger" aria-label="שדה חובה">*</span>
-          </label>
+        <div className="space-y-2">
+          <Label htmlFor="password" className="text-right">
+            סיסמה <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+          </Label>
           <div className="relative">
-            <input
+            <Input
               id="password"
               type={showPassword ? "text" : "password"}
               required
               aria-required="true"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? "password-error" : "password-hint"}
-              className={errors.password ? "ui-input-error text-left pl-12" : "ui-input text-left pl-12"}
+              className={errors.password ? "border-danger focus:ring-danger text-left pr-12" : "text-left pr-12"}
               placeholder="לפחות 8 תווים"
               value={data.password}
               onChange={(e) => updateData({ password: e.target.value })}
@@ -251,39 +259,43 @@ export function StepPersonalDetails() {
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
               aria-pressed={showPassword}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-ui-text-muted hover:text-ui-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 rounded-sm"
+              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+              style={{ color: 'var(--muted-fg)' }}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {!errors.password && (
-            <p id="password-hint" className="text-xs text-ui-text-muted mt-1">
+            <p id="password-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
               מינימום 8 תווים
             </p>
           )}
           {errors.password && (
-            <p id="password-error" className="text-sm text-ui-danger mt-1" role="alert">
+            <p id="password-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
               {errors.password}
             </p>
           )}
         </div>
 
-        <button 
+        <Button 
           type="submit" 
-          className="ui-button-primary w-full"
+          variant="primary"
+          className="w-full"
           disabled={isCheckingEmail}
           aria-busy={isCheckingEmail}
+          loading={isCheckingEmail}
         >
           {isCheckingEmail ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <>
+              <Loader2 className="h-4 w-4 animate-spin ml-2" aria-hidden="true" />
               בודק זמינות אימייל...
-            </span>
+            </>
           ) : (
             "המשך לשלב הבא"
           )}
-        </button>
+        </Button>
       </form>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -11,6 +11,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DocumentsListFilters, DocumentsListResult } from "./actions";
 import { getReceiptPreviewUrlAction } from "./receipts/actions";
+import { Eye, Copy, Download, X } from "lucide-react";
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -75,11 +76,24 @@ function getStatusLabel(status: string): string {
   }
 }
 
+function truncateDescription(description: string | null): string {
+  if (!description || description.trim() === "") {
+    return "—";
+  }
+  const trimmed = description.trim();
+  if (trimmed.length <= 12) {
+    return trimmed;
+  }
+  return trimmed.substring(0, 12) + " ...";
+}
+
 export default function DocumentsListClient({ initialData, initialFilters }: Props) {
   const router = useRouter();
 
   const [search, setSearch] = useState(initialFilters.search || "");
   const [documentType, setDocumentType] = useState(initialFilters.documentType || "all");
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
 
   if (!initialData.ok) {
     return (
@@ -121,10 +135,10 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     <div className="ui-container pt-10" style={{ minHeight: '100vh' }}>
       {/* Page Header */}
       <div className="mb-[50px]">
-        <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+        <h1 className="text-right mb-4">
           מסמכים
         </h1>
-        <p className="text-right text-[#708993] text-lg">
+        <p className="text-right">
           {totalCount} מסמכים סה״כ
         </p>
       </div>
@@ -173,6 +187,45 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
       {/* Documents List */}
       <div className="mt-[50px]">
         <FormSection title="רשימת מסמכים">
+          {/* Bulk Actions Bar */}
+          {selectedDocuments.size > 0 && (
+            <div style={{
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #EDF1F5',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px'
+            }}>
+              <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
+                {selectedDocuments.size} מסמכים נבחרו
+              </div>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <Button
+                  onClick={async () => {
+                    // TODO: Implement bulk download
+                    alert(`הורדת ${selectedDocuments.size} מסמכים - ייושם בקרוב`);
+                  }}
+                  variant="secondary"
+                  style={{ height: '40px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <Download className="h-4 w-4" />
+                  הורדה
+                </Button>
+                <Button
+                  onClick={() => setSelectedDocuments(new Set())}
+                  variant="ghost"
+                  style={{ height: '40px', fontSize: '16px' }}
+                >
+                  ביטול בחירה
+                </Button>
+              </div>
+            </div>
+          )}
+          
           {documents.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
@@ -184,13 +237,28 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#19183B', color: '#FFFFFF' }}>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>מספר מסמך</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סוג</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>תאריך</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>לקוח</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סכום</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5', width: '50px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedDocuments.size === documents.length && documents.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDocuments(new Set(documents.map(d => d.id)));
+                          } else {
+                            setSelectedDocuments(new Set());
+                          }
+                        }}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                      />
+                    </th>
                     <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סטטוס</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>פעולות</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>תאריך</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סוג המסמך</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>שם הלקוח</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>תיאור</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>אמצעי תשלום</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סכום</th>
+                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5', width: '120px' }}>פעולות</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -200,29 +268,30 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       style={{
                         backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#EDF1F5',
                         borderBottom: '1px solid #EDF1F5',
+                        position: 'relative',
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#C6EAE5';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#FFFFFF' : '#EDF1F5';
-                      }}
+                      onMouseEnter={() => setHoveredRowId(doc.id)}
+                      onMouseLeave={() => setHoveredRowId(null)}
                     >
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {doc.document_number || "—"}
+                      {/* Checkbox */}
+                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDocuments.has(doc.id)}
+                          onChange={(e) => {
+                            const newSelected = new Set(selectedDocuments);
+                            if (e.target.checked) {
+                              newSelected.add(doc.id);
+                            } else {
+                              newSelected.delete(doc.id);
+                            }
+                            setSelectedDocuments(newSelected);
+                          }}
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {getDocumentTypeLabel(doc.document_type)}
-                      </td>
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {formatDate(doc.document_date)}
-                      </td>
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {doc.customer_name || "—"}
-                      </td>
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {formatAmount(doc.total_amount, doc.currency)}
-                      </td>
+                      
+                      {/* סטטוס */}
                       <td style={{ padding: '16px', textAlign: 'right' }}>
                         <span
                           className={getStatusBadgeClass(doc.document_status)}
@@ -237,24 +306,157 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                           {getStatusLabel(doc.document_status)}
                         </span>
                       </td>
-                      <td style={{ padding: '16px', textAlign: 'right' }}>
-                        {doc.document_type === "receipt" ? (
-                          <Button
-                            onClick={async () => {
-                              const result = await getReceiptPreviewUrlAction(doc.id);
-                              if (result.ok && result.url) {
-                                window.open(result.url, "_blank");
-                              } else {
-                                alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
-                              }
-                            }}
-                            variant="secondary"
-                            style={{ height: '40px', fontSize: '16px', borderColor: '#1A8299', color: '#1A8299' }}
-                          >
-                            צפייה
-                          </Button>
-                        ) : (
-                          <span style={{ color: '#708993' }}>—</span>
+                      
+                      {/* תאריך */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {formatDate(doc.document_date)}
+                      </td>
+                      
+                      {/* סוג המסמך */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {getDocumentTypeLabel(doc.document_type)}
+                      </td>
+                      
+                      {/* שם הלקוח */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {doc.customer_name || "—"}
+                      </td>
+                      
+                      {/* תיאור */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {truncateDescription(doc.document_description)}
+                      </td>
+                      
+                      {/* אמצעי תשלום */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {doc.payment_method || "—"}
+                      </td>
+                      
+                      {/* סכום */}
+                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                        {formatAmount(doc.total_amount, doc.currency)}
+                      </td>
+                      
+                      {/* פעולות - Row Actions */}
+                      <td style={{ padding: '16px', textAlign: 'right', position: 'relative', width: '120px' }}>
+                        {hoveredRowId === doc.id && (
+                          <div style={{ 
+                            display: 'flex', 
+                            gap: '8px', 
+                            justifyContent: 'flex-end',
+                            alignItems: 'center'
+                          }}>
+                            {/* צפייה */}
+                            <button
+                              onClick={async () => {
+                                if (doc.document_type === "receipt") {
+                                  const result = await getReceiptPreviewUrlAction(doc.id);
+                                  if (result.ok && result.url) {
+                                    window.open(result.url, "_blank");
+                                  } else {
+                                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
+                                  }
+                                } else {
+                                  // TODO: Implement view for other document types
+                                  alert("צפייה במסמכים מסוג זה תתמוך בקרוב");
+                                }
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#1A8299',
+                              }}
+                              title="צפייה"
+                            >
+                              <Eye className="h-5 w-5" />
+                            </button>
+                            
+                            {/* שכפול */}
+                            <button
+                              onClick={() => {
+                                // TODO: Implement duplication logic
+                                alert("שכפול מסמך - ייושם בקרוב");
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#1A8299',
+                              }}
+                              title="שכפול"
+                            >
+                              <Copy className="h-5 w-5" />
+                            </button>
+                            
+                            {/* הורדה */}
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const pdfUrl = `/api/documents/${doc.id}/pdf`;
+                                  const response = await fetch(pdfUrl);
+                                  
+                                  if (!response.ok) {
+                                    throw new Error("שגיאה בהורדת המסמך");
+                                  }
+                                  
+                                  const blob = await response.blob();
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `document-${doc.document_number || doc.id}.pdf`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  window.URL.revokeObjectURL(url);
+                                } catch (error: any) {
+                                  alert(error.message || "שגיאה בהורדת המסמך");
+                                }
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#1A8299',
+                              }}
+                              title="הורדה"
+                            >
+                              <Download className="h-5 w-5" />
+                            </button>
+                            
+                            {/* ביטול מסמך */}
+                            <button
+                              onClick={() => {
+                                // TODO: Implement cancellation logic
+                                alert("ביטול מסמך - ייושם בקרוב");
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#9B0003',
+                              }}
+                              title="ביטול מסמך"
+                            >
+                              <X className="h-5 w-5" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

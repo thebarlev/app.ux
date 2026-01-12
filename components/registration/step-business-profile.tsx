@@ -5,10 +5,10 @@ import { useState } from "react"
 import { useRegistration } from "./registration-context"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { HelperText } from "@/components/ui/helper-text"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BusinessActivityField } from "@/components/ui/business-activity-field"
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
@@ -17,7 +17,9 @@ const BUSINESS_TYPES = [
   { value: "partnership", label: "שותפות" },
 ]
 
-const INDUSTRIES = [
+// Note: Industries are now handled by BusinessActivityField component
+// This list is kept for backward compatibility if needed
+const INDUSTRIES_LEGACY = [
   { value: "retail", label: "קמעונאות" },
   { value: "services", label: "שירותים" },
   { value: "tech", label: "הייטק" },
@@ -39,12 +41,7 @@ export function StepBusinessProfile() {
     if (!data.businessName.trim()) newErrors.businessName = "שדה חובה"
     if (!data.businessType) newErrors.businessType = "שדה חובה"
     if (!data.companyNumber.trim()) newErrors.companyNumber = "שדה חובה"
-    if (!data.industry) newErrors.industry = "שדה חובה"
-    
-    // אם בחר "אחר" - חובה למלא תחום פעילות מותאם אישית
-    if (data.industry === "other" && !data.customIndustry.trim()) {
-      newErrors.customIndustry = "שדה חובה כאשר בוחרים 'אחר'"
-    }
+    if (!data.industry || !data.industry.trim()) newErrors.industry = "שדה חובה"
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -58,21 +55,17 @@ export function StepBusinessProfile() {
   }
 
   return (
-    <Card className="shadow-ui-lg">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-2xl font-bold text-card-fg text-right">
-          פרופיל עסקי
-        </CardTitle>
-        <CardDescription className="text-muted-fg text-right">
-          ספר לנו על העסק שלך
-        </CardDescription>
-      </CardHeader>
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">פרופיל עסקי</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>ספר לנו על העסק שלך</p>
+        </div>
 
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="businessName" className="text-right">
-              שם העסק <span className="text-danger" aria-label="שדה חובה">*</span>
+              שם העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Input
               id="businessName"
@@ -83,13 +76,15 @@ export function StepBusinessProfile() {
               onChange={(e) => updateData({ businessName: e.target.value })}
             />
             {errors.businessName && (
-              <HelperText error>{errors.businessName}</HelperText>
+              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                {errors.businessName}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="businessType" className="text-right">
-              סוג העסק <span className="text-danger" aria-label="שדה חובה">*</span>
+              סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Select
               value={data.businessType}
@@ -110,13 +105,15 @@ export function StepBusinessProfile() {
               </SelectContent>
             </Select>
             {errors.businessType && (
-              <HelperText error>{errors.businessType}</HelperText>
+              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                {errors.businessType}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="companyNumber" className="text-right">
-              מספר חברה / תעודת זהות <span className="text-danger" aria-label="שדה חובה">*</span>
+              מספר חברה / תעודת זהות <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Input
               id="companyNumber"
@@ -128,55 +125,32 @@ export function StepBusinessProfile() {
               dir="ltr"
             />
             {errors.companyNumber && (
-              <HelperText error>{errors.companyNumber}</HelperText>
+              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                {errors.companyNumber}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="industry" className="text-right">
-              תחום פעילות <span className="text-danger" aria-label="שדה חובה">*</span>
+              תחום פעילות <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
-            <Select
-              value={data.industry}
-              onValueChange={(value) => updateData({ industry: value })}
-            >
-              <SelectTrigger 
-                id="industry"
-                className={errors.industry ? "border-danger focus:ring-danger" : ""}
-              >
-                <SelectValue placeholder="בחר תחום" />
-              </SelectTrigger>
-              <SelectContent>
-                {INDUSTRIES.map((ind) => (
-                  <SelectItem key={ind.value} value={ind.value}>
-                    {ind.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.industry && (
-              <HelperText error>{errors.industry}</HelperText>
-            )}
+            <BusinessActivityField
+              id="industry"
+              value={data.industry || ""}
+              onChange={(value) => {
+                updateData({ industry: value, customIndustry: "" })
+              }}
+              onCustomValue={(value) => {
+                // Mark as custom if not in common list
+                updateData({ industry: value, customIndustry: value })
+              }}
+              error={errors.industry}
+              required
+              label="תחום פעילות"
+              helperText="התחל להקליד או בחר מהרשימה"
+            />
           </div>
-
-          {data.industry === "other" && (
-            <div className="space-y-2">
-              <Label htmlFor="customIndustry" className="text-right">
-                פרט תחום פעילות <span className="text-danger" aria-label="שדה חובה">*</span>
-              </Label>
-              <Input
-                id="customIndustry"
-                type="text"
-                className={errors.customIndustry ? "border-danger focus:ring-danger" : ""}
-                placeholder="הזן את תחום הפעילות שלך"
-                value={data.customIndustry}
-                onChange={(e) => updateData({ customIndustry: e.target.value })}
-              />
-              {errors.customIndustry && (
-                <HelperText error>{errors.customIndustry}</HelperText>
-              )}
-            </div>
-          )}
 
           <div className="flex gap-3">
             <Button 

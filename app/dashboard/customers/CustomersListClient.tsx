@@ -65,10 +65,10 @@ export default function CustomersListClient({ initialCustomers }: Props) {
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             לקוחות
           </h1>
-          <p className="text-right text-[#708993] text-lg">
+          <p className="text-right">
             {customers.length} לקוחות סה״כ
           </p>
         </div>
@@ -111,10 +111,10 @@ export default function CustomersListClient({ initialCustomers }: Props) {
             }}
           >
             <div style={{ fontSize: 48, marginBottom: 16 }}>👥</div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+            <h3 style={{ marginBottom: 8 }}>
               {searchQuery ? 'לא נמצאו לקוחות' : 'אין לקוחות עדיין'}
             </h3>
-            <p style={{ opacity: 0.7, marginBottom: 20, fontSize: 18 }}>
+            <p style={{ opacity: 0.7, marginBottom: 20 }}>
               {searchQuery ? 'נסה לשנות את מונחי החיפוש' : 'התחל על ידי הוספת לקוח חדש'}
             </p>
             {!searchQuery && (

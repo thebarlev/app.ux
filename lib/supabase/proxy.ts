@@ -33,15 +33,12 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
-  const isAdminLoginPage = request.nextUrl.pathname === "/admin/login"
-  const isDashboardRoute = request.nextUrl.pathname.startsWith("/dashboard")
-  const isBusinessLoginPage = request.nextUrl.pathname === "/login"
-  const isRegisterPage = request.nextUrl.pathname.startsWith("/register")
+  const isLoginPage = request.nextUrl.pathname === "/admin/login"
 
   // Admin route handling
   if (isAdminRoute) {
     // Allow access to login page without authentication
-    if (isAdminLoginPage) {
+    if (isLoginPage) {
       // If already logged in and is admin, redirect to dashboard
       if (user) {
         const { data: adminData } = await supabase
@@ -79,71 +76,6 @@ export async function updateSession(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = "/admin/login"
       url.searchParams.set("error", "unauthorized")
-      return NextResponse.redirect(url)
-    }
-  }
-
-  // Business owner route handling
-  if (isDashboardRoute) {
-    // Redirect to login if not authenticated
-    if (!user) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/login"
-      return NextResponse.redirect(url)
-    }
-
-    // Verify user has company membership
-    const { data: memberData } = await supabase
-      .from("company_members")
-      .select("company_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .maybeSingle()
-
-    // If no company_members record, check if user owns a company directly
-    if (!memberData) {
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle()
-
-      if (!companyData) {
-        // User authenticated but has no company access
-        const url = request.nextUrl.clone()
-        url.pathname = "/login"
-        url.searchParams.set("error", "no_company")
-        return NextResponse.redirect(url)
-      }
-    }
-  }
-
-  // Redirect authenticated business owners away from login page
-  if (isBusinessLoginPage && user && !isRegisterPage) {
-    // Check if user has company access
-    const { data: memberData } = await supabase
-      .from("company_members")
-      .select("company_id")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .maybeSingle()
-
-    // Only query companies table if user is not a member
-    let companyData = null;
-    if (!memberData) {
-      const { data } = await supabase
-        .from("companies")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .eq("status", "active")
-        .maybeSingle()
-      companyData = data;
-    }
-
-    if (memberData || companyData) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/dashboard"
       return NextResponse.redirect(url)
     }
   }

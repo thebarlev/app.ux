@@ -33,15 +33,12 @@ function LoginForm() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-
     try {
       const supabase = createClient()
-
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-
       if (authError) {
         console.error("🔴 Auth login error:", {
           message: authError.message || "Unknown error",
@@ -102,13 +99,13 @@ function LoginForm() {
       <div className="w-full max-w-[420px]">
         {/* Logo */}
         <div className="mb-10 flex justify-center">
-          <RegistrationLogo />
+          <RegistrationLogo titleSize="small" />
         </div>
 
         {/* Login Card */}
         <Card className="shadow-ui-lg">
           <CardHeader className="pb-4">
-            <CardTitle className="text-2xl font-bold text-card-fg text-right">
+            <CardTitle className="text-right">
               התחברות לחשבון
             </CardTitle>
             <CardDescription className="text-muted-fg text-right">
@@ -120,7 +117,7 @@ function LoginForm() {
           <form onSubmit={handleLogin} className="space-y-5">
               {/* Email Field */}
               <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-semibold text-fg text-right">
+                <label htmlFor="email" className="block text-right">
                   כתובת אימייל
                 </label>
                 <Input
@@ -140,17 +137,9 @@ function LoginForm() {
 
               {/* Password Field */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="password" className="block text-sm font-semibold text-fg text-right">
-                    סיסמה
-                  </label>
-                  <Link 
-                    href="/forgot-password" 
-                    className="text-xs text-primary hover:text-primary-hover font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
-                  >
-                    שכחתי סיסמה
-                  </Link>
-                </div>
+                <label htmlFor="password" className="block text-right">
+                  סיסמה
+                </label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -175,6 +164,17 @@ function LoginForm() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+              </div>
+
+              {/* Forgot Password Link - below password input, above submit, RTL right-aligned */}
+              <div className="flex justify-end mt-0 mb-1" dir="rtl">
+                <Link
+                  href="/forgot-password"
+                  className="text-[16px] text-muted-foreground hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui font-normal"
+                  tabIndex={0}
+                >
+                  שכחתי סיסמה
+                </Link>
               </div>
 
               {/* Error Message */}
@@ -209,7 +209,7 @@ function LoginForm() {
         </Card>
 
         {/* Sign Up Link */}
-        <p className="mt-6 text-center text-muted-fg text-sm">
+        <p className="mt-6 text-center">
           אין לך חשבון?{" "}
           <Link 
             href="/register" 

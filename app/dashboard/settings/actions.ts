@@ -28,6 +28,7 @@ async function getMyCompanyId() {
 
 export type BusinessDetailsPayload = {
   company_name: string;
+  company_name_en?: string;
   business_type: "osek_patur" | "osek_murshe" | "ltd" | "partnership" | "other";
   company_number: string;
   industry: string;
@@ -38,6 +39,8 @@ export type BusinessDetailsPayload = {
   address: string;
   phone: string;
   mobile_phone: string;
+  contact_first_name_en?: string;
+  books_region?: "IL" | "OTHER";
   email: string;
   website: string;
 };
@@ -54,6 +57,7 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
       .from("companies")
       .update({
         company_name: payload.company_name,
+        company_name_en: payload.company_name_en || null,
         business_type: payload.business_type,
         industry: payload.industry,
         custom_industry: payload.custom_industry,
@@ -63,6 +67,9 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
         address: payload.address,
         phone: payload.phone,
         mobile_phone: payload.mobile_phone,
+        contact_first_name_en: payload.contact_first_name_en || null,
+        books_region: payload.books_region || null,
+        // notified_tax_officer fields removed
         email: payload.email,
         website: payload.website,
       })

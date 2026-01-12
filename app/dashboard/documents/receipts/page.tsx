@@ -19,7 +19,7 @@ export default async function ReceiptsListPage({ searchParams }: PageProps) {
   // Parse filters from URL params
   const filters = {
     search: params.search,
-    status: (params.status as any) || "all",
+    status: (params.status as any) || "non_draft",
     dateFrom: params.dateFrom,
     dateTo: params.dateTo,
     minAmount: params.minAmount ? parseFloat(params.minAmount) : undefined,

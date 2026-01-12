@@ -93,11 +93,11 @@ export default function CustomerDocumentsClient({ customer, initialDocuments }: 
             <ArrowLeft size={18} />
             חזרה לפרטי הלקוח
           </Link>
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             מסמכים של {customer.name}
           </h1>
           {customer.tax_id && (
-            <p className="text-right text-[#708993] text-lg">
+            <p className="text-right">
               ת.ז/ח.פ: {customer.tax_id}
             </p>
           )}
@@ -147,10 +147,10 @@ export default function CustomerDocumentsClient({ customer, initialDocuments }: 
               }}
             >
               <div style={{ fontSize: 48, marginBottom: 16 }}>📄</div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+              <h3 style={{ marginBottom: 8 }}>
                 אין מסמכים עדיין
               </h3>
-              <p style={{ opacity: 0.7, marginBottom: 20, fontSize: 18 }}>
+              <p style={{ opacity: 0.7, marginBottom: 20 }}>
                 טרם נוצרו מסמכים עבור לקוח זה
               </p>
               <Link href="/dashboard/documents/receipt">

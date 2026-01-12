@@ -8,6 +8,9 @@ import {
   validateTemplate 
 } from "@/lib/template-engine"
 import { getDefaultReceiptTemplate } from "@/lib/default-templates"
+import { getPageTexts } from "@/lib/system-texts"
+import { signPdfWithEnvP12 } from "@/lib/documents/signing/p12-signer"
+import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
 import type { 
   TemplateDefinition, 
   ReceiptTemplateData,
@@ -27,14 +30,52 @@ import type {
  */
 export async function getTemplateForDocument(
   companyId: string,
-  documentType: "receipt" | "invoice" | "quote" | "delivery_note"
-): Promise<{ html: string; css: string; templateId: string | null }> {
+  documentType: "receipt" | "invoice" | "quote" | "delivery_note",
+  options?: {
+    language?: "he" | "en";
+    /**
+     * Preview-only behavior: allow falling back to Hebrew if EN variant is missing.
+     * IMPORTANT: For issuance (final/copy) this must be false.
+     */
+    allowFallbackToHe?: boolean;
+  }
+): Promise<{
+  html: string;
+  css: string;
+  templateId: string | null;
+  resolvedLanguage: "he" | "en";
+  didFallbackToHe: boolean;
+}> {
   const supabase = await createClient()
+  const language: "he" | "en" = options?.language || "he"
+  const allowFallbackToHe = options?.allowFallbackToHe === true
+
+  const pickVariant = (row: any) => {
+    const heHtml = row?.html_he ?? null
+    const heCss = row?.css_he ?? null
+    const enHtml = row?.html_en ?? null
+    const enCss = row?.css_en ?? null
+
+    if (language === "en") {
+      if (typeof enHtml === "string" && enHtml.trim().length > 0) {
+        return { html: enHtml, css: enCss || "", resolvedLanguage: "en" as const, didFallbackToHe: false }
+      }
+      if (allowFallbackToHe && typeof heHtml === "string" && heHtml.trim().length > 0) {
+        return { html: heHtml, css: heCss || "", resolvedLanguage: "he" as const, didFallbackToHe: true }
+      }
+      throw new Error("TEMPLATE_MISSING_LANGUAGE:en")
+    }
+
+    if (typeof heHtml === "string" && heHtml.trim().length > 0) {
+      return { html: heHtml, css: heCss || "", resolvedLanguage: "he" as const, didFallbackToHe: false }
+    }
+    throw new Error("TEMPLATE_MISSING_LANGUAGE:he")
+  }
 
   // PRIORITY 1: Company's default template
   const { data: companyDefault } = await supabase
     .from("templates")
-    .select("id, html_template, css, is_active")
+    .select("id, html_he, css_he, html_en, css_en, is_active")
     .eq("company_id", companyId)
     .eq("document_type", documentType)
     .eq("is_default", true)
@@ -43,9 +84,9 @@ export async function getTemplateForDocument(
 
   if (companyDefault) {
     console.log(`✅ Using company default template: ${companyDefault.id}`)
+    const picked = pickVariant(companyDefault)
     return {
-      html: companyDefault.html_template,
-      css: companyDefault.css || "",
+      ...picked,
       templateId: companyDefault.id,
     }
   }
@@ -53,7 +94,7 @@ export async function getTemplateForDocument(
   // PRIORITY 2: Global default template
   const { data: globalDefault } = await supabase
     .from("templates")
-    .select("id, html_template, css, is_active, name")
+    .select("id, html_he, css_he, html_en, css_en, is_active, name")
     .is("company_id", null)
     .eq("document_type", documentType)
     .eq("is_default", true)
@@ -62,9 +103,9 @@ export async function getTemplateForDocument(
 
   if (globalDefault) {
     console.log(`✅ Using global default template: ${globalDefault.name} (${globalDefault.id})`)
+    const picked = pickVariant(globalDefault)
     return {
-      html: globalDefault.html_template,
-      css: globalDefault.css || "",
+      ...picked,
       templateId: globalDefault.id,
     }
   }
@@ -72,7 +113,7 @@ export async function getTemplateForDocument(
   // PRIORITY 3: Any active company template (fallback)
   const { data: anyCompanyTemplate } = await supabase
     .from("templates")
-    .select("id, html_template, css, is_active")
+    .select("id, html_he, css_he, html_en, css_en, is_active")
     .eq("company_id", companyId)
     .eq("document_type", documentType)
     .eq("is_active", true)
@@ -81,9 +122,9 @@ export async function getTemplateForDocument(
 
   if (anyCompanyTemplate) {
     console.log(`⚠️ Using fallback company template: ${anyCompanyTemplate.id}`)
+    const picked = pickVariant(anyCompanyTemplate)
     return {
-      html: anyCompanyTemplate.html_template,
-      css: anyCompanyTemplate.css || "",
+      ...picked,
       templateId: anyCompanyTemplate.id,
     }
   }
@@ -91,7 +132,7 @@ export async function getTemplateForDocument(
   // PRIORITY 4: Any active global template (fallback)
   const { data: anyGlobalTemplate } = await supabase
     .from("templates")
-    .select("id, html_template, css, is_active, name")
+    .select("id, html_he, css_he, html_en, css_en, is_active, name")
     .is("company_id", null)
     .eq("document_type", documentType)
     .eq("is_active", true)
@@ -100,9 +141,9 @@ export async function getTemplateForDocument(
 
   if (anyGlobalTemplate) {
     console.log(`⚠️ Using fallback global template: ${anyGlobalTemplate.name} (${anyGlobalTemplate.id})`)
+    const picked = pickVariant(anyGlobalTemplate)
     return {
-      html: anyGlobalTemplate.html_template,
-      css: anyGlobalTemplate.css || "",
+      ...picked,
       templateId: anyGlobalTemplate.id,
     }
   }
@@ -111,10 +152,15 @@ export async function getTemplateForDocument(
   if (documentType === "receipt") {
     console.log(`⚠️ Using hardcoded fallback template for receipt`)
     const defaultTemplate = getDefaultReceiptTemplate()
+    if (language === "en" && !allowFallbackToHe) {
+      throw new Error("TEMPLATE_MISSING_LANGUAGE:en")
+    }
     return {
       html: defaultTemplate.html,
       css: defaultTemplate.css,
       templateId: null,
+      resolvedLanguage: "he",
+      didFallbackToHe: language === "en",
     }
   }
 
@@ -128,21 +174,26 @@ export async function getTemplateForDocument(
  * Fetch document data and prepare it for template rendering
  */
 export async function prepareDocumentData(
-  documentId: string
+  documentId: string,
+  languageOverride?: "he" | "en",
+  options?: {
+    documentCopyLabel?: string;
+  }
 ): Promise<ReceiptTemplateData> {
   const supabase = await createClient()
   const adminClient = createAdminClient() // For signed URLs if needed
 
-  // Fetch document with all related data
-  const { data: doc, error: docError } = await supabase
-    .from("documents")
-    .select(`
+  const selectWithEnglishCompanyFields = `
       *,
+      language,
       company:companies(
         id,
         company_name,
+        company_name_en,
         registration_number,
         company_number,
+        contact_first_name,
+        contact_first_name_en,
         address,
         street,
         city,
@@ -165,31 +216,62 @@ export async function prepareDocumentData(
         address_city,
         address_zip
       )
-    `)
+    `
+
+  const selectWithoutEnglishCompanyFields = `
+      *,
+      language,
+      company:companies(
+        id,
+        company_name,
+        registration_number,
+        company_number,
+        contact_first_name,
+        address,
+        street,
+        city,
+        postal_code,
+        phone,
+        mobile_phone,
+        email,
+        website,
+        logo_url,
+        signature_url
+      ),
+      customer:customers(
+        id,
+        name,
+        tax_id,
+        email,
+        phone,
+        mobile,
+        address_street,
+        address_city,
+        address_zip
+      )
+    `
+
+  // Fetch document with all related data.
+  // IMPORTANT: Some environments may not yet have the optional EN company columns.
+  // We retry without those columns if Postgres reports "column does not exist" (42703).
+  let { data: doc, error: docError } = await supabase
+    .from("documents")
+    .select(selectWithEnglishCompanyFields)
     .eq("id", documentId)
     .single()
 
-  // #region agent log
-  console.log(`[prepareDocumentData] Raw DB query result:`, {
-    documentId,
-    hasDoc: !!doc,
-    hasError: !!docError,
-    errorMessage: docError?.message || 'N/A',
-    hasCompany: !!doc?.company,
-    companyId: doc?.company?.id || 'NULL',
-    companyName: doc?.company?.company_name || 'NULL',
-    companyRegistration: doc?.company?.registration_number || 'NULL',
-    hasCustomer: !!doc?.customer,
-    customerId: doc?.customer?.id || 'NULL',
-    customerName: doc?.customer?.name || 'NULL',
-    customerTaxId: doc?.customer?.tax_id || 'NULL',
-    documentNumber: doc?.document_number || 'NULL',
-    documentStatus: doc?.document_status || 'NULL',
-    totalAmount: doc?.total_amount || 0,
-  });
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:170',message:'prepareDocumentData - after DB query',data:{hasDoc:!!doc,hasError:!!docError,errorMessage:docError?.message||'N/A',hasCompany:!!doc?.company,companyId:doc?.company?.id?.substring(0,8)||'NULL',companyName:doc?.company?.company_name||'NULL',companyRegistration:doc?.company?.registration_number||'NULL',hasCustomer:!!doc?.customer,customerId:doc?.customer?.id?.substring(0,8)||'NULL',customerName:doc?.customer?.name||'NULL',customerTaxId:doc?.customer?.tax_id||'NULL',documentNumber:doc?.document_number||'NULL',documentStatus:doc?.document_status||'NULL',totalAmount:doc?.total_amount||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-
+  if (docError?.code === "42703") {
+    const msg = String((docError as any)?.message || "")
+    const missingEnglishCols =
+      msg.includes("company_name_en") || msg.includes("contact_first_name_en")
+    if (missingEnglishCols) {
+      ;({ data: doc, error: docError } = await supabase
+        .from("documents")
+        .select(selectWithoutEnglishCompanyFields)
+        .eq("id", documentId)
+        .single())
+    }
+  }
   if (docError || !doc) {
     console.warn(`[pdf-service] Document not found: ${documentId}`, docError)
     throw new Error(`DOCUMENT_NOT_FOUND:${documentId}`)
@@ -201,11 +283,6 @@ export async function prepareDocumentData(
     .select("*")
     .eq("document_id", documentId)
     .order("line_number", { ascending: true })
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:180',message:'prepareDocumentData - after items fetch',data:{itemsCount:items?.length||0,hasItemsError:!!itemsError,itemsError:itemsError?.message||'N/A',firstItem:items?.[0]?{description:items[0].description,amount:items[0].line_total,date:items[0].item_date,hasMetadata:!!items[0].payment_metadata}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
   // CRITICAL FIX: Payments are stored in document_line_items, not in doc.payment_metadata
   // Map line items to payments array
   const payments = (items || []).map((item: any) => {
@@ -231,12 +308,9 @@ export async function prepareDocumentData(
       cardType: metadata.cardType || null,
     }
   })
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:200',message:'prepareDocumentData - payments mapped from items',data:{paymentsCount:payments.length,firstPayment:payments[0]?{method:payments[0].payment_method,amount:payments[0].amount,date:payments[0].date,currency:payments[0].currency}:null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
   // ✅ helpers MUST be outside templateData object
+  const documentLanguage: "he" | "en" = languageOverride || ((doc as any)?.language === "en" ? "en" : "he")
+
   // Map currency symbol to currency code for Intl.NumberFormat
   const getCurrencyCode = (currencySymbol: string): string => {
     const currencyMap: Record<string, string> = {
@@ -253,10 +327,10 @@ export async function prepareDocumentData(
 
   const formatCurrency = (amount: number) => {
     try {
-      return new Intl.NumberFormat("he-IL", {
+      return new Intl.NumberFormat(documentLanguage === "en" ? "en-US" : "he-IL", {
         style: "currency",
         currency: currencyCode,
-        currencyDisplay: "narrowSymbol",
+        currencyDisplay: documentLanguage === "en" ? "code" : "narrowSymbol",
       }).format(amount)
     } catch {
       return `${amount.toFixed(2)} ${currencySymbol}`
@@ -371,6 +445,17 @@ export async function prepareDocumentData(
   
   // Use mobile_phone or phone for company phone
   const companyPhone = doc.company?.mobile_phone || doc.company?.phone || null;
+
+  // Company name + issuer first name (localized)
+  const companyNameHe = doc.company?.company_name || ""
+  const companyNameEn = (doc.company as any)?.company_name_en || ""
+  const issuerFirstNameHe = (doc.company as any)?.contact_first_name || ""
+  const issuerFirstNameEn = (doc.company as any)?.contact_first_name_en || ""
+  const companyNameLocalized = documentLanguage === "en" ? (companyNameEn || companyNameHe) : companyNameHe
+  const issuerFirstNameLocalized = documentLanguage === "en" ? (issuerFirstNameEn || issuerFirstNameHe) : issuerFirstNameHe
+
+  // System texts for document/PDF rendering
+  const t = await getPageTexts("receipt", documentLanguage)
   
   // Build customer address from separate fields if available
   let customerAddress = null;
@@ -481,25 +566,17 @@ export async function prepareDocumentData(
     }
   }
 
-  // Build template data structure
-  // #region agent log
-  console.log(`[prepareDocumentData] Raw data from DB:`, {
-    documentId,
-    hasCompany: !!doc.company,
-    companyName: doc.company?.company_name || 'NULL',
-    companyId: doc.company?.id || 'NULL',
-    hasCustomer: !!doc.customer,
-    customerName: doc.customer?.name || 'NULL',
-    customerId: doc.customer?.id || 'NULL',
-    documentNumber: doc.document_number || 'NULL',
-    totalAmount: doc.total_amount || 0,
-  });
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:298',message:'prepareDocumentData - before templateData',data:{hasCompany:!!doc.company,companyName:doc.company?.company_name||'N/A',companyId:doc.company?.id?.substring(0,8)||'N/A',companyLogo:doc.company?.logo_url||'N/A',hasCustomer:!!doc.customer,customerName:doc.customer?.name||doc.customer_name||'N/A',customerId:doc.customer?.id?.substring(0,8)||'N/A',paymentsCount:payments.length,itemsCount:items?.length||0,documentNumber:doc.document_number||'N/A',documentStatus:doc.document_status||'N/A',totalAmount:doc.total_amount||0,currency:doc.currency||'N/A',hasNotes:!!doc.internal_notes,hasDescription:!!doc.document_description},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
+  // Build template data structure  
   const templateData: ReceiptTemplateData & Record<string, any> = {
+    t,
+    DOCUMENT_COPY_LABEL: options?.documentCopyLabel ?? "",
     company: {
-      company_name: doc.company?.company_name || "",
+      company_name: companyNameLocalized,
+      company_name_he: companyNameHe,
+      company_name_en: companyNameEn,
+      contact_first_name: issuerFirstNameLocalized,
+      contact_first_name_he: issuerFirstNameHe,
+      contact_first_name_en: issuerFirstNameEn,
       company_tax_id: companyTaxId,
       company_address: companyAddress || null,
       company_phone: companyPhone,
@@ -520,6 +597,8 @@ export async function prepareDocumentData(
       document_number: doc.document_number || "",
       document_date: doc.issue_date || "",
       reference_number: null,
+      language: documentLanguage,
+      direction: documentLanguage === "en" ? "ltr" : "rtl",
     },
     payments: mappedPayments,
     items: (items || []).map((item) => ({
@@ -548,7 +627,7 @@ export async function prepareDocumentData(
     PAGE_NUMBER: "1",
     TOTAL_PAGES: "1",
     // Current date and time for footer
-    CURRENT_DATE_TIME: new Date().toLocaleString("he-IL", { 
+    CURRENT_DATE_TIME: new Date().toLocaleString(documentLanguage === "en" ? "en-US" : "he-IL", { 
       year: 'numeric', 
       month: '2-digit', 
       day: '2-digit',
@@ -560,7 +639,7 @@ export async function prepareDocumentData(
     // LEGACY PLACEHOLDERS (for backward compatibility with old templates)
     // ============================================
     // Company legacy placeholders
-    USERCOMPANYNAME: doc.company?.company_name || "",
+    USERCOMPANYNAME: companyNameLocalized,
     USERID: companyTaxId || "",
     USERADDRESS: companyAddress || "",
     PHONE: companyPhone || "",
@@ -580,7 +659,7 @@ export async function prepareDocumentData(
     RECEIPTNNUMBER: doc.document_number || "", // Typo variant
     Datecreation: formatDate(doc.issue_date),
     DATE: formatDate(doc.issue_date),
-    TIME: new Date().toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' }),
+    TIME: new Date().toLocaleTimeString(documentLanguage === "en" ? "en-US" : "he-IL", { hour: '2-digit', minute: '2-digit' }),
     DESCRIPTION: doc.document_description || "",
     AMOUNT: formatCurrency(parseFloat(doc.total_amount || 0)),
     TOTAL: formatCurrency(parseFloat(doc.total_amount || 0)),
@@ -588,7 +667,7 @@ export async function prepareDocumentData(
     NOTES: doc.internal_notes || "",
     
     // Additional flat placeholders for templates that use dot notation
-    company_name: doc.company?.company_name || "",
+    company_name: companyNameLocalized,
     company_tax_id: companyTaxId || "",
     company_address: companyAddress || "",
     company_phone: companyPhone || "",
@@ -600,6 +679,7 @@ export async function prepareDocumentData(
     customer_address: customerAddress || "",
     document_number: doc.document_number || "",
     document_date: formatDate(doc.issue_date),
+    document_language: documentLanguage,
     total_amount: formatCurrency(parseFloat(doc.total_amount || 0)),
     description: doc.document_description || "",
     notes: doc.internal_notes || "",
@@ -652,26 +732,6 @@ export async function prepareDocumentData(
     // Empty string if no payments (not null)
     templateData.PAYMENTS_ROWS_HTML = ""
   }
-
-  // #region agent log
-  console.log(`[prepareDocumentData] Template data prepared:`, {
-    companyName: templateData.company?.company_name || templateData.USERCOMPANYNAME || 'NULL',
-    customerName: templateData.customer?.customer_name || templateData.CLIENTNAME || 'NULL',
-    documentNumber: templateData.document?.document_number || templateData.RECEIPTNUMBER || 'NULL',
-    totalAmount: templateData.totals?.total_amount || 0,
-    hasLegacyPlaceholders: !!(templateData.USERCOMPANYNAME || templateData.CLIENTNAME),
-    legacyCompanyName: templateData.USERCOMPANYNAME || 'NULL',
-    legacyCustomerName: templateData.CLIENTNAME || 'NULL',
-    legacyDocumentNumber: templateData.RECEIPTNUMBER || 'NULL',
-    companyTaxId: templateData.USERID || templateData.company?.company_tax_id || 'NULL',
-    customerTaxId: templateData.BUSINESSID || templateData.customer?.customer_tax_id || 'NULL',
-    companyAddress: templateData.USERADDRESS || templateData.company?.company_address || 'NULL',
-    companyPhone: templateData.PHONE || templateData.company?.company_phone || 'NULL',
-    customerPhone: templateData.CLIENTPHONE || templateData.customer?.customer_phone || 'NULL',
-  });
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:397',message:'prepareDocumentData - return',data:{hasPaymentsRows:!!templateData.PAYMENTS_ROWS_HTML,paymentsRowsLength:templateData.PAYMENTS_ROWS_HTML?.length||0,paymentsCount:templateData.payments?.length||0,companyName:templateData.company?.company_name||templateData.USERCOMPANYNAME||'N/A',customerName:templateData.customer?.customer_name||templateData.CLIENTNAME||'N/A',documentNumber:templateData.document?.document_number||templateData.RECEIPTNUMBER||'N/A',totalAmount:templateData.totals?.total_amount||0,hasNotes:!!templateData.notes_data?.notes,hasDescription:!!doc.document_description,hasLegacyPlaceholders:!!(templateData.USERCOMPANYNAME||templateData.CLIENTNAME),legacyCompanyName:templateData.USERCOMPANYNAME||'N/A',legacyCustomerName:templateData.CLIENTNAME||'N/A',legacyDocumentNumber:templateData.RECEIPTNUMBER||'N/A',companyTaxId:templateData.USERID||'N/A',customerTaxId:templateData.BUSINESSID||'N/A',companyAddress:templateData.USERADDRESS||'N/A',companyPhone:templateData.PHONE||'N/A',customerPhone:templateData.CLIENTPHONE||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   return templateData
 }
 
@@ -685,7 +745,8 @@ export async function prepareDocumentData(
  * @returns PDFGenerationResult with success status and file path/buffer
  */
 export async function generateDocumentPDF(
-  documentId: string
+  documentId: string,
+  options?: { language?: "he" | "en"; mode?: "preview" | "final" | "recovery" | "copy" }
 ): Promise<PDFGenerationResult> {
   console.log(`[generateDocumentPDF] Starting PDF generation for document: ${documentId}`)
   
@@ -700,20 +761,11 @@ export async function generateDocumentPDF(
       error: `Failed to initialize admin client: ${adminError.message}`,
     }
   }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:417',message:'generateDocumentPDF - entry',data:{documentId:documentId.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   try {
     // 1. Fetch document and verify it's finalized (using admin client - bypasses RLS)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:424',message:'generateDocumentPDF - before document fetch',data:{documentId:documentId.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
     const { data: doc, error: docError } = await adminClient
       .from("documents")
-      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key")
+      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key, language")
       .eq("id", documentId)
       .single()
     
@@ -724,40 +776,42 @@ export async function generateDocumentPDF(
       document_number_type: typeof doc?.document_number,
       document_number_length: doc?.document_number?.length || 0,
     })
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:430',message:'generateDocumentPDF - after document fetch',data:{hasDoc:!!doc,hasError:!!docError,errorMessage:docError?.message||'N/A',companyId:doc?.company_id?.substring(0,8)||'N/A',documentStatus:doc?.document_status||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
-    if (docError || !doc) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:433',message:'generateDocumentPDF - document not found',data:{hasError:!!docError,errorMessage:docError?.message||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      return {
+    if (docError || !doc) {      return {
         success: false,
         error: "Document not found",
       }
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:465',message:'generateDocumentPDF - document status check',data:{documentId:documentId.substring(0,8),documentStatus:doc.document_status,isFinal:doc.document_status==='final',isPdfReady:doc.document_status==='pdf_ready',isDraft:doc.document_status==='draft'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     // CRITICAL: Allow PDF generation for 'draft' documents (called from finalizeDocument BEFORE finalization)
     // Also allow for 'final' and 'pdf_ready' documents (idempotent fallback in API route)
     // This ensures PDF can be generated and uploaded BEFORE document becomes immutable
-    if (doc.document_status !== "final" && doc.document_status !== "pdf_ready" && doc.document_status !== "draft") {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:470',message:'generateDocumentPDF - invalid document status',data:{documentId:documentId.substring(0,8),documentStatus:doc.document_status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      return {
+    if (doc.document_status !== "final" && doc.document_status !== "pdf_ready" && doc.document_status !== "draft") {      return {
         success: false,
         error: `Document status '${doc.document_status}' is not valid for PDF generation. Document must be 'draft', 'final', or 'pdf_ready'.`,
       }
     }
 
-    // Regulatory check: If PDF already exists, return it (immutable)
-    if (doc.pdf_storage_key) {
+    const docLanguage: "he" | "en" = ((doc as any)?.language as any) || "he"
+    const targetLanguage: "he" | "en" = options?.language || docLanguage
+    const pdfMode = options?.mode || "preview"
+
+    // Regulatory: originals are Hebrew-only.
+    if ((pdfMode === "final" || pdfMode === "recovery") && targetLanguage !== "he") {
+      return {
+        success: false,
+        error: "ORIGINAL_MUST_BE_HE: מסמך מקור חייב להיות בעברית לפי הוראות ניהול ספרים",
+      }
+    }
+
+    const documentCopyLabel =
+      pdfMode === "copy"
+        ? (targetLanguage === "en" ? "Certified Copy" : "העתק נאמן למקור")
+        : (pdfMode === "final" || pdfMode === "recovery")
+          ? "מקור"
+          : ""
+
+    // Regulatory check: If PDF already exists, return it (immutable) - only for base language.
+    // IMPORTANT: for `mode=copy` we must NOT reuse the stored original; copies are generated on-the-fly.
+    if (pdfMode !== "copy" && !options?.language && doc.pdf_storage_key) {
       // Use admin client to verify file exists (bypasses RLS)
       const { data: fileData } = await adminClient.storage
         .from("business-assets")
@@ -778,13 +832,16 @@ export async function generateDocumentPDF(
     }
 
     // 2. Prepare document data for template
-    const templateData = await prepareDocumentData(documentId)
+    const templateData = await prepareDocumentData(documentId, targetLanguage, {
+      documentCopyLabel,
+    })
 
     // 3. Get appropriate template
-    const template = await getTemplateForDocument(
-      doc.company_id,
-      doc.document_type as any
-    )
+    const template = await getTemplateForDocument(doc.company_id, doc.document_type as any, {
+      language: targetLanguage,
+      // IMPORTANT: For issuance (copy/final/recovery), do NOT fallback across languages.
+      allowFallbackToHe: pdfMode === "preview",
+    })
 
     // 4. Validate template (optional - log warnings)
     const validation = validateTemplate(template.html, doc.document_type as any)
@@ -792,43 +849,45 @@ export async function generateDocumentPDF(
       console.warn(`Template missing required placeholders:`, validation.missing)
     }
 
-    // 5. Render HTML from template
-    // #region agent log
-    const templatePreview = template.html?.substring(0, 500) || 'EMPTY';
-    const templateEnd = template.html?.substring(Math.max(0, template.html.length - 300)) || 'EMPTY';
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:451',message:'generateDocumentPDF - before render',data:{templateHtmlLength:template.html?.length||0,templateCssLength:template.css?.length||0,hasTemplateData:!!templateData,companyName:templateData?.company?.company_name||'N/A',templateId:template.templateId||'N/A',templatePreview,templateEnd},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
+    // 5. Render HTML from template    
     const renderedHtml = compileAndRender(template.html, templateData)
 
-    // #region agent log
-    const htmlSnippet = renderedHtml?.substring(0, 500) || 'EMPTY';
-    const htmlEnd = renderedHtml?.substring(Math.max(0, renderedHtml.length - 300)) || 'EMPTY';
-    const hasUnrenderedPlaceholders = /{{[^}]+}}/.test(renderedHtml || '');
-    const customerNameInHtml = templateData.customer?.customer_name ? renderedHtml?.includes(templateData.customer.customer_name) : false;
-    const documentNumberInHtml = templateData.document?.document_number ? renderedHtml?.includes(templateData.document.document_number) : false;
-    const templateDataAny = templateData as any;
-    const receiptNumberInHtml = templateDataAny.RECEIPTNUMBER ? renderedHtml?.includes(templateDataAny.RECEIPTNUMBER) : false;
-    const receiptNNumberInHtml = templateDataAny.RECEIPTNNUMBER ? renderedHtml?.includes(templateDataAny.RECEIPTNNUMBER) : false;
-    const totalAmountInHtml = templateData.totals?.total_amount ? renderedHtml?.includes(String(templateData.totals.total_amount)) || renderedHtml?.includes(String(Math.round(templateData.totals.total_amount))) : false;
-    const paymentsRowsInHtml = renderedHtml?.includes('<tr>') && renderedHtml?.includes('</tr>') && !renderedHtml?.includes('PAYMENTS_ROWS_HTML');
-    // Log document number values for debugging
-    console.log(`[generateDocumentPDF] Document number debugging:`, {
-      documentNumber: templateData.document?.document_number || 'MISSING',
-      RECEIPTNUMBER: templateDataAny.RECEIPTNUMBER || 'MISSING',
-      RECEIPTNNUMBER: templateDataAny.RECEIPTNNUMBER || 'MISSING',
-      documentNumberInHtml,
-      receiptNumberInHtml,
-      receiptNNumberInHtml,
-      hasUnrenderedPlaceholders,
-      htmlSnippetContainsNumber: htmlSnippet.includes(templateData.document?.document_number || '') || htmlSnippet.includes(templateDataAny.RECEIPTNUMBER || '') || htmlSnippet.includes(templateDataAny.RECEIPTNNUMBER || ''),
-    });
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:453',message:'generateDocumentPDF - after render',data:{renderedHtmlLength:renderedHtml?.length||0,htmlSnippet,htmlEnd,hasUnrenderedPlaceholders,customerNameInHtml,documentNumberInHtml,receiptNumberInHtml,receiptNNumberInHtml,totalAmountInHtml,paymentsRowsInHtml,documentNumber:templateData.document?.document_number||'MISSING',RECEIPTNUMBER:templateDataAny.RECEIPTNUMBER||'MISSING',RECEIPTNNUMBER:templateDataAny.RECEIPTNNUMBER||'MISSING'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    const markLanguage: "he" | "en" = (templateData as any)?.document?.language || targetLanguage
+    // Mandatory mark: "מסמך ממוחשב" / "Computerized document"
+    const computerizedMark =
+      (templateData as any)?.t?.document_computerized_mark ||
+      (markLanguage === "en" ? "Computerized document" : "מסמך ממוחשב")
 
+    const markHtml = `
+<div class="computerized-doc-mark" dir="${templateData.document?.direction || (markLanguage === "en" ? "ltr" : "rtl")}">
+  ${String(computerizedMark)}
+</div>`.trim()
+
+    const markCss = `
+.computerized-doc-mark {
+  position: fixed;
+  bottom: 8mm;
+  ${markLanguage === "en" ? "left: 8mm;" : "right: 8mm;"}
+  font-size: 12px;
+  font-family: 'Heebo', 'Arial', sans-serif;
+  color: #111827;
+  opacity: 0.9;
+  z-index: 9999;
+}`.trim()
+
+    const injectMark = (html: string) => {
+      if (!html) return html
+      if (html.includes("computerized-doc-mark")) return html
+      if (html.includes("</body>")) return html.replace("</body>", `${markHtml}</body>`)
+      if (html.includes("</html>")) return html.replace("</html>", `${markHtml}</html>`)
+      return `${html}\n${markHtml}`
+    }
+
+    const renderedHtmlWithMark = injectMark(renderedHtml)
+    const cssWithMark = `${template.css || ""}\n${markCss}`
     // 6. Generate PDF using Playwright with minimal margins to prevent 2-page output
     console.log(`[generateDocumentPDF] Generating PDF buffer from HTML for document: ${documentId}`)
-    const pdfResult = await generatePDFFromHTML(renderedHtml, template.css, {
+    const pdfResult = await generatePDFFromHTML(renderedHtmlWithMark, cssWithMark, {
       format: "A4",
       printBackground: true,
       margin: {
@@ -838,11 +897,6 @@ export async function generateDocumentPDF(
         left: "8mm",    // Minimal side margins
       },
     })
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:466',message:'generateDocumentPDF - after pdf generation',data:{success:pdfResult.success,hasBuffer:!!pdfResult.buffer,bufferLength:pdfResult.buffer?.length||0,error:pdfResult.error||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-
     if (!pdfResult.success || !pdfResult.buffer) {
       const errorMsg = pdfResult.error || "PDF generation failed"
       console.error(`[generateDocumentPDF] PDF buffer generation failed for document ${documentId}:`, errorMsg)
@@ -852,32 +906,44 @@ export async function generateDocumentPDF(
       }
     }
 
-    console.log(`[generateDocumentPDF] PDF buffer created successfully for document ${documentId}, size: ${pdfResult.buffer.length} bytes`)
+    let finalPdfBuffer = Buffer.from(pdfResult.buffer as any)
+
+    const signingMode = pdfMode
+    const shouldSignPdf =
+      isDigitalSignaturesEnabled() && (signingMode === "final" || signingMode === "recovery")
+    const signingInfo = shouldSignPdf
+      ? signPdfWithEnvP12(finalPdfBuffer)
+      : null
+
+    if (signingInfo) {
+      finalPdfBuffer = signingInfo.signedPdf
+    }
+
+    console.log(
+      `[generateDocumentPDF] PDF buffer created successfully for document ${documentId}, size: ${finalPdfBuffer.length} bytes`
+    )
+
+    // Copy mode: return buffer only (do NOT upload or persist).
+    if (pdfMode === "copy") {
+      return {
+        success: true,
+        buffer: finalPdfBuffer,
+      }
+    }
 
     // 7. Check if PDF already exists (immutable - never regenerate)
-    const storageKey = `documents/${documentId}/source.pdf`
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:520',message:'generateDocumentPDF - checking existing PDF',data:{storageKey,documentId:documentId.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-
+    const storageKey =
+      (!options?.language && doc.pdf_storage_key) 
+        ? doc.pdf_storage_key 
+        : `documents/${documentId}/source.${targetLanguage}.pdf`
     // Check if PDF already exists in storage (use admin client to bypass RLS)
     const { data: existingFile, error: listError } = await adminClient.storage
       .from("business-assets")
       .list(`documents/${documentId}`, {
         limit: 1,
-        search: "source.pdf"
+        search: storageKey.split("/").pop() || "source.pdf"
       })
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:528',message:'generateDocumentPDF - existing file check result',data:{hasExistingFile:!!existingFile,existingFileCount:existingFile?.length||0,hasListError:!!listError,listErrorMessage:listError?.message||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-
-    if (existingFile && existingFile.length > 0) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:532',message:'generateDocumentPDF - PDF already exists',data:{storageKey},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
-      console.log(`[generateDocumentPDF] PDF already exists for document ${documentId}, returning existing`)
+    if (existingFile && existingFile.length > 0) {      console.log(`[generateDocumentPDF] PDF already exists for document ${documentId}, returning existing`)
       
       return {
         success: true,
@@ -889,22 +955,15 @@ export async function generateDocumentPDF(
 
     // 8. Upload PDF to Supabase Storage using admin client (bypasses RLS)
     // Use service role key to upload - this bypasses RLS policies
-    console.log(`[generateDocumentPDF] Uploading PDF to storage for document ${documentId}, path: ${storageKey}, size: ${pdfResult.buffer.length} bytes`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:570',message:'generateDocumentPDF - before admin upload',data:{storageKey,storageKeyParts:storageKey.split('/'),bufferLength:pdfResult.buffer.length,documentId:documentId.substring(0,8),companyId:doc.company_id?.substring(0,8)||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-    // #endregion
-    
+    console.log(
+      `[generateDocumentPDF] Uploading PDF to storage for document ${documentId}, path: ${storageKey}, size: ${finalPdfBuffer.length} bytes`
+    )    
     const { data: uploadData, error: uploadError } = await adminClient.storage
       .from("business-assets")
-      .upload(storageKey, pdfResult.buffer, {
+      .upload(storageKey, finalPdfBuffer, {
         contentType: "application/pdf",
         upsert: false, // Never overwrite - immutable
       })
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:553',message:'generateDocumentPDF - after upload',data:{hasUploadData:!!uploadData,hasError:!!uploadError,errorMessage:uploadError?.message||'N/A',errorName:uploadError?.name||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-    // #endregion
-
     if (uploadError) {
       const errorMessage = uploadError.message || "Unknown upload error"
       const errorName = uploadError.name || "StorageError"
@@ -916,13 +975,8 @@ export async function generateDocumentPDF(
         errorStatus,
         storageKey,
         documentId,
-        bufferSize: pdfResult.buffer.length
-      })
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:558',message:'generateDocumentPDF - upload error',data:{errorMessage:uploadError.message,isAlreadyExists:uploadError.message.includes("already exists")||uploadError.message.includes("duplicate")},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
-      
+        bufferSize: finalPdfBuffer.length
+      })      
       // If error is "already exists", that's fine - return existing storage key
       if (uploadError.message.includes("already exists") || uploadError.message.includes("duplicate")) {
         console.log(`[generateDocumentPDF] PDF already exists in storage for document ${documentId}, returning existing storage key`)
@@ -930,7 +984,7 @@ export async function generateDocumentPDF(
           success: true,
           path: storageKey, // Return storage key (bucket is private)
           storageKey: storageKey, // Explicit storageKey field
-          buffer: pdfResult.buffer,
+          buffer: finalPdfBuffer,
         }
       }
       
@@ -944,36 +998,46 @@ export async function generateDocumentPDF(
 
     // 9. Calculate SHA256 checksum for integrity verification
     const crypto = await import("crypto")
-    const pdfSha256 = crypto.createHash("sha256").update(pdfResult.buffer as any).digest("hex")
+    const pdfSha256 = signingInfo?.signedPdfSha256 || crypto.createHash("sha256").update(finalPdfBuffer as any).digest("hex")
 
     // 10. Note: Bucket is private, so we don't use getPublicUrl
     // PDFs are accessed via signed URLs only (created in API route)
+    const shouldPersistPdfStorageKey =
+      (pdfMode === "final" || pdfMode === "recovery") && targetLanguage === "he"
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:656',message:'generateDocumentPDF - before DB update',data:{storageKey,pdfSha256:pdfSha256.substring(0,16)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-    // #endregion
-
-    // 11. Update document with PDF metadata (regulatory compliance)
-    // Use admin client to update (ensures update succeeds even if user RLS is restrictive)
-    // NOTE: Do NOT update document_status here - it will be updated by finalizeDocument
-    // This ensures pdf_storage_key is saved BEFORE the document becomes immutable (status='final')
-    console.log(`[generateDocumentPDF] Updating document ${documentId} with pdf_storage_key: ${storageKey}`)
-    const { error: updateError } = await adminClient
-      .from("documents")
-      .update({
-        pdf_storage_key: storageKey, // Store storage key only (no public URL - bucket is private)
-        pdf_generated_at: new Date().toISOString(),
-        pdf_sha256: pdfSha256,
-        template_version_id: template.templateId || null, // Snapshot template version
-        updated_at: new Date().toISOString(),
-        // DO NOT update document_status here - it will be set to 'final' by finalizeDocument
+    // 11. Persist PDF metadata only for the document's base language.
+    // IMPORTANT: When generating an alternate-language PDF (e.g. downloading EN for a HE document),
+    // we must NOT overwrite `documents.pdf_storage_key` (it should keep pointing to the base PDF).
+    let updateError: any = null
+    if (shouldPersistPdfStorageKey) {
+      console.log(`[generateDocumentPDF] Updating document ${documentId} with pdf_storage_key: ${storageKey}`)
+      const nowIso = new Date().toISOString()
+      const res = await adminClient
+        .from("documents")
+        .update({
+          pdf_storage_key: storageKey, // Store storage key only (no public URL - bucket is private)
+          pdf_generated_at: nowIso,
+          pdf_sha256: pdfSha256,
+          signed_pdf_sha256: signingInfo?.signedPdfSha256 || null,
+          signing_cert_fingerprint: signingInfo?.certFingerprintSha256 || null,
+          signed_at: signingInfo ? nowIso : null,
+          signature_provider: signingInfo ? "p12" : null,
+          signature_certificate_id: signingInfo?.certFingerprintSha256 || null,
+          signed_hash: signingInfo?.signedPdfSha256 || null,
+          template_version_id: template.templateId || null, // Snapshot template version
+          updated_at: nowIso,
+          // DO NOT update document_status here - it will be set to 'final' by finalizeDocument
+        })
+        .eq("id", documentId)
+      updateError = res.error
+    } else {
+      console.log(`[generateDocumentPDF] Skipping pdf_storage_key DB update (alternate language PDF):`, {
+        documentId,
+        docLanguage: (doc as any)?.language || "he",
+        requestedLanguage: options?.language,
+        storageKey,
       })
-      .eq("id", documentId)
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:600',message:'generateDocumentPDF - after DB update',data:{hasError:!!updateError,errorMessage:updateError?.message||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-    // #endregion
-
+    }
     // CRITICAL: Even if DB update fails, PDF exists in Storage - return success with storageKey
     // The API route will use storageKey directly, not relying on DB
     if (updateError) {
@@ -992,11 +1056,20 @@ export async function generateDocumentPDF(
         success: true,
         path: storageKey,
         storageKey: storageKey, // Explicit storageKey field - API route will use this
-        buffer: pdfResult.buffer,
+        buffer: finalPdfBuffer,
       }
     }
 
-    // Verify that pdf_storage_key was saved correctly (optional - if DB update succeeded)
+    // Verify that pdf_storage_key was saved correctly (optional - only when we persisted it)
+    if (!shouldPersistPdfStorageKey) {
+      return {
+        success: true,
+        path: storageKey,
+        storageKey: storageKey,
+        buffer: finalPdfBuffer,
+      }
+    }
+
     const { data: verifyDoc, error: verifyError } = await adminClient
       .from("documents")
       .select("pdf_storage_key, pdf_generated_at, document_status")
@@ -1010,7 +1083,7 @@ export async function generateDocumentPDF(
         success: true,
         path: storageKey,
         storageKey: storageKey, // Use storageKey from upload - API route will use this
-        buffer: pdfResult.buffer,
+        buffer: finalPdfBuffer,
       }
     }
 
@@ -1034,7 +1107,7 @@ export async function generateDocumentPDF(
       success: true,
       path: storageKey, // Return storage key (not public URL - bucket is private)
       storageKey: storageKey, // Explicit storageKey field for API route
-      buffer: pdfResult.buffer,
+      buffer: finalPdfBuffer,
     }
   } catch (error: any) {
     const errorMessage = error?.message || String(error)
@@ -1051,10 +1124,15 @@ export async function generateDocumentPDF(
       storageError: error?.status ? { status: error.status, message: error.message } : null
     })
     
-    return {
-      success: false,
-      error: `PDF generation exception: ${errorMessage} (${errorName})`,
+    // Preserve stable error codes for callers (routes may map these to 400).
+    if (
+      typeof errorMessage === "string" &&
+      (errorMessage.startsWith("TEMPLATE_MISSING_LANGUAGE:") || errorMessage.startsWith("ORIGINAL_MUST_BE_HE"))
+    ) {
+      return { success: false, error: errorMessage }
     }
+
+    return { success: false, error: `PDF generation exception: ${errorMessage} (${errorName})` }
   }
 }
 
@@ -1065,22 +1143,17 @@ export async function generateDocumentPDF(
  * Used for live preview in the UI
  */
 export async function generatePreviewPDF(
-  documentId: string
-): Promise<PDFGenerationResult> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:543',message:'generatePreviewPDF - entry',data:{documentId:documentId.substring(0,8)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-  // #endregion
-  
+  documentId: string,
+  options?: {
+    language?: "he" | "en";
+  }
+): Promise<PDFGenerationResult> {  
   try {
     console.log(`[generatePreviewPDF] Starting for document: ${documentId}`)
     
-    // Prepare document data
-    const templateData = await prepareDocumentData(documentId)
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:550',message:'generatePreviewPDF - after prepareDocumentData',data:{hasTemplateData:!!templateData,companyName:templateData?.company?.company_name||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-
+    const targetLanguage: "he" | "en" = options?.language || "he"
+    // Prepare document data (preview is not "original" and not "copy")
+    const templateData = await prepareDocumentData(documentId, targetLanguage, { documentCopyLabel: "" })
     // Get document type and company ID
     const supabase = await createClient()
     const { data: doc, error: docError } = await supabase
@@ -1095,40 +1168,27 @@ export async function generatePreviewPDF(
     }
 
     // Get template
-    const template = await getTemplateForDocument(
-      doc.company_id,
-      doc.document_type as any
-    )
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:569',message:'generatePreviewPDF - after getTemplate',data:{templateHtmlLength:template.html?.length||0,templateCssLength:template.css?.length||0,hasHexColors:template.css?.match(/#[0-9a-fA-F]{6}/g)?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
+    const template = await getTemplateForDocument(doc.company_id, doc.document_type as any, {
+      language: targetLanguage,
+      allowFallbackToHe: true,
+    })
+    if (template.didFallbackToHe) {
+      console.warn("[PDF PREVIEW] Template fallback to HE (missing EN variant)", {
+        documentId: documentId.substring(0, 8),
+        requestedLanguage: targetLanguage,
+      })
+    }
     // Render and generate PDF (no storage)
     console.log(`[generatePreviewPDF] Rendering template for document: ${documentId}`)
-    const renderedHtml = compileAndRender(template.html, templateData)
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:573',message:'generatePreviewPDF - after render',data:{renderedHtmlLength:renderedHtml?.length||0,renderedPreview:renderedHtml?.substring(0,300)||'EMPTY'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
+    const renderedHtml = compileAndRender(template.html, templateData)    
     console.log(`[generatePreviewPDF] Generating PDF from HTML`)
     const pdfResult = await generatePDFFromHTML(renderedHtml, template.css, {
       format: "A4",
       printBackground: true,
     })
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:580',message:'generatePreviewPDF - after pdf generation',data:{success:pdfResult.success,hasBuffer:!!pdfResult.buffer,bufferLength:pdfResult.buffer?.length||0,error:pdfResult.error||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-
     console.log(`[generatePreviewPDF] PDF generated successfully`)
     return pdfResult
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:585',message:'generatePreviewPDF - error',data:{error:error instanceof Error?error.message:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
-    
+  } catch (error) {    
     console.error(`[generatePreviewPDF] Error:`, error)
     const errorMessage = error instanceof Error ? error.message : String(error)
     return {

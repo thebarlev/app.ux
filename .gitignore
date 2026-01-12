@@ -23,3 +23,13 @@ backups/
 backups/
 *.zip
 *.tsbuildinfo
+
+# pnpm
+.pnpm-store/
+**/.pnpm-store/
+node_modules/
+
+# pnpm
+.pnpm-store/
+**/.pnpm-store/
+node_modules/

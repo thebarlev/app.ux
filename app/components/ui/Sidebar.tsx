@@ -55,6 +55,7 @@ export function Sidebar() {
       <div className="mt-3">
         <NavLink label="הגדרות" href="/dashboard/settings" />
         <NavLink label="תבניות" href="/dashboard/templates" />
+        <NavLink label="Env Debug" href="/debug/env" />
       </div>
 
       <div className="flex-1" />

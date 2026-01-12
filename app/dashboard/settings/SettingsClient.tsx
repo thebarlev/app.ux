@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FormSection } from "@/components/ui/form-section";
 import { FormActions } from "@/components/ui/form-actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 type Company = {
   id: string;
   company_name: string;
+  company_name_en?: string | null;
   business_type: string | null;
   company_number: string | null;
   industry: string | null;
@@ -35,6 +37,11 @@ type Company = {
   address: string | null;
   phone: string | null;
   mobile_phone: string | null;
+  contact_first_name?: string | null;
+  contact_first_name_en?: string | null;
+  books_region?: "IL" | "OTHER" | null;
+  notified_tax_officer_at?: string | null;
+  notified_tax_officer_notes?: string | null;
   email: string;
   website: string | null;
   logo_url: string | null;
@@ -82,8 +89,9 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
+    company_name_en: company.company_name_en || "",
     business_type: (company.business_type as any) || "osek_patur",
-    company_number: company.company_number || "",
+    registration_number: company.registration_number || company.company_number || "",
     industry: company.industry || "",
     custom_industry: company.custom_industry || "",
     street: company.street || "",
@@ -92,6 +100,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     address: "", // Auto-generated from street + city, not displayed in UI
     phone: company.phone || "",
     mobile_phone: company.mobile_phone || "",
+    contact_first_name_en: company.contact_first_name_en || "",
+    books_region: (company.books_region as any) || "IL",
     email: company.email || "",
     website: company.website || "",
   });
@@ -305,10 +315,10 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             הגדרות
           </h1>
-          <p className="text-right text-[#708993] text-lg">
+          <p className="text-right">
             ניהול פרטי העסק והלוגו
           </p>
         </div>
@@ -350,7 +360,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             
             {/* Logo Section */}
             <div>
-              <h3 className="text-[#708993]" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>לוגו העסק</h3>
+              <h3 style={{ marginBottom: 12 }}>לוגו העסק</h3>
             
               {/* Logo Preview */}
               <div
@@ -390,7 +400,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 )}
               </div>
 
-              <p style={{ marginBottom: 12, fontSize: 13, color: "#708993", lineHeight: 1.5 }}>
+              <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
                 הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
               </p>
 
@@ -426,7 +436,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
             {/* Signature Section */}
             <div>
-              <h3 className="text-[#708993]" style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>חתימת העסק</h3>
+              <h3 style={{ marginBottom: 12 }}>חתימת העסק</h3>
               
               {/* Signature Preview */}
               <div
@@ -466,7 +476,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 )}
               </div>
 
-              <p style={{ marginBottom: 12, fontSize: 13, color: "#708993", lineHeight: 1.5 }}>
+              <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
                 החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
               </p>
 
@@ -518,6 +528,51 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               />
             </FieldWrapper>
 
+            {/* Company Name (English) */}
+            <FieldWrapper label="שם העסק (English)" id="company_name_en">
+              <Input
+                type="text"
+                name="company_name_en"
+                id="company_name_en"
+                value={(formData as any).company_name_en}
+                onChange={handleInputChange}
+                dir="ltr"
+                className="text-left"
+                placeholder="Business name (English)"
+              />
+            </FieldWrapper>
+
+            {/* Issuer first name (English) */}
+            <FieldWrapper label="שם פרטי לחתימה (English)" id="contact_first_name_en">
+              <Input
+                type="text"
+                name="contact_first_name_en"
+                id="contact_first_name_en"
+                value={(formData as any).contact_first_name_en}
+                onChange={handleInputChange}
+                dir="ltr"
+                className="text-left"
+                placeholder="First name (English)"
+              />
+            </FieldWrapper>
+
+            {/* Books region (metadata) */}
+            <FieldWrapper label="אזור שמירת ספרים" id="books_region">
+              <Select
+                value={(formData as any).books_region}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, books_region: value as any }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IL">ישראל</SelectItem>
+                  <SelectItem value="OTHER">אחר</SelectItem>
+                </SelectContent>
+              </Select>
+            </FieldWrapper>
+
+
             {/* Business Type - READ ONLY */}
             <FieldWrapper label="סוג עסק" id="business_type" required>
               <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
@@ -530,16 +585,18 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               </Select>
             </FieldWrapper>
 
-            {/* Company Number - READ ONLY */}
-            <FieldWrapper label="מספר חברה / תעודת זהות" id="company_number" required>
+            {/* Registration Number (Company ID) - READ ONLY */}
+            <FieldWrapper label="מספר חברה / תעודת זהות" id="registration_number" required>
               <Input
                 type="text"
-                name="company_number"
-                id="company_number"
-                value={formData.company_number}
+                name="registration_number"
+                id="registration_number"
+                value={formData.registration_number}
                 onChange={handleInputChange}
                 disabled
                 required
+                dir="ltr"
+                className="text-left"
               />
             </FieldWrapper>
 
@@ -608,16 +665,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               />
             </FieldWrapper>
 
-            {/* Registration Number - Shows company_number from registration, READ ONLY */}
-            <FieldWrapper label='מספר רישום (ת.ז / ח"פ)' id="registration_number" required>
-              <Input
-                type="text"
-                name="registration_number"
-                id="registration_number"
-                value={formData.company_number}
-                disabled
-              />
-            </FieldWrapper>
 
             {/* Email */}
             <FieldWrapper label="אימייל" id="email" required>

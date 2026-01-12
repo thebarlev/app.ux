@@ -77,24 +77,10 @@ registerHelpers()
  * @param templateHtml - Raw HTML template with Handlebars placeholders
  * @returns Compiled template function
  */
-export function compileTemplate(templateHtml: string): HandlebarsTemplateDelegate {
-  // #region agent log
-  // Check for unclosed Handlebars blocks
-  const ifBlocks = (templateHtml.match(/\{\{#if/g) || []).length;
-  const ifEndBlocks = (templateHtml.match(/\{\{\/if\}\}/g) || []).length;
-  const eachBlocks = (templateHtml.match(/\{\{#each/g) || []).length;
-  const eachEndBlocks = (templateHtml.match(/\{\{\/each\}\}/g) || []).length;
-  const last200Chars = templateHtml.substring(Math.max(0, templateHtml.length - 200));
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:75',message:'compileTemplate - checking blocks',data:{ifBlocks,ifEndBlocks,eachBlocks,eachEndBlocks,unclosedIf:ifBlocks-ifEndBlocks,unclosedEach:eachBlocks-eachEndBlocks,last200Chars},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-  // #endregion
-  
+export function compileTemplate(templateHtml: string): HandlebarsTemplateDelegate {  
   try {
     return Handlebars.compile(templateHtml)
-  } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:82',message:'compileTemplate - compilation error',data:{error:error instanceof Error?error.message:String(error),templateLength:templateHtml.length,last500Chars:templateHtml.substring(Math.max(0,templateHtml.length-500))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-    throw new Error(`Template compilation failed: ${error}`)
+  } catch (error) {    throw new Error(`Template compilation failed: ${error}`)
   }
 }
 
@@ -125,30 +111,12 @@ export function renderTemplate(
 export function compileAndRender(
   templateHtml: string,
   data: ReceiptTemplateData
-): string {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:111',message:'compileAndRender - entry',data:{templateHtmlLength:templateHtml?.length||0,hasData:!!data,dataKeys:data?Object.keys(data).slice(0,10):[],companyName:data?.company?.company_name||'N/A',documentNumber:data?.document?.document_number||'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-  
+): string {  
   try {
-    const compiled = compileTemplate(templateHtml)
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:115',message:'compileAndRender - after compile',data:{compiledType:typeof compiled},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
-    const rendered = renderTemplate(compiled, data)
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:117',message:'compileAndRender - after render',data:{renderedLength:rendered?.length||0,renderedPreview:rendered?.substring(0,200)||'EMPTY',hasContent:rendered?.includes('<body')||rendered?.includes('<main')||false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
+    const compiled = compileTemplate(templateHtml)    
+    const rendered = renderTemplate(compiled, data)    
     return rendered
-  } catch (error: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:145',message:'compileAndRender - error',data:{errorMessage:error?.message||'N/A',errorName:error?.name||'N/A',isParseError:error?.message?.includes('Parse error')||false,isTemplateError:error?.message?.includes('Template')||false},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'N'})}).catch(()=>{});
-    // #endregion
-    
+  } catch (error: any) {    
     // Re-throw with clear message for template errors
     const errorMessage = error?.message || String(error)
     if (errorMessage.includes("Parse error") || errorMessage.includes("template")) {
@@ -171,11 +139,7 @@ export async function generatePDFFromHTML(
   html: string,
   css: string = "",
   options: PDFGenerationOptions = {}
-): Promise<PDFGenerationResult> {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:128',message:'generatePDFFromHTML - entry',data:{htmlLength:html?.length||0,htmlPreview:html?.substring(0,300)||'EMPTY',cssLength:css?.length||0,cssPreview:css?.substring(0,200)||'EMPTY',hasHexColors:css?.match(/#[0-9a-fA-F]{6}/g)?.length||0,printBackground:options.printBackground},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-  
+): Promise<PDFGenerationResult> {  
   const { chromium } = await import("playwright")
   
   const {
@@ -196,12 +160,7 @@ export async function generatePDFFromHTML(
     const page = await context.newPage()
 
     // Check if HTML already includes DOCTYPE or html tag (full document)
-    const isFullDocument = html.trim().startsWith('<!DOCTYPE') || html.trim().startsWith('<html')
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:152',message:'generatePDFFromHTML - before processing',data:{isFullDocument,hasHead:html.includes('<head'),hasBody:html.includes('<body'),hasStyle:html.includes('<style')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
+    const isFullDocument = html.trim().startsWith('<!DOCTYPE') || html.trim().startsWith('<html')    
     let fullHtml: string
     
     if (isFullDocument) {
@@ -635,30 +594,12 @@ export async function generatePDFFromHTML(
   ${html}
 </body>
 </html>`
-    }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:227',message:'generatePDFFromHTML - before setContent',data:{fullHtmlLength:fullHtml?.length||0,fullHtmlPreview:fullHtml?.substring(0,500)||'EMPTY',hasStyleTag:fullHtml.includes('<style'),cssInHtml:fullHtml.includes(css?.substring(0,50)||'')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
+    }    
     // Set page content with longer timeout for images/fonts to load
     await page.setContent(fullHtml, { 
       waitUntil: "networkidle",
       timeout: 30000 
-    })
-    
-    // #region agent log
-    const pageContent = await page.evaluate(() => ({
-      bodyText: document.body?.innerText?.substring(0,200)||'EMPTY',
-      bodyHTML: document.body?.innerHTML?.substring(0,300)||'EMPTY',
-      hasImages: document.images.length,
-      imageSrcs: Array.from(document.images).slice(0,3).map(img=>img.src||'NO_SRC'),
-      computedStyles: window.getComputedStyle(document.body)?.backgroundColor||'N/A',
-      hasContent: document.body?.textContent?.trim().length>0||false
-    }));
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:232',message:'generatePDFFromHTML - after setContent',data:pageContent,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
+    })    
     // Hide broken images and images with empty/null src before waiting
     await page.evaluate(() => {
       // Hide images with empty/null/undefined src
@@ -691,16 +632,6 @@ export async function generatePDFFromHTML(
         })
       ])
     })
-    
-    // #region agent log
-    const afterWait = await page.evaluate(() => ({
-      imagesLoaded: Array.from(document.images).filter(img=>img.complete).length,
-      totalImages: document.images.length,
-      fontsReady: document.fonts.status
-    }));
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:246',message:'generatePDFFromHTML - after wait',data:afterWait,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-
     // Force single page by removing min-height constraints and preventing page breaks
     await page.evaluate(() => {
       // Remove min-height that forces 2nd page
@@ -737,11 +668,6 @@ export async function generatePDFFromHTML(
         wouldFitOnOnePage: (body?.scrollHeight || 0) < 1123,
       };
     });
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:324',message:'generatePDFFromHTML - page metrics before PDF',data:pageMetrics,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-
     // Generate PDF with minimal margins to prevent 2-page output
     // Use displayHeaderFooter: false to prevent empty second page
     const pdfBuffer = await page.pdf({
@@ -759,11 +685,6 @@ export async function generatePDFFromHTML(
       preferCSSPageSize: false, // Use PDF format size, not CSS @page size
       displayHeaderFooter: false, // Prevent Playwright from adding header/footer that might cause empty page
     })
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/template-engine.ts:256',message:'generatePDFFromHTML - after pdf generation',data:{pdfBufferLength:pdfBuffer?.length||0,printBackground,pageMetrics},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-
     await browser.close()
 
     return {

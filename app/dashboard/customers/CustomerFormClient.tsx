@@ -118,7 +118,7 @@ export default function CustomerFormClient({ customer }: Props) {
     <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
       <div className="ui-container pt-10">
         {/* Page Header - Title aligned right, 50px margin bottom */}
-        <h1 className="text-right text-4xl font-semibold text-[#19183B]">
+        <h1 className="text-right">
           {isEdit ? "עריכת לקוח" : "לקוח חדש"}
         </h1>
         <div className="h-[50px]" />

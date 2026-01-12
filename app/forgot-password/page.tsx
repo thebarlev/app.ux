@@ -64,7 +64,7 @@ function ForgotPasswordForm() {
           {/* Success Card */}
           <Card className="shadow-ui-lg">
             <CardHeader className="pb-4">
-              <CardTitle className="text-2xl font-bold text-card-fg text-right">
+              <CardTitle className="text-right">
                 קישור איפוס נשלח
               </CardTitle>
               <CardDescription className="text-muted-fg text-right">
@@ -103,7 +103,7 @@ function ForgotPasswordForm() {
         {/* Forgot Password Card */}
         <Card className="shadow-ui-lg">
           <CardHeader className="pb-4">
-            <CardTitle className="text-2xl font-bold text-card-fg text-right">
+            <CardTitle className="text-right">
               שכחתי סיסמה
             </CardTitle>
             <CardDescription className="text-muted-fg text-right">
@@ -115,7 +115,7 @@ function ForgotPasswordForm() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Field */}
               <div className="space-y-2">
-                <label htmlFor="email" className="block text-sm font-semibold text-fg text-right">
+                <label htmlFor="email" className="block text-right">
                   כתובת אימייל
                 </label>
                 <Input
@@ -165,7 +165,7 @@ function ForgotPasswordForm() {
         </Card>
 
         {/* Back to Login Link */}
-        <p className="mt-6 text-center text-muted-fg text-sm">
+        <p className="mt-6 text-center">
           זכרת את הסיסמה?{" "}
           <Link 
             href="/login" 

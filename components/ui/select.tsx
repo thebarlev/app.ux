@@ -89,8 +89,8 @@ function SelectContent({
           className,
         )}
         style={{
-          backgroundColor: '#1D868F',
-          borderColor: 'rgba(255, 255, 255, 0.1)'
+          backgroundColor: '#FFFFFF',
+          borderColor: '#EDF1F5'
         }}
         position={position}
         side={side}
@@ -144,18 +144,20 @@ function SelectItem({
         minHeight: "50px",
         maxHeight: "50px",
         fontSize: "18px",
-        color: "#FFFFFF",
+        color: "#19183B",
         borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
         backgroundColor: "transparent",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "#1A3954";
+        e.currentTarget.style.backgroundColor = "#1D868F";
+        e.currentTarget.style.color = "#FFFFFF"; // 👈 זו השורה שהוספנו
         e.currentTarget.style.height = "50px";
         e.currentTarget.style.minHeight = "50px";
         e.currentTarget.style.maxHeight = "50px";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.backgroundColor = "transparent";
+        e.currentTarget.style.color = "#19183B"; // 👈 חזרה לצבע המקורי
         e.currentTarget.style.height = "50px";
         e.currentTarget.style.minHeight = "50px";
         e.currentTarget.style.maxHeight = "50px";

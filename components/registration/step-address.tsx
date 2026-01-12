@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { HelperText } from "@/components/ui/helper-text"
 import { createClient } from "@/lib/supabase/client"
 
 export function StepAddress() {
@@ -82,7 +81,7 @@ export function StepAddress() {
           business_type: data.businessType,
           registration_number: data.companyNumber,
           address: `${data.street}, ${data.city}${data.postalCode ? ' ' + data.postalCode : ''}`,
-          industry: data.industry === "other" ? data.customIndustry : data.industry,
+          industry: data.industry || data.customIndustry,
           contact_first_name: data.firstName,
           contact_full_name: `${data.firstName} ${data.lastName}`,
           email: data.email,
@@ -129,27 +128,28 @@ export function StepAddress() {
   }
 
   return (
-    <Card className="shadow-ui-lg">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-2xl font-bold text-card-fg text-right">
-          כתובת העסק
-        </CardTitle>
-        <CardDescription className="text-muted-fg text-right">
-          היכן ממוקם העסק שלך
-        </CardDescription>
-      </CardHeader>
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">כתובת העסק</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>היכן ממוקם העסק שלך</p>
+        </div>
 
-      <CardContent>
         {error && (
-          <div className="mb-4 bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-[10px] text-sm font-medium text-right" role="alert">
+          <div 
+            className="mb-6 p-4 rounded-[5px]" 
+            role="alert" 
+            aria-live="assertive"
+            style={{ backgroundColor: 'rgba(155, 0, 3, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+          >
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="street" className="text-right">
-              רחוב ומספר <span className="text-danger" aria-label="שדה חובה">*</span>
+              רחוב ומספר <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Input
               id="street"
@@ -161,14 +161,16 @@ export function StepAddress() {
               disabled={isLoading}
             />
             {errors.street && (
-              <HelperText error>{errors.street}</HelperText>
+              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                {errors.street}
+              </p>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="city" className="text-right">
-                עיר <span className="text-danger" aria-label="שדה חובה">*</span>
+                עיר <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
               </Label>
               <Input
                 id="city"
@@ -180,7 +182,9 @@ export function StepAddress() {
                 disabled={isLoading}
               />
               {errors.city && (
-                <HelperText error>{errors.city}</HelperText>
+                <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                  {errors.city}
+                </p>
               )}
             </div>
 

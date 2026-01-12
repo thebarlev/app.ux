@@ -48,25 +48,59 @@ export async function getAllTextsAction() {
       return { ok: false, message: error.message };
     }
 
-    // Group by page
-    const grouped: Record<
-      string,
-      Array<{
-        id: string;
-        key: string;
-        page: string;
-        default_value: string;
-        value: string | null;
-        description: string | null;
-        updated_at: string;
-      }>
-    > = {};
+    // Group by page, then by key (two langs: he/en)
+    type Row = {
+      id: string;
+      key: string;
+      page: string;
+      lang: "he" | "en";
+      default_value: string;
+      value: string | null;
+      description: string | null;
+      updated_at: string;
+    };
 
-    data?.forEach((text) => {
-      if (!grouped[text.page]) {
-        grouped[text.page] = [];
-      }
-      grouped[text.page].push(text);
+    type Entry = {
+      key: string;
+      page: string;
+      description: string | null;
+      updated_at: string;
+      he?: Pick<Row, "id" | "default_value" | "value">;
+      en?: Pick<Row, "id" | "default_value" | "value">;
+    };
+
+    const grouped: Record<string, Entry[]> = {};
+    const byPageAndKey = new Map<string, Entry>();
+
+    (data as Row[] | null)?.forEach((row) => {
+      const page = row.page;
+      const mapKey = `${row.page}::${row.key}`;
+
+      const existing =
+        byPageAndKey.get(mapKey) ||
+        ({
+          key: row.key,
+          page: row.page,
+          description: row.description || null,
+          updated_at: row.updated_at,
+        } as Entry);
+
+      existing.description = existing.description || row.description || null;
+      existing.updated_at = row.updated_at || existing.updated_at;
+
+      if (row.lang === "he") existing.he = { id: row.id, default_value: row.default_value, value: row.value };
+      if (row.lang === "en") existing.en = { id: row.id, default_value: row.default_value, value: row.value };
+
+      byPageAndKey.set(mapKey, existing);
+      if (!grouped[page]) grouped[page] = [];
+    });
+
+    // Materialize arrays per page in key order
+    for (const entry of byPageAndKey.values()) {
+      grouped[entry.page].push(entry);
+    }
+    Object.keys(grouped).forEach((p) => {
+      grouped[p].sort((a, b) => a.key.localeCompare(b.key));
     });
 
     return { ok: true, data: grouped };
@@ -79,26 +113,29 @@ export async function getAllTextsAction() {
 /**
  * Update a text value
  */
-export async function updateTextAction(id: string, value: string) {
+export async function updateTextAction(payload: { key: string; page: string; lang: "he" | "en"; value: string }) {
   try {
     const { supabase } = await verifyAdmin();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("system_texts")
-      .update({ value })
-      .eq("id", id)
-      .select("key")
-      .single();
+      .upsert(
+        {
+          key: payload.key,
+          page: payload.page,
+          lang: payload.lang,
+          value: payload.value,
+        },
+        { onConflict: "key,page,lang" }
+      );
 
     if (error) {
       console.error("[TextsAction] Error updating text:", error);
       return { ok: false, message: error.message };
     }
 
-    // Clear cache for this key
-    if (data?.key) {
-      clearTextCache(data.key);
-    }
+    // Clear cache (lang aware cache is internal; safest is full clear)
+    clearTextCache();
 
     revalidatePath("/admin/texts");
     return { ok: true };
@@ -111,26 +148,23 @@ export async function updateTextAction(id: string, value: string) {
 /**
  * Reset text to default value
  */
-export async function resetTextAction(id: string) {
+export async function resetTextAction(payload: { key: string; page: string; lang: "he" | "en" }) {
   try {
     const { supabase } = await verifyAdmin();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("system_texts")
       .update({ value: null })
-      .eq("id", id)
-      .select("key")
-      .single();
+      .eq("key", payload.key)
+      .eq("page", payload.page)
+      .eq("lang", payload.lang);
 
     if (error) {
       console.error("[TextsAction] Error resetting text:", error);
       return { ok: false, message: error.message };
     }
 
-    // Clear cache for this key
-    if (data?.key) {
-      clearTextCache(data.key);
-    }
+    clearTextCache();
 
     revalidatePath("/admin/texts");
     return { ok: true };
@@ -146,18 +180,29 @@ export async function resetTextAction(id: string) {
 export async function createTextAction(payload: {
   key: string;
   page: string;
-  default_value: string;
+  default_value_he: string;
+  default_value_en: string;
   description?: string;
 }) {
   try {
     const { supabase } = await verifyAdmin();
 
-    const { error } = await supabase.from("system_texts").insert({
-      key: payload.key,
-      page: payload.page,
-      default_value: payload.default_value,
-      description: payload.description || null,
-    });
+    const { error } = await supabase.from("system_texts").insert([
+      {
+        key: payload.key,
+        page: payload.page,
+        lang: "he",
+        default_value: payload.default_value_he,
+        description: payload.description || null,
+      },
+      {
+        key: payload.key,
+        page: payload.page,
+        lang: "en",
+        default_value: payload.default_value_en,
+        description: payload.description || null,
+      },
+    ]);
 
     if (error) {
       console.error("[TextsAction] Error creating text:", error);
@@ -175,26 +220,22 @@ export async function createTextAction(payload: {
 /**
  * Delete a text entry
  */
-export async function deleteTextAction(id: string) {
+export async function deleteTextAction(payload: { key: string; page: string }) {
   try {
     const { supabase } = await verifyAdmin();
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("system_texts")
       .delete()
-      .eq("id", id)
-      .select("key")
-      .single();
+      .eq("key", payload.key)
+      .eq("page", payload.page);
 
     if (error) {
       console.error("[TextsAction] Error deleting text:", error);
       return { ok: false, message: error.message };
     }
 
-    // Clear cache for this key
-    if (data?.key) {
-      clearTextCache(data.key);
-    }
+    clearTextCache();
 
     revalidatePath("/admin/texts");
     return { ok: true };

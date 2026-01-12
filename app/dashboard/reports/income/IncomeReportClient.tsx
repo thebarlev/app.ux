@@ -133,7 +133,7 @@ export default function IncomeReportClient() {
             <ArrowLeft size={18} />
             חזרה לדוחות
           </Link>
-          <h1 className="text-right text-4xl font-semibold text-[#19183B] mb-4">
+          <h1 className="text-right mb-4">
             דוח הכנסות להנהלת חשבונות
           </h1>
         </div>

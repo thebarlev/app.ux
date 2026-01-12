@@ -19,7 +19,20 @@ export interface TemplateDefinition {
   name: string;
   description: string | null;
   document_type: DocumentType;
-  html_template: string; // Handlebars template
+  /**
+   * Bilingual templates (single template id).
+   * Source of truth after 2026-01-12.
+   */
+  html_he: string | null;
+  css_he: string | null;
+  html_en: string | null;
+  css_en: string | null;
+
+  /**
+   * Legacy fields (kept for backward compatibility + one-time backfill).
+   * Not used as source of truth at runtime.
+   */
+  html_template: string | null;
   css: string | null;
   is_default: boolean;
   is_active: boolean;
@@ -139,6 +152,9 @@ export interface ReceiptTemplateData {
   
   // Current date and time for footer
   CURRENT_DATE_TIME?: string; // Formatted date and time (e.g., "07/01/2026, 15:30")
+
+  // Regulatory: original vs copy label (e.g., "מקור" / "העתק נאמן למקור")
+  DOCUMENT_COPY_LABEL?: string;
 }
 
 // ============================================
@@ -210,6 +226,7 @@ export const TEMPLATE_PLACEHOLDERS: TemplatePlaceholder[] = [
       { name: '{{document_number}}', description: 'Document number', example: '42' },
       { name: '{{document_date}}', description: 'Document date', example: '2026-01-01' },
       { name: '{{reference_number}}', description: 'Reference/PO number', example: 'PO-2026-001' },
+      { name: '{{DOCUMENT_COPY_LABEL}}', description: 'Original/Copy label (e.g., מקור / העתק נאמן למקור)', example: 'מקור' },
     ],
   },
   {

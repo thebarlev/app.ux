@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -31,17 +32,26 @@ type Props = {
   template: TemplateDefinition
 }
 
+type TemplateLang = "he" | "en"
+
 export default function TemplateEditorClient({ template }: Props) {
   const router = useRouter()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description || "")
   const [documentType, setDocumentType] = useState(template.document_type)
-  const [htmlTemplate, setHtmlTemplate] = useState(template.html_template)
-  const [css, setCss] = useState(template.css || "")
+  const [activeLang, setActiveLang] = useState<TemplateLang>("he")
+
+  const [htmlHe, setHtmlHe] = useState(template.html_he || template.html_template || "")
+  const [cssHe, setCssHe] = useState(template.css_he || template.css || "")
+  const [htmlEn, setHtmlEn] = useState(template.html_en || "")
+  const [cssEn, setCssEn] = useState(template.css_en || "")
   const [isDefault, setIsDefault] = useState(template.is_default)
   const [isActive, setIsActive] = useState(template.is_active)
   const [isSaving, setIsSaving] = useState(false)
-  const [useFullHtml, setUseFullHtml] = useState(false)
+  const [useFullHtmlByLang, setUseFullHtmlByLang] = useState<Record<TemplateLang, boolean>>({
+    he: false,
+    en: false,
+  })
 
   const isGlobal = template.company_id === null
 
@@ -65,14 +75,34 @@ export default function TemplateEditorClient({ template }: Props) {
     }
   }
 
-  // Handle full HTML mode toggle
-  const handleFullHtmlToggle = (checked: boolean) => {
-    setUseFullHtml(checked)
-    
+  const getLangMeta = (lang: TemplateLang) =>
+    lang === "en" ? { dir: "ltr" as const, lang: "en" as const } : { dir: "rtl" as const, lang: "he" as const }
+
+  const getEditorValues = (lang: TemplateLang) => (lang === "en" ? { html: htmlEn, css: cssEn } : { html: htmlHe, css: cssHe })
+  const setEditorValues = (lang: TemplateLang, next: { html?: string; css?: string }) => {
+    if (lang === "en") {
+      if (typeof next.html === "string") setHtmlEn(next.html)
+      if (typeof next.css === "string") setCssEn(next.css)
+      return
+    }
+    if (typeof next.html === "string") setHtmlHe(next.html)
+    if (typeof next.css === "string") setCssHe(next.css)
+  }
+
+  // Handle full HTML mode toggle (per language)
+  const handleFullHtmlToggle = (lang: TemplateLang, checked: boolean) => {
+    setUseFullHtmlByLang((prev) => ({ ...prev, [lang]: checked }))
+
+    const { html, css } = getEditorValues(lang)
+    const meta = getLangMeta(lang)
+
     if (checked) {
-      if (css) {
-        const fullHtml = `<!DOCTYPE html>
-<html dir="rtl" lang="he">
+      if (!css) {
+        toast.info(`מצב HTML מלא הופעל (${lang.toUpperCase()})`)
+        return
+      }
+      const fullHtml = `<!DOCTYPE html>
+<html dir="${meta.dir}" lang="${meta.lang}">
 <head>
   <meta charset="UTF-8">
   <style>
@@ -80,22 +110,20 @@ ${css}
   </style>
 </head>
 <body>
-${htmlTemplate}
+${html}
 </body>
 </html>`
-        setHtmlTemplate(fullHtml)
-        toast.info("מצב HTML מלא הופעל - ה-CSS שולב ב-HTML")
-      }
+      setEditorValues(lang, { html: fullHtml })
+      toast.info(`מצב HTML מלא הופעל (${lang.toUpperCase()}) - ה-CSS שולב ב-HTML`)
+      return
+    }
+
+    const { cleanHtml, extractedCss } = extractCssFromHtml(html)
+    if (extractedCss) {
+      setEditorValues(lang, { html: cleanHtml, css: extractedCss })
+      toast.success(`CSS חולץ מה-HTML בהצלחה (${lang.toUpperCase()})`)
     } else {
-      const { cleanHtml, extractedCss } = extractCssFromHtml(htmlTemplate)
-      
-      if (extractedCss) {
-        setHtmlTemplate(cleanHtml)
-        setCss(extractedCss)
-        toast.success("CSS חולץ מה-HTML בהצלחה")
-      } else {
-        toast.info("מצב HTML מופרד הופעל")
-      }
+      toast.info(`מצב HTML מופרד הופעל (${lang.toUpperCase()})`)
     }
   }
 
@@ -104,23 +132,15 @@ ${htmlTemplate}
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      let finalHtml = htmlTemplate
-      let finalCss = css
-      
-      // If using full HTML mode, extract CSS before saving
-      if (useFullHtml) {
-        const { cleanHtml, extractedCss } = extractCssFromHtml(htmlTemplate)
-        finalHtml = cleanHtml
-        finalCss = extractedCss || css
-      }
-      
       const payload: UpdateTemplatePayload = {
         id: template.id,
         name,
         description,
         documentType: documentType as any,
-        htmlTemplate: finalHtml,
-        css: finalCss,
+        htmlHe: useFullHtmlByLang.he ? extractCssFromHtml(htmlHe).cleanHtml : htmlHe,
+        cssHe: useFullHtmlByLang.he ? (extractCssFromHtml(htmlHe).extractedCss || cssHe) : cssHe,
+        htmlEn: useFullHtmlByLang.en ? extractCssFromHtml(htmlEn).cleanHtml : htmlEn,
+        cssEn: useFullHtmlByLang.en ? (extractCssFromHtml(htmlEn).extractedCss || cssEn) : cssEn,
         isDefault,
         isActive,
       }
@@ -156,10 +176,10 @@ ${htmlTemplate}
         <div className="flex gap-2">
           <Button
             variant="outline"
-            onClick={() => window.open(`/admin/templates/${template.id}/preview`, '_blank')}
+            onClick={() => window.open(`/admin/templates/${template.id}/preview?lang=${activeLang}`, "_blank")}
           >
             <Eye className="h-4 w-4 ml-2" />
-            תצוגה לדוגמה
+            תצוגה לדוגמה ({activeLang.toUpperCase()})
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
             <Save className="h-4 w-4 ml-2" />
@@ -273,38 +293,106 @@ ${htmlTemplate}
         {/* Code Editors - Side by Side */}
         <Card>
           <CardHeader>
-            <CardTitle>עורך תבנית</CardTitle>
+            <CardTitle>עורך תבנית לפי שפה</CardTitle>
+            <CardDescription>
+              עברית (RTL) משמשת כמסמך מקור. אנגלית (LTR) משמשת להעתקים/תרגומים בלבד.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-0 w-full min-h-[600px]">
-              {/* HTML Editor - Right side */}
-              <div className="border-l">
-                <div className="bg-muted px-4 py-2 border-b">
-                  <Label className="text-sm font-semibold">HTML</Label>
-                </div>
-                <Textarea
-                  value={htmlTemplate}
-                  onChange={(e) => setHtmlTemplate(e.target.value)}
-                  placeholder="<div>{{companyName}}</div>"
-                  className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
-                  dir="ltr"
-                />
-              </div>
+            <Tabs value={activeLang} onValueChange={(v) => setActiveLang(v as TemplateLang)}>
+              <TabsList>
+                <TabsTrigger value="he">עברית</TabsTrigger>
+                <TabsTrigger value="en">English</TabsTrigger>
+              </TabsList>
 
-              {/* CSS Editor - Left side */}
-              <div>
-                <div className="bg-muted px-4 py-2 border-b">
-                  <Label className="text-sm font-semibold">CSS</Label>
+              <TabsContent value="he" className="mt-6 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    מומלץ: `&lt;html lang=&quot;he&quot; dir=&quot;rtl&quot;&gt;`
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="fullHtmlHe" className="text-sm">HTML מלא</Label>
+                    <Switch
+                      id="fullHtmlHe"
+                      checked={useFullHtmlByLang.he}
+                      onCheckedChange={(checked) => handleFullHtmlToggle("he", !!checked)}
+                    />
+                  </div>
                 </div>
-                <Textarea
-                  value={css}
-                  onChange={(e) => setCss(e.target.value)}
-                  placeholder=".header { font-size: 24px; }"
-                  className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
-                  dir="ltr"
-                />
-              </div>
-            </div>
+
+                <div className="grid grid-cols-2 gap-0 w-full min-h-[600px]">
+                  <div className="border-l min-w-0">
+                    <div className="bg-muted px-4 py-2 border-b">
+                      <Label className="text-sm font-semibold">HTML (HE)</Label>
+                    </div>
+                    <Textarea
+                      value={htmlHe}
+                      onChange={(e) => setHtmlHe(e.target.value)}
+                      placeholder="<div>{{company_name}}</div>"
+                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="bg-muted px-4 py-2 border-b">
+                      <Label className="text-sm font-semibold">CSS (HE)</Label>
+                    </div>
+                    <Textarea
+                      value={cssHe}
+                      onChange={(e) => setCssHe(e.target.value)}
+                      placeholder=".header { font-size: 24px; }"
+                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="en" className="mt-6 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    Recommended: `&lt;html lang=&quot;en&quot; dir=&quot;ltr&quot;&gt;`
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="fullHtmlEn" className="text-sm">Full HTML</Label>
+                    <Switch
+                      id="fullHtmlEn"
+                      checked={useFullHtmlByLang.en}
+                      onCheckedChange={(checked) => handleFullHtmlToggle("en", !!checked)}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-0 w-full min-h-[600px]">
+                  <div className="border-l min-w-0">
+                    <div className="bg-muted px-4 py-2 border-b">
+                      <Label className="text-sm font-semibold">HTML (EN)</Label>
+                    </div>
+                    <Textarea
+                      value={htmlEn}
+                      onChange={(e) => setHtmlEn(e.target.value)}
+                      placeholder="<div>{{company_name}}</div>"
+                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="bg-muted px-4 py-2 border-b">
+                      <Label className="text-sm font-semibold">CSS (EN)</Label>
+                    </div>
+                    <Textarea
+                      value={cssEn}
+                      onChange={(e) => setCssEn(e.target.value)}
+                      placeholder=".header { font-size: 24px; }"
+                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>

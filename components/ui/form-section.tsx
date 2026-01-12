@@ -49,12 +49,12 @@ export function FormSection({
       {/* Title - aligned to right, 30px from top, 50px from right edge */}
       <h3 
         className="text-right"
-        style={{ marginBottom: description ? '5px' : '30px', color: '#19183B', fontSize: '26px', fontWeight: 600 }}
+        style={{ marginBottom: description ? '5px' : '30px' }}
       >
         {title}
       </h3>
       {description && (
-        <p className="text-sm text-right mb-[30px]" style={{ color: '#19183B' }}>{description}</p>
+        <p className="text-right mb-[30px]">{description}</p>
       )}
       
       {/* Content - grid with fields */}

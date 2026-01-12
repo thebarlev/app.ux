@@ -4,16 +4,37 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReceiptStyleSettings } from "@/lib/types/receipt-style";
 
-function formatMoney(amount: number, currency: string) {
-  const n = Number.isFinite(amount) ? amount : 0;
-  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+function getCurrencyCode(currencySymbol: string): string {
+  const map: Record<string, string> = {
+    "₪": "ILS",
+    "$": "USD",
+    "€": "EUR",
+    "£": "GBP",
+    "¥": "JPY",
+  }
+  return map[currencySymbol] || "ILS"
 }
 
-function formatDate(dateStr: string) {
+function formatMoney(amount: number, currency: string, language: "he" | "en") {
+  const n = Number.isFinite(amount) ? amount : 0;
+  const currencyCode = getCurrencyCode(currency)
+  try {
+    return new Intl.NumberFormat(language === "en" ? "en-US" : "he-IL", {
+      style: "currency",
+      currency: currencyCode,
+      currencyDisplay: language === "en" ? "code" : "narrowSymbol",
+      maximumFractionDigits: 2,
+    }).format(n)
+  } catch {
+    return `${n.toLocaleString(language === "en" ? "en-US" : "he-IL", { maximumFractionDigits: 2 })} ${currency}`
+  }
+}
+
+function formatDate(dateStr: string, language: "he" | "en") {
   if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("he-IL");
+    return d.toLocaleDateString(language === "en" ? "en-US" : "he-IL");
   } catch {
     return dateStr;
   }
@@ -33,6 +54,9 @@ type CustomerData = {
 
 type CompanyData = {
   company_name: string;
+  company_name_en?: string;
+  contact_first_name?: string;
+  contact_first_name_en?: string;
   business_type?: string;
   registration_number?: string;
   company_number?: string;
@@ -66,6 +90,7 @@ export default function PreviewClient({
   // State to track if component is mounted (client-side only)
   const [isMounted, setIsMounted] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [systemTexts, setSystemTexts] = useState<Record<string, string>>({});
   
   console.log("🔵 [PreviewClient] Rendering with template:", {
     hasTemplate: !!templateHtml,
@@ -76,8 +101,10 @@ export default function PreviewClient({
   });
 
   // Parse data from URL parameters
+  const language = (searchParams.get("language") === "en" ? "en" : "he") as "he" | "en";
   const previewNumber = searchParams.get("previewNumber") || null;
-  const companyName =
+  const companyNameBase =
+    (language === "en" ? (companyData as any)?.company_name_en : null) ||
     companyData?.company_name ||
     searchParams.get("companyName") ||
     "העסק שלי";
@@ -90,6 +117,25 @@ export default function PreviewClient({
   const total = parseFloat(searchParams.get("total") || "0");
   const currency = searchParams.get("currency") || "₪";
   const autoDownload = searchParams.get("autoDownload") === "true";
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadTexts() {
+      try {
+        const qs = new URLSearchParams({ lang: language, page: "receipt" })
+        const res = await fetch(`/api/system-texts?${qs.toString()}`, { cache: "no-store" })
+        if (!res.ok) return
+        const json = await res.json()
+        if (!cancelled) setSystemTexts(json.texts || {})
+      } catch {
+        // ignore preview-only failures
+      }
+    }
+    loadTexts()
+    return () => {
+      cancelled = true
+    }
+  }, [language]);
 
   const customerPhone = customerData?.phone || customerData?.mobile || "";
   const companyPhone = companyData?.mobile_phone || companyData?.phone || "";
@@ -136,7 +182,7 @@ export default function PreviewClient({
   
   // Enable print-friendly styling on mount
   useEffect(() => {
-    document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyName}`;
+    document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyNameBase}`;
     setIsMounted(true); // Mark as mounted after first render
     
     // Listen for iframe resize messages
@@ -151,7 +197,7 @@ export default function PreviewClient({
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [previewNumber, companyName]);
+  }, [previewNumber, companyNameBase]);
   
   // Helper function to escape HTML and prevent XSS
   const escapeHtml = (text: string | null | undefined): string => {
@@ -228,10 +274,10 @@ export default function PreviewClient({
       const paymentDetails = buildPaymentDetails(p);
       
       // Format date
-      const formattedDate = formatDate(p.date);
+      const formattedDate = formatDate(p.date, language);
       
       // Format amount
-      const formattedAmount = formatMoney(p.amount, p.currency || currency);
+      const formattedAmount = formatMoney(p.amount, p.currency || currency, language);
       
       // Escape HTML to prevent XSS
       const escapedMethod = escapeHtml(p.method);
@@ -253,9 +299,16 @@ export default function PreviewClient({
   
   // Prepare template data for rendering
   const templateData = {
+    // System texts (fetched client-side)
+    t: systemTexts,
     // Company data - structured as object (matches template expectations)
     company: {
-      company_name: companyName,
+      company_name: companyNameBase,
+      company_name_he: companyData?.company_name || "",
+      company_name_en: (companyData as any)?.company_name_en || "",
+      contact_first_name: language === "en"
+        ? ((companyData as any)?.contact_first_name_en || (companyData as any)?.contact_first_name || "")
+        : ((companyData as any)?.contact_first_name || ""),
       company_tax_id: companyData?.registration_number || "",
       company_address: companyData?.address || "",
       company_phone: companyPhone,
@@ -279,6 +332,8 @@ export default function PreviewClient({
       document_number: previewNumber || "",
       document_date: documentDate,
       document_type: "receipt",
+      language,
+      direction: language === "en" ? "ltr" : "rtl",
     },
     
     // Payments - with correct field names for template
@@ -289,14 +344,14 @@ export default function PreviewClient({
       return {
         method: p.method || "",
         details: paymentDetails,
-        display_date: formatDate(p.date),
-        display_amount: formatMoney(p.amount, p.currency || currency),
+          display_date: formatDate(p.date, language),
+          display_amount: formatMoney(p.amount, p.currency || currency, language),
         // Keep original fields for compatibility
         date: p.date,
         amount: p.amount,
         currency: p.currency || currency,
-        formattedDate: formatDate(p.date),
-        formattedAmount: formatMoney(p.amount, p.currency || currency),
+        formattedDate: formatDate(p.date, language),
+        formattedAmount: formatMoney(p.amount, p.currency || currency, language),
         // Extended fields
         reference: (p as any).reference || (p as any).reference_number || null,
         description: (p as any).description || (p as any).notes || null,
@@ -323,11 +378,11 @@ export default function PreviewClient({
     PAYMENTS_ROWS_HTML: paymentsRowsHTML,
     
     // Formatted values (matches template expectations)
-    formatted_total: formatMoney(total, currency),
-    formatted_date: formatDate(documentDate),
+    formatted_total: formatMoney(total, currency, language),
+    formatted_date: formatDate(documentDate, language),
     
     // Total amount (for {{TOTAL_AMOUNT}})
-    TOTAL_AMOUNT: formatMoney(total, currency),
+    TOTAL_AMOUNT: formatMoney(total, currency, language),
     
     // Notes data (matches template expectations)
     notes_data: {
@@ -344,7 +399,7 @@ export default function PreviewClient({
     
     // Document metadata (for backward compatibility)
     previewNumber: previewNumber || "",
-    documentDate: formatDate(documentDate),
+    documentDate: formatDate(documentDate, language),
     description: description || "",
     notes: notes || "",
     footerNotes: footerNotes || "",
@@ -353,7 +408,7 @@ export default function PreviewClient({
     formattedTotal: formatMoney(total, currency),
     
     // Company data (flat structure for backward compatibility)
-    companyName: companyName,
+    companyName: companyNameBase,
     companyRegistration: companyData?.registration_number || "",
     companyAddress: companyData?.address || "",
     companyPhone: companyPhone,
@@ -381,7 +436,7 @@ export default function PreviewClient({
     // Aliases for backward compatibility with different template variable names
     // Use null instead of empty string for logo/signature so template can use {{#if}} properly
     LOGO_URL: companyData?.logo_url && companyData.logo_url.trim() ? companyData.logo_url : null,
-    USERCOMPANYNAME: companyName,
+    USERCOMPANYNAME: companyNameBase,
     USERID: companyData?.registration_number || "",
     USERADDRESS: companyData?.address || "",
     PHONE: companyPhone,
@@ -1084,7 +1139,7 @@ export default function PreviewClient({
                 marginBottom: "15px",
               }}
             >
-              {companyName}
+              {companyNameBase}
             </div>
 
             {/* Company ID / VAT */}

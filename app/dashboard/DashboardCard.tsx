@@ -13,8 +13,9 @@ interface DashboardCardProps {
 
 export default function DashboardCard({ href, icon: Icon, title, description }: DashboardCardProps) {
   return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
+    <Link href={href} style={{ textDecoration: 'none' }} className="h-full block">
       <Card
+        className="h-full flex items-center"
         style={{
           backgroundColor: 'white',
           border: 'none',
@@ -22,6 +23,7 @@ export default function DashboardCard({ href, icon: Icon, title, description }: 
           boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
           cursor: 'pointer',
           transition: 'transform 0.2s, box-shadow 0.2s',
+          height: '160px',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'translateY(-2px)';
@@ -32,8 +34,8 @@ export default function DashboardCard({ href, icon: Icon, title, description }: 
           e.currentTarget.style.boxShadow = '0 0 13px 0 rgba(0,0,0,0.10)';
         }}
       >
-        <CardContent style={{ padding: '30px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+        <CardContent style={{ padding: '30px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -41,6 +43,7 @@ export default function DashboardCard({ href, icon: Icon, title, description }: 
               width: '48px',
               height: '48px',
               position: 'relative',
+              flexShrink: 0,
             }}>
               {/* Icon with two-tone gradient effect */}
               <div style={{ position: 'relative', width: '32px', height: '32px' }}>
@@ -72,12 +75,14 @@ export default function DashboardCard({ href, icon: Icon, title, description }: 
                 </div>
               </div>
             </div>
-          </div>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: '#19183B', marginBottom: '8px' }}>
-            {title}
-          </div>
-          <div style={{ fontSize: '18px', color: '#708993' }}>
-            {description}
+            <div className="min-w-0 flex-1">
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#19183B', marginBottom: '8px' }} className="truncate">
+                {title}
+              </div>
+              <div style={{ fontSize: '18px', color: '#708993' }} className="truncate">
+                {description}
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

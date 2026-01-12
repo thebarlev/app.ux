@@ -4,6 +4,7 @@
  */
 
 let textCache: Record<string, string> | null = null;
+let cacheKey: string | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -11,14 +12,22 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
  * Fetch all system texts from the API
  * Uses in-memory cache to reduce API calls
  */
-async function fetchSystemTexts(): Promise<Record<string, string>> {
+async function fetchSystemTexts(options?: { lang?: "he" | "en"; page?: string }): Promise<Record<string, string>> {
   // Return cached data if still valid
-  if (textCache && Date.now() - cacheTimestamp < CACHE_TTL) {
+  const lang = options?.lang || "he"
+  const page = options?.page
+  const nextKey = `${lang}:${page || "*"}`
+
+  if (textCache && cacheKey === nextKey && Date.now() - cacheTimestamp < CACHE_TTL) {
     return textCache;
   }
 
   try {
-    const response = await fetch("/api/system-texts", {
+    const qs = new URLSearchParams()
+    qs.set("lang", lang)
+    if (page) qs.set("page", page)
+
+    const response = await fetch(`/api/system-texts?${qs.toString()}`, {
       cache: "no-store",
     });
 
@@ -29,6 +38,7 @@ async function fetchSystemTexts(): Promise<Record<string, string>> {
 
     const data = await response.json();
     textCache = data.texts || {};
+    cacheKey = nextKey
     cacheTimestamp = Date.now();
     
     return textCache;
@@ -44,9 +54,10 @@ async function fetchSystemTexts(): Promise<Record<string, string>> {
  */
 export async function getSystemText(
   key: string,
-  fallback: string
+  fallback: string,
+  options?: { lang?: "he" | "en"; page?: string }
 ): Promise<string> {
-  const texts = await fetchSystemTexts();
+  const texts = await fetchSystemTexts(options);
   return texts[key] || fallback;
 }
 
@@ -63,5 +74,6 @@ export function preloadSystemTexts(): void {
  */
 export function clearTextCache(): void {
   textCache = null;
+  cacheKey = null;
   cacheTimestamp = 0;
 }

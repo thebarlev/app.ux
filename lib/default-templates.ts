@@ -9,114 +9,68 @@
  */
 export function getDefaultReceiptTemplate(): { html: string; css: string } {
   const html = `
-<div class="receipt-document">
-  <!-- Header Section -->
+<div class="receipt-document" dir="{{document.direction}}">
+  <!-- Header -->
   <div class="header">
-    {{#if company.logo_url}}
-    <img src="{{company.logo_url}}" alt="{{company.name}}" class="logo" />
+    {{#if company.company_logo}}
+    <img src="{{company.company_logo}}" alt="{{company.company_name}}" class="logo" />
     {{/if}}
     <div class="company-details">
-      <h1>{{company.name}}</h1>
-      {{#if company.tax_id}}
-      <p>ח.פ: {{company.tax_id}}</p>
+      <h1>{{company.company_name}}</h1>
+      {{#if company.company_tax_id}}
+      <p>{{company.company_tax_id}}</p>
       {{/if}}
-      {{#if company.address}}
-      <p>{{company.address}}</p>
+      {{#if company.company_address}}
+      <p>{{company.company_address}}</p>
       {{/if}}
-      {{#if company.phone}}
-      <p>טלפון: {{company.phone}}</p>
+      {{#if company.company_phone}}
+      <p>{{company.company_phone}}</p>
       {{/if}}
     </div>
   </div>
 
-  <!-- Document Info -->
+  <!-- Document title line -->
   <div class="document-info">
-    <h2>קבלה מס׳ {{document.number}}</h2>
-    <p>תאריך הנפקה: {{formatDate document.issue_date}}</p>
-    {{#if document.description}}
-    <p class="description">{{document.description}}</p>
+    <h2>{{t.receipt_title}} #{{document.document_number}}</h2>
+    <p>{{t.receipt_issue_date_label}} {{formatted_date}} | {{TIME}}</p>
+    {{#if description}}
+    <p class="description">{{description}}</p>
     {{/if}}
   </div>
 
-  <!-- Customer Info -->
-  {{#if customer}}
+  <!-- Customer -->
   <div class="customer-section">
-    <h3>פרטי לקוח</h3>
-    <p><strong>שם:</strong> {{customer.name}}</p>
-    {{#if customer.tax_id}}
-    <p><strong>ח.פ/ת.ז:</strong> {{customer.tax_id}}</p>
-    {{/if}}
-    {{#if customer.email}}
-    <p><strong>אימייל:</strong> {{customer.email}}</p>
-    {{/if}}
-    {{#if customer.phone}}
-    <p><strong>טלפון:</strong> {{customer.phone}}</p>
+    <div class="customer-line">
+      <span class="label">{{t.receipt_to_label}}</span>
+      <span class="value">{{customer.customer_name}}</span>
+    </div>
+    {{#if customer.customer_phone}}
+    <div class="customer-line">
+      <span class="label">{{t.receipt_phone_label}}</span>
+      <span class="value">{{customer.customer_phone}}</span>
+    </div>
     {{/if}}
   </div>
-  {{/if}}
 
-  <!-- Line Items Table -->
-  {{#if items}}
-  {{#if (gt items.length 0)}}
-  <table class="items-table">
-    <thead>
-      <tr>
-        <th>פריט</th>
-        <th>כמות</th>
-        <th>מחיר יחידה</th>
-        <th>סה״כ</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each items}}
-      <tr>
-        <td>
-          <strong>{{this.description}}</strong>
-          {{#if this.notes}}
-          <br><small>{{this.notes}}</small>
-          {{/if}}
-        </td>
-        <td>{{this.quantity}}</td>
-        <td>{{formatCurrency this.unit_price ../document.currency}}</td>
-        <td>{{formatCurrency this.line_total ../document.currency}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-  {{/if}}
-  {{/if}}
-
-  <!-- Payment Details Table -->
+  <!-- Payments -->
   {{#if payments}}
   {{#if (gt payments.length 0)}}
   <div class="payment-section">
-    <h3>פירוט תשלומים</h3>
+    <h3>{{t.receipt_payment_details_title}}</h3>
     <table class="payments-table">
       <thead>
         <tr>
-          <th>אמצעי תשלום</th>
-          <th>סכום</th>
-          <th>פרטים</th>
+          <th>{{t.receipt_payment_method_label}}</th>
+          <th>{{t.receipt_date_label}}</th>
+          <th>{{t.receipt_amount_label}}</th>
         </tr>
       </thead>
       <tbody>
         {{#each payments}}
         <tr>
-          <td>
-            {{#if (isPaymentMethod this.payment_method "cash")}}מזומן{{/if}}
-            {{#if (isPaymentMethod this.payment_method "credit_card")}}כרטיס אשראי{{/if}}
-            {{#if (isPaymentMethod this.payment_method "bank_transfer")}}העברה בנקאית{{/if}}
-            {{#if (isPaymentMethod this.payment_method "check")}}צ׳ק{{/if}}
-          </td>
-          <td>{{formatCurrency this.amount ../document.currency}}</td>
-          <td>
-            {{#if this.reference_number}}
-            {{this.reference_number}}
-            {{/if}}
-            {{#if this.notes}}
-            {{this.notes}}
-            {{/if}}
-          </td>
+          <td>{{this.method}}</td>
+          <td>{{this.display_date}}</td>
+          <td>{{this.display_amount}}</td>
         </tr>
         {{/each}}
       </tbody>
@@ -125,55 +79,33 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
   {{/if}}
   {{/if}}
 
-  <!-- Totals Section -->
+  <!-- Total -->
   <div class="totals-section">
-    {{#if totals.subtotal}}
-    <div class="total-row">
-      <span>סכום ביניים:</span>
-      <span>{{formatCurrency totals.subtotal document.currency}}</span>
-    </div>
-    {{/if}}
-    {{#if totals.vat_amount}}
-    <div class="total-row">
-      <span>מע״מ ({{formatPercent totals.vat_rate}}):</span>
-      <span>{{formatCurrency totals.vat_amount document.currency}}</span>
-    </div>
-    {{/if}}
-    {{#if totals.discount_amount}}
-    <div class="total-row discount">
-      <span>הנחה:</span>
-      <span>-{{formatCurrency totals.discount_amount document.currency}}</span>
-    </div>
-    {{/if}}
     <div class="total-row final">
-      <span><strong>סה״כ לתשלום:</strong></span>
-      <span><strong>{{formatCurrency totals.total_amount document.currency}}</strong></span>
+      <span class="label"><strong>{{t.receipt_total_label}}</strong></span>
+      <span class="value"><strong>{{formatted_total}}</strong></span>
     </div>
   </div>
 
-  <!-- Notes Section -->
-  {{#if notes.internal_notes}}
+  <!-- Notes -->
+  {{#if notes_data.notes}}
   <div class="notes-section">
-    <h4>הערות:</h4>
-    <p>{{notes.internal_notes}}</p>
+    <h4>{{t.receipt_internal_notes_label}}</h4>
+    <p>{{notes_data.notes}}</p>
   </div>
   {{/if}}
 
-  <!-- Signature Section -->
-  {{#if company.signature_url}}
+  <!-- Signature -->
+  {{#if notes_data.signature}}
   <div class="signature-section">
-    <p>חתימת החברה:</p>
-    <img src="{{company.signature_url}}" alt="חתימה" class="signature" />
+    <img src="{{notes_data.signature}}" alt="signature" class="signature" />
   </div>
   {{/if}}
 
   <!-- Footer -->
   <div class="footer">
-    {{#if notes.footer_text}}
-    <p>{{notes.footer_text}}</p>
-    {{else}}
-    <p>תודה על העסקה!</p>
-    {{/if}}
+    <p>{{t.receipt_footer_generated_text}}</p>
+    <p>{{t.receipt_footer_print_date_label}} {{CURRENT_DATE_TIME}}</p>
   </div>
 </div>
   `.trim()
@@ -185,7 +117,8 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
   padding: 40px;
   font-family: 'Heebo', 'Arial', sans-serif;
   color: #1a1a1a;
-  direction: rtl;
+  direction: inherit;
+  text-align: start;
 }
 
 .header {

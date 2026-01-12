@@ -1,4 +1,8 @@
-export function RegistrationLogo() {
+interface RegistrationLogoProps {
+  titleSize?: "default" | "small"
+}
+
+export function RegistrationLogo({ titleSize = "default" }: RegistrationLogoProps = {}) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex h-12 w-12 items-center justify-center rounded-[10px] bg-primary/10">
@@ -27,8 +31,8 @@ export function RegistrationLogo() {
         </svg>
       </div>
       <div className="text-center">
-        <h1 className="text-lg font-semibold text-fg">ברלב הנהלת חשבונות</h1>
-        <p className="text-sm text-muted-fg">הצטרפות למערכת</p>
+        <h1 className={titleSize === "small" ? "text-[44px]" : ""}>ברלב הנהלת חשבונות</h1>
+        <p>הצטרפות למערכת</p>
       </div>
     </div>
   )
