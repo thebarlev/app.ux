@@ -60,10 +60,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany1',hypothesisId:'PV1',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Resolved company via documents.company_id',data:{hasDocumentId:true,documentIdSuffix:String(documentId).slice(-6),hasDoc:Boolean(doc),docErrorCode:(docError as any)?.code??null,hasCompanyId:Boolean(doc?.company_id),companyIdSuffix:doc?.company_id?String(doc.company_id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
 
-      // #region agent log (hypothesisId=PV9)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewDesc2',hypothesisId:'PV9',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Document description from DB (length only)',data:{documentIdSuffix:String(documentId).slice(-6),descLen:typeof (doc as any)?.document_description==='string'?(doc as any).document_description.length:0,hasDesc:Boolean((doc as any)?.document_description&&String((doc as any).document_description).trim())},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-
       documentDescriptionFromDb =
         typeof (doc as any)?.document_description === "string"
           ? String((doc as any).document_description)

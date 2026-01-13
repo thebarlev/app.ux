@@ -490,9 +490,28 @@ export default function ReceiptFormClient({
     if (!description || description.trim().length < 5) {
       console.log("[FINALIZE_RECEIPT] Validation failed: description too short", { length: description?.length });
       setDescriptionError("התיאור חובה, לפחות 5 תווים");
-      focusFieldWithError(descriptionInputRef);
       setIsFinalizing(false);
       setConfirmationModalOpen(false);
+      // Scroll to the field after the modal closes (modal locks body scroll while open)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el =
+            (descriptionInputRef.current as any) ||
+            (typeof document !== "undefined" ? document.getElementById("description") : null);
+          if (el && typeof el.scrollIntoView === "function") {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (typeof el.focus === "function") el.focus();
+            if (typeof el.classList?.add === "function") {
+              el.classList.add("error-field");
+              setTimeout(() => {
+                try {
+                  el.classList.remove("error-field");
+                } catch {}
+              }, 3000);
+            }
+          }
+        });
+      });
       return;
     }
     
@@ -815,6 +834,7 @@ export default function ReceiptFormClient({
         >
           <Input
             id="description"
+            ref={descriptionInputRef}
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);

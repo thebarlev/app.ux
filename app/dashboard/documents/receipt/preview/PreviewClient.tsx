@@ -520,16 +520,6 @@ export default function PreviewClient({
   }
   // #endregion
 
-  // #region agent log (hypothesisId=PV9)
-  if (process.env.NODE_ENV !== "production") {
-    const w = window as any;
-    if (!w.__PREVIEW_DESC_DEBUG_ONCE__) {
-      w.__PREVIEW_DESC_DEBUG_ONCE__ = true;
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewDesc2',hypothesisId:'PV9',location:'app/dashboard/documents/receipt/preview/PreviewClient.tsx',message:'PreviewClient description (length only)',data:{hasDocumentId:Boolean(documentIdParam),descLen:typeof description==='string'?description.length:0,hasDesc:Boolean(description&&description.trim()),descKeyLen:typeof (templateData as any).DESCRIPTION==='string'?(templateData as any).DESCRIPTION.length:0,descKeyTruthy:Boolean((templateData as any).DESCRIPTION&&String((templateData as any).DESCRIPTION).trim())},timestamp:Date.now()})}).catch(()=>{});
-    }
-  }
-  // #endregion
-  
   // Function to process template with data
   const processTemplate = (html: string) => {
     try {

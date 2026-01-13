@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import SettingsClient from "./SettingsClient";
 
 export default async function SettingsPage() {
@@ -143,11 +144,6 @@ export default async function SettingsPage() {
     fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H9',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Fetched company for settings (registration_number + companyId suffix)',data:{companyIdSuffix:typeof companyId==='string'?companyId.slice(-6):null,hasCompany:Boolean(company),hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
 
-    // #region agent log (hypothesisId=SL1)
-    const _logoUrl = typeof company?.logo_url === "string" ? company.logo_url : "";
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settingsLogo1',hypothesisId:'SL1',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Settings company.logo_url shape (no PII)',data:{hasLogoUrl:Boolean(_logoUrl&&_logoUrl.trim()),logoLen:_logoUrl.length,isHttp:_logoUrl.startsWith('http'),isStoragePublic:_logoUrl.includes('/storage/v1/object/public/'),hasBusinessLogos:_logoUrl.includes('business-logos/'),hasBusinessAssets:_logoUrl.includes('business-assets')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // Fetch available templates
     const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
     
@@ -181,9 +177,43 @@ export default async function SettingsPage() {
       );
     }
 
+    // If Storage bucket is private, "publicUrl" may 403 in browser.
+    // For Settings UI display only, prefer a signed URL when we can derive the storage path.
+    const adminClient = createAdminClient();
+    const extractStoragePath = (url: string | null | undefined): string | null => {
+      if (!url) return null;
+      // If full "public" URL, extract the object key after /business-assets/
+      const m1 = String(url).match(/\/storage\/v1\/object\/public\/business-assets\/(.+)$/);
+      if (m1?.[1]) return m1[1];
+      // If it's already an object key
+      if (String(url).startsWith("business-logos/") || String(url).startsWith("business-signatures/")) return String(url);
+      // Generic extract of known folders
+      const m2 = String(url).match(/(business-(logos|signatures)\/[^?#]+)/);
+      if (m2?.[1]) return m2[1];
+      return null;
+    };
+
+    const makeSignedUrl = async (storagePath: string | null): Promise<string | null> => {
+      if (!storagePath) return null;
+      const { data, error } = await adminClient.storage.from("business-assets").createSignedUrl(storagePath, 3600);
+      if (error || !data?.signedUrl) return null;
+      return data.signedUrl;
+    };
+
+    const logoStoragePath = extractStoragePath(company.logo_url);
+    const signatureStoragePath = extractStoragePath(company.signature_url);
+    const signedLogoUrl = await makeSignedUrl(logoStoragePath);
+    const signedSignatureUrl = await makeSignedUrl(signatureStoragePath);
+
+    const companyForClient = {
+      ...company,
+      logo_url: signedLogoUrl || company.logo_url,
+      signature_url: signedSignatureUrl || company.signature_url,
+    };
+
     return (
       <SettingsClient 
-        company={company} 
+        company={companyForClient as any} 
         initialTemplates={templates || []}
       />
     );

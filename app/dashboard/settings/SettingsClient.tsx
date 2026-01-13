@@ -86,6 +86,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
+  const logoObjectUrlRef = useRef<string | null>(null);
+  const signatureObjectUrlRef = useRef<string | null>(null);
 
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
@@ -118,6 +120,51 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg',hypothesisId:'H10',location:'app/dashboard/settings/SettingsClient.tsx:SettingsClient',message:'registration_number visibility check (no PII)',data:{hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0,formRegistrationNumberLen:typeof (formData as any)?.registration_number==='string'?(formData as any).registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep local state in sync with refreshed server props (e.g., signed URLs).
+  useEffect(() => {
+    if (company.logo_url && company.logo_url !== logoUrl) {
+      // Revoke any previous local object URL when server URL arrives
+      if (logoObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(logoObjectUrlRef.current);
+        } catch {}
+        logoObjectUrlRef.current = null;
+      }
+      setLogoUrl(company.logo_url);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.logo_url]);
+
+  useEffect(() => {
+    if (company.signature_url && company.signature_url !== signatureUrl) {
+      if (signatureObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(signatureObjectUrlRef.current);
+        } catch {}
+        signatureObjectUrlRef.current = null;
+      }
+      setSignatureUrl(company.signature_url);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [company.signature_url]);
+
+  useEffect(() => {
+    return () => {
+      if (logoObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(logoObjectUrlRef.current);
+        } catch {}
+        logoObjectUrlRef.current = null;
+      }
+      if (signatureObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(signatureObjectUrlRef.current);
+        } catch {}
+        signatureObjectUrlRef.current = null;
+      }
+    };
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -236,6 +283,17 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     setIsUploadingLogo(true);
     setMessage(null);
 
+    // Immediate local preview (doesn't depend on storage permissions)
+    if (logoObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(logoObjectUrlRef.current);
+      } catch {}
+      logoObjectUrlRef.current = null;
+    }
+    const localPreview = URL.createObjectURL(file);
+    logoObjectUrlRef.current = localPreview;
+    setLogoUrl(localPreview);
+
     const formData = new FormData();
     formData.append("logo", file);
 
@@ -288,6 +346,16 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
     setIsUploadingSignature(true);
     setMessage(null);
+
+    if (signatureObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(signatureObjectUrlRef.current);
+      } catch {}
+      signatureObjectUrlRef.current = null;
+    }
+    const localPreview = URL.createObjectURL(file);
+    signatureObjectUrlRef.current = localPreview;
+    setSignatureUrl(localPreview);
 
     const formData = new FormData();
     formData.append("signature", file);
@@ -406,181 +474,182 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
           </Card>
         )}
 
-        {/* Logo & Signature Section - Combined */}
-        <FormSection title="לוגו וחתימת העסק">
-          {/* Show installation notice if signature_url field doesn't exist */}
-          {company.signature_url === undefined && (
-            <Card className="mb-6 border-warning bg-warning/10">
-              <CardContent className="p-4">
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>📋 נדרשת התקנה לחתימה</div>
-                <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6, color: '#19183B' }}>
-                  כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>scripts/016-add-signature-field.sql</code>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Combined Grid: Logo on Right, Signature on Left */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
-            
-            {/* Logo Section */}
-            <div>
-              <h3 style={{ marginBottom: 12 }}>לוגו העסק</h3>
-            
-              {/* Logo Preview */}
-              <div
-                style={{
-                  width: "100%",
-                  minHeight: 160,
-                  borderWidth: 2,
-                  borderStyle: "dashed",
-                  borderColor: "#EDF1F5",
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 20,
-                  marginBottom: 16,
-                  backgroundColor: "#EDF1F5",
-                }}
-              >
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt="Company Logo"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "140px",
-                      width: "auto",
-                      height: "auto",
-                      objectFit: "contain",
-                      display: "block",
-                    }}
-                  />
-                ) : (
-                  <div style={{ textAlign: "center", opacity: 0.4 }}>
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                    <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 50 }}>
+          {/* Logo & Signature Section - Combined */}
+          <FormSection title="לוגו וחתימת העסק">
+            {/* Show installation notice if signature_url field doesn't exist */}
+            {company.signature_url === undefined && (
+              <Card className="mb-6 border-warning bg-warning/10">
+                <CardContent className="p-4">
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>📋 נדרשת התקנה לחתימה</div>
+                  <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6, color: '#19183B' }}>
+                    כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>scripts/016-add-signature-field.sql</code>
                   </div>
-                )}
-              </div>
+                </CardContent>
+              </Card>
+            )}
 
-              <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
-                הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
-              </p>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                onChange={handleLogoUpload}
-                style={{ display: "none" }}
-              />
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingLogo}
-                  style={{ height: '50px', fontSize: '18px' }}
-                >
-                  {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
-                </Button>
-
-                {logoUrl && (
-                  <Button
-                    onClick={handleDeleteLogo}
-                    disabled={isUploadingLogo}
-                    variant="danger"
-                    style={{ height: '50px', fontSize: '18px' }}
-                  >
-                    מחק
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Signature Section */}
-            <div>
-              <h3 style={{ marginBottom: 12 }}>חתימת העסק</h3>
+            {/* Combined Grid: Logo on Right, Signature on Left */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
               
-              {/* Signature Preview */}
-              <div
-                style={{
-                  width: "100%",
-                  minHeight: 160,
-                  borderWidth: 2,
-                  borderStyle: "dashed",
-                  borderColor: "#EDF1F5",
-                  borderRadius: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 20,
-                  marginBottom: 16,
-                  backgroundColor: "#EDF1F5",
-                }}
-              >
-                {signatureUrl ? (
-                  <img
-                    src={signatureUrl}
-                    alt="Business Signature"
-                    style={{
-                      maxWidth: "100%",
-                      maxHeight: "140px",
-                      width: "auto",
-                      height: "auto",
-                      objectFit: "contain",
-                      display: "block",
-                    }}
-                  />
-                ) : (
-                  <div style={{ textAlign: "center", opacity: 0.4 }}>
-                    <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                    <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
-                  </div>
-                )}
-              </div>
-
-              <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
-                החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
-              </p>
-
-              <input
-                ref={signatureInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-                onChange={handleSignatureUpload}
-                style={{ display: "none" }}
-              />
-
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button
-                  onClick={() => signatureInputRef.current?.click()}
-                  disabled={isUploadingSignature}
-                  style={{ height: '50px', fontSize: '18px' }}
+              {/* Logo Section */}
+              <div>
+                <h3 style={{ marginBottom: 12 }}>לוגו העסק</h3>
+              
+                {/* Logo Preview */}
+                <div
+                  style={{
+                    width: "100%",
+                    height: 200,
+                    borderWidth: 2,
+                    borderStyle: "dashed",
+                    borderColor: "#EDF1F5",
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 20,
+                    marginBottom: 16,
+                    backgroundColor: "#EDF1F5",
+                  }}
                 >
-                  {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
-                </Button>
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Company Logo"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "140px",
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: "center", opacity: 0.4 }}>
+                      <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                      <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                    </div>
+                  )}
+                </div>
 
-                {signatureUrl && (
+                <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                  הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  style={{ display: "none" }}
+                />
+
+                <div style={{ display: "flex", gap: 8 }}>
                   <Button
-                    onClick={handleDeleteSignature}
-                    disabled={isUploadingSignature}
-                    variant="danger"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
                     style={{ height: '50px', fontSize: '18px' }}
                   >
-                    מחק
+                    {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
                   </Button>
-                )}
+
+                  {logoUrl && (
+                    <Button
+                      onClick={handleDeleteLogo}
+                      disabled={isUploadingLogo}
+                      variant="danger"
+                      style={{ height: '50px', fontSize: '18px' }}
+                    >
+                      מחק
+                    </Button>
+                  )}
+                </div>
               </div>
+
+              {/* Signature Section */}
+              <div>
+                <h3 style={{ marginBottom: 12 }}>חתימת העסק</h3>
+                
+                {/* Signature Preview */}
+                <div
+                  style={{
+                    width: "100%",
+                    height: 200,
+                    borderWidth: 2,
+                    borderStyle: "dashed",
+                    borderColor: "#EDF1F5",
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 20,
+                    marginBottom: 16,
+                    backgroundColor: "#EDF1F5",
+                  }}
+                >
+                  {signatureUrl ? (
+                    <img
+                      src={signatureUrl}
+                      alt="Business Signature"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "140px",
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: "center", opacity: 0.4 }}>
+                      <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
+                      <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                  החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
+                </p>
+
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onChange={handleSignatureUpload}
+                  style={{ display: "none" }}
+                />
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button
+                    onClick={() => signatureInputRef.current?.click()}
+                    disabled={isUploadingSignature}
+                    style={{ height: '50px', fontSize: '18px' }}
+                  >
+                    {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
+                  </Button>
+
+                  {signatureUrl && (
+                    <Button
+                      onClick={handleDeleteSignature}
+                      disabled={isUploadingSignature}
+                      variant="danger"
+                      style={{ height: '50px', fontSize: '18px' }}
+                    >
+                      מחק
+                    </Button>
+                  )}
+                </div>
+              </div>
+
             </div>
+          </FormSection>
 
-          </div>
-        </FormSection>
-
-        {/* Business Details Section */}
-        <FormSection title="פרטי העסק">
-          <div className="ui-form-grid">
+          {/* Business Details Section */}
+          <FormSection title="פרטי העסק">
+            <div className="ui-form-grid">
             {/* Company Name */}
             <FieldWrapper label="שם העסק" id="company_name" required>
               <Input
@@ -776,21 +845,22 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 placeholder="https://example.com"
               />
             </FieldWrapper>
-          </div>
-        </FormSection>
+            </div>
+          </FormSection>
 
-        {/* Template Selection Section - Simple List */}
-        <FormSection title="בחירת תבניות מסמכים" description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.">
-          <SimpleTemplateSelector />
-        </FormSection>
+          {/* Template Selection Section - Simple List */}
+          <FormSection title="בחירת תבניות מסמכים" description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.">
+            <SimpleTemplateSelector />
+          </FormSection>
 
-        {/* Action Buttons */}
-        <FormActions
-          primaryLabel={isSaving ? "שומר..." : "שמור שינויים"}
-          onPrimaryClick={handleSaveDetails}
-          primaryLoading={isSaving}
-          primaryDisabled={isSaving}
-        />
+          {/* Action Buttons */}
+          <FormActions
+            primaryLabel={isSaving ? "שומר..." : "שמור שינויים"}
+            onPrimaryClick={handleSaveDetails}
+            primaryLoading={isSaving}
+            primaryDisabled={isSaving}
+          />
+        </div>
       </div>
     </main>
   );

@@ -160,7 +160,9 @@ export type BusinessDetailsPayload = {
   company_name: string;
   company_name_en?: string;
   business_type: "osek_patur" | "osek_murshe" | "ltd" | "partnership" | "other";
-  company_number: string;
+  // Company identifier fields exist in DB but Settings does not update them via this action.
+  company_number?: string;
+  registration_number?: string;
   industry: string;
   custom_industry: string;
   street: string;
