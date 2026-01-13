@@ -42,10 +42,27 @@ export async function GET() {
     const { data, error } = await query
 
     if (error) {
+      console.error("[TEMPLATE_FETCH] /api/templates/user-templates error:", error)
       return NextResponse.json(
         { ok: false, message: error.message },
         { status: 500 }
       )
+    }
+
+    const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] /api/templates/user-templates result:", {
+        companyId: companyId?.substring(0, 8) || 'null',
+        count: data?.length || 0,
+        templates: data?.map((t: any) => ({
+          id: t.id.substring(0, 8),
+          name: t.name,
+          document_type: t.document_type,
+          company_id: t.company_id ? t.company_id.substring(0, 8) : 'global',
+          is_default: t.is_default,
+          is_active: t.is_active
+        }))
+      })
     }
 
     return NextResponse.json({

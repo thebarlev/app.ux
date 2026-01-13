@@ -191,8 +191,8 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
         name: payload.name,
         description: payload.description || null,
         document_type: payload.documentType,
-        html_he: payload.htmlHe,
-        css_he: payload.cssHe || null,
+        html_template: payload.htmlHe,
+        css: payload.cssHe || null,
         html_en: payload.htmlEn || null,
         css_en: payload.cssEn || null,
         thumbnail_url: payload.thumbnailUrl || null,
@@ -262,12 +262,21 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
 
     // If setting as default, unset other defaults
     if (payload.isDefault) {
-      await supabase
-        .from("templates")
-        .update({ is_default: false })
-        .eq("company_id", companyId)
-        .eq("document_type", payload.documentType)
-        .neq("id", payload.id)
+      if (existing.company_id === null) {
+        await supabase
+          .from("templates")
+          .update({ is_default: false })
+          .is("company_id", null)
+          .eq("document_type", payload.documentType)
+          .neq("id", payload.id)
+      } else {
+        await supabase
+          .from("templates")
+          .update({ is_default: false })
+          .eq("company_id", companyId)
+          .eq("document_type", payload.documentType)
+          .neq("id", payload.id)
+      }
     }
 
     // Update template
@@ -277,8 +286,8 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
         name: payload.name,
         description: payload.description || null,
         document_type: payload.documentType,
-        html_he: payload.htmlHe,
-        css_he: payload.cssHe || null,
+        html_template: payload.htmlHe,
+        css: payload.cssHe || null,
         html_en: payload.htmlEn || null,
         css_en: payload.cssEn || null,
         thumbnail_url: payload.thumbnailUrl || null,
@@ -372,41 +381,62 @@ export async function deleteTemplateAction(templateId: string) {
 export async function duplicateTemplateAction(templateId: string) {
   try {
     const supabase = await createClient()
-    const companyId = await getCompanyIdForUser()
-
-    // Get original template
-    const { data: original, error: fetchError } = await supabase
-      .from("templates")
-      .select("*")
-      .eq("id", templateId)
-      .or(`company_id.eq.${companyId},company_id.is.null`)
-      .single()
-
-    if (fetchError || !original) {
-      return { ok: false as const, message: "תבנית לא נמצאה" }
-    }
-
+    
     // Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       return { ok: false as const, message: "משתמש לא מחובר" }
     }
 
-    // Create duplicate (always for current company, never global)
+    // Check if user is admin
+    const { data: adminData } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
+    const isAdmin = !!adminData
+
+    // Company ID is only required for non-admin users
+    const companyId = isAdmin ? null : await getCompanyIdForUser()
+
+    // Get original template
+    let originalQuery = supabase
+      .from("templates")
+      .select("*")
+      .eq("id", templateId)
+    
+    // Non-admins can only duplicate their company templates + global templates
+    if (!isAdmin && companyId) {
+      originalQuery = originalQuery.or(`company_id.eq.${companyId},company_id.is.null`)
+    }
+
+    const { data: original, error: fetchError } = await originalQuery.single()
+
+    if (fetchError || !original) {
+      return { ok: false as const, message: "תבנית לא נמצאה" }
+    }
+
+    // Destination scope:
+    // - Admin: preserve the original scope (global stays global; company stays with that company_id)
+    // - Non-admin: always duplicate into the user's company
+    const destinationCompanyId: string | null = isAdmin ? (original.company_id ?? null) : companyId
+
+    // Create duplicate
     const { data, error } = await supabase
       .from("templates")
       .insert({
-        company_id: companyId,
+        company_id: destinationCompanyId,
         name: `${original.name} (עותק)`,
         description: original.description,
         document_type: original.document_type,
-        html_he: (original as any).html_he || (original as any).html_template || null,
-        css_he: (original as any).css_he || (original as any).css || null,
+        html_template: (original as any).html_template || null,
+        css: (original as any).css || null,
         html_en: (original as any).html_en || null,
         css_en: (original as any).css_en || null,
+        thumbnail_url: (original as any).thumbnail_url || null,
         // Legacy fields intentionally not copied as source of truth.
         is_default: false, // Never set duplicate as default
-        is_active: true,
+        is_active: (original as any).is_active !== false,
         created_by: user.id,
       })
       .select("id")

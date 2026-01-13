@@ -50,23 +50,139 @@ export async function getTemplateForDocument(
   const supabase = await createClient()
   const language: "he" | "en" = options?.language || "he"
   const allowFallbackToHe = options?.allowFallbackToHe === true
+  const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+
+  // #region agent log
+  const __dbgRunId = process.env.DEBUG_TEMPLATES_RUN_ID || "pre-fix"
+  const __dbgPost = (hypothesisId: string, location: string, message: string, data: any) => {
+    if (!DEBUG_TEMPLATES) return
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'debug-session',
+        runId: __dbgRunId,
+        hypothesisId,
+        location,
+        message,
+        data,
+        timestamp: Date.now(),
+      })
+    }).catch(() => {});
+  }
+  // #endregion
+
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
+      companyId,
+      documentType,
+      language,
+      allowFallbackToHe
+    })
+    // #region agent log
+    __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:entry", "entry", {
+      companyId8: String(companyId).substring(0, 8),
+      documentType,
+      language,
+      allowFallbackToHe,
+    })
+    // #endregion
+
+    // Diagnostic: compare what the user-session (RLS) can see vs what admin/service role can see.
+    // This proves whether the issue is RLS visibility vs missing/mismatched data.
+    try {
+      const { data: rlsVisible, error: rlsError } = await supabase
+        .from("templates")
+        .select("id, name, document_type, company_id, is_active, is_default, created_at")
+        .eq("document_type", documentType)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+
+      console.log("[TEMPLATE_FETCH] RLS-visible active templates for type:", {
+        documentType,
+        count: rlsVisible?.length || 0,
+        error: rlsError?.message,
+        templates: (rlsVisible || []).slice(0, 10).map((t: any) => ({
+          id: String(t.id).substring(0, 8),
+          name: t.name,
+          company_id: t.company_id ? String(t.company_id).substring(0, 8) : "global",
+          is_default: t.is_default,
+        })),
+      })
+      // #region agent log
+      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:rlsVisible", "RLS-visible templates", {
+        documentType,
+        count: rlsVisible?.length || 0,
+        ids8: (rlsVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
+        scopes: (rlsVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
+        defaults: (rlsVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
+      })
+      // #endregion
+    } catch (e: any) {
+      console.warn("[TEMPLATE_FETCH] Failed to fetch RLS-visible templates (diagnostic):", e?.message || e)
+    }
+
+    try {
+      const admin = createAdminClient()
+      const { data: adminVisible, error: adminError } = await admin
+        .from("templates")
+        .select("id, name, document_type, company_id, is_active, is_default, created_at")
+        .eq("document_type", documentType)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+
+      console.log("[TEMPLATE_FETCH] Admin-visible active templates for type:", {
+        documentType,
+        count: adminVisible?.length || 0,
+        error: adminError?.message,
+        templates: (adminVisible || []).slice(0, 10).map((t: any) => ({
+          id: String(t.id).substring(0, 8),
+          name: t.name,
+          company_id: t.company_id ? String(t.company_id).substring(0, 8) : "global",
+          is_default: t.is_default,
+        })),
+      })
+      // #region agent log
+      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:adminVisible", "Admin-visible templates", {
+        documentType,
+        count: adminVisible?.length || 0,
+        ids8: (adminVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
+        scopes: (adminVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
+        defaults: (adminVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
+      })
+      // #endregion
+    } catch (e: any) {
+      console.warn("[TEMPLATE_FETCH] Failed to fetch admin-visible templates (diagnostic):", e?.message || e)
+    }
+  }
 
   const pickVariant = (row: any) => {
-    const heHtml = row?.html_he ?? null
-    const heCss = row?.css_he ?? null
-    const enHtml = row?.html_en ?? null
-    const enCss = row?.css_en ?? null
+    // Strict language gating:
+    // - Hebrew source: html_template/css
+    // - English source: html_en/css_en
+    // Non-negotiable:
+    // - Use English ONLY when language === "en"
+    // - If language === "en" but html_en missing/empty -> fallback to Hebrew and set resolvedLanguage="he"
+    const heHtml: string | null = row?.html_template ?? row?.html ?? null
+    const heCss: string = row?.css ?? ""
+    const enHtml: string | null = row?.html_en ?? null
+    const enCss: string | null = row?.css_en ?? null
 
     if (language === "en") {
       if (typeof enHtml === "string" && enHtml.trim().length > 0) {
-        return { html: enHtml, css: enCss || "", resolvedLanguage: "en" as const, didFallbackToHe: false }
+        const css = typeof enCss === "string" && enCss.trim().length > 0 ? enCss : heCss
+        return { html: enHtml, css: css || "", resolvedLanguage: "en" as const, didFallbackToHe: false }
       }
-      if (allowFallbackToHe && typeof heHtml === "string" && heHtml.trim().length > 0) {
+
+      // Fallback (chosen by user): render Hebrew when English is missing/empty
+      if (typeof heHtml === "string" && heHtml.trim().length > 0) {
         return { html: heHtml, css: heCss || "", resolvedLanguage: "he" as const, didFallbackToHe: true }
       }
-      throw new Error("TEMPLATE_MISSING_LANGUAGE:en")
+
+      throw new Error("TEMPLATE_MISSING_LANGUAGE:he")
     }
 
+    // language !== "en" -> ALWAYS Hebrew
     if (typeof heHtml === "string" && heHtml.trim().length > 0) {
       return { html: heHtml, css: heCss || "", resolvedLanguage: "he" as const, didFallbackToHe: false }
     }
@@ -81,16 +197,34 @@ export async function getTemplateForDocument(
     .eq("document_type", documentType)
     .maybeSingle()
 
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] PRIORITY 0 - userSelection:", {
+      found: !!userSelection,
+      templateId: userSelection?.template_id
+    })
+  }
+
   if (userSelection?.template_id) {
     const { data: selectedTemplate } = await supabase
       .from("templates")
-      .select("id, html_he, css_he, html_en, css_en, is_active, name")
+      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
       .eq("id", userSelection.template_id)
       .eq("is_active", true)
       .maybeSingle()
 
     if (selectedTemplate) {
       console.log(`✅ Using user-selected template from settings: ${selectedTemplate.name || selectedTemplate.id} (${selectedTemplate.id})`)
+      if (DEBUG_TEMPLATES) {
+        console.log("[TEMPLATE_FETCH] Selected template details:", {
+          id: selectedTemplate.id,
+          name: selectedTemplate.name,
+          hasHtml: !!(selectedTemplate as any).html_template,
+          htmlLength: ((selectedTemplate as any).html_template || "").length,
+          hasCss: !!(selectedTemplate as any).css,
+          cssLength: ((selectedTemplate as any).css || "").length,
+          isActive: selectedTemplate.is_active
+        })
+      }
       const picked = pickVariant(selectedTemplate)
       return {
         ...picked,
@@ -105,15 +239,31 @@ export async function getTemplateForDocument(
   // PRIORITY 1: Company's default template
   const { data: companyDefault } = await supabase
     .from("templates")
-    .select("id, html_he, css_he, html_en, css_en, is_active")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
     .eq("company_id", companyId)
     .eq("document_type", documentType)
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
 
+  if (DEBUG_TEMPLATES) {
+    console.log("[TEMPLATE_FETCH] PRIORITY 1 - companyDefault:", {
+      found: !!companyDefault,
+      templateId: companyDefault?.id
+    })
+  }
+
   if (companyDefault) {
     console.log(`✅ Using company default template: ${companyDefault.id}`)
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] Company default template details:", {
+        id: companyDefault.id,
+        hasHtml: !!(companyDefault as any).html_template,
+        htmlLength: ((companyDefault as any).html_template || "").length,
+        hasCss: !!(companyDefault as any).css,
+        cssLength: ((companyDefault as any).css || "").length
+      })
+    }
     const picked = pickVariant(companyDefault)
     return {
       ...picked,
@@ -122,17 +272,198 @@ export async function getTemplateForDocument(
   }
 
   // PRIORITY 2: Global default template
-  const { data: globalDefault } = await supabase
+  const { data: globalDefault, error: globalDefaultError } = await supabase
     .from("templates")
-    .select("id, html_he, css_he, html_en, css_en, is_active, name")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
     .is("company_id", null)
     .eq("document_type", documentType)
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
 
+  if (DEBUG_TEMPLATES) {
+    const RUN_ID = process.env.DEBUG_TEMPLATES_RUN_ID || "pre-fix"
+
+    // 1) Exact PRIORITY 2 query result: { data, error }
+    console.log(`[TEMPLATE_FETCH][runId=${RUN_ID}] PRIORITY 2 raw query result:`, {
+      data: globalDefault
+        ? {
+            id: globalDefault.id,
+            name: (globalDefault as any).name,
+            company_id: (globalDefault as any).company_id,
+            company_id_typeof: typeof (globalDefault as any).company_id,
+            document_type: (globalDefault as any).document_type,
+            is_default: (globalDefault as any).is_default,
+            is_active: (globalDefault as any).is_active,
+          }
+        : null,
+      error: globalDefaultError
+        ? {
+            message: globalDefaultError.message,
+            code: (globalDefaultError as any).code,
+            details: (globalDefaultError as any).details,
+            hint: (globalDefaultError as any).hint,
+          }
+        : null,
+    })
+
+    // #region agent log
+    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_raw", "PRIORITY2 raw query result", {
+      runId: RUN_ID,
+      found: !!globalDefault,
+      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
+      name: (globalDefault as any)?.name || null,
+      company_id: (globalDefault as any)?.company_id ?? null,
+      company_id_typeof: typeof (globalDefault as any)?.company_id,
+      is_default: (globalDefault as any)?.is_default ?? null,
+      is_active: (globalDefault as any)?.is_active ?? null,
+      errorMessage: globalDefaultError?.message || null,
+      errorCode: (globalDefaultError as any)?.code || null,
+      errorDetails: (globalDefaultError as any)?.details || null,
+      errorHint: (globalDefaultError as any)?.hint || null,
+    })
+    // #endregion
+
+    // 2) Verification count query: how many rows match the PRIORITY 2 filters (under RLS)
+    const { count: verifyCount, error: verifyCountError } = await supabase
+      .from("templates")
+      .select("id", { count: "exact", head: true })
+      .is("company_id", null)
+      .eq("document_type", documentType)
+      .eq("is_default", true)
+      .eq("is_active", true)
+
+    console.log(`[TEMPLATE_FETCH][runId=${RUN_ID}] PRIORITY 2 verify count (RLS):`, {
+      count: verifyCount ?? null,
+      error: verifyCountError
+        ? {
+            message: verifyCountError.message,
+            code: (verifyCountError as any).code,
+            details: (verifyCountError as any).details,
+            hint: (verifyCountError as any).hint,
+          }
+        : null,
+    })
+
+    // #region agent log
+    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_verify_count", "PRIORITY2 verify count", {
+      runId: RUN_ID,
+      count: verifyCount ?? null,
+      errorMessage: verifyCountError?.message || null,
+      errorCode: (verifyCountError as any)?.code || null,
+    })
+    // #endregion
+
+    // 3) Candidate global rows (limit 5) to validate company_id values
+    const { data: globalCandidates5, error: globalCandidates5Error } = await supabase
+      .from("templates")
+      .select("id, name, company_id, is_default, is_active, document_type, created_at")
+      .is("company_id", null)
+      .eq("document_type", documentType)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(5)
+
+    console.log(`[TEMPLATE_FETCH][runId=${RUN_ID}] PRIORITY 2 candidates (company_id IS NULL, limit 5):`, {
+      length: globalCandidates5?.length || 0,
+      error: globalCandidates5Error
+        ? {
+            message: globalCandidates5Error.message,
+            code: (globalCandidates5Error as any).code,
+            details: (globalCandidates5Error as any).details,
+            hint: (globalCandidates5Error as any).hint,
+          }
+        : null,
+      rows: (globalCandidates5 || []).map((t: any) => ({
+        id8: String(t.id).substring(0, 8),
+        name: t.name,
+        company_id: t.company_id,
+        company_id_typeof: typeof t.company_id,
+        is_default: !!t.is_default,
+        is_active: !!t.is_active,
+        document_type: t.document_type,
+      })),
+    })
+
+    // #region agent log
+    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_candidates5", "PRIORITY2 candidates (company_id IS NULL) sample", {
+      runId: RUN_ID,
+      length: globalCandidates5?.length || 0,
+      ids8: (globalCandidates5 || []).map((t: any) => String(t.id).substring(0, 8)),
+      company_ids: (globalCandidates5 || []).map((t: any) => t.company_id ?? null),
+      company_id_types: (globalCandidates5 || []).map((t: any) => typeof t.company_id),
+      defaults: (globalCandidates5 || []).map((t: any) => !!t.is_default),
+      errorMessage: globalCandidates5Error?.message || null,
+      errorCode: (globalCandidates5Error as any)?.code || null,
+    })
+    // #endregion
+
+    // Diagnostic: count how many *global* active templates exist for this type under RLS.
+    // (This checks the user's visibility; admin-visible list is already logged above.)
+    try {
+      const { data: rlsGlobalList, error: rlsGlobalErr } = await supabase
+        .from("templates")
+        .select("id, name, company_id, is_default, is_active")
+        .eq("document_type", documentType)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+
+      const isGlobal = (cid: string | null) => cid === null || cid === "global"
+      const globalCandidates = (rlsGlobalList || []).filter((t: any) => isGlobal(t.company_id))
+      const globalDefaults = globalCandidates.filter((t: any) => !!t.is_default)
+
+      console.log("[TEMPLATE_FETCH] PRIORITY 2 diagnostic (RLS list):", {
+        documentType,
+        rlsCount: rlsGlobalList?.length || 0,
+        rlsError: rlsGlobalErr?.message,
+        globalCandidatesCount: globalCandidates.length,
+        globalDefaultsCount: globalDefaults.length,
+        globalDefaultIds8: globalDefaults.slice(0, 5).map((t: any) => String(t.id).substring(0, 8)),
+      })
+
+      // #region agent log
+      __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_diag", "priority2 list/selection diagnostic", {
+        documentType,
+        rlsCount: rlsGlobalList?.length || 0,
+        rlsError: rlsGlobalErr?.message || null,
+        globalCandidatesCount: globalCandidates.length,
+        globalDefaultsCount: globalDefaults.length,
+        globalDefaultIds8: globalDefaults.slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
+      })
+      // #endregion
+    } catch (e: any) {
+      console.warn("[TEMPLATE_FETCH] PRIORITY 2 diagnostic failed:", e?.message || e)
+    }
+
+    console.log("[TEMPLATE_FETCH] PRIORITY 2 - globalDefault:", {
+      found: !!globalDefault,
+      templateId: globalDefault?.id,
+      name: globalDefault?.name,
+      error: globalDefaultError?.message,
+    })
+
+    // #region agent log
+    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_result", "priority2 query result", {
+      found: !!globalDefault,
+      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
+      name: (globalDefault as any)?.name || null,
+      error: globalDefaultError?.message || null,
+    })
+    // #endregion
+  }
+
   if (globalDefault) {
     console.log(`✅ Using global default template: ${globalDefault.name} (${globalDefault.id})`)
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] Global default template details:", {
+        id: globalDefault.id,
+        name: globalDefault.name,
+        hasHtml: !!(globalDefault as any).html_template,
+        htmlLength: ((globalDefault as any).html_template || "").length,
+        hasCss: !!(globalDefault as any).css,
+        cssLength: ((globalDefault as any).css || "").length
+      })
+    }
     const picked = pickVariant(globalDefault)
     return {
       ...picked,
@@ -143,7 +474,7 @@ export async function getTemplateForDocument(
   // PRIORITY 3: Any active company template (fallback)
   const { data: anyCompanyTemplate } = await supabase
     .from("templates")
-    .select("id, html_he, css_he, html_en, css_en, is_active")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
     .eq("company_id", companyId)
     .eq("document_type", documentType)
     .eq("is_active", true)
@@ -162,7 +493,7 @@ export async function getTemplateForDocument(
   // PRIORITY 4: Any active global template (fallback)
   const { data: anyGlobalTemplate } = await supabase
     .from("templates")
-    .select("id, html_he, css_he, html_en, css_en, is_active, name")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
     .is("company_id", null)
     .eq("document_type", documentType)
     .eq("is_active", true)
@@ -612,7 +943,7 @@ export async function prepareDocumentData(
       company_phone: companyPhone,
       company_email: doc.company?.email || null,
       company_logo: logoUrl || null, // Use signed URL if available, null if no logo
-    },
+    } as any,
     customer: doc.customer ? {
       customer_name: doc.customer.name || "",
       customer_tax_id: doc.customer.tax_id || null,
@@ -629,7 +960,7 @@ export async function prepareDocumentData(
       reference_number: null,
       language: documentLanguage,
       direction: documentLanguage === "en" ? "ltr" : "rtl",
-    },
+    } as any,
     payments: mappedPayments,
     items: (items || []).map((item) => ({
       description: item.description,
@@ -872,6 +1203,19 @@ export async function generateDocumentPDF(
       // IMPORTANT: For issuance (copy/final/recovery), do NOT fallback across languages.
       allowFallbackToHe: pdfMode === "preview",
     })
+    
+    const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] generateDocumentPDF - template loaded:", {
+        templateId: template.templateId?.substring(0, 8) || 'fallback',
+        hasHtml: !!template.html,
+        htmlLength: template.html?.length || 0,
+        hasCss: !!template.css,
+        cssLength: template.css?.length || 0,
+        resolvedLanguage: template.resolvedLanguage,
+        pdfMode
+      })
+    }
 
     // 4. Validate template (optional - log warnings)
     const validation = validateTemplate(template.html, doc.document_type as any)
@@ -889,7 +1233,7 @@ export async function generateDocumentPDF(
       (markLanguage === "en" ? "Computerized document" : "מסמך ממוחשב")
 
     const markHtml = `
-<div class="computerized-doc-mark" dir="${templateData.document?.direction || (markLanguage === "en" ? "ltr" : "rtl")}">
+<div class="computerized-doc-mark" dir="${(templateData as any).document?.direction || (markLanguage === "en" ? "ltr" : "rtl")}">
   ${String(computerizedMark)}
 </div>`.trim()
 
@@ -1202,6 +1546,20 @@ export async function generatePreviewPDF(
       language: targetLanguage,
       allowFallbackToHe: true,
     })
+    
+    const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+    if (DEBUG_TEMPLATES) {
+      console.log("[TEMPLATE_FETCH] generatePreviewPDF - template loaded:", {
+        templateId: template.templateId?.substring(0, 8) || 'fallback',
+        hasHtml: !!template.html,
+        htmlLength: template.html?.length || 0,
+        hasCss: !!template.css,
+        cssLength: template.css?.length || 0,
+        resolvedLanguage: template.resolvedLanguage,
+        didFallbackToHe: template.didFallbackToHe
+      })
+    }
+    
     if (template.didFallbackToHe) {
       console.warn("[PDF PREVIEW] Template fallback to HE (missing EN variant)", {
         documentId: documentId.substring(0, 8),

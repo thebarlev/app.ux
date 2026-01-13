@@ -550,7 +550,7 @@ ${currentHtml}
                         placeholder="<!DOCTYPE html>
 <html dir='ltr' lang='en'>...</html>"
                         rows={30}
-                        className="font-mono text-sm"
+                        className="font-mono text-sm text-left"
                         dir="ltr"
                       />
                     </div>
@@ -572,7 +572,7 @@ ${currentHtml}
                           onChange={(e) => setHtmlTemplateEn(e.target.value)}
                           placeholder="<div class='receipt'>...</div>"
                           rows={25}
-                          className="font-mono text-sm"
+                          className="font-mono text-sm text-left"
                           dir="ltr"
                         />
                       </TabsContent>
@@ -582,7 +582,7 @@ ${currentHtml}
                           onChange={(e) => setCssEn(e.target.value)}
                           placeholder=".receipt { direction: ltr; }"
                           rows={25}
-                          className="font-mono text-sm"
+                          className="font-mono text-sm text-left"
                           dir="ltr"
                         />
                       </TabsContent>

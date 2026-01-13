@@ -373,7 +373,7 @@ ${html}
                       value={htmlEn}
                       onChange={(e) => setHtmlEn(e.target.value)}
                       placeholder="<div>{{company_name}}</div>"
-                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      className="font-mono text-sm text-left h-[calc(100%-41px)] resize-none border-0 rounded-none"
                       dir="ltr"
                     />
                   </div>
@@ -386,7 +386,7 @@ ${html}
                       value={cssEn}
                       onChange={(e) => setCssEn(e.target.value)}
                       placeholder=".header { font-size: 24px; }"
-                      className="font-mono text-sm h-[calc(100%-41px)] resize-none border-0 rounded-none"
+                      className="font-mono text-sm text-left h-[calc(100%-41px)] resize-none border-0 rounded-none"
                       dir="ltr"
                     />
                   </div>

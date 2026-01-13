@@ -157,12 +157,38 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     // Get template from database
     console.log("🔵 [PreviewPage] Fetching template for company:", companyId.substring(0, 8));
     const template = await getTemplateForDocument(companyId, "receipt");
-    templateHtml = template.html;
-    templateCss = template.css;
+    
+    if (!template.html) {
+      console.error("[PreviewPage] Template HTML is missing!", {
+        templateId: template.templateId,
+        companyId: companyId.substring(0, 8),
+        resolvedLanguage: template.resolvedLanguage
+      });
+    } else {
+      console.log("[PreviewPage] Template HTML loaded:", {
+        templateId: template.templateId?.substring(0, 8) || 'fallback',
+        htmlLength: template.html.length,
+        resolvedLanguage: template.resolvedLanguage
+      });
+    }
+    
+    if (!template.css) {
+      console.warn("[PreviewPage] Template CSS is missing, using empty string");
+    } else {
+      console.log("[PreviewPage] Template CSS loaded:", {
+        cssLength: template.css.length
+      });
+    }
+    
+    templateHtml = template.html || null;
+    templateCss = template.css || "";
+    
     console.log("✅ [PreviewPage] Template loaded:", {
       templateId: template.templateId?.substring(0, 8) || 'fallback',
       hasHtml: !!templateHtml,
-      hasCss: !!templateCss
+      htmlLength: templateHtml?.length || 0,
+      hasCss: !!templateCss,
+      cssLength: templateCss?.length || 0
     });
   } catch (e) {
     console.error("Failed to fetch company data or template:", e);

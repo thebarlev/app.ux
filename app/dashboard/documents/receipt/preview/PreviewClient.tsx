@@ -591,8 +591,22 @@ export default function PreviewClient({
   console.log("🎯 [PreviewClient] useTemplate decision:", {
     useTemplate,
     hasTemplateHtml: !!templateHtml,
-    trimmedLength: templateHtml?.trim().length || 0
+    trimmedLength: templateHtml?.trim().length || 0,
+    templateHtmlPreview: templateHtml?.substring(0, 100) || null, // ראש 100 תווים
+    hasTemplateCss: !!templateCss,
+    cssLength: templateCss?.length || 0
   });
+  
+  if (!useTemplate && templateHtml) {
+    console.warn("⚠️ [PreviewClient] Template HTML exists but useTemplate is false - possible whitespace issue:", {
+      originalLength: templateHtml.length,
+      trimmedLength: templateHtml.trim().length
+    });
+  }
+  
+  if (useTemplate && !templateCss) {
+    console.warn("⚠️ [PreviewClient] Using template but CSS is missing - template may not render correctly");
+  }
 
   const handleDownloadPDF = async () => {
     // Get documentId from URL params (if available - for finalized receipts)
@@ -821,10 +835,27 @@ export default function PreviewClient({
           <p style={{marginTop: "20px", fontSize: "14px"}}>משתמש בתצוגה המוגדרת כברירת מחדל במקום...</p>
         </div>
       ) : useTemplate && isMounted ? (() => {
+        console.log("🎨 [PreviewClient] Rendering template HTML in iframe:", {
+          templateHtmlLength: templateHtml?.length || 0,
+          templateCssLength: templateCss?.length || 0,
+          isMounted
+        });
+        
         // Remove external CSS links from template HTML before rendering
         // This prevents 404 errors when the browser tries to load external CSS files
         let processedTemplateHtml = templateHtml || '';
+        const beforeLength = processedTemplateHtml.length;
         processedTemplateHtml = processedTemplateHtml.replace(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi, '');
+        
+        if (beforeLength !== processedTemplateHtml.length) {
+          console.log("🔧 [PreviewClient] Removed external CSS links from template HTML");
+        }
+        
+        const processedHtml = processTemplate(processedTemplateHtml);
+        console.log("✅ [PreviewClient] Template processed and ready to render in iframe:", {
+          processedLength: processedHtml.length,
+          hasContent: processedHtml.trim().length > 0
+        });
         
         return (
           <iframe
@@ -920,7 +951,7 @@ export default function PreviewClient({
   </script>
 </head>
 <body>
-  ${processTemplate(processedTemplateHtml)}
+  ${processedHtml}
 </body>
 </html>`}
           />
@@ -941,8 +972,15 @@ export default function PreviewClient({
         >
           טוען...
         </div>
-      ) : (
-        <div className="receipt-fallback-content">
+      ) : (() => {
+        console.warn("⚠️ [PreviewClient] Falling back to hardcoded HTML - template not available:", {
+          useTemplate,
+          hasTemplateHtml: !!templateHtml,
+          templateHtmlLength: templateHtml?.length || 0,
+          isMounted
+        });
+        return (
+          <div className="receipt-fallback-content">
       {/* Receipt Document - A4 Size Print-Ready View */}
       <div
         id="receipt-pdf-root"
@@ -1524,7 +1562,8 @@ export default function PreviewClient({
         </div>
       </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
