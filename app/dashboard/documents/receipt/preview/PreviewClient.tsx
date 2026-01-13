@@ -102,9 +102,10 @@ export default function PreviewClient({
 
   // Parse data from URL parameters
   const language = (searchParams.get("language") === "en" ? "en" : "he") as "he" | "en";
+  const issue = ((searchParams.get("issue") || "").toLowerCase() as "original" | "copy" | "") || "";
   const previewNumber = searchParams.get("previewNumber") || null;
   const companyNameBase =
-    (language === "en" ? (companyData as any)?.company_name_en : null) ||
+    (language === "en" ? (companyData as any)?.company_name_en : companyData?.company_name) ||
     companyData?.company_name ||
     searchParams.get("companyName") ||
     "העסק שלי";
@@ -139,6 +140,10 @@ export default function PreviewClient({
 
   const customerPhone = customerData?.phone || customerData?.mobile || "";
   const companyPhone = companyData?.mobile_phone || companyData?.phone || "";
+  const companyAddress =
+    companyData?.address ||
+    [companyData?.street, companyData?.city, companyData?.postal_code].filter(Boolean).join(", ") ||
+    "";
 
   // Parse payments JSON - includes all dynamic payment fields
   let payments: Array<{
@@ -309,8 +314,8 @@ export default function PreviewClient({
       contact_first_name: language === "en"
         ? ((companyData as any)?.contact_first_name_en || (companyData as any)?.contact_first_name || "")
         : ((companyData as any)?.contact_first_name || ""),
-      company_tax_id: companyData?.registration_number || "",
-      company_address: companyData?.address || "",
+      company_tax_id: companyData?.registration_number || companyData?.company_number || "",
+      company_address: companyAddress,
       company_phone: companyPhone,
       company_email: companyData?.email || "",
       company_website: companyData?.website || "",
@@ -405,7 +410,7 @@ export default function PreviewClient({
     footerNotes: footerNotes || "",
     total: total,
     currency: currency,
-    formattedTotal: formatMoney(total, currency),
+    formattedTotal: formatMoney(total, currency, language),
     
     // Company data (flat structure for backward compatibility)
     companyName: companyNameBase,
@@ -428,7 +433,9 @@ export default function PreviewClient({
     hasPayments: payments.length > 0,
     
     // Current time - using documentDate to avoid hydration mismatch
-    currentTime: documentDate ? new Date(documentDate).toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' }) : "00:00",
+    currentTime: documentDate
+      ? new Date(documentDate).toLocaleTimeString(language === "en" ? "en-US" : "he-IL", { hour: "2-digit", minute: "2-digit" })
+      : "00:00",
     
     // Style settings
     styleSettings: styleSettings,
@@ -437,12 +444,12 @@ export default function PreviewClient({
     // Use null instead of empty string for logo/signature so template can use {{#if}} properly
     LOGO_URL: companyData?.logo_url && companyData.logo_url.trim() ? companyData.logo_url : null,
     USERCOMPANYNAME: companyNameBase,
-    USERID: companyData?.registration_number || "",
-    USERADDRESS: companyData?.address || "",
+    USERID: companyData?.registration_number || companyData?.company_number || "",
+    USERADDRESS: companyAddress || "",
     PHONE: companyPhone,
     EMAIL: companyData?.email || "",
     DOMAIN: companyData?.website || "",
-    Datecreation: formatDate(documentDate),
+    Datecreation: formatDate(documentDate, language),
     RECEIPTNUMBER: previewNumber || "",
     CLIENTNAME: customerName || "",
     BUSINESSID: customerData?.tax_id || "",
@@ -450,20 +457,30 @@ export default function PreviewClient({
     SIGNATURE_URL: companyData?.signature_url && companyData.signature_url.trim() ? companyData.signature_url : null,
     DOC_SUBTITLE: description || "",
     FOOTER_TEXT: footerNotes || "",
-    FOOTER_META: documentDate ? `הופק ב- תאריך ${formatDate(documentDate)} שעה ${new Date(documentDate).toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' })}` : "",
+    FOOTER_META: documentDate
+      ? `הופק ב- תאריך ${formatDate(documentDate, language)} שעה ${new Date().toLocaleTimeString(language === "en" ? "en-US" : "he-IL", { hour: "2-digit", minute: "2-digit" })}`
+      : "",
     PAYMENT_METHOD: payments[0]?.method || "",
     PAYMENT_DESC: "",
-    PAYMENT_DATE: payments[0] ? formatDate(payments[0].date) : "",
-    PAYMENT_AMOUNT: payments[0] ? formatMoney(payments[0].amount, payments[0].currency) : "",
-    TOTAL: formatMoney(total, currency),
+    PAYMENT_DATE: payments[0] ? formatDate(payments[0].date, language) : "",
+    PAYMENT_AMOUNT: payments[0] ? formatMoney(payments[0].amount, payments[0].currency, language) : "",
+    TOTAL: formatMoney(total, currency, language),
     
     // Page numbers - will be calculated dynamically
     // For now, default to 1 of 1, but these can be updated after rendering
     PAGE_NUMBER: "1",
     TOTAL_PAGES: "1",
+
+    // Regulatory: original vs copy label (Preview-only; controlled by URL param issue=original|copy)
+    DOCUMENT_COPY_LABEL:
+      issue === "original"
+        ? (language === "en" ? "Original" : "מקור")
+        : issue === "copy"
+          ? (language === "en" ? "Copy" : "העתק נאמן למקור")
+          : "",
     
     // Current date and time for footer
-    CURRENT_DATE_TIME: new Date().toLocaleString("he-IL", { 
+    CURRENT_DATE_TIME: new Date().toLocaleString(language === "en" ? "en-US" : "he-IL", { 
       year: 'numeric', 
       month: '2-digit', 
       day: '2-digit',
@@ -516,7 +533,7 @@ export default function PreviewClient({
             // Handle nested conditionals: {{#if this.prop}}...{{/if}}
             itemHtml = itemHtml.replace(
               /\{\{#if\s+this\.(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-              (m, prop, content) => {
+              (m: string, prop: string, content: string) => {
                 const value = item[prop];
                 return value ? content : "";
               }
@@ -525,7 +542,7 @@ export default function PreviewClient({
             // Replace {{this.prop}} with item values (supports spaces)
             itemHtml = itemHtml.replace(
               /\{\{\s*this\.(\w+)\s*\}\}/g,
-              (m, prop) => {
+              (m: string, prop: string) => {
                 const value = item[prop];
                 return value !== undefined && value !== null ? String(value) : "";
               }
@@ -650,10 +667,51 @@ export default function PreviewClient({
       alert(`שגיאה בהורדת PDF: ${error.message}\n\nאנא נסה שוב או פנה לתמיכה.`);
     }
   };
+// TEMP DEBUG: remove after verification
+useEffect(() => {
+  if (process.env.NODE_ENV === "production") return;
+
+  const w = window as any;
+  if (w.__RECEIPT_PREVIEW_KEYS_DEBUG_ONCE__) return;
+  w.__RECEIPT_PREVIEW_KEYS_DEBUG_ONCE__ = true;
+
+  const keys = [
+    "RECEIPTNUMBER",
+    "Datecreation",
+    "DOCUMENT_COPY_LABEL",
+    "CLIENTNAME",
+    "BUSINESSID",
+    "CLIENTPHONE",
+    "LOGO_URL",
+    "USERCOMPANYNAME",
+    "USERID",
+    "USERADDRESS",
+    "PHONE",
+    "EMAIL",
+    "DOMAIN",
+    "description",
+    "PAYMENTS_ROWS_HTML",
+    "TOTAL_AMOUNT",
+    "notes",
+    "SIGNATURE_URL",
+    "CURRENT_DATE_TIME",
+    "PAGE_NUMBER",
+    "TOTAL_PAGES",
+  ] as const;
+
+  const rows = keys.map((key) => {
+    const v = (templateData as any)[key];
+    const type = v === null ? "null" : typeof v;
+    const length = typeof v === "string" ? v.length : 0;
+    return { key, type, length, truthy: !!v, value: v };
+  });
+
+  console.table(rows);
+}, [language]);
 
   return (
     <div
-      dir="rtl"
+      dir={language === "en" ? "ltr" : "rtl"}
       style={{ minHeight: "100vh", background: "#F5F6F7", padding: "40px 20px" }}
     >
       {/* Error Display */}
@@ -871,7 +929,7 @@ export default function PreviewClient({
               background: "#ffffff",
             }}
             srcDoc={`<!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="${language}" dir="${language === "en" ? "ltr" : "rtl"}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -889,7 +947,7 @@ export default function PreviewClient({
       padding: 0;
       color: #000000;
       background: #ffffff;
-      direction: rtl;
+      direction: ${language === "en" ? "ltr" : "rtl"};
       font-family: Arial, 'Assistant', 'Heebo', sans-serif;
       font-size: 14px;
       line-height: 1.6;
@@ -1033,7 +1091,7 @@ export default function PreviewClient({
                   marginBottom: "15px",
                 }}
               >
-                {formatDate(documentDate)}
+                {formatDate(documentDate, language)}
               </div>
 
               {/* Document title and number on same line */}
@@ -1372,7 +1430,7 @@ export default function PreviewClient({
                         textAlign: "right",
                       }}
                     >
-                      {formatDate(p.date)}
+                      {formatDate(p.date, language)}
                     </div>
                     <div
                       className="receipt-payment-method"
@@ -1404,7 +1462,7 @@ export default function PreviewClient({
                         fontWeight: 600,
                       }}
                     >
-                      {formatMoney(p.amount, p.currency)}
+                      {formatMoney(p.amount, p.currency, language)}
                     </div>
                   </div>
                 );
@@ -1443,7 +1501,7 @@ export default function PreviewClient({
                     textAlign: "right",
                   }}
                 >
-                  {formatMoney(total, currency)}
+                  {formatMoney(total, currency, language)}
                 </div>
               </div>
             </div>
@@ -1557,7 +1615,7 @@ export default function PreviewClient({
             מסמך מוחשב הופק על ידי israel.green
           </div>
           <div className="receipt-footer-line2">
-            הופק ב- תאריך {formatDate(documentDate)} שעה {new Date().toLocaleTimeString("he-IL", { hour: '2-digit', minute: '2-digit' })} קבלה {previewNumber || "—"} עמוד 1 מתוך 1
+            הופק ב- תאריך {formatDate(documentDate, language)} שעה {new Date().toLocaleTimeString(language === "en" ? "en-US" : "he-IL", { hour: '2-digit', minute: '2-digit' })} קבלה {previewNumber || "—"} עמוד 1 מתוך 1
           </div>
         </div>
       </div>

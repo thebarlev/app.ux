@@ -143,10 +143,28 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
         }
       }
       
+      // Normalize shape for PreviewClient: ensure required fields exist on companyData
       companyData = {
         ...data,
-        address: fullAddress,
+        company_name: data.company_name || "",
+        company_name_en: data.company_name_en || null,
+        // Ensure registration_number is always set (fallback to company_number)
         registration_number: registrationNumber,
+        company_number: data.company_number || null,
+        // Ensure contact fields exist (may be used by templates)
+        contact_first_name: (data as any).contact_first_name || null,
+        contact_first_name_en: (data as any).contact_first_name_en || null,
+        // Ensure address parts are preserved and address is the joined string
+        street: data.street || null,
+        city: data.city || null,
+        postal_code: data.postal_code || null,
+        address: fullAddress || "",
+        // Ensure comms fields exist
+        phone: data.phone || null,
+        mobile_phone: data.mobile_phone || null,
+        email: data.email || null,
+        website: data.website || null,
+        // Signed URLs (or original URLs) for assets
         logo_url: logoUrl,
         signature_url: signatureUrl,
       };
