@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCompanyIdForUser } from "@/lib/document-helpers";
 import SettingsClient from "./SettingsClient";
 
 export default async function SettingsPage() {
@@ -12,9 +11,62 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
+  // #region agent log (hypothesisId=H13)
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H13',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Page auth user (suffix only)',data:{userIdSuffix:user?.id?String(user.id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
+  async function getCompanyIdForUserDeterministic(userId: string): Promise<string> {
+    const { data: memberships, error: membershipError } = await supabase
+      .from("company_members")
+      .select("company_id")
+      .eq("user_id", userId)
+      .order("company_id", { ascending: true });
+
+    // #region agent log (hypothesisId=H11)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'company_members lookup (counts only)',data:{membershipCount:Array.isArray(memberships)?memberships.length:0,membershipErrorCode:membershipError?.code ?? null,firstMembershipCompanyIdSuffix:Array.isArray(memberships)&&memberships[0]?.company_id?String(memberships[0].company_id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    if (membershipError) throw membershipError;
+    const membershipCompanyIds = (memberships || []).map((m: any) => m.company_id).filter(Boolean) as string[];
+
+    const { data: ownerCompany, error: ownerCompanyError } = await supabase
+      .from("companies")
+      .select("id")
+      .eq("auth_user_id", userId)
+      .order("id", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (ownerCompanyError) throw ownerCompanyError;
+
+    const candidateIds = Array.from(new Set([...(membershipCompanyIds || []), ...(ownerCompany?.id ? [ownerCompany.id] : [])]));
+
+    // #region agent log (hypothesisId=H11)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'Candidate company IDs (suffix only)',data:{membershipCount:membershipCompanyIds.length,firstMembershipCompanyIdSuffix:membershipCompanyIds[0]?String(membershipCompanyIds[0]).slice(-6):null,hasOwnerCompany:Boolean(ownerCompany?.id),ownerCompanyIdSuffix:ownerCompany?.id?String(ownerCompany.id).slice(-6):null,candidateCount:candidateIds.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    if (candidateIds.length > 0) {
+      const { data: companies, error: companiesError } = await supabase
+        .from("companies")
+        .select("id, registration_number")
+        .in("id", candidateIds);
+      if (companiesError) throw companiesError;
+
+      const withReg = (companies || []).filter((c: any) => Boolean(c?.registration_number && String(c.registration_number).trim().length > 0));
+      const chosen = (withReg.length > 0 ? withReg : (companies || [])).sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))[0];
+
+      // #region agent log (hypothesisId=H11)
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'Chosen company (suffix only)',data:{chosenCompanyIdSuffix:chosen?.id?String(chosen.id).slice(-6):null,choseBecauseHasReg:withReg.length>0},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      if (chosen?.id) return String(chosen.id);
+    }
+
+    throw new Error("company_not_found");
+  }
+
   // Get user's company
   try {
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getCompanyIdForUserDeterministic(user.id);
     
     // Fetch company data with all settings.
     // Some deployments may not have optional English columns yet (company_name_en, contact_first_name_en).
@@ -86,6 +138,15 @@ export default async function SettingsPage() {
       company = r2.data;
       error = r2.error;
     }
+
+    // #region agent log (hypothesisId=H9)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H9',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Fetched company for settings (registration_number + companyId suffix)',data:{companyIdSuffix:typeof companyId==='string'?companyId.slice(-6):null,hasCompany:Boolean(company),hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    // #region agent log (hypothesisId=SL1)
+    const _logoUrl = typeof company?.logo_url === "string" ? company.logo_url : "";
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'settingsLogo1',hypothesisId:'SL1',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Settings company.logo_url shape (no PII)',data:{hasLogoUrl:Boolean(_logoUrl&&_logoUrl.trim()),logoLen:_logoUrl.length,isHttp:_logoUrl.startsWith('http'),isStoragePublic:_logoUrl.includes('/storage/v1/object/public/'),hasBusinessLogos:_logoUrl.includes('business-logos/'),hasBusinessAssets:_logoUrl.includes('business-assets')},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // Fetch available templates
     const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'

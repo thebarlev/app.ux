@@ -42,6 +42,7 @@ type Props = {
   styleSettings: ReceiptStyleSettings
   templateHtml: string | null
   templateCss: string | null
+  documentDescriptionFromDb?: string
 }
 
 export default function PreviewWrapper(props: Props) {

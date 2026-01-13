@@ -11,6 +11,19 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   
   // Await searchParams in Next.js 16
   const params = await searchParams;
+
+  // Use the same company resolution as PDF when documentId is available:
+  // companyId must come from documents.company_id (source of truth).
+  const documentId: string | null =
+    params.documentId || params.document_id || params.id || null;
+
+  // #region agent log (hypothesisId=PV0)
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany2',hypothesisId:'PV0',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview searchParams documentId detection',data:{hasDocumentId:Boolean(documentId),documentIdSuffix:documentId?String(documentId).slice(-6):null,has_documentId:Boolean(params?.documentId),has_document_id:Boolean(params?.document_id),has_id:Boolean(params?.id)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
+  // #region agent log (hypothesisId=PV0)
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany2',hypothesisId:'PV0',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview searchParams keys (names only)',data:{keys:Object.keys(params||{}).sort(),hasPreviewNumber:Boolean(params?.previewNumber),hasCustomerId:Boolean(params?.customerId),hasPayments:Boolean(params?.payments)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   
   // Get customer ID from search params
   const customerId = params.customerId || null;
@@ -30,34 +43,105 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   let companyData = null;
   let templateHtml = null;
   let templateCss = null;
+  let documentDescriptionFromDb: string = "";
   
   try {
-    const companyId = await getCompanyIdForUser();
-    const { data } = await supabase
+    let companyId: string;
+    let companyIdSource: "document.company_id" | "getCompanyIdForUser";
+
+    if (documentId) {
+      const { data: doc, error: docError } = await supabase
+        .from("documents")
+        .select("id, company_id, document_description")
+        .eq("id", documentId)
+        .maybeSingle();
+
+      // #region agent log (hypothesisId=PV1)
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany1',hypothesisId:'PV1',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Resolved company via documents.company_id',data:{hasDocumentId:true,documentIdSuffix:String(documentId).slice(-6),hasDoc:Boolean(doc),docErrorCode:(docError as any)?.code??null,hasCompanyId:Boolean(doc?.company_id),companyIdSuffix:doc?.company_id?String(doc.company_id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      // #region agent log (hypothesisId=PV9)
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewDesc2',hypothesisId:'PV9',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Document description from DB (length only)',data:{documentIdSuffix:String(documentId).slice(-6),descLen:typeof (doc as any)?.document_description==='string'?(doc as any).document_description.length:0,hasDesc:Boolean((doc as any)?.document_description&&String((doc as any).document_description).trim())},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      documentDescriptionFromDb =
+        typeof (doc as any)?.document_description === "string"
+          ? String((doc as any).document_description)
+          : "";
+
+      if (!docError && doc?.company_id) {
+        companyId = String(doc.company_id);
+        companyIdSource = "document.company_id";
+      } else {
+        // Fall back to previous behavior if document lookup fails (e.g., draft preview without persisted doc).
+        companyId = await getCompanyIdForUser();
+        companyIdSource = "getCompanyIdForUser";
+      }
+    } else {
+      companyId = await getCompanyIdForUser();
+      companyIdSource = "getCompanyIdForUser";
+    }
+
+    // #region agent log (hypothesisId=PV2)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany1',hypothesisId:'PV2',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview will fetch company/template using companyId',data:{companyIdSource,companyIdSuffix:String(companyId).slice(-6),hasDocumentId:Boolean(documentId)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    // Some environments may not have optional EN columns (company_name_en, contact_first_name_en).
+    // Try with EN columns first, then retry without on 42703.
+    const selectWithEnglish =
+      "id, company_name, company_name_en, contact_first_name, contact_first_name_en, business_type, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url";
+    const selectWithoutEnglish =
+      "id, company_name, contact_first_name, business_type, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url";
+
+    let companyRow: any = null;
+    let companyFetchError: any = null;
+
+    const r1 = await supabase
       .from("companies")
-      .select("company_name, company_name_en, contact_first_name, contact_first_name_en, business_type, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url")
+      .select(selectWithEnglish)
       .eq("id", companyId)
       .maybeSingle();
+    companyRow = r1.data;
+    companyFetchError = r1.error;
+
+    const code = String((companyFetchError as any)?.code || "");
+    const msg = String((companyFetchError as any)?.message || "");
+    const missingEnglishCols = msg.includes("company_name_en") || msg.includes("contact_first_name_en");
+    if (companyFetchError && code === "42703" && missingEnglishCols) {
+      const r2 = await supabase
+        .from("companies")
+        .select(selectWithoutEnglish)
+        .eq("id", companyId)
+        .maybeSingle();
+      companyRow = r2.data;
+      companyFetchError = r2.error;
+    }
     
+    // #region agent log (hypothesisId=PV8)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany5',hypothesisId:'PV8',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Companies fetch result (counts only)',data:{companyIdSuffix:String(companyId).slice(-6),hasCompanyRow:Boolean(companyRow),companyFetchErrorCode:(companyFetchError as any)?.code??null,companyFetchErrorMessage:companyFetchError?.message??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     // Build address from separate fields if available, otherwise use address field
-    if (data) {
-      let fullAddress = data.address || "";
-      if (data.street || data.city) {
+    if (companyRow) {
+      // Avoid passing unknown keys to PreviewClient CompanyData shape (keep it strict)
+      const { id: _ignoreId, ...companyRowRest } = companyRow as any;
+      let fullAddress = companyRow.address || "";
+      if (companyRow.street || companyRow.city) {
         const addressParts = [];
-        if (data.street) addressParts.push(data.street);
-        if (data.city) addressParts.push(data.city);
-        if (data.postal_code) addressParts.push(data.postal_code);
+        if (companyRow.street) addressParts.push(companyRow.street);
+        if (companyRow.city) addressParts.push(companyRow.city);
+        if (companyRow.postal_code) addressParts.push(companyRow.postal_code);
         if (addressParts.length > 0) {
           fullAddress = addressParts.join(", ");
         }
       }
       
       // Use company_number if registration_number is not available
-      const registrationNumber = data.registration_number || data.company_number || "";
+      const registrationNumber = companyRow.registration_number || companyRow.company_number || "";
       
       // Create signed URLs for logo and signature if they exist and are from private storage
-      let logoUrl = data.logo_url || null;
-      let signatureUrl = data.signature_url || null;
+      let logoUrl = companyRow.logo_url || null;
+      let signatureUrl = companyRow.signature_url || null;
       
       // Helper to extract storage path from URL
       const getStoragePathFromUrl = (url: string | null | undefined): string | null => {
@@ -80,8 +164,8 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       };
       
       // Process logo URL - create signed URL if from private storage
-      if (data.logo_url) {
-        const storagePath = getStoragePathFromUrl(data.logo_url);
+      if (companyRow.logo_url) {
+        const storagePath = getStoragePathFromUrl(companyRow.logo_url);
         if (storagePath) {
           try {
             const adminClient = createAdminClient();
@@ -97,23 +181,23 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
               const { data: publicUrlData } = adminClient.storage
                 .from("business-assets")
                 .getPublicUrl(storagePath);
-              logoUrl = publicUrlData.publicUrl || data.logo_url;
-              console.log(`[PreviewPage] Using public URL for logo: ${publicUrlData.publicUrl || data.logo_url}`);
+              logoUrl = publicUrlData.publicUrl || companyRow.logo_url;
+              console.log(`[PreviewPage] Using public URL for logo: ${publicUrlData.publicUrl || companyRow.logo_url}`);
             }
           } catch (error) {
             // Fallback to original URL
-            logoUrl = data.logo_url;
+            logoUrl = companyRow.logo_url;
             console.warn(`[PreviewPage] Failed to create signed URL for logo, using original:`, error);
           }
         } else {
           // If we can't extract storage path, use original URL (might be external URL)
-          logoUrl = data.logo_url;
+          logoUrl = companyRow.logo_url;
         }
       }
       
       // Process signature URL - create signed URL if from private storage
-      if (data.signature_url) {
-        const storagePath = getStoragePathFromUrl(data.signature_url);
+      if (companyRow.signature_url) {
+        const storagePath = getStoragePathFromUrl(companyRow.signature_url);
         if (storagePath) {
           try {
             const adminClient = createAdminClient();
@@ -129,45 +213,49 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
               const { data: publicUrlData } = adminClient.storage
                 .from("business-assets")
                 .getPublicUrl(storagePath);
-              signatureUrl = publicUrlData.publicUrl || data.signature_url;
-              console.log(`[PreviewPage] Using public URL for signature: ${publicUrlData.publicUrl || data.signature_url}`);
+              signatureUrl = publicUrlData.publicUrl || companyRow.signature_url;
+              console.log(`[PreviewPage] Using public URL for signature: ${publicUrlData.publicUrl || companyRow.signature_url}`);
             }
           } catch (error) {
             // Fallback to original URL
-            signatureUrl = data.signature_url;
+            signatureUrl = companyRow.signature_url;
             console.warn(`[PreviewPage] Failed to create signed URL for signature, using original:`, error);
           }
         } else {
           // If we can't extract storage path, use original URL (might be external URL)
-          signatureUrl = data.signature_url;
+          signatureUrl = companyRow.signature_url;
         }
       }
       
       // Normalize shape for PreviewClient: ensure required fields exist on companyData
       companyData = {
-        ...data,
-        company_name: data.company_name || "",
-        company_name_en: data.company_name_en || null,
+        ...companyRowRest,
+        company_name: companyRow.company_name || "",
+        company_name_en: companyRow.company_name_en || "",
         // Ensure registration_number is always set (fallback to company_number)
         registration_number: registrationNumber,
-        company_number: data.company_number || null,
+        company_number: companyRow.company_number || "",
         // Ensure contact fields exist (may be used by templates)
-        contact_first_name: (data as any).contact_first_name || null,
-        contact_first_name_en: (data as any).contact_first_name_en || null,
+        contact_first_name: (companyRow as any).contact_first_name || "",
+        contact_first_name_en: (companyRow as any).contact_first_name_en || "",
         // Ensure address parts are preserved and address is the joined string
-        street: data.street || null,
-        city: data.city || null,
-        postal_code: data.postal_code || null,
+        street: companyRow.street || "",
+        city: companyRow.city || "",
+        postal_code: companyRow.postal_code || "",
         address: fullAddress || "",
         // Ensure comms fields exist
-        phone: data.phone || null,
-        mobile_phone: data.mobile_phone || null,
-        email: data.email || null,
-        website: data.website || null,
+        phone: companyRow.phone || "",
+        mobile_phone: companyRow.mobile_phone || "",
+        email: companyRow.email || "",
+        website: companyRow.website || "",
         // Signed URLs (or original URLs) for assets
         logo_url: logoUrl,
         signature_url: signatureUrl,
       };
+
+      // #region agent log (hypothesisId=PV4)
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany3',hypothesisId:'PV4',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'CompanyData normalized for Preview (truthy/lengths)',data:{companyIdSource,companyIdSuffix:String(companyId).slice(-6),hasLogoUrl:Boolean(logoUrl&&String(logoUrl).trim()),hasSignatureUrl:Boolean(signatureUrl&&String(signatureUrl).trim()),regLen:String(registrationNumber||'').length,streetLen:String(companyRow.street||'').length,cityLen:String(companyRow.city||'').length,postalLen:String(companyRow.postal_code||'').length,emailLen:String(companyRow.email||'').length,websiteLen:String(companyRow.website||'').length,mobileLen:String(companyRow.mobile_phone||'').length,phoneLen:String(companyRow.phone||'').length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
     } else {
       companyData = null;
     }
@@ -201,6 +289,10 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     templateHtml = template.html || null;
     templateCss = template.css || "";
     
+    // #region agent log (hypothesisId=PV6)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany4',hypothesisId:'PV6',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Template fetched (lengths only)',data:{hasHtml:Boolean(templateHtml&&String(templateHtml).trim()),htmlLen:typeof templateHtml==='string'?templateHtml.length:0,cssLen:typeof templateCss==='string'?templateCss.length:0,companyIdSuffix:typeof companyId==='string'?String(companyId).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     console.log("✅ [PreviewPage] Template loaded:", {
       templateId: template.templateId?.substring(0, 8) || 'fallback',
       hasHtml: !!templateHtml,
@@ -218,6 +310,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   // Sanitize template HTML to remove any script tags and event handlers
   let sanitizedHtml = templateHtml;
   if (sanitizedHtml) {
+    const beforeLen = sanitizedHtml.length;
     console.log("🔵 [PreviewPage] Sanitizing template HTML");
     // Remove script tags and their content (case-insensitive, handles attributes)
     sanitizedHtml = sanitizedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -228,6 +321,10 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
     sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*javascript:[^\s>]*/gi, 'href="#"');
     console.log("✅ [PreviewPage] Template sanitized");
+
+    // #region agent log (hypothesisId=PV6)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany4',hypothesisId:'PV6',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Template sanitized (length delta only)',data:{beforeLen,afterLen:sanitizedHtml.length,trimmedLen:sanitizedHtml.trim().length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   }
   
   return (
@@ -237,6 +334,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       styleSettings={styleSettings}
       templateHtml={sanitizedHtml}
       templateCss={templateCss}
+      documentDescriptionFromDb={documentDescriptionFromDb}
     />
   );
 }

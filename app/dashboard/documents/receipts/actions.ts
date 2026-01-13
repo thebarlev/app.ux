@@ -363,6 +363,7 @@ export async function getReceiptPreviewUrlAction(receiptId: string): Promise<{
 
     // Build preview URL query params
     const params = new URLSearchParams({
+      documentId: receiptId,
       previewNumber: receipt.document_number || "",
       companyName: company?.company_name || "העסק שלי",
       customerName: receipt.customer_name || "",

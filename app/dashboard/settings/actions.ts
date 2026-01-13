@@ -1,8 +1,129 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { revalidatePath } from "next/cache";
+
+async function getCompanyIdForUser(userId: string): Promise<string> {
+  const supabase = await createClient();
+
+  const { data: memberships, error: membershipError } = await supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", userId)
+    .order("company_id", { ascending: true });
+
+  // #region agent log (hypothesisId=H1)
+  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "debug-session",
+      runId: "runReg4",
+      hypothesisId: "H1",
+      location: "app/dashboard/settings/actions.ts:getCompanyIdForUser",
+      message: "company_members lookup (counts only)",
+      data: { membershipCount: Array.isArray(memberships) ? memberships.length : 0, membershipErrorCode: membershipError?.code ?? null },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  if (membershipError) throw membershipError;
+  const membershipCompanyIds = (memberships || []).map((m: any) => m.company_id).filter(Boolean) as string[];
+
+  const { data: ownerCompany, error: ownerCompanyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (ownerCompanyError) throw ownerCompanyError;
+
+  const candidateIds = Array.from(new Set([...(membershipCompanyIds || []), ...(ownerCompany?.id ? [ownerCompany.id] : [])]));
+
+  // #region agent log (hypothesisId=H12)
+  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "debug-session",
+      runId: "runReg5",
+      hypothesisId: "H12",
+      location: "app/dashboard/settings/actions.ts:getCompanyIdForUser",
+      message: "Candidate company IDs for actions (suffix only)",
+      data: {
+        membershipCount: membershipCompanyIds.length,
+        firstMembershipCompanyIdSuffix: membershipCompanyIds[0] ? String(membershipCompanyIds[0]).slice(-6) : null,
+        hasOwnerCompany: Boolean(ownerCompany?.id),
+        ownerCompanyIdSuffix: ownerCompany?.id ? String(ownerCompany.id).slice(-6) : null,
+        candidateCount: candidateIds.length,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  if (candidateIds.length > 0) {
+    // Prefer a company that actually has registration_number (business ID) since Settings requires it.
+    const { data: companies, error: companiesError } = await supabase
+      .from("companies")
+      .select("id, registration_number")
+      .in("id", candidateIds);
+
+    if (companiesError) throw companiesError;
+
+    const withReg = (companies || []).filter((c: any) => Boolean(c?.registration_number && String(c.registration_number).trim().length > 0));
+    const chosen = (withReg.length > 0 ? withReg : (companies || [])).sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))[0];
+
+    // #region agent log (hypothesisId=H12)
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "runReg5",
+        hypothesisId: "H12",
+        location: "app/dashboard/settings/actions.ts:getCompanyIdForUser",
+        message: "Selected company from memberships (suffix only)",
+        data: { candidateCount: candidateIds.length, chosenCompanyIdSuffix: chosen?.id ? String(chosen.id).slice(-6) : null, choseBecauseHasReg: withReg.length > 0 },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
+    if (chosen?.id) return String(chosen.id);
+  }
+
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+
+  // #region agent log (hypothesisId=H1)
+  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "debug-session",
+      runId: "runReg4",
+      hypothesisId: "H1",
+      location: "app/dashboard/settings/actions.ts:getCompanyIdForUser",
+      message: "companies.auth_user_id lookup (suffix only)",
+      data: { hasOwnerCompany: Boolean(company?.id), companyErrorCode: companyError?.code ?? null },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  if (companyError) throw companyError;
+  if (company?.id) {
+    return company.id;
+  }
+
+  throw new Error("company_not_found");
+}
 
 /**
  * מחזיר את ה-company_id של המשתמש המחובר
@@ -10,20 +131,29 @@ import { revalidatePath } from "next/cache";
  */
 async function getMyCompanyId() {
   const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
 
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id;
-  if (!userId) {
-    throw new Error("Not authenticated");
-  }
+  // #region agent log (hypothesisId=H2)
+  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sessionId: "debug-session",
+      runId: "pre-fix",
+      hypothesisId: "H2",
+      location: "app/dashboard/settings/actions.ts:getMyCompanyId",
+      message: "auth.getUser (no PII)",
+      data: { hasUser: Boolean(user), userIdSuffix: user?.id ? String(user.id).slice(-6) : null, authError: error?.message ?? null },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
 
-  // Use the centralized helper that checks both paths
-  const companyId = await getCompanyIdForUser(userId);
-  if (!companyId) {
-    throw new Error("No company found for this user");
-  }
-
-  return companyId;
+  if (error || !user) throw new Error("not_authenticated");
+  return await getCompanyIdForUser(user.id);
 }
 
 export type BusinessDetailsPayload = {
@@ -51,32 +181,124 @@ export type BusinessDetailsPayload = {
 export async function updateBusinessDetailsAction(payload: BusinessDetailsPayload) {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
-    const { error } = await supabase
+    // #region agent log (hypothesisId=H3)
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "runSave5",
+        hypothesisId: "H3",
+        location: "app/dashboard/settings/actions.ts:updateBusinessDetailsAction",
+        message: "updateBusinessDetailsAction entry",
+        data: { companyIdSuffix: typeof companyId === "string" ? companyId.slice(-6) : null, hasCompanyId: Boolean(companyId), payloadKeys: Object.keys(payload) },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
+    const updatePayloadWithEnglish = {
+      company_name: payload.company_name,
+      company_name_en: payload.company_name_en || null,
+      business_type: payload.business_type,
+      industry: payload.industry,
+      custom_industry: payload.custom_industry,
+      street: payload.street,
+      city: payload.city,
+      postal_code: payload.postal_code,
+      address: payload.address,
+      phone: payload.phone,
+      mobile_phone: payload.mobile_phone,
+      contact_first_name_en: payload.contact_first_name_en || null,
+      books_region: payload.books_region || null,
+      // notified_tax_officer fields removed
+      email: payload.email,
+      website: payload.website,
+    };
+
+    const updatePayloadWithoutEnglish = {
+      company_name: payload.company_name,
+      business_type: payload.business_type,
+      industry: payload.industry,
+      custom_industry: payload.custom_industry,
+      street: payload.street,
+      city: payload.city,
+      postal_code: payload.postal_code,
+      address: payload.address,
+      phone: payload.phone,
+      mobile_phone: payload.mobile_phone,
+      books_region: payload.books_region || null,
+      // notified_tax_officer fields removed
+      email: payload.email,
+      website: payload.website,
+    };
+
+    const r1 = await supabase
       .from("companies")
-      .update({
-        company_name: payload.company_name,
-        company_name_en: payload.company_name_en || null,
-        business_type: payload.business_type,
-        industry: payload.industry,
-        custom_industry: payload.custom_industry,
-        street: payload.street,
-        city: payload.city,
-        postal_code: payload.postal_code,
-        address: payload.address,
-        phone: payload.phone,
-        mobile_phone: payload.mobile_phone,
-        contact_first_name_en: payload.contact_first_name_en || null,
-        books_region: payload.books_region || null,
-        // notified_tax_officer fields removed
-        email: payload.email,
-        website: payload.website,
-      })
-      .eq("id", companyId);
+      .update(updatePayloadWithEnglish)
+      .eq("id", companyId)
+      .select("id")
+      .single();
+
+    let data = r1.data;
+    let error = r1.error;
+
+    const msg = (error?.message || "") as string;
+    const code = (error?.code || "") as string;
+    const missingEnglishCols = msg.includes("company_name_en") || msg.includes("contact_first_name_en");
+    if (error && code === "PGRST204" && missingEnglishCols) {
+      // #region agent log (hypothesisId=H5)
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "H5",
+          location: "app/dashboard/settings/actions.ts:updateBusinessDetailsAction",
+          message: "Retry update without EN columns (schema cache missing EN columns)",
+          data: { code, hasCompanyId: Boolean(companyId) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
+      const r2 = await supabase
+        .from("companies")
+        .update(updatePayloadWithoutEnglish)
+        .eq("id", companyId)
+        .select("id")
+        .single();
+      data = r2.data;
+      error = r2.error;
+    }
 
     if (error) {
+      // #region agent log (hypothesisId=H3)
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: "debug-session",
+          runId: "pre-fix",
+          hypothesisId: "H3",
+          location: "app/dashboard/settings/actions.ts:updateBusinessDetailsAction",
+          message: "companies.update error",
+          data: { message: error.message },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      if (error.code === "PGRST116" || error.message.includes("0 rows")) {
+        return { ok: false as const, message: "no_company_updated" };
+      }
       return { ok: false as const, message: error.message };
+    }
+
+    if (!data?.id) {
+      return { ok: false as const, message: "no_company_updated" };
     }
 
     revalidatePath("/dashboard/settings");
@@ -84,6 +306,21 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
 
     return { ok: true as const };
   } catch (e: any) {
+    // #region agent log (hypothesisId=H4)
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId: "H4",
+        location: "app/dashboard/settings/actions.ts:updateBusinessDetailsAction",
+        message: "updateBusinessDetailsAction threw",
+        data: { message: e?.message ?? null },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return { ok: false as const, message: e?.message ?? "unknown_error" };
   }
 }
@@ -94,7 +331,7 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
 export async function uploadLogoAction(formData: FormData) {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     const file = formData.get("logo") as File;
     if (!file) {
@@ -177,7 +414,7 @@ export async function uploadLogoAction(formData: FormData) {
 export async function deleteLogoAction() {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     const { data: company } = await supabase
       .from("companies")
@@ -319,7 +556,7 @@ export const uploadSignatureAction = uploadCompanySignatureAction;
 export async function deleteSignatureAction() {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     // בודקים שיש בכלל חתימה
     let company: { signature_url: string | null } | null = null;

@@ -335,6 +335,16 @@ export default function ReceiptFormClient({
         currency: currency || "₪",
         payments: JSON.stringify(paymentsForPreview),
       });
+
+      // If this receipt already exists as a draft/edit, include documentId so Preview can resolve company via documents.company_id (same as PDF)
+      const docIdForPreview = draftId || (editData as any)?.id || null;
+      if (docIdForPreview) {
+        params.set("documentId", String(docIdForPreview));
+      }
+
+      // #region agent log (hypothesisId=PV3)
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewUrl1',hypothesisId:'PV3',location:'app/dashboard/documents/receipt/ReceiptFormClient.tsx:handlePreview',message:'Built preview URL params (names only)',data:{hasDocumentId:Boolean(docIdForPreview),documentIdSuffix:docIdForPreview?String(docIdForPreview).slice(-6):null,keys:Array.from(params.keys()).sort()},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       
       const previewUrl = `/dashboard/documents/receipt/preview?${params.toString()}`;
       

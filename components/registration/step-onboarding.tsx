@@ -120,6 +120,7 @@ export function StepOnboarding() {
           company_name: data.businessName,
           business_type: data.businessType,
           company_number: data.companyNumber || null,
+          registration_number: data.companyNumber || null,
           industry: data.industry || null,
           custom_industry: data.customIndustry || null,
           contact_first_name: data.firstName,

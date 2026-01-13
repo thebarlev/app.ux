@@ -78,12 +78,14 @@ export default function PreviewClient({
   styleSettings,
   templateHtml,
   templateCss,
+  documentDescriptionFromDb = "",
 }: {
   customerData: CustomerData;
   companyData: CompanyData;
   styleSettings: ReceiptStyleSettings;
   templateHtml: string | null;
   templateCss: string | null;
+  documentDescriptionFromDb?: string;
 }) {
   const searchParams = useSearchParams();
   
@@ -102,7 +104,9 @@ export default function PreviewClient({
 
   // Parse data from URL parameters
   const language = (searchParams.get("language") === "en" ? "en" : "he") as "he" | "en";
-  const issue = ((searchParams.get("issue") || "").toLowerCase() as "original" | "copy" | "") || "";
+  const documentIdParam = searchParams.get("documentId") || "";
+  // Match PDF behavior: when no issue provided, treat as "copy" for finalized documents.
+  const issue = (((searchParams.get("issue") || "") || (documentIdParam ? "copy" : "")).toLowerCase() as "original" | "copy" | "") || "";
   const previewNumber = searchParams.get("previewNumber") || null;
   const companyNameBase =
     (language === "en" ? (companyData as any)?.company_name_en : companyData?.company_name) ||
@@ -112,7 +116,7 @@ export default function PreviewClient({
   const customerName =
     customerData?.name || searchParams.get("customerName") || "";
   const documentDate = searchParams.get("documentDate") || "";
-  const description = searchParams.get("description") || "";
+  const description = searchParams.get("description") || documentDescriptionFromDb || "";
   const notes = searchParams.get("notes") || "";
   const footerNotes = searchParams.get("footerNotes") || "";
   const total = parseFloat(searchParams.get("total") || "0");
@@ -488,6 +492,43 @@ export default function PreviewClient({
       minute: '2-digit' 
     })
   };
+
+  // Add PDF-parity flat placeholders used by many admin templates (Preview-only mapping)
+  (templateData as any).company_logo = (templateData as any).LOGO_URL;
+  (templateData as any).company_email = companyData?.email || "";
+  (templateData as any).company_phone = companyPhone || "";
+  (templateData as any).company_address = companyAddress || "";
+  (templateData as any).company_tax_id = (templateData as any).USERID || "";
+  (templateData as any).customer_address = (templateData as any).customerAddress || "";
+  (templateData as any).customer_tax_id = (templateData as any).BUSINESSID || "";
+  (templateData as any).customer_email = (templateData as any).customerEmail || "";
+  (templateData as any).customer_phone = customerPhone || "";
+  (templateData as any).RECEIPTNNUMBER = (templateData as any).RECEIPTNUMBER || "";
+  (templateData as any).DATE = formatDate(documentDate, language);
+  (templateData as any).TIME = new Date().toLocaleTimeString(language === "en" ? "en-US" : "he-IL", { hour: "2-digit", minute: "2-digit" });
+  (templateData as any).DESCRIPTION = description || "";
+  (templateData as any).AMOUNT = formatMoney(total, currency, language);
+  (templateData as any).NOTES = notes || "";
+
+  // #region agent log (hypothesisId=PV5)
+  if (process.env.NODE_ENV !== "production") {
+    const w = window as any;
+    if (!w.__PREVIEW_COMPANY_PARITY_DEBUG_ONCE__) {
+      w.__PREVIEW_COMPANY_PARITY_DEBUG_ONCE__ = true;
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany3',hypothesisId:'PV5',location:'app/dashboard/documents/receipt/preview/PreviewClient.tsx',message:'PreviewClient key company fields (truthy)',data:{hasDocumentId:Boolean(documentIdParam),issue,hasLogoUrl:Boolean((templateData as any).LOGO_URL),hasSignatureUrl:Boolean((templateData as any).SIGNATURE_URL),hasEmail:Boolean((templateData as any).EMAIL),hasDomain:Boolean((templateData as any).DOMAIN),hasAddress:Boolean((templateData as any).USERADDRESS),hasCopyLabel:Boolean((templateData as any).DOCUMENT_COPY_LABEL)},timestamp:Date.now()})}).catch(()=>{});
+    }
+  }
+  // #endregion
+
+  // #region agent log (hypothesisId=PV9)
+  if (process.env.NODE_ENV !== "production") {
+    const w = window as any;
+    if (!w.__PREVIEW_DESC_DEBUG_ONCE__) {
+      w.__PREVIEW_DESC_DEBUG_ONCE__ = true;
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewDesc2',hypothesisId:'PV9',location:'app/dashboard/documents/receipt/preview/PreviewClient.tsx',message:'PreviewClient description (length only)',data:{hasDocumentId:Boolean(documentIdParam),descLen:typeof description==='string'?description.length:0,hasDesc:Boolean(description&&description.trim()),descKeyLen:typeof (templateData as any).DESCRIPTION==='string'?(templateData as any).DESCRIPTION.length:0,descKeyTruthy:Boolean((templateData as any).DESCRIPTION&&String((templateData as any).DESCRIPTION).trim())},timestamp:Date.now()})}).catch(()=>{});
+    }
+  }
+  // #endregion
   
   // Function to process template with data
   const processTemplate = (html: string) => {
@@ -604,6 +645,16 @@ export default function PreviewClient({
   
   // Use template if available, otherwise use hardcoded HTML
   const useTemplate = templateHtml && templateHtml.trim().length > 0;
+
+  // #region agent log (hypothesisId=PV7)
+  if (process.env.NODE_ENV !== "production") {
+    const w = window as any;
+    if (!w.__PREVIEW_TEMPLATE_BRANCH_DEBUG_ONCE__) {
+      w.__PREVIEW_TEMPLATE_BRANCH_DEBUG_ONCE__ = true;
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany4',hypothesisId:'PV7',location:'app/dashboard/documents/receipt/preview/PreviewClient.tsx',message:'PreviewClient template branch decision (lengths only)',data:{useTemplate,isMounted,templateHtmlLen:templateHtml?templateHtml.length:0,templateCssLen:templateCss?templateCss.length:0},timestamp:Date.now()})}).catch(()=>{});
+    }
+  }
+  // #endregion
   
   console.log("🎯 [PreviewClient] useTemplate decision:", {
     useTemplate,
