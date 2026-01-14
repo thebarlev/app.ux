@@ -398,12 +398,7 @@ export default function ReceiptsListClient({ initialData, initialFilters }: Prop
                                     alert("תיאור הוא שדה חובה");
                                     return;
                                   }
-                                  const result = await getReceiptPreviewUrlAction(receipt.id);
-                                  if (result.ok && result.url) {
-                                    window.open(result.url, "_blank");
-                                  } else {
-                                    alert(result.message || "Failed to open preview");
-                                  }
+                                  window.open(`/dashboard/documents/receipt/${receipt.id}/summary`, "_blank");
                                 }}
                                 disabled={!hasDescription}
                                 variant="secondary"

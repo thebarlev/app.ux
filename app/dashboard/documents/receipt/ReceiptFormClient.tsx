@@ -1253,13 +1253,7 @@ export default function ReceiptFormClient({
           baseLanguage={successModalData.language}
           onViewDocument={async () => {
             try {
-              // Use getReceiptPreviewUrlAction to build the correct preview URL
-              const result = await getReceiptPreviewUrlAction(successModalData.documentId);
-              if (result.ok && result.url) {
-                window.location.href = result.url;
-              } else {
-                toast.error(result.message || "לא ניתן לפתוח את תצוגת המסמך");
-              }
+              window.location.href = `/dashboard/documents/receipt/${successModalData.documentId}/summary`;
             } catch (error: any) {
               toast.error(`שגיאה בפתיחת תצוגת המסמך: ${error.message}`);
             }

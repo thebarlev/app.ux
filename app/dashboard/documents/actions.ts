@@ -6,6 +6,8 @@ import { getCompanyIdForUser, initializeSequence, isSequenceLocked } from "@/lib
 export type DocumentsListFilters = {
   search?: string;
   documentType?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   pageSize?: number;
 };
@@ -15,6 +17,7 @@ export type DocumentListItem = {
   document_number: string | null;
   document_type: string;
   document_date: string | null;
+  customer_id: string | null;
   customer_name: string | null;
   document_description: string | null;
   payment_method: string | null;
@@ -60,6 +63,8 @@ export async function getAllDocumentsListAction(
     const {
       search = "",
       documentType,
+      dateFrom,
+      dateTo,
       page = 1,
       pageSize = 50,
     } = filters;
@@ -73,6 +78,7 @@ export async function getAllDocumentsListAction(
         document_type,
         issue_date,
         created_at,
+        customer_id,
         customer_name,
         document_description,
         total_amount,
@@ -84,14 +90,68 @@ export async function getAllDocumentsListAction(
 
     // Document type filter
     if (documentType && documentType !== "all") {
-      query = query.eq("document_type", documentType);
+      const raw = String(documentType);
+      const parts = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (parts.length <= 1) {
+        query = query.eq("document_type", parts[0] || raw);
+      } else {
+        query = query.in("document_type", parts);
+      }
+    }
+
+    // Date range filter:
+    // Prefer issue_date when present, otherwise fall back to created_at.
+    // (DocumentListClient displays document_date = issue_date || created_at)
+    const startOfDayUtc = (d: string) => `${d}T00:00:00Z`;
+    const endOfDayUtc = (d: string) => `${d}T23:59:59Z`;
+
+    if (dateFrom && dateTo) {
+      query = query.or(
+        `and(issue_date.gte.${dateFrom},issue_date.lte.${dateTo}),and(issue_date.is.null,created_at.gte.${startOfDayUtc(
+          dateFrom
+        )},created_at.lte.${endOfDayUtc(dateTo)})`
+      );
+    } else if (dateFrom) {
+      query = query.or(
+        `issue_date.gte.${dateFrom},and(issue_date.is.null,created_at.gte.${startOfDayUtc(dateFrom)})`
+      );
+    } else if (dateTo) {
+      query = query.or(
+        `issue_date.lte.${dateTo},and(issue_date.is.null,created_at.lte.${endOfDayUtc(dateTo)})`
+      );
     }
 
     // Search filter (document_number, customer_name)
     if (search && search.trim()) {
-      query = query.or(
-        `document_number.ilike.%${search}%,customer_name.ilike.%${search}%`
-      );
+      const s = search.trim();
+      const orParts: string[] = [
+        `document_number.ilike.%${s}%`,
+        `customer_name.ilike.%${s}%`,
+      ];
+
+      // Also allow free-text search by amount when user types a number.
+      // We support:
+      // - exact match: total_amount == N
+      // - partial (prefix) match: if user types an integer K, match K.xx amounts via [K, K+1)
+      //   (e.g., "14" matches 14.00–14.99)
+      const numericCandidate = s.replace(/,/g, "");
+      if (/^\d+(\.\d+)?$/.test(numericCandidate)) {
+        const n = Number(numericCandidate);
+        if (Number.isFinite(n)) {
+          orParts.push(`total_amount.eq.${n}`);
+          const dot = numericCandidate.includes(".");
+          const decimals = dot ? (numericCandidate.split(".")[1]?.length || 0) : 0;
+          const step = dot ? Math.pow(10, -Math.min(decimals, 6)) : 1;
+          const upper = n + step;
+          // range for partial match (prefix)
+          orParts.push(`and(total_amount.gte.${n},total_amount.lt.${upper})`);
+        }
+      }
+
+      query = query.or(orParts.join(","));
     }
 
     // Sorting: newest first (by created_at desc)
@@ -131,6 +191,7 @@ export async function getAllDocumentsListAction(
       document_number: doc.document_number,
       document_type: doc.document_type,
       document_date: doc.issue_date || doc.created_at,
+      customer_id: doc.customer_id || null,
       customer_name: doc.customer_name || null,
       document_description: doc.document_description || null,
       payment_method: paymentMethodMap.get(doc.id) || null,

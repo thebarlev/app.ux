@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,20 @@ import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
-import type { DocumentsListFilters, DocumentsListResult } from "./actions";
+import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
 import { getReceiptPreviewUrlAction } from "./receipts/actions";
 import { Eye, Copy, Download, X } from "lucide-react";
+import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -47,32 +58,42 @@ function getDocumentTypeLabel(type: string): string {
   }
 }
 
-function getStatusBadgeClass(status: string): string {
-  switch (status) {
-    case "draft":
-      return "ui-badge-warning";
-    case "final":
-      return "ui-badge-success";
-    case "void":
-    case "cancelled":
-      return "ui-badge-danger";
-    default:
-      return "ui-badge";
-  }
+function normalizeStatus(raw: string | null | undefined): "open" | "pending" | "closed" | "canceled" | null {
+  if (!raw) return null;
+  const s = String(raw).toLowerCase();
+
+  // New set (as specified)
+  if (s === "open" || s === "pending" || s === "closed" || s === "canceled") return s;
+
+  // Existing set (map to closest meaning)
+  if (s === "draft") return "open";
+  if (s === "final") return "closed";
+  if (s === "void" || s === "cancelled") return "canceled";
+
+  return null;
 }
 
-function getStatusLabel(status: string): string {
+function getStatusBadge(statusRaw: string): { label: string; style: React.CSSProperties } {
+  const status = normalizeStatus(statusRaw);
+  if (!status) {
+    return {
+      label: "לא ידוע",
+      style: {
+        backgroundColor: "#F1F5F9",
+        color: "#475569",
+      },
+    };
+  }
+
   switch (status) {
-    case "draft":
-      return "טיוטה";
-    case "final":
-      return "הופק";
-    case "void":
-      return "בוטל";
-    case "cancelled":
-      return "מבוטל";
-    default:
-      return status;
+    case "closed":
+      return { label: "סגור", style: { backgroundColor: "#E9F8F0", color: "#167C4B" } };
+    case "pending":
+      return { label: "ממתין", style: { backgroundColor: "#FFF6E5", color: "#B45309" } };
+    case "canceled":
+      return { label: "מבוטל", style: { backgroundColor: "#FDE8E8", color: "#B91C1C" } };
+    case "open":
+      return { label: "פתוח", style: { backgroundColor: "#E8F2FF", color: "#1D4ED8" } };
   }
 }
 
@@ -94,6 +115,37 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   const [documentType, setDocumentType] = useState(initialFilters.documentType || "all");
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
+  const [selectedDocSnapshot, setSelectedDocSnapshot] = useState<DocumentsQuickViewDocumentSnapshot | null>(null);
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+
+  const [isMobile, setIsMobile] = useState(false);
+  const [dateSheetOpen, setDateSheetOpen] = useState(false);
+
+  type DateFilter =
+    | { kind: "none"; label: string }
+    | { kind: "preset"; preset: "last7" | "last30" | "last12mo"; dateFrom: string; dateTo: string; label: string }
+    | { kind: "calendarYear"; year: number; dateFrom: string; dateTo: string; label: string }
+    | { kind: "custom"; dateFrom: string; dateTo: string; label: string };
+
+  const [dateFilter, setDateFilter] = useState<DateFilter>({ kind: "none", label: "טווח תאריכים" });
+  // Custom range input values are displayed as DD/MM/YYYY (per UX spec)
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const [clientData, setClientData] = useState<DocumentsListResult | null>(null);
+  const [clientLoading, setClientLoading] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
 
   if (!initialData.ok) {
     return (
@@ -104,10 +156,176 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     );
   }
 
-  const { documents, totalCount, page, pageSize } = initialData.data!;
+  const effectiveData = dateFilter.kind === "none" ? initialData.data! : clientData || initialData.data!;
+  const { documents, totalCount, page, pageSize } = effectiveData;
   const totalPages = Math.ceil(totalCount / pageSize);
+  const tableFontSize = "clamp(14px, 1.1vw, 18px)";
+  const tableHeaderColor = "#1D868F";
+  const tableHeaderBorder = "1px solid #EDF1F5";
+
+  const documentTypeOptions = useMemo(() => {
+    // Current system: only receipts exist. Show only the types that exist in data,
+    // but always include receipts so the option remains available even when list is empty.
+    const set = new Set<string>(["receipt"]);
+    for (const d of documents) {
+      if (d?.document_type) set.add(d.document_type);
+    }
+    return Array.from(set);
+  }, [documents]);
+
+  const selectedDocumentTypes = useMemo(() => {
+    const raw = (documentType || "all").trim();
+    if (!raw || raw === "all") return new Set<string>();
+    return new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+  }, [documentType]);
+
+  function setSelectedDocumentTypes(next: Set<string>) {
+    if (next.size === 0) {
+      setDocumentType("all");
+      return;
+    }
+    setDocumentType(Array.from(next).join(","));
+  }
+
+  const monthGroups = useMemo(() => {
+    const safeDate = (doc: any) => {
+      const s = doc?.document_date || doc?.created_at;
+      const d = s ? new Date(s) : null;
+      return d && !Number.isNaN(d.getTime()) ? d : null;
+    };
+
+    const sorted = [...documents].sort((a, b) => {
+      const da = safeDate(a);
+      const db = safeDate(b);
+      const ta = da ? da.getTime() : 0;
+      const tb = db ? db.getTime() : 0;
+      return tb - ta;
+    });
+
+    const map = new Map<string, { key: string; label: string; docs: typeof documents }>();
+    for (const doc of sorted) {
+      const d = safeDate(doc);
+      const year = d ? d.getFullYear() : 0;
+      const month = d ? d.getMonth() + 1 : 0;
+      const key = year && month ? `${year}-${String(month).padStart(2, "0")}` : "unknown";
+      const label =
+        key === "unknown"
+          ? "ללא תאריך"
+          : d!.toLocaleDateString("he-IL", { month: "long", year: "numeric" });
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.docs.push(doc);
+      } else {
+        map.set(key, { key, label, docs: [doc] as any });
+      }
+    }
+
+    // Keys already in descending order because we iterate sorted docs; preserve insertion order.
+    return Array.from(map.values());
+  }, [documents]);
+
+  function formatIsoDate(d: Date): string {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function formatDmyFromIso(iso: string): string {
+    // expects YYYY-MM-DD
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return iso;
+    return `${d}/${m}/${y}`;
+  }
+
+  function isoFromDmy(dmy: string): string | null {
+    // expects DD/MM/YYYY
+    const parts = dmy.split("/");
+    if (parts.length !== 3) return null;
+    const [dd, mm, yyyy] = parts.map((p) => p.trim());
+    if (!dd || !mm || !yyyy) return null;
+    if (yyyy.length !== 4) return null;
+    const d = Number(dd);
+    const m = Number(mm);
+    const y = Number(yyyy);
+    if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) return null;
+    if (m < 1 || m > 12) return null;
+    if (d < 1 || d > 31) return null;
+    // basic validation only; server-side will enforce actual existence
+    return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  function formatRangeDmy(fromIso: string, toIso: string): string {
+    return `${formatDmyFromIso(fromIso)} – ${formatDmyFromIso(toIso)}`;
+  }
+
+  function presetToRange(preset: "last7" | "last30" | "last12mo") {
+    const today = new Date();
+    const to = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+    const from = new Date(to);
+    if (preset === "last7") from.setUTCDate(from.getUTCDate() - 6);
+    if (preset === "last30") from.setUTCDate(from.getUTCDate() - 29);
+    if (preset === "last12mo") from.setUTCFullYear(from.getUTCFullYear() - 1), from.setUTCDate(from.getUTCDate() + 1);
+    return { dateFrom: formatIsoDate(from), dateTo: formatIsoDate(to) };
+  }
+
+  async function fetchWithDateFilter(opts: { nextPage: number; nextSearch?: string; nextDocumentType?: string; nextDateFrom: string | null; nextDateTo: string | null }) {
+    setClientLoading(true);
+    setClientError(null);
+    try {
+      const res = await getAllDocumentsListAction({
+        search: opts.nextSearch ?? search,
+        documentType: opts.nextDocumentType ?? documentType,
+        page: opts.nextPage,
+        pageSize,
+        dateFrom: opts.nextDateFrom || undefined,
+        dateTo: opts.nextDateTo || undefined,
+      });
+
+      if (!res.ok || !res.data) {
+        setClientError(res.message || "שגיאה בטעינת מסמכים");
+        return;
+      }
+
+      setClientData(res.data);
+    } finally {
+      setClientLoading(false);
+    }
+  }
+
+  async function downloadDocumentPdf(documentId: string, fileName: string) {
+    const pdfUrl = `/api/documents/${documentId}/pdf`;
+    const response = await fetch(pdfUrl);
+
+    if (!response.ok) {
+      throw new Error("שגיאה בהורדת המסמך");
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
 
   function applyFilters() {
+    if (dateFilter.kind !== "none") {
+      const next = 1;
+      const df = "dateFrom" in dateFilter ? dateFilter.dateFrom : null;
+      const dt = "dateTo" in dateFilter ? dateFilter.dateTo : null;
+      void fetchWithDateFilter({ nextPage: next, nextDateFrom: df, nextDateTo: dt });
+      return;
+    }
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (documentType && documentType !== "all") params.set("documentType", documentType);
@@ -119,10 +337,22 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   function resetFilters() {
     setSearch("");
     setDocumentType("all");
+    setDateFilter({ kind: "none", label: "טווח תאריכים" });
+    setCustomFrom("");
+    setCustomTo("");
+    setClientData(null);
+    setClientError(null);
+    setClientLoading(false);
     router.push("/dashboard/documents");
   }
 
   function goToPage(newPage: number) {
+    if (dateFilter.kind !== "none") {
+      const df = "dateFrom" in dateFilter ? dateFilter.dateFrom : null;
+      const dt = "dateTo" in dateFilter ? dateFilter.dateTo : null;
+      void fetchWithDateFilter({ nextPage: newPage, nextDateFrom: df, nextDateTo: dt });
+      return;
+    }
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (documentType && documentType !== "all") params.set("documentType", documentType);
@@ -130,6 +360,32 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
     router.push(`/dashboard/documents?${params.toString()}`);
   }
+
+  function closeDatePickerUi() {
+    setDateSheetOpen(false);
+  }
+
+  function applyDateFilter(next: DateFilter) {
+    setDateFilter(next);
+    setClientData(null);
+    const df = "dateFrom" in next ? (next as any).dateFrom : null;
+    const dt = "dateTo" in next ? (next as any).dateTo : null;
+    void fetchWithDateFilter({ nextPage: 1, nextDateFrom: df, nextDateTo: dt });
+    closeDatePickerUi();
+  }
+
+  function clearDateFilter() {
+    setDateFilter({ kind: "none", label: "טווח תאריכים" });
+    setCustomFrom("");
+    setCustomTo("");
+    setClientData(null);
+    setClientError(null);
+    setClientLoading(false);
+    closeDatePickerUi();
+  }
+
+  const dateTriggerLabel = dateFilter.label;
+  const customRangePreview = customFrom && customTo ? `${customFrom} – ${customTo}` : "DD/MM/YYYY – DD/MM/YYYY";
 
   return (
     <div className="ui-container pt-10" style={{ minHeight: '100vh' }}>
@@ -162,15 +418,209 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
           </FieldWrapper>
 
           <FieldWrapper label="סוג מסמך" id="documentType">
-            <Select value={documentType} onValueChange={setDocumentType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הסוגים</SelectItem>
-                <SelectItem value="receipt">קבלה</SelectItem>
-                <SelectItem value="invoice">חשבונית</SelectItem>
-                <SelectItem value="quote">הצעת מחיר</SelectItem>
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
+                >
+                  <span>
+                    {selectedDocumentTypes.size === 0
+                      ? "כל המסמכים"
+                      : selectedDocumentTypes.size === 1
+                        ? (Array.from(selectedDocumentTypes)[0] === "receipt"
+                            ? "קבלות"
+                            : getDocumentTypeLabel(Array.from(selectedDocumentTypes)[0]))
+                        : `${selectedDocumentTypes.size} סוגי מסמכים`}
+                  </span>
+                  <span style={{ opacity: 0.6 }}>▾</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[260px] bg-card text-card-fg">
+                <DropdownMenuCheckboxItem
+                  className="justify-end"
+                  checked={selectedDocumentTypes.size === 0}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(checked) => {
+                    if (checked) setSelectedDocumentTypes(new Set());
+                  }}
+                >
+                  כל המסמכים
+                </DropdownMenuCheckboxItem>
+
+                <DropdownMenuSeparator />
+
+                {documentTypeOptions.map((t) => (
+                  <DropdownMenuCheckboxItem
+                    key={t}
+                    className="justify-end"
+                    checked={selectedDocumentTypes.has(t)}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      const next = new Set(selectedDocumentTypes);
+                      if (checked) next.add(t);
+                      else next.delete(t);
+                      setSelectedDocumentTypes(next);
+                    }}
+                  >
+                    {t === "receipt" ? "קבלות" : getDocumentTypeLabel(t)}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </FieldWrapper>
+
+          <FieldWrapper label="טווח תאריכים" id="dateRange">
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDateSheetOpen(true)}
+                style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
+              >
+                <span>{dateTriggerLabel}</span>
+                <span style={{ opacity: 0.6 }}>▾</span>
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
+                  >
+                    <span>{dateTriggerLabel}</span>
+                    <span style={{ opacity: 0.6 }}>▾</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[320px] bg-card text-card-fg">
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      const r = presetToRange("last7");
+                      setCustomFrom(formatDmyFromIso(r.dateFrom));
+                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
+                    }}
+                  >
+                    7 ימים אחרונים
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      const r = presetToRange("last30");
+                      setCustomFrom(formatDmyFromIso(r.dateFrom));
+                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
+                    }}
+                  >
+                    30 ימים אחרונים
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      const r = presetToRange("last12mo");
+                      setCustomFrom(formatDmyFromIso(r.dateFrom));
+                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
+                    }}
+                  >
+                    12 חודשים אחרונים
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      const now = new Date();
+                      const y = now.getFullYear();
+                      const dateFrom = `${y}-01-01`;
+                      const dateTo = `${y}-12-31`;
+                      setCustomFrom(formatDmyFromIso(dateFrom));
+                      setCustomTo(formatDmyFromIso(dateTo));
+                      applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
+                    }}
+                  >
+                    שנה נוכחית
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      const now = new Date();
+                      const y = now.getFullYear() - 1;
+                      const dateFrom = `${y}-01-01`;
+                      const dateTo = `${y}-12-31`;
+                      setCustomFrom(formatDmyFromIso(dateFrom));
+                      setCustomTo(formatDmyFromIso(dateTo));
+                      applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
+                    }}
+                  >
+                    שנה קודמת
+                  </DropdownMenuItem>
+
+                  <div className="px-2 pb-2 pt-1" dir="rtl">
+                    <div className="flex justify-end">
+                      <div className="grid w-[75%] grid-cols-2 gap-2">
+                      <Input
+                        className="h-[50px] !text-[18px]"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="DD/MM/YYYY"
+                        value={customFrom}
+                        onChange={(e) => {
+                          setCustomFrom(e.target.value);
+                          const fromIso = isoFromDmy(e.target.value);
+                          const toIso = isoFromDmy(customTo);
+                          if (fromIso && toIso) {
+                            applyDateFilter({
+                              kind: "custom",
+                              dateFrom: fromIso,
+                              dateTo: toIso,
+                              label: `${e.target.value} – ${customTo}`,
+                            });
+                          }
+                        }}
+                      />
+                      <Input
+                        className="h-[50px] !text-[18px]"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="DD/MM/YYYY"
+                        value={customTo}
+                        onChange={(e) => {
+                          setCustomTo(e.target.value);
+                          const fromIso = isoFromDmy(customFrom);
+                          const toIso = isoFromDmy(e.target.value);
+                          if (fromIso && toIso) {
+                            applyDateFilter({
+                              kind: "custom",
+                              dateFrom: fromIso,
+                              dateTo: toIso,
+                              label: `${customFrom} – ${e.target.value}`,
+                            });
+                          }
+                        }}
+                      />
+                      </div>
+                    </div>
+                  </div>
+                  <DropdownMenuItem
+                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      clearDateFilter();
+                    }}
+                  >
+                    איפוס
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </FieldWrapper>
         </div>
 
@@ -184,47 +634,241 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
         </div>
       </FormSection>
 
+      {/* Mobile Date Sheet */}
+      <Sheet open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
+        <SheetContent side="bottom" className="h-[80vh] rounded-t-xl bg-card text-card-fg">
+          <SheetHeader>
+            <SheetTitle className="text-right !text-[18px]">טווח תאריכים</SheetTitle>
+          </SheetHeader>
+          <div className="p-4" dir="rtl">
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const r = presetToRange("last7");
+                  setCustomFrom(formatDmyFromIso(r.dateFrom));
+                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
+                }}
+                className="h-[50px] text-[18px] justify-end"
+              >
+                7 ימים אחרונים
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const r = presetToRange("last30");
+                  setCustomFrom(formatDmyFromIso(r.dateFrom));
+                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
+                }}
+                className="h-[50px] text-[18px] justify-end"
+              >
+                30 ימים אחרונים
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const r = presetToRange("last12mo");
+                  setCustomFrom(formatDmyFromIso(r.dateFrom));
+                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
+                }}
+                className="h-[50px] text-[18px] justify-end"
+              >
+                12 חודשים אחרונים
+              </Button>
+            </div>
+
+            <div className="mt-2 flex flex-col gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const dateFrom = `${y}-01-01`;
+                  const dateTo = `${y}-12-31`;
+                  setCustomFrom(formatDmyFromIso(dateFrom));
+                  setCustomTo(formatDmyFromIso(dateTo));
+                  applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
+                }}
+                className="h-[50px] text-[18px] justify-end"
+              >
+                שנה נוכחית
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  const now = new Date();
+                  const y = now.getFullYear() - 1;
+                  const dateFrom = `${y}-01-01`;
+                  const dateTo = `${y}-12-31`;
+                  setCustomFrom(formatDmyFromIso(dateFrom));
+                  setCustomTo(formatDmyFromIso(dateTo));
+                  applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
+                }}
+                className="h-[50px] text-[18px] justify-end"
+              >
+                שנה קודמת
+              </Button>
+            </div>
+
+            <div className="mt-4 flex justify-end">
+              <div className="grid w-[75%] grid-cols-1 gap-2">
+                <Input
+                  className="h-[50px] !text-[18px]"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/YYYY"
+                  value={customFrom}
+                  onChange={(e) => {
+                    setCustomFrom(e.target.value);
+                    const fromIso = isoFromDmy(e.target.value);
+                    const toIso = isoFromDmy(customTo);
+                    if (fromIso && toIso) {
+                      applyDateFilter({ kind: "custom", dateFrom: fromIso, dateTo: toIso, label: `${e.target.value} – ${customTo}` });
+                    }
+                  }}
+                />
+                <Input
+                  className="h-[50px] !text-[18px]"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/YYYY"
+                  value={customTo}
+                  onChange={(e) => {
+                    setCustomTo(e.target.value);
+                    const fromIso = isoFromDmy(customFrom);
+                    const toIso = isoFromDmy(e.target.value);
+                    if (fromIso && toIso) {
+                      applyDateFilter({ kind: "custom", dateFrom: fromIso, dateTo: toIso, label: `${customFrom} – ${e.target.value}` });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <Button variant="ghost" onClick={clearDateFilter} className="h-[50px] w-full text-[18px] justify-end">
+                איפוס
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Documents List */}
       <div className="mt-[50px]">
         <FormSection title="רשימת מסמכים">
-          {/* Bulk Actions Bar */}
-          {selectedDocuments.size > 0 && (
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              border: '1px solid #EDF1F5',
-              borderRadius: '12px',
-              padding: '16px',
-              marginBottom: '24px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '16px'
-            }}>
-              <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
-                {selectedDocuments.size} מסמכים נבחרו
-              </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <Button
-                  onClick={async () => {
-                    // TODO: Implement bulk download
-                    alert(`הורדת ${selectedDocuments.size} מסמכים - ייושם בקרוב`);
-                  }}
-                  variant="secondary"
-                  style={{ height: '40px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  <Download className="h-4 w-4" />
-                  הורדה
-                </Button>
-                <Button
-                  onClick={() => setSelectedDocuments(new Set())}
-                  variant="ghost"
-                  style={{ height: '40px', fontSize: '16px' }}
-                >
-                  ביטול בחירה
-                </Button>
-              </div>
+          {clientError ? (
+            <div className="ui-alert-danger mb-4">
+              <div className="font-bold">שגיאה</div>
+              <div className="mt-2">{clientError}</div>
             </div>
-          )}
+          ) : null}
+          {/* Bulk Actions Bar */}
+          <div style={{ overflowX: "auto" }}>
+            {/* Column headers (single header row for the whole list) */}
+            <table
+              style={{
+                width: "100%",
+                minWidth: "900px",
+                borderCollapse: "collapse",
+                fontSize: tableFontSize,
+                tableLayout: "fixed",
+              }}
+            >
+              <colgroup>
+                {/* checkbox */}
+                <col style={{ width: "36px" }} />
+                {/* status */}
+                <col style={{ width: "clamp(66px, 8vw, 70px)" }} />
+                {/* number */}
+                <col style={{ width: "clamp(50px, 7vw, 66px)" }} />
+                {/* date */}
+                <col style={{ width: "clamp(100px, 10vw, 110px)" }} />
+                {/* doc type (narrower) */}
+                <col style={{ width: "clamp(100px, 9vw, 90px)" }} />
+                {/* customer (narrower) */}
+                <col style={{ width: "clamp(140px, 16vw, 160px)" }} />
+                {/* description (wider) */}
+                <col style={{ width: "clamp(120px, 30vw, 110px)" }} />
+                {/* amount */}
+                <col style={{ width: "clamp(110px, 10vw, 140px)" }} />
+                {/* actions */}
+                <col style={{ width: "120px" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ backgroundColor: "#FFFFFF", borderBottom: tableHeaderBorder }}>
+                  {/* empty placeholder for checkbox column (no select-all checkbox) */}
+                  <th style={{ padding: "10px 6px", textAlign: "center", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }} />
+                  <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סטטוס</th>
+                  <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>מספר</th>
+                  <th style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תאריך</th>
+                  <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סוג המסמך</th>
+                  <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>שם הלקוח</th>
+                  <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תיאור</th>
+                  <th style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סכום</th>
+                  <th style={{ padding: "12px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>פעולות</th>
+                </tr>
+              </thead>
+            </table>
+
+            {/* Bulk Actions Bar (when rows selected) */}
+            {selectedDocuments.size > 0 && (
+              <div style={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #EDF1F5',
+                borderRadius: '12px',
+                padding: '16px',
+                marginTop: '16px',
+                marginBottom: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '16px',
+                minWidth: '900px',
+              }}>
+                <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
+                  {selectedDocuments.size} מסמכים נבחרו
+                </div>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <Button
+                    onClick={async () => {
+                      if (bulkDownloading) return;
+                      setBulkDownloading(true);
+                      try {
+                        const ids = Array.from(selectedDocuments);
+                        for (const id of ids) {
+                          const doc = documents.find((d) => d.id === id);
+                          const fileName = `document-${doc?.document_number || id}.pdf`;
+                          await downloadDocumentPdf(id, fileName);
+                        }
+                      } catch (error: any) {
+                        alert(error?.message || "שגיאה בהורדת המסמכים");
+                      } finally {
+                        setBulkDownloading(false);
+                      }
+                    }}
+                    variant="secondary"
+                    style={{ height: '40px', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    disabled={bulkDownloading}
+                  >
+                    <Download className="h-4 w-4" />
+                    הורדה
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedDocuments(new Set())}
+                    variant="ghost"
+                    style={{ height: '40px', fontSize: '16px' }}
+                    disabled={bulkDownloading}
+                  >
+                    ביטול בחירה
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
           
           {documents.length === 0 ? (
             <Card>
@@ -233,36 +877,48 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               </CardContent>
             </Card>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#19183B', color: '#FFFFFF' }}>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5', width: '50px' }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedDocuments.size === documents.length && documents.length > 0}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedDocuments(new Set(documents.map(d => d.id)));
-                          } else {
-                            setSelectedDocuments(new Set());
-                          }
-                        }}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                      />
-                    </th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סטטוס</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>תאריך</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סוג המסמך</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>שם הלקוח</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>תיאור</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>אמצעי תשלום</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5' }}>סכום</th>
-                    <th style={{ padding: '16px', textAlign: 'right', fontSize: '18px', fontWeight: 600, borderBottom: '2px solid #EDF1F5', width: '120px' }}>פעולות</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {documents.map((doc, index) => (
+            <div className="flex flex-col gap-4">
+              {monthGroups.map((group, groupIndex) => (
+                <div
+                  key={group.key}
+                  style={{
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: "20px",
+                    boxShadow: "0 0 13px 0 rgba(0, 0, 0, 0.10)",
+                    border: "1px solid #EDF1F5",
+                  }}
+                >
+                  <div style={{ padding: "18px 20px 10px 20px" }}>
+                    <h4 className="text-right text-base font-semibold" style={{ color: "#19183B", margin: 0 }}>
+                      {group.label}
+                    </h4>
+                  </div>
+
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: tableFontSize, tableLayout: "fixed" }}>
+                      <colgroup>
+                        {/* checkbox */}
+                        <col style={{ width: "36px" }} />
+                        {/* status */}
+                        <col style={{ width: "clamp(66px, 8vw, 70px)" }} />
+                        {/* number */}
+                        <col style={{ width: "clamp(50px, 7vw, 66px)" }} />
+                        {/* date */}
+                        <col style={{ width: "clamp(100px, 10vw, 110px)" }} />
+                        {/* doc type (narrower) */}
+                        <col style={{ width: "clamp(100px, 9vw, 90px)" }} />
+                        {/* customer (narrower) */}
+                        <col style={{ width: "clamp(140px, 16vw, 160px)" }} />
+                        {/* description (wider) */}
+                        <col style={{ width: "clamp(120px, 30vw, 110px)" }} />
+                        {/* amount */}
+                        <col style={{ width: "clamp(110px, 10vw, 140px)" }} />
+                        {/* actions */}
+                        <col style={{ width: "120px" }} />
+                      </colgroup>
+
+                      <tbody>
+                        {group.docs.map((doc, index) => (
                     <tr
                       key={doc.id}
                       style={{
@@ -274,10 +930,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       onMouseLeave={() => setHoveredRowId(null)}
                     >
                       {/* Checkbox */}
-                      <td style={{ padding: '16px', textAlign: 'center' }}>
+                      <td style={{ padding: '10px 6px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedDocuments.has(doc.id)}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             const newSelected = new Set(selectedDocuments);
                             if (e.target.checked) {
@@ -292,75 +949,130 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       </td>
                       
                       {/* סטטוס */}
-                      <td style={{ padding: '16px', textAlign: 'right' }}>
-                        <span
-                          className={getStatusBadgeClass(doc.document_status)}
-                          style={{
-                            display: 'inline-block',
-                            padding: '6px 12px',
-                            borderRadius: '20px',
-                            fontSize: '14px',
-                            fontWeight: 600,
+                      <td style={{ padding: '10px 6px', textAlign: 'right' }}>
+                        {(() => {
+                          const badge = getStatusBadge(doc.document_status);
+                          return (
+                            <span
+                              className="ui-badge"
+                              style={{
+                                display: "inline-block",
+                                padding: "4px 10px",
+                                borderRadius: "999px",
+                                fontSize: "14px",
+                                fontWeight: 400,
+                                ...badge.style,
+                              }}
+                            >
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* מספר */}
+                      <td style={{ padding: '10px 6px', textAlign: 'right', fontSize: tableFontSize, fontWeight: 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (doc.document_type === "receipt") {
+                              router.push(`/dashboard/documents/receipt/${doc.id}/summary`);
+                              return;
+                            }
+                            setSelectedDocumentId(doc.id);
+                            setSelectedDocSnapshot(doc);
+                            setIsQuickViewOpen(true);
                           }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "pointer",
+                            color: "#1A8299",
+                            fontWeight: 400,
+                            textDecoration: "underline",
+                            textUnderlineOffset: "3px",
+                          }}
+                          title="לעמוד המסמך"
                         >
-                          {getStatusLabel(doc.document_status)}
-                        </span>
+                          {doc.document_number || "—"}
+                        </button>
                       </td>
                       
                       {/* תאריך */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: tableFontSize, color: '#19183B', whiteSpace: 'nowrap' }}>
                         {formatDate(doc.document_date)}
                       </td>
                       
                       {/* סוג המסמך */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {getDocumentTypeLabel(doc.document_type)}
+                      <td style={{ padding: '10px 6px', textAlign: 'right', fontSize: tableFontSize, color: '#19183B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span title={getDocumentTypeLabel(doc.document_type)}>{getDocumentTypeLabel(doc.document_type)}</span>
                       </td>
                       
                       {/* שם הלקוח */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {doc.customer_name || "—"}
+                      <td style={{ padding: '10px 6px', textAlign: 'right', fontSize: tableFontSize, color: '#19183B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {doc.customer_id ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/dashboard/customers/${doc.customer_id}`);
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              cursor: "pointer",
+                              color: "#1A8299",
+                              textDecoration: "underline",
+                              textUnderlineOffset: "3px",
+                            }}
+                            title="לעמוד הלקוח"
+                          >
+                            {doc.customer_name || "—"}
+                          </button>
+                        ) : (
+                          doc.customer_name || "—"
+                        )}
                       </td>
                       
                       {/* תיאור */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {truncateDescription(doc.document_description)}
-                      </td>
-                      
-                      {/* אמצעי תשלום */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
-                        {doc.payment_method || "—"}
+                      <td style={{ padding: '10px 6px', textAlign: 'right', fontSize: tableFontSize, color: '#19183B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span title={doc.document_description || ""}>{truncateDescription(doc.document_description)}</span>
                       </td>
                       
                       {/* סכום */}
-                      <td style={{ padding: '16px', textAlign: 'right', fontSize: '18px', color: '#19183B' }}>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: tableFontSize, color: '#19183B', whiteSpace: 'nowrap' }}>
                         {formatAmount(doc.total_amount, doc.currency)}
                       </td>
                       
                       {/* פעולות - Row Actions */}
-                      <td style={{ padding: '16px', textAlign: 'right', position: 'relative', width: '120px' }}>
-                        {hoveredRowId === doc.id && (
-                          <div style={{ 
-                            display: 'flex', 
-                            gap: '8px', 
+                      <td
+                        style={{ padding: '12px', textAlign: 'right', position: 'relative', width: '120px' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: '8px',
                             justifyContent: 'flex-end',
-                            alignItems: 'center'
-                          }}>
+                            alignItems: 'center',
+                            opacity: hoveredRowId === doc.id ? 1 : 0,
+                            pointerEvents: hoveredRowId === doc.id ? 'auto' : 'none',
+                            transition: 'opacity 120ms ease-in-out',
+                          }}
+                        >
                             {/* צפייה */}
                             <button
                               onClick={async () => {
-                                if (doc.document_type === "receipt") {
-                                  const result = await getReceiptPreviewUrlAction(doc.id);
-                                  if (result.ok && result.url) {
-                                    window.open(result.url, "_blank");
-                                  } else {
-                                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
-                                  }
-                                } else {
-                                  // TODO: Implement view for other document types
-                                  alert("צפייה במסמכים מסוג זה תתמוך בקרוב");
-                                }
+                                setSelectedDocumentId(doc.id);
+                                setSelectedDocSnapshot(doc);
+                                setIsQuickViewOpen(true);
                               }}
+                              className="text-[#1A8299] [&>svg]:text-current hover:[&>svg]:text-[#F39600]"
                               style={{
                                 background: 'transparent',
                                 border: 'none',
@@ -369,11 +1081,10 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#1A8299',
                               }}
                               title="צפייה"
                             >
-                              <Eye className="h-5 w-5" />
+                              <Eye className="h-5 w-5 text-current" />
                             </button>
                             
                             {/* שכפול */}
@@ -382,6 +1093,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 // TODO: Implement duplication logic
                                 alert("שכפול מסמך - ייושם בקרוב");
                               }}
+                              className="text-[#1A8299] [&>svg]:text-current hover:[&>svg]:text-[#F39600]"
                               style={{
                                 background: 'transparent',
                                 border: 'none',
@@ -390,37 +1102,22 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#1A8299',
                               }}
                               title="שכפול"
                             >
-                              <Copy className="h-5 w-5" />
+                              <Copy className="h-5 w-5 text-current" />
                             </button>
                             
                             {/* הורדה */}
                             <button
                               onClick={async () => {
                                 try {
-                                  const pdfUrl = `/api/documents/${doc.id}/pdf`;
-                                  const response = await fetch(pdfUrl);
-                                  
-                                  if (!response.ok) {
-                                    throw new Error("שגיאה בהורדת המסמך");
-                                  }
-                                  
-                                  const blob = await response.blob();
-                                  const url = window.URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = `document-${doc.document_number || doc.id}.pdf`;
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  document.body.removeChild(a);
-                                  window.URL.revokeObjectURL(url);
+                                  await downloadDocumentPdf(doc.id, `document-${doc.document_number || doc.id}.pdf`);
                                 } catch (error: any) {
                                   alert(error.message || "שגיאה בהורדת המסמך");
                                 }
                               }}
+                              className="text-[#1A8299] [&>svg]:text-current hover:[&>svg]:text-[#F39600]"
                               style={{
                                 background: 'transparent',
                                 border: 'none',
@@ -429,11 +1126,10 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#1A8299',
                               }}
                               title="הורדה"
                             >
-                              <Download className="h-5 w-5" />
+                              <Download className="h-5 w-5 text-current" />
                             </button>
                             
                             {/* ביטול מסמך */}
@@ -442,6 +1138,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 // TODO: Implement cancellation logic
                                 alert("ביטול מסמך - ייושם בקרוב");
                               }}
+                              className="text-[#9B0003] [&>svg]:text-current hover:[&>svg]:text-[#F39600]"
                               style={{
                                 background: 'transparent',
                                 border: 'none',
@@ -450,19 +1147,20 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#9B0003',
                               }}
                               title="ביטול מסמך"
                             >
-                              <X className="h-5 w-5" />
+                              <X className="h-5 w-5 text-current" />
                             </button>
-                          </div>
-                        )}
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -492,6 +1190,40 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
           )}
         </FormSection>
       </div>
+
+      <DocumentsQuickViewDrawer
+        open={isQuickViewOpen}
+        onClose={() => setIsQuickViewOpen(false)}
+        documentId={selectedDocumentId}
+        initialDoc={selectedDocSnapshot}
+        onDownload={selectedDocumentId ? async () => {
+          try {
+            await downloadDocumentPdf(selectedDocumentId, `document-${selectedDocSnapshot?.document_number || selectedDocumentId}.pdf`);
+          } catch (e: any) {
+            alert(e?.message || "שגיאה בהורדת המסמך");
+          }
+        } : undefined}
+        onOpenSummary={
+          selectedDocSnapshot?.document_type === "receipt" && selectedDocumentId
+            ? async () => {
+                setIsQuickViewOpen(false);
+                router.push(`/dashboard/documents/receipt/${selectedDocumentId}/summary`);
+              }
+            : undefined
+        }
+        onViewDocument={
+          selectedDocSnapshot?.document_type === "receipt" && selectedDocumentId
+            ? async () => {
+                const result = await getReceiptPreviewUrlAction(selectedDocumentId);
+                if (result.ok && result.url) {
+                  window.open(result.url, "_blank");
+                } else {
+                  alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
+                }
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
