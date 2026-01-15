@@ -17,14 +17,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
   const documentId: string | null =
     params.documentId || params.document_id || params.id || null;
 
-  // #region agent log (hypothesisId=PV0)
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany2',hypothesisId:'PV0',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview searchParams documentId detection',data:{hasDocumentId:Boolean(documentId),documentIdSuffix:documentId?String(documentId).slice(-6):null,has_documentId:Boolean(params?.documentId),has_document_id:Boolean(params?.document_id),has_id:Boolean(params?.id)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
-  // #region agent log (hypothesisId=PV0)
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany2',hypothesisId:'PV0',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview searchParams keys (names only)',data:{keys:Object.keys(params||{}).sort(),hasPreviewNumber:Boolean(params?.previewNumber),hasCustomerId:Boolean(params?.customerId),hasPayments:Boolean(params?.payments)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-  
   // Get customer ID from search params
   const customerId = params.customerId || null;
   
@@ -56,10 +48,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
         .eq("id", documentId)
         .maybeSingle();
 
-      // #region agent log (hypothesisId=PV1)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany1',hypothesisId:'PV1',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Resolved company via documents.company_id',data:{hasDocumentId:true,documentIdSuffix:String(documentId).slice(-6),hasDoc:Boolean(doc),docErrorCode:(docError as any)?.code??null,hasCompanyId:Boolean(doc?.company_id),companyIdSuffix:doc?.company_id?String(doc.company_id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-
       documentDescriptionFromDb =
         typeof (doc as any)?.document_description === "string"
           ? String((doc as any).document_description)
@@ -77,10 +65,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       companyId = await getCompanyIdForUser();
       companyIdSource = "getCompanyIdForUser";
     }
-
-    // #region agent log (hypothesisId=PV2)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany1',hypothesisId:'PV2',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Preview will fetch company/template using companyId',data:{companyIdSource,companyIdSuffix:String(companyId).slice(-6),hasDocumentId:Boolean(documentId)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // Some environments may not have optional EN columns (company_name_en, contact_first_name_en).
     // Try with EN columns first, then retry without on 42703.
@@ -112,10 +96,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
       companyRow = r2.data;
       companyFetchError = r2.error;
     }
-    
-    // #region agent log (hypothesisId=PV8)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany5',hypothesisId:'PV8',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Companies fetch result (counts only)',data:{companyIdSuffix:String(companyId).slice(-6),hasCompanyRow:Boolean(companyRow),companyFetchErrorCode:(companyFetchError as any)?.code??null,companyFetchErrorMessage:companyFetchError?.message??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // Build address from separate fields if available, otherwise use address field
     if (companyRow) {
@@ -248,10 +228,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
         logo_url: logoUrl,
         signature_url: signatureUrl,
       };
-
-      // #region agent log (hypothesisId=PV4)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany3',hypothesisId:'PV4',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'CompanyData normalized for Preview (truthy/lengths)',data:{companyIdSource,companyIdSuffix:String(companyId).slice(-6),hasLogoUrl:Boolean(logoUrl&&String(logoUrl).trim()),hasSignatureUrl:Boolean(signatureUrl&&String(signatureUrl).trim()),regLen:String(registrationNumber||'').length,streetLen:String(companyRow.street||'').length,cityLen:String(companyRow.city||'').length,postalLen:String(companyRow.postal_code||'').length,emailLen:String(companyRow.email||'').length,websiteLen:String(companyRow.website||'').length,mobileLen:String(companyRow.mobile_phone||'').length,phoneLen:String(companyRow.phone||'').length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
     } else {
       companyData = null;
     }
@@ -284,10 +260,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     
     templateHtml = template.html || null;
     templateCss = template.css || "";
-    
-    // #region agent log (hypothesisId=PV6)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany4',hypothesisId:'PV6',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Template fetched (lengths only)',data:{hasHtml:Boolean(templateHtml&&String(templateHtml).trim()),htmlLen:typeof templateHtml==='string'?templateHtml.length:0,cssLen:typeof templateCss==='string'?templateCss.length:0,companyIdSuffix:typeof companyId==='string'?String(companyId).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     console.log("✅ [PreviewPage] Template loaded:", {
       templateId: template.templateId?.substring(0, 8) || 'fallback',
@@ -317,10 +289,6 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
     sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*["']javascript:[^"']*["']/gi, 'href="#"');
     sanitizedHtml = sanitizedHtml.replace(/href\s*=\s*javascript:[^\s>]*/gi, 'href="#"');
     console.log("✅ [PreviewPage] Template sanitized");
-
-    // #region agent log (hypothesisId=PV6)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewCompany4',hypothesisId:'PV6',location:'app/dashboard/documents/receipt/preview/page.tsx:PreviewDataLoader',message:'Template sanitized (length delta only)',data:{beforeLen,afterLen:sanitizedHtml.length,trimmedLen:sanitizedHtml.trim().length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
   
   return (

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRegistration } from "./registration-context"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BusinessActivityField } from "@/components/ui/business-activity-field"
+// NOTE: We intentionally use a regular Select here (per UX request) instead of the autocomplete BusinessActivityField.
 import { createClient } from "@/lib/supabase/client"
 
 const BUSINESS_TYPES = [
@@ -19,24 +19,52 @@ const BUSINESS_TYPES = [
   { value: "partnership", label: "שותפות" },
 ]
 
-// Note: Industries are now handled by BusinessActivityField component
-// This list is kept for backward compatibility if needed
-const INDUSTRIES_LEGACY = [
-  { value: "retail", label: "קמעונאות" },
-  { value: "services", label: "שירותים" },
-  { value: "tech", label: "הייטק" },
-  { value: "construction", label: "בנייה" },
-  { value: "food", label: "מזון ומסעדנות" },
-  { value: "health", label: "בריאות" },
-  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
-  { value: "education", label: "חינוך" },
-  { value: "other", label: "אחר" },
-]
+const INDUSTRY_OTHER_VALUE = "__other__"
+
+const INDUSTRY_OPTIONS = [
+  "קמעונאות",
+  "מסעדנות",
+  "הייטק",
+  "שירותים מקצועיים",
+  "חינוך",
+  "בריאות",
+  "נדל״ן",
+  "בנייה",
+  "תחבורה",
+  "ייעוץ",
+  "שיווק דיגיטלי",
+  "שירותי פרסום",
+  "עיצוב",
+  "פיתוח תוכנה",
+  "חשבונאות",
+  "משפטים",
+  "רפואה אלטרנטיבית",
+  "כושר וספורט",
+  "יופי וטיפוח",
+  "אירועים",
+] as const
 
 export function StepBusinessProfile() {
   const router = useRouter()
   const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const industryValue = (data.industry || "").trim()
+  const customIndustryValue = (data.customIndustry || "").trim()
+  const isKnownIndustry = (v: string) => (INDUSTRY_OPTIONS as readonly string[]).includes(v)
+
+  const computedIsOther =
+    (customIndustryValue && !isKnownIndustry(customIndustryValue)) ||
+    (industryValue && !isKnownIndustry(industryValue))
+
+  const [industryIsOther, setIndustryIsOther] = useState<boolean>(computedIsOther)
+
+  useEffect(() => {
+    // Keep local "other mode" in sync if user navigates back / data is restored
+    setIndustryIsOther(computedIsOther)
+  }, [computedIsOther])
+
+  const industrySelectValue = industryIsOther ? INDUSTRY_OTHER_VALUE : (industryValue || "")
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -178,14 +206,14 @@ export function StepBusinessProfile() {
             >
               <SelectTrigger 
                 id="businessType"
-                className={errors.businessType ? "border-danger focus:ring-danger" : ""}
+                className={errors.businessType ? "ui-dd-trigger border-danger focus:ring-danger" : "ui-dd-trigger"}
               >
                 <SelectValue placeholder="בחר סוג עסק" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
                 {BUSINESS_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
+                  <SelectItem key={type.value} value={type.value} className="ui-dd-item ui-dd-item-rtl">
+                    <span className="ui-dd-item-label">{type.label}</span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -221,21 +249,64 @@ export function StepBusinessProfile() {
             <Label htmlFor="industry" className="text-right">
               תחום פעילות <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
-            <BusinessActivityField
-              id="industry"
-              value={data.industry || ""}
-              onChange={(value) => {
+            <Select
+              value={industrySelectValue}
+              onValueChange={(value) => {
+                if (value === INDUSTRY_OTHER_VALUE) {
+                  setIndustryIsOther(true)
+
+                  // If we previously had a known industry (or empty), keep it empty until the user types a custom one.
+                  if (!industryValue || isKnownIndustry(industryValue)) {
+                    updateData({ industry: "", customIndustry: "" })
+                  }
+                  return
+                }
+                setIndustryIsOther(false)
                 updateData({ industry: value, customIndustry: "" })
               }}
-              onCustomValue={(value) => {
-                // Mark as custom if not in common list
-                updateData({ industry: value, customIndustry: value })
-              }}
-              error={errors.industry}
-              required
-              label="תחום פעילות"
-              helperText="התחל להקליד או בחר מהרשימה"
-            />
+            >
+              <SelectTrigger
+                id="industry"
+                className={errors.industry ? "ui-dd-trigger border-danger focus:ring-danger" : "ui-dd-trigger"}
+              >
+                <SelectValue placeholder="בחר תחום פעילות" />
+              </SelectTrigger>
+              <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
+                {INDUSTRY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt} className="ui-dd-item ui-dd-item-rtl">
+                    <span className="ui-dd-item-label">{opt}</span>
+                  </SelectItem>
+                ))}
+                <SelectItem value={INDUSTRY_OTHER_VALUE} className="ui-dd-item ui-dd-item-rtl">
+                  <span className="ui-dd-item-label">אחר</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {industryIsOther ? (
+              <div className="mt-2">
+                <Input
+                  id="industry-custom"
+                  type="text"
+                  placeholder="הזן תחום פעילות"
+                  value={customIndustryValue || industryValue}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    updateData({ industry: v, customIndustry: v })
+                  }}
+                  className={errors.industry ? "border-danger focus:ring-danger" : ""}
+                />
+                <p className="mt-1 text-xs text-right" style={{ color: "var(--muted-fg)" }}>
+                  הזן תחום פעילות מותאם אישית
+                </p>
+              </div>
+            ) : null}
+
+            {errors.industry && (
+              <p className="text-sm mt-1" style={{ color: "var(--danger)" }} role="alert">
+                {errors.industry}
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3">

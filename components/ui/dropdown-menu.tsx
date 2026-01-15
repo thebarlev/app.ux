@@ -57,12 +57,16 @@ const DD_ITEM_COLORS =
   function DropdownMenuContent({
     className,
     sideOffset = 4,
+    align = "start",
+    side = "bottom",
     ...props
   }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
     return (
       <DropdownMenuPrimitive.Portal>
         <DropdownMenuPrimitive.Content
           data-slot="dropdown-menu-content"
+          side={side}
+          align={align}
           sideOffset={sideOffset}
           className={cn(
             "z-50 min-w-[8rem] overflow-hidden p-1",
@@ -77,7 +81,7 @@ const DD_ITEM_COLORS =
       </DropdownMenuPrimitive.Portal>
     )
   }
-
+  
 function DropdownMenuItem({
   className,
   inset,

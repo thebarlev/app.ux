@@ -10,13 +10,13 @@
 @layer base {
   :root {
     /* ===== App Base ===== */
-    --bg: #EDF1F5;
+    --bg: #F6FBF;
     --fg: #19183B;
 
     --card: #FFFFFF;
     --card-fg: #19183B;
 
-    --muted: #EDF1F5;
+    --muted: #F6FBF;
     --muted-fg: #708993;
 
     --border: #708993;
@@ -27,7 +27,7 @@
     --primary-fg: #FFFFFF;
     --primary-hover: #19183B;
 
-    --secondary: #F5FBF9;
+    --secondary: #D3E0E5;
     --secondary-fg: #19183B;
     --secondary-border: #1D868F;
 
@@ -43,7 +43,7 @@
     /* ===== Forms / States ===== */
     --input: #F5FBF9;
     --input-fg: #19183B;
-    --input-border: #1D868F;
+    --input-border: #8f1d43;
     --placeholder: #97B2BD;
 
     --success: #1D868F;
@@ -61,21 +61,20 @@
 
     /* ===== Sidebar (Inverse) ===== */
     --sidebar-bg: #19183B;
-    --sidebar-fg: #EDF1F5;
-    --sidebar-muted-fg: #EDF1F5;
+    --sidebar-fg: #F6FBF;
     --sidebar-muted-bg: #1D868F;
 
     --sidebar-border: none;
-    --sidebar-hover: #1A3954;
+    --sidebar-hover: #F6F;
     --sidebar-active: #1D868F;
     --sidebar-active-fg: #FFFFFF;
-    --sidebar-ring: #EDF1F5;
+    --sidebar-ring: #F6FBF;
 
     /* ===== Tables ===== */
     --table-header-bg: #19183B;
     --table-header-fg: #ffffff;
-    --table-row-hover: #A1C2BD;
-    --table-stripe: #EDF1F5;
+    --table-row-hover: #1D868;
+    --table-stripe: #F6FBF;
     --table-positive: #19183B;
     --table-negative: #19183B;
 
@@ -97,7 +96,7 @@
     /* Item states */
     --dropdown-item-bg: var(--card);
     --dropdown-item-hover: var(--secondary);
-    --dropdown-item-selected: #D7EEEA;  /* ← זה כבר קיים */
+    --dropdown-item-selected: #1D868;  /* ← זה כבר קיים */
     --dropdown-item-checked: #1D868F;   /* ← הוסף את זה - צבע כהה יותר למצב checked */
     --dropdown-item-checked-fg: #FFFFFF; 
 
@@ -105,14 +104,7 @@
     --dropdown-height: 50px;
     --dropdown-text-size: 18px;
     --dropdown-line-height: 1.25;
-    --dropdown-radius: 10px;
-    /* ===== Sheet Tokens ===== */
---sheet-bg: var(--card);
---sheet-fg: var(--card-fg);
---sheet-radius: 12px;
---sheet-height-mobile: 80vh;
---sheet-padding: 16px;
-
+    --dropdown-radius: 0px;
   }
 
   html, body {
@@ -278,10 +270,41 @@
 
   .ui-dd-item {
     @apply h-[50px] text-[18px] justify-end px-4 py-0 flex items-center outline-none transition-colors;
+    cursor: pointer;
   }
 
   .ui-dd-item:hover {
     background-color: var(--dropdown-item-hover);
+  }
+
+  .ui-dd-item[data-highlighted] {
+    background-color: var(--dropdown-item-hover);
+  }
+
+  .ui-dd-item-rtl {
+    direction: rtl;
+    text-align: right;
+    justify-content: flex-end;
+  }
+
+  .ui-dd-item-label {
+    flex: 1;
+    text-align: right;
+  }
+
+  .ui-date-field {
+    position: relative;
+  }
+
+  /* hidden native date input used to open the browser calendar without overriding tokens */
+  .ui-native-date {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: auto;
+    right: 0;
+    top: 0;
   }
 
 /* הצ'ק בצד ימין (RTL) */
@@ -327,6 +350,10 @@
   background-color: var(--dropdown-item-hover);
 }
 
+.ui-dd-check[data-highlighted]:not([data-state="checked"]) {
+  background-color: var(--dropdown-item-hover);
+}
+
 /* Checked state - רקע כהה + טקסט לבן */
 .ui-dd-check[data-state="checked"] {
   background-color: var(--dropdown-item-checked) !important;
@@ -335,7 +362,7 @@
 
 /* Checked + Hover - רקע כהה יותר */
 .ui-dd-check[data-state="checked"]:hover {
-  background-color: #166F77 !important;
+  background-color: var(--dropdown-item-checked) !important;
   color: var(--dropdown-item-checked-fg) !important;
 }
 
@@ -454,7 +481,7 @@
 [class*="field-wrapper"] label {
   color: var(--muted-fg) !important;
   font-size: 18px !important;
-  line-height: 1.6 !important;
+  line-height: 1.1 !important;
   font-weight: normal !important;
 }
   .ui-section-gap {
@@ -548,9 +575,16 @@
 
 /* Force dropdown menu backgrounds and hover states */
 [data-slot="dropdown-menu-content"] {
+   direction: rtl !important;
+  text-align: right !important;
   background-color: #FFFFFF !important;
 }
-
+[data-slot="dropdown-menu-item"],
+[data-slot="dropdown-menu-checkbox-item"] {
+  direction: rtl !important;
+  text-align: right !important;
+  justify-content: flex-end !important;
+}
 /* Hover רק אם לא checked */
 [data-slot="dropdown-menu-item"]:hover,
 [data-slot="dropdown-menu-checkbox-item"]:not([data-state="checked"]):hover {

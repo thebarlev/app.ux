@@ -115,13 +115,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  useEffect(() => {
-    // #region agent log (hypothesisId=H10)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg',hypothesisId:'H10',location:'app/dashboard/settings/SettingsClient.tsx:SettingsClient',message:'registration_number visibility check (no PII)',data:{hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0,formRegistrationNumberLen:typeof (formData as any)?.registration_number==='string'?(formData as any).registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Keep local state in sync with refreshed server props (e.g., signed URLs).
   useEffect(() => {
     if (company.logo_url && company.logo_url !== logoUrl) {
@@ -173,18 +166,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   const handleSaveDetails = async () => {
-    // #region agent log (hypothesisId=H6)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H6',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Save clicked (entry)',data:{isSaving,formKeys:Object.keys(formData)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     setIsSaving(true);
     setMessage(null);
 
     // Validation
     if (!formData.company_name.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: company_name',data:{},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "שם העסק הוא שדה חובה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -192,9 +178,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (!formData.email.trim() || !formData.email.includes("@")) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: email',data:{hasAt:formData.email.includes("@"),emailLen:formData.email.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "נא להזין כתובת אימייל תקינה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -202,9 +185,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (!formData.industry) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: industry',data:{industry:formData.industry || null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "תחום פעילות הוא שדה חובה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -212,27 +192,18 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (formData.industry === "other" && !formData.custom_industry.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: custom_industry',data:{customIndustryLen:formData.custom_industry.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "נא לפרט את תחום הפעילות כאשר בוחרים 'אחר'" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.street.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: street',data:{streetLen:formData.street.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "רחוב ומספר הוא שדה חובה" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.city.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: city',data:{cityLen:formData.city.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "עיר הוא שדה חובה" });
       setIsSaving(false);
       return;
@@ -246,25 +217,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       address: autoAddress, // Auto-generated full address
     };
 
-    // #region agent log (hypothesisId=H8)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Calling updateBusinessDetailsAction',data:{payloadKeys:Object.keys(payload)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     let result: any;
     try {
       result = await updateBusinessDetailsAction(payload as BusinessDetailsPayload);
     } catch {
-      // #region agent log (hypothesisId=H8)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'updateBusinessDetailsAction threw (catch)',data:{},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "שגיאה בשמירה" });
       setIsSaving(false);
       return;
     }
-
-    // #region agent log (hypothesisId=H8)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'updateBusinessDetailsAction returned',data:{ok:result?.ok ?? null,hasMessage:Boolean(result?.message)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (result.ok) {
       setMessage({ type: "success", text: "הפרטים נשמרו בהצלחה!" });

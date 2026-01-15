@@ -90,6 +90,7 @@ export default function ReceiptFormClient({
   } | null;
   draftId?: string;
 }) {
+  const inputBorderStyle = { borderColor: "var(--input-border)" };
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   // הגדרות קבלה (state)
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -284,8 +285,6 @@ export default function ReceiptFormClient({
     setPreviewPdfUrl(null);
     
     try {
-      console.log("[handlePreview] Building preview URL from form data");
-      
       // Build payments array for preview (same format as getReceiptPreviewUrlAction)
       const paymentsForPreview = payments.map((p) => {
         const payment: any = {
@@ -341,20 +340,13 @@ export default function ReceiptFormClient({
       if (docIdForPreview) {
         params.set("documentId", String(docIdForPreview));
       }
-
-      // #region agent log (hypothesisId=PV3)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'previewUrl1',hypothesisId:'PV3',location:'app/dashboard/documents/receipt/ReceiptFormClient.tsx:handlePreview',message:'Built preview URL params (names only)',data:{hasDocumentId:Boolean(docIdForPreview),documentIdSuffix:docIdForPreview?String(docIdForPreview).slice(-6):null,keys:Array.from(params.keys()).sort()},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       
       const previewUrl = `/dashboard/documents/receipt/preview?${params.toString()}`;
-      
-      console.log("[handlePreview] Preview URL built:", previewUrl.substring(0, 100) + "...");
-      
+
       // Set the preview URL (will be loaded in iframe)
       setPreviewPdfUrl(previewUrl);
       setBusy(null);
     } catch (error: any) {
-      console.error("[handlePreview] Error building preview URL:", error);
       setBusy(null);
       const errorMessage = error?.message || "שגיאה ביצירת תצוגה מקדימה";
       setPreviewError(errorMessage);
@@ -814,6 +806,7 @@ export default function ReceiptFormClient({
               }}
               min={minAllowedDate || undefined}
               aria-required="true"
+              style={inputBorderStyle}
             />
           </FieldWrapper>
           </div>
@@ -847,6 +840,7 @@ export default function ReceiptFormClient({
             aria-required="true"
             aria-invalid={!!descriptionError}
             aria-describedby={descriptionError ? "description-error" : "description-hint"}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
         </FormSection>
@@ -929,17 +923,17 @@ export default function ReceiptFormClient({
                     >
                       <SelectTrigger 
                         id={`payment-method-${i}`}
-                        className={paymentErrors[i]?.method ? "border-danger" : ""}
+                        className={cn("ui-dd-trigger", paymentErrors[i]?.method ? "border-danger" : "")}
                         aria-required="true"
                         aria-invalid={!!paymentErrors[i]?.method}
                         aria-describedby={paymentErrors[i]?.method ? `payment-method-${i}-error` : undefined}
                       >
                         <SelectValue placeholder="בחר אמצעי תשלום..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
                         {PAYMENT_METHODS.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m}
+                          <SelectItem key={m} value={m} className="ui-dd-item ui-dd-item-rtl">
+                            <span className="ui-dd-item-label">{m}</span>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -952,6 +946,7 @@ export default function ReceiptFormClient({
                       value={row.date}
                       onChange={(value) => updatePaymentRow(i, { date: value })}
                       aria-required="true"
+                    style={inputBorderStyle}
                     />
                   </FieldWrapper>
 
@@ -969,19 +964,13 @@ export default function ReceiptFormClient({
                         disabled={currency !== "₪"}
                         onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                         >
-                          <SelectTrigger 
-                            style={{ 
-                              fontSize: '18px',
-                              fontWeight: 600,
-                            }} 
-                            aria-label="מטבע"
-                          >
+                          <SelectTrigger className="ui-dd-trigger" aria-label="מטבע">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
                           {allowedCurrencies.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
+                            <SelectItem key={c} value={c} className="ui-dd-item ui-dd-item-rtl">
+                              <span className="ui-dd-item-label">{c}</span>
                             </SelectItem>
                           ))}
                           </SelectContent>
@@ -1009,6 +998,7 @@ export default function ReceiptFormClient({
                           style={{ 
                             fontSize: '18px',
                             fontWeight: 600,
+                            borderColor: "var(--input-border)",
                           }}
                           aria-required={true}
                           aria-invalid={!!paymentErrors[i]?.amount}

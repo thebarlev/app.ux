@@ -12,20 +12,12 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  // #region agent log (hypothesisId=H13)
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H13',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Page auth user (suffix only)',data:{userIdSuffix:user?.id?String(user.id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-
   async function getCompanyIdForUserDeterministic(userId: string): Promise<string> {
     const { data: memberships, error: membershipError } = await supabase
       .from("company_members")
       .select("company_id")
       .eq("user_id", userId)
       .order("company_id", { ascending: true });
-
-    // #region agent log (hypothesisId=H11)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'company_members lookup (counts only)',data:{membershipCount:Array.isArray(memberships)?memberships.length:0,membershipErrorCode:membershipError?.code ?? null,firstMembershipCompanyIdSuffix:Array.isArray(memberships)&&memberships[0]?.company_id?String(memberships[0].company_id).slice(-6):null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (membershipError) throw membershipError;
     const membershipCompanyIds = (memberships || []).map((m: any) => m.company_id).filter(Boolean) as string[];
@@ -41,10 +33,6 @@ export default async function SettingsPage() {
 
     const candidateIds = Array.from(new Set([...(membershipCompanyIds || []), ...(ownerCompany?.id ? [ownerCompany.id] : [])]));
 
-    // #region agent log (hypothesisId=H11)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'Candidate company IDs (suffix only)',data:{membershipCount:membershipCompanyIds.length,firstMembershipCompanyIdSuffix:membershipCompanyIds[0]?String(membershipCompanyIds[0]).slice(-6):null,hasOwnerCompany:Boolean(ownerCompany?.id),ownerCompanyIdSuffix:ownerCompany?.id?String(ownerCompany.id).slice(-6):null,candidateCount:candidateIds.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     if (candidateIds.length > 0) {
       const { data: companies, error: companiesError } = await supabase
         .from("companies")
@@ -54,10 +42,6 @@ export default async function SettingsPage() {
 
       const withReg = (companies || []).filter((c: any) => Boolean(c?.registration_number && String(c.registration_number).trim().length > 0));
       const chosen = (withReg.length > 0 ? withReg : (companies || [])).sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))[0];
-
-      // #region agent log (hypothesisId=H11)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H11',location:'app/dashboard/settings/page.tsx:getCompanyIdForUserDeterministic',message:'Chosen company (suffix only)',data:{chosenCompanyIdSuffix:chosen?.id?String(chosen.id).slice(-6):null,choseBecauseHasReg:withReg.length>0},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       if (chosen?.id) return String(chosen.id);
     }
@@ -139,10 +123,6 @@ export default async function SettingsPage() {
       company = r2.data;
       error = r2.error;
     }
-
-    // #region agent log (hypothesisId=H9)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg5',hypothesisId:'H9',location:'app/dashboard/settings/page.tsx:SettingsPage',message:'Fetched company for settings (registration_number + companyId suffix)',data:{companyIdSuffix:typeof companyId==='string'?companyId.slice(-6):null,hasCompany:Boolean(company),hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // Fetch available templates
     const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'

@@ -33,6 +33,7 @@ export default function PaymentDetailsSection({
   onUpdate,
 }: PaymentDetailsSectionProps) {
   const { method } = payment;
+  const inputBorderStyle = { borderColor: "var(--input-border)" };
 
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
@@ -46,6 +47,7 @@ export default function PaymentDetailsSection({
             value={payment.cardLastDigits ?? ""}
             onChange={(e) => onUpdate({ cardLastDigits: e.target.value })}
             aria-label="4 ספרות אחרונות של כרטיס האשראי"
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -54,14 +56,16 @@ export default function PaymentDetailsSection({
             value={payment.cardType ?? ""}
             onValueChange={(v) => onUpdate({ cardType: v })}
           >
-            <SelectTrigger><SelectValue placeholder="בחר..." /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="visa">Visa</SelectItem>
-              <SelectItem value="mastercard">Mastercard</SelectItem>
-              <SelectItem value="isracard">ישראכרט</SelectItem>
-              <SelectItem value="amex">American Express</SelectItem>
-              <SelectItem value="diners">Diners</SelectItem>
-              <SelectItem value="other">אחר</SelectItem>
+            <SelectTrigger className="ui-dd-trigger">
+              <SelectValue placeholder="בחר..." />
+            </SelectTrigger>
+            <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="visa"><span className="ui-dd-item-label">Visa</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="mastercard"><span className="ui-dd-item-label">Mastercard</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="isracard"><span className="ui-dd-item-label">ישראכרט</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="amex"><span className="ui-dd-item-label">American Express</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="diners"><span className="ui-dd-item-label">Diners</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="other"><span className="ui-dd-item-label">אחר</span></SelectItem>
             </SelectContent>
           </Select>
         </FieldWrapper>
@@ -71,12 +75,14 @@ export default function PaymentDetailsSection({
             value={payment.cardDealType ?? "regular"}
             onValueChange={(v) => onUpdate({ cardDealType: v })}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="regular">רגיל</SelectItem>
-              <SelectItem value="payments">תשלומים</SelectItem>
-              <SelectItem value="credit">קרדיט</SelectItem>
-              <SelectItem value="deferred">דחוי</SelectItem>
+            <SelectTrigger className="ui-dd-trigger">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="ui-dd-content" {...({ dir: "rtl" } as any)} align="end">
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="regular"><span className="ui-dd-item-label">רגיל</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="payments"><span className="ui-dd-item-label">תשלומים</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="credit"><span className="ui-dd-item-label">קרדיט</span></SelectItem>
+              <SelectItem className="ui-dd-item ui-dd-item-rtl" value="deferred"><span className="ui-dd-item-label">דחוי</span></SelectItem>
             </SelectContent>
           </Select>
         </FieldWrapper>
@@ -90,6 +96,7 @@ export default function PaymentDetailsSection({
             value={payment.cardInstallments ?? 1}
             onChange={(e) => onUpdate({ cardInstallments: Number(e.target.value) })}
             aria-label="מספר תשלומים"
+            style={inputBorderStyle}
           />
         </FieldWrapper>
       </PaymentGrid>
@@ -106,6 +113,7 @@ export default function PaymentDetailsSection({
             placeholder="שם הבנק"
             value={payment.bankName ?? ""}
             onChange={(e) => onUpdate({ bankName: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -115,6 +123,7 @@ export default function PaymentDetailsSection({
             placeholder="מספר סניף"
             value={payment.bankBranch ?? ""}
             onChange={(e) => onUpdate({ bankBranch: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -124,6 +133,7 @@ export default function PaymentDetailsSection({
             placeholder="מספר חשבון"
             value={payment.bankAccount ?? ""}
             onChange={(e) => onUpdate({ bankAccount: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
       </PaymentGrid>
@@ -140,6 +150,7 @@ export default function PaymentDetailsSection({
             placeholder="שם הבנק"
             value={payment.checkBank ?? ""}
             onChange={(e) => onUpdate({ checkBank: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -149,6 +160,7 @@ export default function PaymentDetailsSection({
             placeholder="מספר סניף"
             value={payment.checkBranch ?? ""}
             onChange={(e) => onUpdate({ checkBranch: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -158,6 +170,7 @@ export default function PaymentDetailsSection({
             placeholder="מספר חשבון"
             value={payment.checkAccount ?? ""}
             onChange={(e) => onUpdate({ checkAccount: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -167,6 +180,7 @@ export default function PaymentDetailsSection({
             placeholder="מספר צ׳ק"
             value={payment.checkNumber ?? ""}
             onChange={(e) => onUpdate({ checkNumber: e.target.value })}
+            style={inputBorderStyle}
           />
         </FieldWrapper>
       </PaymentGrid>
@@ -190,6 +204,7 @@ export default function PaymentDetailsSection({
               value={payment.transactionReference ?? ""}
               onChange={(e) => onUpdate({ transactionReference: e.target.value })}
               aria-label="מספר עסקה Payoneer"
+              style={inputBorderStyle}
             />
           </FieldWrapper>
         </div>
@@ -216,6 +231,7 @@ export default function PaymentDetailsSection({
             value={payment.payerAccount ?? ""}
             onChange={(e) => onUpdate({ payerAccount: e.target.value })}
             aria-label="מזהה חשבון משלם"
+            style={inputBorderStyle}
           />
         </FieldWrapper>
 
@@ -226,6 +242,7 @@ export default function PaymentDetailsSection({
             value={payment.transactionReference ?? ""}
             onChange={(e) => onUpdate({ transactionReference: e.target.value })}
             aria-label="מזהה עסקה או אסמכתא"
+            style={inputBorderStyle}
           />
         </FieldWrapper>
       </PaymentGrid>
@@ -243,6 +260,7 @@ export default function PaymentDetailsSection({
               placeholder="מספר עסקה"
               value={payment.transactionReference ?? ""}
               onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+              style={inputBorderStyle}
             />
           </FieldWrapper>
         </div>
@@ -294,6 +312,7 @@ export default function PaymentDetailsSection({
               placeholder="מספר עסקה"
               value={payment.transactionReference ?? ""}
               onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+              style={inputBorderStyle}
             />
           </FieldWrapper>
         </div>
@@ -312,6 +331,7 @@ export default function PaymentDetailsSection({
               placeholder="תיאור הניכוי"
               value={payment.description ?? ""}
               onChange={(e) => onUpdate({ description: e.target.value })}
+              style={inputBorderStyle}
             />
           </FieldWrapper>
         </div>

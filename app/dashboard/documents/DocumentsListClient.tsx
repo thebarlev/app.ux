@@ -11,7 +11,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
 import { getReceiptPreviewUrlAction } from "./receipts/actions";
-import { Eye, Copy, Download, X } from "lucide-react";
+import { Eye, Copy, Download, X, Calendar as CalendarIcon } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
   DropdownMenu,
@@ -23,6 +23,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css";
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -112,6 +115,114 @@ function truncateDescription(description: string | null): string {
 
 export default function DocumentsListClient({ initialData, initialFilters }: Props) {
   const router = useRouter();
+
+  const [toDateError, setToDateError] = useState<string | null>(null);
+
+  const formatDmyTyping = (raw: string) => {
+    const digits = raw.replace(/[^\d]/g, "").slice(0, 8);
+    if (!digits) return "";
+    const dd = digits.slice(0, 2);
+    const mm = digits.slice(2, 4);
+    const yyyy = digits.slice(4, 8);
+    if (digits.length <= 2) return dd;
+    if (digits.length <= 4) return `${dd}/${mm}`;
+    return `${dd}/${mm}/${yyyy}`;
+  };
+
+  function maybeApplyCustomRange(nextFrom: string, nextTo: string) {
+    const fromIso = isoFromDmy(nextFrom);
+    const toIso = isoFromDmy(nextTo);
+
+    if (fromIso && toIso) {
+      if (toIso < fromIso) {
+        setToDateError("תאריך עד חייב להיות מאוחר או שווה לתאריך מ־");
+        return;
+      }
+      setToDateError(null);
+      applyDateFilter({
+        kind: "custom",
+        dateFrom: fromIso,
+        dateTo: toIso,
+        label: `${nextFrom} – ${nextTo}`,
+      });
+      return;
+    }
+
+    // Partial / empty: clear range error (we only show ordering error when both are full and valid)
+    setToDateError(null);
+  }
+
+  function DateField({
+    value,
+    onChange,
+    disabledBeforeIso,
+    ariaLabel,
+  }: {
+    value: string;
+    onChange: (next: string) => void;
+    disabledBeforeIso?: string | null;
+    ariaLabel: string;
+  }) {
+    const [open, setOpen] = useState(false);
+    const iso = isoFromDmy(value);
+    const selected = iso ? new Date(iso + "T00:00:00") : undefined;
+    const disabledBefore = disabledBeforeIso ? new Date(disabledBeforeIso + "T00:00:00") : undefined;
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <div className="relative w-full">
+          <input
+            className="ui-filter-input"
+            type="text"
+            inputMode="numeric"
+            placeholder="DD/MM/YYYY"
+            aria-label={ariaLabel}
+            value={value}
+            onChange={(e) => onChange(formatDmyTyping(e.target.value))}
+            onClick={() => setOpen(true)}
+          />
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="absolute left-3 top-1/2 -translate-y-1/2 p-1"
+              aria-label={`${ariaLabel} - פתח לוח שנה`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(true);
+              }}
+            >
+              <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="ui-date-popover w-auto p-2"
+            align="start"
+            sideOffset={8}
+            dir="rtl"
+          >
+            <DayPicker
+              mode="single"
+              selected={selected}
+              onSelect={(d) => {
+                if (!d) return;
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const nextIso = `${yyyy}-${mm}-${dd}`;
+                onChange(formatDmyFromIso(nextIso));
+                setOpen(false);
+              }}
+              disabled={disabledBefore ? { before: disabledBefore } : undefined}
+              modifiersClassNames={{
+                disabled: "opacity-40 cursor-not-allowed",
+              }}
+            />
+          </PopoverContent>
+        </div>
+      </Popover>
+    );
+  }
 
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
@@ -457,7 +568,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="ui-dd-content min-w-[260px]" style={{ direction: "rtl" }}>
+              <DropdownMenuContent
+                align="start"
+                className="ui-dd-content"
+                {...({ dir: "rtl" } as any)}
+              >
                 <DropdownMenuCheckboxItem
                   className="ui-dd-check"
                   checked={isAllDocTypesSelected}
@@ -509,24 +624,26 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
             ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="secondary" className="ui-dd-trigger">
+                  <Button type="button" variant="secondary" className="ui-dd-trigger max-w-full">
                     <span>{dateTriggerLabel}</span>
                     <span>▾</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
-                  align="end"
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
                   className="ui-dd-content"
-                  style={{
-                    direction: "rtl",
-                    // SaaS tokens (local override only)
-                    backgroundColor: "var(--input)",
-                    borderColor: "var(--input-border)",
-                    color: "var(--input-fg)",
+                  {...({ dir: "rtl" } as any)}
+                  onInteractOutside={(e) => {
+                    const target = e.target as HTMLElement | null;
+                    if (target?.closest?.(".ui-date-popover")) {
+                      e.preventDefault();
+                    }
                   }}
                 >
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last7");
@@ -535,11 +652,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
                     }}
                   >
-                    7 ימים אחרונים
+                    <span className="ui-dd-item-label">7 ימים אחרונים</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last30");
@@ -548,11 +665,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
                     }}
                   >
-                    30 ימים אחרונים
+                    <span className="ui-dd-item-label">30 ימים אחרונים</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last12mo");
@@ -561,11 +678,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
                     }}
                   >
-                    12 חודשים אחרונים
+                    <span className="ui-dd-item-label">12 חודשים אחרונים</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
@@ -577,11 +694,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
                     }}
                   >
-                    שנה נוכחית
+                    <span className="ui-dd-item-label">שנה נוכחית</span>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
@@ -593,64 +710,46 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
                     }}
                   >
-                    שנה קודמת
+                    <span className="ui-dd-item-label">שנה קודמת</span>
                   </DropdownMenuItem>
 
                   <div className="px-2 pb-2 pt-1" dir="rtl">
-                    <div className="flex justify-end">
-                      <div className="grid w-[75%] grid-cols-2 gap-2">
-                        <Input
-                          className="h-[50px] !text-[18px]"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD/MM/YYYY"
+                    <div className="flex justify-start">
+                      <div className="grid w-[70%] grid-cols-2 gap-2">
+                        <DateField
+                          ariaLabel="תאריך מ־"
                           value={customFrom}
-                          onChange={(e) => {
-                            setCustomFrom(e.target.value);
-                            const fromIso = isoFromDmy(e.target.value);
-                            const toIso = isoFromDmy(customTo);
-                            if (fromIso && toIso) {
-                              applyDateFilter({
-                                kind: "custom",
-                                dateFrom: fromIso,
-                                dateTo: toIso,
-                                label: `${e.target.value} – ${customTo}`,
-                              });
-                            }
+                          onChange={(next) => {
+                            setCustomFrom(next);
+                            maybeApplyCustomRange(next, customTo);
                           }}
                         />
-                        <Input
-                          className="h-[50px] !text-[18px]"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD/MM/YYYY"
-                          value={customTo}
-                          onChange={(e) => {
-                            setCustomTo(e.target.value);
-                            const fromIso = isoFromDmy(customFrom);
-                            const toIso = isoFromDmy(e.target.value);
-                            if (fromIso && toIso) {
-                              applyDateFilter({
-                                kind: "custom",
-                                dateFrom: fromIso,
-                                dateTo: toIso,
-                                label: `${customFrom} – ${e.target.value}`,
-                              });
-                            }
-                          }}
-                        />
+                        <div>
+                          <DateField
+                            ariaLabel="תאריך עד"
+                            value={customTo}
+                            disabledBeforeIso={isoFromDmy(customFrom)}
+                            onChange={(next) => {
+                              setCustomTo(next);
+                              maybeApplyCustomRange(customFrom, next);
+                            }}
+                          />
+                          {toDateError ? (
+                            <div className="mt-1 text-right text-xs text-red-600">{toDateError}</div>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item ui-dd-item-rtl"
                     onSelect={(e) => {
                       e.preventDefault();
                       clearDateFilter();
                     }}
                   >
-                    איפוס
+                    <span className="ui-dd-item-label">איפוס</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

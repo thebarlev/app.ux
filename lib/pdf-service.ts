@@ -52,26 +52,6 @@ export async function getTemplateForDocument(
   const allowFallbackToHe = options?.allowFallbackToHe === true
   const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
 
-  // #region agent log
-  const __dbgRunId = process.env.DEBUG_TEMPLATES_RUN_ID || "pre-fix"
-  const __dbgPost = (hypothesisId: string, location: string, message: string, data: any) => {
-    if (!DEBUG_TEMPLATES) return
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: __dbgRunId,
-        hypothesisId,
-        location,
-        message,
-        data,
-        timestamp: Date.now(),
-      })
-    }).catch(() => {});
-  }
-  // #endregion
-
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
       companyId,
@@ -79,14 +59,6 @@ export async function getTemplateForDocument(
       language,
       allowFallbackToHe
     })
-    // #region agent log
-    __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:entry", "entry", {
-      companyId8: String(companyId).substring(0, 8),
-      documentType,
-      language,
-      allowFallbackToHe,
-    })
-    // #endregion
 
     // Diagnostic: compare what the user-session (RLS) can see vs what admin/service role can see.
     // This proves whether the issue is RLS visibility vs missing/mismatched data.
@@ -109,15 +81,6 @@ export async function getTemplateForDocument(
           is_default: t.is_default,
         })),
       })
-      // #region agent log
-      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:rlsVisible", "RLS-visible templates", {
-        documentType,
-        count: rlsVisible?.length || 0,
-        ids8: (rlsVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-        scopes: (rlsVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
-        defaults: (rlsVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] Failed to fetch RLS-visible templates (diagnostic):", e?.message || e)
     }
@@ -142,15 +105,6 @@ export async function getTemplateForDocument(
           is_default: t.is_default,
         })),
       })
-      // #region agent log
-      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:adminVisible", "Admin-visible templates", {
-        documentType,
-        count: adminVisible?.length || 0,
-        ids8: (adminVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-        scopes: (adminVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
-        defaults: (adminVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] Failed to fetch admin-visible templates (diagnostic):", e?.message || e)
     }
@@ -307,23 +261,6 @@ export async function getTemplateForDocument(
         : null,
     })
 
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_raw", "PRIORITY2 raw query result", {
-      runId: RUN_ID,
-      found: !!globalDefault,
-      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
-      name: (globalDefault as any)?.name || null,
-      company_id: (globalDefault as any)?.company_id ?? null,
-      company_id_typeof: typeof (globalDefault as any)?.company_id,
-      is_default: (globalDefault as any)?.is_default ?? null,
-      is_active: (globalDefault as any)?.is_active ?? null,
-      errorMessage: globalDefaultError?.message || null,
-      errorCode: (globalDefaultError as any)?.code || null,
-      errorDetails: (globalDefaultError as any)?.details || null,
-      errorHint: (globalDefaultError as any)?.hint || null,
-    })
-    // #endregion
-
     // 2) Verification count query: how many rows match the PRIORITY 2 filters (under RLS)
     const { count: verifyCount, error: verifyCountError } = await supabase
       .from("templates")
@@ -344,15 +281,6 @@ export async function getTemplateForDocument(
           }
         : null,
     })
-
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_verify_count", "PRIORITY2 verify count", {
-      runId: RUN_ID,
-      count: verifyCount ?? null,
-      errorMessage: verifyCountError?.message || null,
-      errorCode: (verifyCountError as any)?.code || null,
-    })
-    // #endregion
 
     // 3) Candidate global rows (limit 5) to validate company_id values
     const { data: globalCandidates5, error: globalCandidates5Error } = await supabase
@@ -385,19 +313,6 @@ export async function getTemplateForDocument(
       })),
     })
 
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_candidates5", "PRIORITY2 candidates (company_id IS NULL) sample", {
-      runId: RUN_ID,
-      length: globalCandidates5?.length || 0,
-      ids8: (globalCandidates5 || []).map((t: any) => String(t.id).substring(0, 8)),
-      company_ids: (globalCandidates5 || []).map((t: any) => t.company_id ?? null),
-      company_id_types: (globalCandidates5 || []).map((t: any) => typeof t.company_id),
-      defaults: (globalCandidates5 || []).map((t: any) => !!t.is_default),
-      errorMessage: globalCandidates5Error?.message || null,
-      errorCode: (globalCandidates5Error as any)?.code || null,
-    })
-    // #endregion
-
     // Diagnostic: count how many *global* active templates exist for this type under RLS.
     // (This checks the user's visibility; admin-visible list is already logged above.)
     try {
@@ -420,17 +335,6 @@ export async function getTemplateForDocument(
         globalDefaultsCount: globalDefaults.length,
         globalDefaultIds8: globalDefaults.slice(0, 5).map((t: any) => String(t.id).substring(0, 8)),
       })
-
-      // #region agent log
-      __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_diag", "priority2 list/selection diagnostic", {
-        documentType,
-        rlsCount: rlsGlobalList?.length || 0,
-        rlsError: rlsGlobalErr?.message || null,
-        globalCandidatesCount: globalCandidates.length,
-        globalDefaultsCount: globalDefaults.length,
-        globalDefaultIds8: globalDefaults.slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] PRIORITY 2 diagnostic failed:", e?.message || e)
     }
@@ -441,15 +345,6 @@ export async function getTemplateForDocument(
       name: globalDefault?.name,
       error: globalDefaultError?.message,
     })
-
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_result", "priority2 query result", {
-      found: !!globalDefault,
-      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
-      name: (globalDefault as any)?.name || null,
-      error: globalDefaultError?.message || null,
-    })
-    // #endregion
   }
 
   if (globalDefault) {
@@ -1226,28 +1121,10 @@ export async function generateDocumentPDF(
     // 5. Render HTML from template    
     const renderedHtml = compileAndRender(template.html, templateData)
 
-    const markLanguage: "he" | "en" = (templateData as any)?.document?.language || targetLanguage
-    // Mandatory mark: "מסמך ממוחשב" / "Computerized document"
-    const computerizedMark =
-      (templateData as any)?.t?.document_computerized_mark ||
-      (markLanguage === "en" ? "Computerized document" : "מסמך ממוחשב")
+    // Disabled: computerized document mark
+    const markHtml = "";
+    const markCss = "";
 
-    const markHtml = `
-<div class="computerized-doc-mark" dir="${(templateData as any).document?.direction || (markLanguage === "en" ? "ltr" : "rtl")}">
-  ${String(computerizedMark)}
-</div>`.trim()
-
-    const markCss = `
-.computerized-doc-mark {
-  position: fixed;
-  bottom: 8mm;
-  ${markLanguage === "en" ? "left: 8mm;" : "right: 8mm;"}
-  font-size: 12px;
-  font-family: 'Heebo', 'Arial', sans-serif;
-  color: #111827;
-  opacity: 0.9;
-  z-index: 9999;
-}`.trim()
 
     const injectMark = (html: string) => {
       if (!html) return html
