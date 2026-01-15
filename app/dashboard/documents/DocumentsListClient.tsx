@@ -53,6 +53,8 @@ function getDocumentTypeLabel(type: string): string {
       return "חשבונית";
     case "quote":
       return "הצעת מחיר";
+    case "delivery_note":
+      return "תעודת משלוח";
     default:
       return type;
   }
@@ -111,8 +113,19 @@ function truncateDescription(description: string | null): string {
 export default function DocumentsListClient({ initialData, initialFilters }: Props) {
   const router = useRouter();
 
+  // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
+  const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
+  const ALL_DOC_TYPES_FOR_TEST = ["receipt", "invoice", "quote", "delivery_note"] as const;
+
   const [search, setSearch] = useState(initialFilters.search || "");
   const [documentType, setDocumentType] = useState(initialFilters.documentType || "all");
+
+  const [selectedDocTypes, setSelectedDocTypes] = useState<Set<string>>(() => {
+    const raw = (initialFilters.documentType || "all").trim();
+    if (!raw || raw === "all") return new Set();
+    return new Set(raw.split(",").map((s) => s.trim()).filter(Boolean));
+  });
+
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set());
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
   const [bulkDownloading, setBulkDownloading] = useState(false);
@@ -147,6 +160,8 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     return () => mq.removeEventListener?.("change", apply);
   }, []);
 
+
+
   if (!initialData.ok) {
     return (
       <div className="ui-alert-danger">
@@ -170,27 +185,34 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     for (const d of documents) {
       if (d?.document_type) set.add(d.document_type);
     }
-    return Array.from(set);
-  }, [documents]);
-
-  const selectedDocumentTypes = useMemo(() => {
-    const raw = (documentType || "all").trim();
-    if (!raw || raw === "all") return new Set<string>();
-    return new Set(
-      raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    );
-  }, [documentType]);
-
-  function setSelectedDocumentTypes(next: Set<string>) {
-    if (next.size === 0) {
-      setDocumentType("all");
-      return;
+    if (SHOW_ALL_DOC_TYPES_FOR_TEST) {
+      for (const t of ALL_DOC_TYPES_FOR_TEST) set.add(t);
     }
-    setDocumentType(Array.from(next).join(","));
-  }
+    // Keep selected options visible even if current list is filtered and doesn't include them.
+    for (const t of selectedDocTypes) set.add(t);
+    return Array.from(set);
+  }, [documents, selectedDocTypes, SHOW_ALL_DOC_TYPES_FOR_TEST]);
+
+  const areAllDocTypesExplicitlySelected = useMemo(() => {
+    if (selectedDocTypes.size === 0) return false;
+    if (documentTypeOptions.length === 0) return false;
+    return documentTypeOptions.every((t) => selectedDocTypes.has(t));
+  }, [documentTypeOptions, selectedDocTypes]);
+
+  // "All" is a true master checkbox:
+  // - checked when every type is selected
+  // - clicking toggles between "select all" and "clear all"
+  // Filtering treats "clear all" as no filter (documentType="all") to avoid empty results.
+  const isAllDocTypesSelected = areAllDocTypesExplicitlySelected;
+
+  useEffect(() => {
+    if (selectedDocTypes.size === 0 || isAllDocTypesSelected) {
+      setDocumentType("all");
+    } else {
+      setDocumentType(Array.from(selectedDocTypes).join(","));
+    }
+  }, [isAllDocTypesSelected, selectedDocTypes]);
+
 
   const monthGroups = useMemo(() => {
     const safeDate = (doc: any) => {
@@ -336,7 +358,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
   function resetFilters() {
     setSearch("");
-    setDocumentType("all");
+    setSelectedDocTypes(new Set());
     setDateFilter({ kind: "none", label: "טווח תאריכים" });
     setCustomFrom("");
     setCustomTo("");
@@ -402,8 +424,8 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
       {/* Search Section */}
       <FormSection title="חיפוש וסינון">
         <div className="ui-form-grid">
-          <FieldWrapper label="חיפוש לפי מספר מסמך או שם לקוח" id="search" className="!w-full">
-            <Input
+          <FieldWrapper label="חיפוש לפי מספר מסמך או שם לקוח" id="search">
+            <input
               id="search"
               type="text"
               placeholder="חיפוש לפי מספר מסמך או שם לקוח..."
@@ -414,89 +436,97 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   applyFilters();
                 }
               }}
+              className="ui-filter-input"
             />
           </FieldWrapper>
 
           <FieldWrapper label="סוג מסמך" id="documentType">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
-                >
+                <Button type="button" variant="secondary" className="ui-dd-trigger">
                   <span>
-                    {selectedDocumentTypes.size === 0
+                    {selectedDocTypes.size === 0 || isAllDocTypesSelected
                       ? "כל המסמכים"
-                      : selectedDocumentTypes.size === 1
-                        ? (Array.from(selectedDocumentTypes)[0] === "receipt"
-                            ? "קבלות"
-                            : getDocumentTypeLabel(Array.from(selectedDocumentTypes)[0]))
-                        : `${selectedDocumentTypes.size} סוגי מסמכים`}
+                      : selectedDocTypes.size === 1
+                      ? Array.from(selectedDocTypes)[0] === "receipt"
+                        ? "קבלות"
+                        : getDocumentTypeLabel(Array.from(selectedDocTypes)[0])
+                      : `${selectedDocTypes.size} סוגי מסמכים`}
                   </span>
-                  <span style={{ opacity: 0.6 }}>▾</span>
+                  <span>▾</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[260px] bg-card text-card-fg">
+
+              <DropdownMenuContent align="end" className="ui-dd-content min-w-[260px]" style={{ direction: "rtl" }}>
                 <DropdownMenuCheckboxItem
-                  className="justify-end"
-                  checked={selectedDocumentTypes.size === 0}
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={(checked) => {
-                    if (checked) setSelectedDocumentTypes(new Set());
+                  className="ui-dd-check"
+                  checked={isAllDocTypesSelected}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setSelectedDocTypes(() => (isAllDocTypesSelected ? new Set() : new Set(documentTypeOptions)));
                   }}
                 >
-                  כל המסמכים
+                  <span className="ui-dd-check-label">כל המסמכים</span>
                 </DropdownMenuCheckboxItem>
 
-                <DropdownMenuSeparator />
+                <DropdownMenuSeparator className="ui-dd-sep" />
 
                 {documentTypeOptions.map((t) => (
                   <DropdownMenuCheckboxItem
                     key={t}
-                    className="justify-end"
-                    checked={selectedDocumentTypes.has(t)}
-                    onSelect={(e) => e.preventDefault()}
-                    onCheckedChange={(checked) => {
-                      const next = new Set(selectedDocumentTypes);
-                      if (checked) next.add(t);
-                      else next.delete(t);
-                      setSelectedDocumentTypes(next);
+                    className="ui-dd-check"
+                    checked={selectedDocTypes.has(t) || isAllDocTypesSelected}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      setSelectedDocTypes((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(t)) next.delete(t);
+                        else next.add(t);
+                        return next;
+                      });
                     }}
                   >
-                    {t === "receipt" ? "קבלות" : getDocumentTypeLabel(t)}
+                    <span className="ui-dd-check-label">{t === "receipt" ? "קבלות" : getDocumentTypeLabel(t)}</span>
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </FieldWrapper>
 
-          <FieldWrapper label="טווח תאריכים" id="dateRange">
+          {/* Date range filter block */}
+          <div className="w-[300px] justify-self-end">
+            <label className="block mb-1 text-right">טווח תאריכים</label>
             {isMobile ? (
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => setDateSheetOpen(true)}
-                style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
+                className="ui-dd-trigger"
               >
                 <span>{dateTriggerLabel}</span>
-                <span style={{ opacity: 0.6 }}>▾</span>
+                <span>▾</span>
               </Button>
             ) : (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    style={{ height: "42px", fontSize: "16px", width: "100%", justifyContent: "space-between" } as any}
-                  >
+                  <Button type="button" variant="secondary" className="ui-dd-trigger">
                     <span>{dateTriggerLabel}</span>
-                    <span style={{ opacity: 0.6 }}>▾</span>
+                    <span>▾</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[320px] bg-card text-card-fg">
+                <DropdownMenuContent
+                  align="end"
+                  className="ui-dd-content"
+                  style={{
+                    direction: "rtl",
+                    // SaaS tokens (local override only)
+                    backgroundColor: "var(--input)",
+                    borderColor: "var(--input-border)",
+                    color: "var(--input-fg)",
+                  }}
+                >
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last7");
@@ -507,8 +537,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   >
                     7 ימים אחרונים
                   </DropdownMenuItem>
+
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last30");
@@ -519,8 +550,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   >
                     30 ימים אחרונים
                   </DropdownMenuItem>
+
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last12mo");
@@ -533,7 +565,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
@@ -547,8 +579,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   >
                     שנה נוכחית
                   </DropdownMenuItem>
+
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
@@ -566,51 +599,52 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   <div className="px-2 pb-2 pt-1" dir="rtl">
                     <div className="flex justify-end">
                       <div className="grid w-[75%] grid-cols-2 gap-2">
-                      <Input
-                        className="h-[50px] !text-[18px]"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="DD/MM/YYYY"
-                        value={customFrom}
-                        onChange={(e) => {
-                          setCustomFrom(e.target.value);
-                          const fromIso = isoFromDmy(e.target.value);
-                          const toIso = isoFromDmy(customTo);
-                          if (fromIso && toIso) {
-                            applyDateFilter({
-                              kind: "custom",
-                              dateFrom: fromIso,
-                              dateTo: toIso,
-                              label: `${e.target.value} – ${customTo}`,
-                            });
-                          }
-                        }}
-                      />
-                      <Input
-                        className="h-[50px] !text-[18px]"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="DD/MM/YYYY"
-                        value={customTo}
-                        onChange={(e) => {
-                          setCustomTo(e.target.value);
-                          const fromIso = isoFromDmy(customFrom);
-                          const toIso = isoFromDmy(e.target.value);
-                          if (fromIso && toIso) {
-                            applyDateFilter({
-                              kind: "custom",
-                              dateFrom: fromIso,
-                              dateTo: toIso,
-                              label: `${customFrom} – ${e.target.value}`,
-                            });
-                          }
-                        }}
-                      />
+                        <Input
+                          className="h-[50px] !text-[18px]"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="DD/MM/YYYY"
+                          value={customFrom}
+                          onChange={(e) => {
+                            setCustomFrom(e.target.value);
+                            const fromIso = isoFromDmy(e.target.value);
+                            const toIso = isoFromDmy(customTo);
+                            if (fromIso && toIso) {
+                              applyDateFilter({
+                                kind: "custom",
+                                dateFrom: fromIso,
+                                dateTo: toIso,
+                                label: `${e.target.value} – ${customTo}`,
+                              });
+                            }
+                          }}
+                        />
+                        <Input
+                          className="h-[50px] !text-[18px]"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="DD/MM/YYYY"
+                          value={customTo}
+                          onChange={(e) => {
+                            setCustomTo(e.target.value);
+                            const fromIso = isoFromDmy(customFrom);
+                            const toIso = isoFromDmy(e.target.value);
+                            if (fromIso && toIso) {
+                              applyDateFilter({
+                                kind: "custom",
+                                dateFrom: fromIso,
+                                dateTo: toIso,
+                                label: `${customFrom} – ${e.target.value}`,
+                              });
+                            }
+                          }}
+                        />
                       </div>
                     </div>
                   </div>
+
                   <DropdownMenuItem
-                    className="h-[50px] !text-[18px] justify-end px-4 py-0"
+                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       clearDateFilter();
@@ -621,14 +655,14 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-          </FieldWrapper>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-          <Button onClick={applyFilters} style={{ height: '50px', fontSize: '18px' }}>
+        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+          <Button onClick={applyFilters} style={{ height: "50px", fontSize: "18px" }}>
             חפש
           </Button>
-          <Button onClick={resetFilters} variant="secondary" style={{ height: '50px', fontSize: '18px' }}>
+          <Button onClick={resetFilters} variant="secondary" style={{ height: "50px", fontSize: "18px" }}>
             איפוס
           </Button>
         </div>
@@ -636,11 +670,16 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
       {/* Mobile Date Sheet */}
       <Sheet open={dateSheetOpen} onOpenChange={setDateSheetOpen}>
-        <SheetContent side="bottom" className="h-[80vh] rounded-t-xl bg-card text-card-fg">
-          <SheetHeader>
-            <SheetTitle className="text-right !text-[18px]">טווח תאריכים</SheetTitle>
-          </SheetHeader>
-          <div className="p-4" dir="rtl">
+  <SheetContent
+    side="bottom"
+    dir="rtl"
+    className="h-[80vh] rounded-t-xl bg-card text-card-fg text-right"
+  >
+    <SheetHeader>
+      <SheetTitle className="ui-sheet-title">טווח תאריכים</SheetTitle>
+    </SheetHeader>
+
+    <div className="ui-sheet-body">
             <div className="flex flex-col gap-2">
               <Button
                 variant="secondary"

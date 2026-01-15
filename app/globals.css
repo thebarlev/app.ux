@@ -6,83 +6,114 @@
    Design Tokens - Global Theme System
    Single Theme with Semantic Tokens + Inverse Sidebar
    ============================================ */
-   @layer base {
-    :root {
-  
-      /* ===== App Base ===== */
-      --bg: #EDF1F5;
-      --fg: #19183B;
-  
-      --card: #FFFFFF;
-      --card-fg: #19183B;
-  
-      --muted: #EDF1F5;
-      --muted-fg: #708993;
-  
-      --border: #ffffff;
-      --ring: #708993;
-  
-      /* ===== Actions / Buttons ===== */
-      --primary: #1D868F;
-      --primary-fg: #FFFFFF;
-      --primary-hover: #19183B;
-  
-      --secondary: #F5FBF9;
-      --secondary-fg: #19183B;
-      --secondary-border: #1D868F;
-  
-      --danger: #9B0003;
-      --danger-fg: #ffffff;
-  
-      /* ===== Links ===== */
-      --link: #1D868F;
-      --link-hover: #97B2BD;
-      --link-visited: #97B2BD;
-      --link-focus: #F39600;
-  
-      /* ===== Forms / States ===== */
-      --input: #F5FBF9;
-      --input-fg: #19183B;
-      --input-border: #1D868F;
-      --placeholder: #97B2BD;
-  
-      --success: #1D868F;
-      --success-fg: #19183B;
-  
-      --warning: #9B0003;
-      --warning-fg: #ffffff;
-  
-      /* ===== Overlay ===== */
-      --overlay: rgba(25, 24, 59, 0.6);
 
-      /* ===== Modals / Popups ===== */
-      --modal-bg: #FFFFFF;
-      --modal-fg: #19183B;
-  
-      /* ===== Sidebar (Inverse) ===== */
-      --sidebar-bg: #19183B;
-      --sidebar-fg: #EDF1F5;
-      --sidebar-muted-fg: #EDF1F5;
-      --sidebar-muted-bg: #1D868F;
-  
-      --sidebar-border: none;
-      --sidebar-hover: #1A3954;
-      --sidebar-active: #1D868F;
-      --sidebar-active-fg: #FFFFFF;
-      --sidebar-ring: #EDF1F5;
-  
-      /* ===== Tables ===== */
-      --table-header-bg: #19183B;
-      --table-header-fg: #ffffff;
-      --table-row-hover: #A1C2BD;
-      --table-stripe: #EDF1F5;
-      --table-positive: #19183B;
-      --table-negative: #19183B;
-  
-      /* ===== Layout ===== */
-      --radius: 5px;
-    }
+@layer base {
+  :root {
+    /* ===== App Base ===== */
+    --bg: #EDF1F5;
+    --fg: #19183B;
 
+    --card: #FFFFFF;
+    --card-fg: #19183B;
+
+    --muted: #EDF1F5;
+    --muted-fg: #708993;
+
+    --border: #708993;
+    --ring: #708993;
+
+    /* ===== Actions / Buttons ===== */
+    --primary: #1D868F;
+    --primary-fg: #FFFFFF;
+    --primary-hover: #19183B;
+
+    --secondary: #F5FBF9;
+    --secondary-fg: #19183B;
+    --secondary-border: #1D868F;
+
+    --danger: #9B0003;
+    --danger-fg: #ffffff;
+
+    /* ===== Links ===== */
+    --link: #1D868F;
+    --link-hover: #97B2BD;
+    --link-visited: #97B2BD;
+    --link-focus: #F39600;
+
+    /* ===== Forms / States ===== */
+    --input: #F5FBF9;
+    --input-fg: #19183B;
+    --input-border: #1D868F;
+    --placeholder: #97B2BD;
+
+    --success: #1D868F;
+    --success-fg: #19183B;
+
+    --warning: #9B0003;
+    --warning-fg: #ffffff;
+
+    /* ===== Overlay ===== */
+    --overlay: rgba(25, 24, 59, 0.6);
+
+    /* ===== Modals / Popups ===== */
+    --modal-bg: #FFFFFF;
+    --modal-fg: #19183B;
+
+    /* ===== Sidebar (Inverse) ===== */
+    --sidebar-bg: #19183B;
+    --sidebar-fg: #EDF1F5;
+    --sidebar-muted-fg: #EDF1F5;
+    --sidebar-muted-bg: #1D868F;
+
+    --sidebar-border: none;
+    --sidebar-hover: #1A3954;
+    --sidebar-active: #1D868F;
+    --sidebar-active-fg: #FFFFFF;
+    --sidebar-ring: #EDF1F5;
+
+    /* ===== Tables ===== */
+    --table-header-bg: #19183B;
+    --table-header-fg: #ffffff;
+    --table-row-hover: #A1C2BD;
+    --table-stripe: #EDF1F5;
+    --table-positive: #19183B;
+    --table-negative: #19183B;
+
+    /* ===== Layout ===== */
+    --radius: 5px;
+
+    /* ===== Dropdown / Select Tokens ===== */
+    --dropdown-bg: var(--card);
+    --dropdown-fg: var(--fg);
+    --dropdown-border: var(--input-border);
+    --dropdown-placeholder: var(--placeholder);
+
+    --dropdown-hover: #EAF6F2;
+    --dropdown-active: #DFF0EA;
+    --dropdown-ring: var(--ring);
+
+    --dropdown-shadow: rgba(25, 24, 59, 0.12);
+
+    /* Item states */
+    --dropdown-item-bg: var(--card);
+    --dropdown-item-hover: var(--secondary);
+    --dropdown-item-selected: #D7EEEA;  /* ← זה כבר קיים */
+    --dropdown-item-checked: #1D868F;   /* ← הוסף את זה - צבע כהה יותר למצב checked */
+    --dropdown-item-checked-fg: #FFFFFF; 
+
+    /* Sizing */
+    --dropdown-height: 50px;
+    --dropdown-text-size: 18px;
+    --dropdown-line-height: 1.25;
+    --dropdown-radius: 10px;
+    /* ===== Sheet Tokens ===== */
+--sheet-bg: var(--card);
+--sheet-fg: var(--card-fg);
+--sheet-radius: 12px;
+--sheet-height-mobile: 80vh;
+--sheet-padding: 16px;
+
+  }
 
   html, body {
     height: 100%;
@@ -91,7 +122,6 @@
   }
 
   body {
-    /* דרישתך: צבע עמוד Body */
     margin: 0;
     background-color: var(--bg);
     color: var(--fg);
@@ -112,7 +142,6 @@
     line-height: 1.6;
   }
 
-  /* Placeholder styling - גלובלי לכל השדות, RTL aligned */
   input::placeholder,
   textarea::placeholder {
     font-size: 18px;
@@ -120,7 +149,8 @@
     text-align: right;
     direction: rtl;
   }
-   h1 {
+
+  h1 {
     font-size: 56px;
     font-weight: 700;
     line-height: 1.1;
@@ -143,6 +173,7 @@
     color: var(--fg);
     margin-bottom: 0.25rem;
   }
+
   h4 {
     font-size: 20px;
     font-weight: 500;
@@ -150,6 +181,7 @@
     color: var(--fg);
     margin-bottom: 0.25rem;
   }
+
   a {
     font-size: 18px;
     line-height: 1.3;
@@ -157,21 +189,190 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
-a:hover { color: var(--link-hover); }
-a:visited {
-  color: var(--link-visited);
+
+  a:hover {
+    color: var(--link-hover);
+  }
+
+  a:visited {
+    color: var(--link-visited);
+  }
+
+  a:focus-visible {
+    outline: none;
+    text-decoration-thickness: 2px;
+    text-decoration-color: var(--link-focus);
+  }
 }
-a:focus-visible {
-  outline: none;
-  text-decoration-thickness: 2px;
-  text-decoration-color: var(--link-focus);
+
+@layer components {
+  /* ===== Dropdown UI Classes ===== */
+  .ui-dd-trigger {
+    @apply h-dropdown w-full rounded-dropdown border border-dropdown-border bg-dropdown-bg text-dropdown-fg px-3 flex items-center gap-3 outline-none transition-colors;
+    font-size: 18px;
+    line-height: 1.25;
+    justify-content: space-between;
+    text-align: right;
+    direction: rtl;
+  }
+
+  /* ===== Filter input (token-based) ===== */
+  .ui-filter-input {
+    width: 100%;
+    height: var(--dropdown-height);
+    border-radius: var(--radius);
+    border: 1px solid var(--input-border);
+    background-color: var(--input);
+    color: var(--input-fg);
+    padding: 0 15px;
+    font-size: 18px;
+    line-height: 1.6;
+    outline: none;
+    text-align: right;
+    direction: rtl;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .ui-filter-input::placeholder {
+    color: var(--placeholder);
+  }
+
+  .ui-filter-input:hover {
+    background-color: var(--secondary);
+  }
+
+  .ui-filter-input:focus-visible {
+    box-shadow: 0 0 0 2px var(--ring);
+  }
+  
+  .ui-dd-trigger > span:first-child {
+    flex: 1;
+    text-align: right;
+  }
+  
+  .ui-dd-trigger > span:last-child {
+    opacity: 0.6;
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .ui-dd-trigger:hover {
+    @apply bg-dropdown-hover;
+  }
+
+  .ui-dd-trigger:active {
+    @apply bg-dropdown-active;
+  }
+
+  .ui-dd-trigger:focus-visible {
+    @apply ring-2 ring-dropdown-ring ring-offset-2;
+  }
+
+  .ui-dd-content {
+    @apply min-w-[280px] rounded-dropdown border border-dropdown-border text-card-fg overflow-hidden;
+    background-color: var(--dropdown-bg) !important;
+    box-shadow: 0 12px 30px var(--dropdown-shadow);
+    direction: rtl !important;
+    text-align: right !important;
+  }
+
+  .ui-dd-item {
+    @apply h-[50px] text-[18px] justify-end px-4 py-0 flex items-center outline-none transition-colors;
+  }
+
+  .ui-dd-item:hover {
+    background-color: var(--dropdown-item-hover);
+  }
+
+/* הצ'ק בצד ימין (RTL) */
+/* הצ'ק בצד ימין (RTL) */
+.ui-dd-check {
+  @apply outline-none transition-colors;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end !important;
+  padding: 12px 40px 12px 16px !important;
+  font-size: 18px;
+  text-align: right !important;
+  direction: rtl !important;
+  background-color: var(--dropdown-item-bg);
+  color: var(--dropdown-fg);
+  cursor: pointer;
+  min-height: 50px;
 }
+
+/* הצ'ק עצמו - מצד ימין */
+.ui-dd-check > span:first-child {
+  position: absolute;
+  left: auto !important;
+  right: 12px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--dropdown-border);
+  border-radius: 4px;
+}
+
+/* label wrapper (so RTL alignment works even though Radix renders text nodes) */
+.ui-dd-check-label {
+  flex: 1;
+  text-align: right;
+}
+
+/* Hover - רק אם לא checked */
+.ui-dd-check:hover:not([data-state="checked"]) {
+  background-color: var(--dropdown-item-hover);
+}
+
+/* Checked state - רקע כהה + טקסט לבן */
+.ui-dd-check[data-state="checked"] {
+  background-color: var(--dropdown-item-checked) !important;
+  color: var(--dropdown-item-checked-fg) !important;
+}
+
+/* Checked + Hover - רקע כהה יותר */
+.ui-dd-check[data-state="checked"]:hover {
+  background-color: #166F77 !important;
+  color: var(--dropdown-item-checked-fg) !important;
+}
+
+/* האייקון גם לבן */
+.ui-dd-check[data-state="checked"] svg {
+  color: var(--dropdown-item-checked-fg) !important;
+}
+  .ui-dd-sep {
+    @apply border-t border-border;
+  }
+
+  /* Sheet Title */
+  .ui-sheet-title {
+    @apply text-right;
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .ui-sheet-content-mobile {
+    height: var(--sheet-height-mobile);
+    border-top-left-radius: var(--sheet-radius);
+    border-top-right-radius: var(--sheet-radius);
+    background: var(--sheet-bg);
+    color: var(--sheet-fg);
+  }
+
+  .ui-sheet-body {
+    padding: var(--sheet-padding);
+    direction: rtl;
+    text-align: right;
+  }
 }
 
 @layer utilities {
   /* ==================== Accessibility Utilities ==================== */
   
-  /* Screen reader only - hide visually but keep for assistive tech */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -184,7 +385,6 @@ a:focus-visible {
     border-width: 0;
   }
 
-  /* Make sr-only element visible when focused */
   .focus\:not-sr-only:focus {
     position: static;
     width: auto;
@@ -196,20 +396,16 @@ a:focus-visible {
     white-space: normal;
   }
 
-  /* Focus visible utility for keyboard navigation */
   .focus-visible-ring:focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2;
   }
 
   /* ==================== UI Kit Utility Classes ==================== */
   
-  /* Container - Max width 1200px INCLUDING 50px padding on each side */
-  /* Net width for content: 1200 - 100 = 1100px */
   .ui-container {
     @apply mx-auto max-w-[1200px] px-[50px];
   }
 
-  /* Form Grid - Maximum 3 columns, centered, 50px gaps, max-width 300px per field */
   .ui-form-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 300px));
@@ -219,34 +415,30 @@ a:focus-visible {
     justify-items: center;
   }
 
-  /* Form Grid for Customer Form - RTL order using direction: rtl (natural RTL placement) */
   .ui-form-grid-customer {
     display: grid;
-    direction: rtl;                /* זה עושה את כל ה-"ordering" לבד */
+    direction: rtl;
     grid-template-columns: repeat(3, 300px);
     column-gap: 50px;
     row-gap: 50px;
-    justify-content: center;       /* מרכז את בלוק הגריד */
-    align-items: start;            /* חשוב: שלא יהיה center אנכי */
-    justify-items: stretch;        /* שדות ימלאו 300px */
+    justify-content: center;
+    align-items: start;
+    justify-items: stretch;
     width: 100%;
     margin: 0 auto;
   }
 
-  /* לא חובה, אבל בסדר להשאיר אם אתה רוצה "נעילה" */
   .ui-form-grid-customer > * {
     width: 300px;
     max-width: 300px;
   }
 
-  /* Responsive: 2 columns on tablet */
   @media (max-width: 1024px) {
     .ui-form-grid-customer {
       grid-template-columns: repeat(2, 300px);
     }
   }
 
-  /* Responsive: 1 column on mobile */
   @media (max-width: 640px) {
     .ui-form-grid-customer {
       grid-template-columns: 1fr;
@@ -254,21 +446,25 @@ a:focus-visible {
     }
     .ui-form-grid-customer > * {
       width: 100%;
-      max-width: 300px; /* אם אתה רוצה להשאיר 300 גם במובייל, או להסיר כדי להיות full */
+      max-width: 300px;
     }
   }
-
-  /* Section Gap - 50px spacing between sections */
+/* Override FieldWrapper label styles */
+.ui-form-grid label,
+[class*="field-wrapper"] label {
+  color: var(--muted-fg) !important;
+  font-size: 18px !important;
+  line-height: 1.6 !important;
+  font-weight: normal !important;
+}
   .ui-section-gap {
     @apply space-y-[50px];
   }
 
-  /* Card */
   .ui-card {
     @apply bg-card border border-border rounded-[5px] shadow-ui;
   }
 
-  /* Page Titles */
   .ui-page-title {
     @apply text-2xl font-bold text-fg text-right;
   }
@@ -277,48 +473,40 @@ a:focus-visible {
     @apply text-sm text-muted-fg mt-1 text-right;
   }
 
-  /* Page Header - Title with 50px margin bottom */
   .ui-page-header {
     @apply mb-[50px];
   }
 
-  /* Divider */
   .ui-divider {
     @apply border-t border-border;
   }
 
-  /* Focus Ring */
   .ui-focus {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
   }
 
   /* ==================== Sidebar Utilities ==================== */
   
-  /* Sidebar Container */
   .ui-sidebar {
     @apply bg-sidebar text-sidebar-fg border-r border-sidebar-border;
   }
 
-  /* Sidebar Item */
   .ui-sidebar-item {
     @apply flex items-center gap-3 px-4 py-3 rounded-[10px] text-sidebar-fg transition-colors;
     @apply hover:bg-sidebar-hover hover:text-sidebar-fg;
     @apply focus:outline-none focus:ring-2 focus:ring-sidebar-ring focus:ring-offset-2;
   }
 
-  /* Sidebar Active Item */
   .ui-sidebar-item-active {
     @apply bg-sidebar-active text-sidebar-active-fg font-medium;
   }
 
-  /* Sidebar Sub Item (aligned to text, not icon) */
   .ui-sidebar-sub-item {
     @apply pr-12;
   }
 
   /* ==================== Input Icon Fixes ==================== */
   
-  /* Fix calendar icon color in date inputs on dark backgrounds */
   input[type="date"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator,
   input[type="datetime-local"]::-webkit-calendar-picker-indicator {
@@ -333,7 +521,6 @@ a:focus-visible {
     opacity: 0.9;
   }
 
-  /* Error field animation */
   @keyframes error-shake {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-8px); }
@@ -344,14 +531,12 @@ a:focus-visible {
     animation: error-shake 0.3s ease-in-out;
   }
 
-  /* High contrast mode support */
   @media (prefers-contrast: high) {
     * {
       border-width: 2px;
     }
   }
 
-  /* Reduced motion support */
   @media (prefers-reduced-motion: reduce) {
     * {
       animation-duration: 0.01ms !important;
@@ -359,4 +544,15 @@ a:focus-visible {
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Force dropdown menu backgrounds and hover states */
+[data-slot="dropdown-menu-content"] {
+  background-color: #FFFFFF !important;
+}
+
+/* Hover רק אם לא checked */
+[data-slot="dropdown-menu-item"]:hover,
+[data-slot="dropdown-menu-checkbox-item"]:not([data-state="checked"]):hover {
+  background-color: var(--dropdown-item-hover) !important;
 }
