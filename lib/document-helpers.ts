@@ -246,12 +246,13 @@ export async function finalizeDocument(
   
   try {
     const { generateDocumentPDF } = await import("@/lib/pdf-service")
-    // Regulatory: originals are Hebrew-only (immutable)
-    const pdfResult = await generateDocumentPDF(draftId, { mode: "final", language: "he" })
     
-    if (!pdfResult.success) {
-      const errorDetails = pdfResult.error || "Unknown error"
-      console.error(`❌ [finalizeDocument] PDF generation failed for document ${draftId}:`, {
+    // Generate Hebrew PDF (Original) - immutable
+    const pdfResultHe = await generateDocumentPDF(draftId, { mode: "final", language: "he" })
+    
+    if (!pdfResultHe.success) {
+      const errorDetails = pdfResultHe.error || "Unknown error"
+      console.error(`❌ [finalizeDocument] Hebrew PDF generation failed for document ${draftId}:`, {
         error: errorDetails,
         documentId: draftId
       })
@@ -264,21 +265,53 @@ export async function finalizeDocument(
     }
     
     // Use storageKey from result directly (don't rely on DB - it may be blocked)
-    pdfStorageKey = pdfResult.storageKey || pdfResult.path || null
+    pdfStorageKey = pdfResultHe.storageKey || pdfResultHe.path || null
     
     if (!pdfStorageKey) {
-      console.error(`[finalizeDocument] PDF was generated but storageKey is missing from result for document ${draftId}`)
+      console.error(`[finalizeDocument] Hebrew PDF was generated but storageKey is missing from result for document ${draftId}`)
       return { 
         ok: false, 
-        message: `PDF was generated but storageKey was not returned. Please try again or contact support.`
+        message: `Hebrew PDF was generated but storageKey was not returned. Please try again or contact support.`
       }
     }
     
-    console.log(`✅ [finalizeDocument] PDF generated and uploaded to storage: ${pdfStorageKey}`)
+    console.log(`✅ [finalizeDocument] Hebrew PDF generated and uploaded to storage: ${pdfStorageKey}`)
     
-    // Verify file exists in Storage (don't rely on DB - it may be blocked)
+    // Generate English PDF (Faithful Copy/Translation) - only allowed in finalization
+    const pdfResultEn = await generateDocumentPDF(draftId, { 
+      mode: "final", 
+      language: "en",
+      allowEnInFinalization: true // Explicit flag to allow EN in finalization
+    })
+    
+    if (!pdfResultEn.success) {
+      const errorDetails = pdfResultEn.error || "Unknown error"
+      console.error(`❌ [finalizeDocument] English PDF generation failed for document ${draftId}:`, {
+        error: errorDetails,
+        documentId: draftId
+      })
+      // CRITICAL: Both PDFs must be generated for finalization
+      return { 
+        ok: false, 
+        message: `Cannot finalize document: English PDF generation failed: ${errorDetails}. Please try again or contact support.`
+      }
+    }
+    
+    const pdfStorageKeyEn = pdfResultEn.storageKey || pdfResultEn.path || null
+    
+    if (!pdfStorageKeyEn) {
+      console.error(`[finalizeDocument] English PDF was generated but storageKey is missing from result for document ${draftId}`)
+      return { 
+        ok: false, 
+        message: `English PDF was generated but storageKey was not returned. Please try again or contact support.`
+      }
+    }
+    
+    console.log(`✅ [finalizeDocument] English PDF generated and uploaded to storage: ${pdfStorageKeyEn}`)
+    
+    // Verify files exist in Storage (don't rely on DB - it may be blocked)
     const adminClient = (await import("@/lib/supabase/admin")).createAdminClient()
-    const pdfFileName = pdfStorageKey.split("/").pop() || "source.pdf"
+    const pdfFileName = pdfStorageKey.split("/").pop() || "source.he.pdf"
     const { data: fileList, error: listError } = await adminClient.storage
       .from("business-assets")
       .list(`documents/${draftId}`, {
@@ -287,7 +320,7 @@ export async function finalizeDocument(
       })
     
     if (listError || !fileList || fileList.length === 0) {
-      console.error(`[finalizeDocument] PDF file not found in Storage for document ${draftId}:`, {
+      console.error(`[finalizeDocument] Hebrew PDF file not found in Storage for document ${draftId}:`, {
         listError,
         pdfStorageKey,
         pdfFileName,
@@ -295,11 +328,35 @@ export async function finalizeDocument(
       })
       return { 
         ok: false, 
-        message: `PDF was generated but file was not found in storage. Please try again or contact support.`
+        message: `Hebrew PDF was generated but file was not found in storage. Please try again or contact support.`
       }
     }
     
-    console.log(`✅ [finalizeDocument] Verified PDF file exists in Storage: ${pdfStorageKey}`)
+    console.log(`✅ [finalizeDocument] Verified Hebrew PDF file exists in Storage: ${pdfStorageKey}`)
+    
+    // Verify English PDF exists
+    const pdfFileNameEn = pdfStorageKeyEn.split("/").pop() || "source.en.pdf"
+    const { data: fileListEn, error: listErrorEn } = await adminClient.storage
+      .from("business-assets")
+      .list(`documents/${draftId}`, {
+        limit: 1,
+        search: pdfFileNameEn
+      })
+    
+    if (listErrorEn || !fileListEn || fileListEn.length === 0) {
+      console.error(`[finalizeDocument] English PDF file not found in Storage for document ${draftId}:`, {
+        listError: listErrorEn,
+        pdfStorageKey: pdfStorageKeyEn,
+        pdfFileName: pdfFileNameEn,
+        fileCount: fileListEn?.length || 0,
+      })
+      return { 
+        ok: false, 
+        message: `English PDF was generated but file was not found in storage. Please try again or contact support.`
+      }
+    }
+    
+    console.log(`✅ [finalizeDocument] Verified English PDF file exists in Storage: ${pdfStorageKeyEn}`)
     
   } catch (pdfError: any) {
     const errorMessage = pdfError?.message || String(pdfError)

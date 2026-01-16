@@ -4,6 +4,25 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { generateDocumentPDF, generatePreviewPDF } from "@/lib/pdf-service"
 
 /**
+ * Sanitize document number to ASCII-safe characters (digits, letters, hyphen only)
+ * and format download filename as: <documentNumber>-<lang>.pdf
+ */
+function formatDownloadFilename(documentNumber: string | null, documentId: string, language: "he" | "en"): string {
+  const lang = language === "he" ? "he" : "en"
+  
+  if (documentNumber) {
+    // Sanitize: keep only digits, letters, and hyphens
+    const sanitized = documentNumber.replace(/[^0-9A-Za-z-]/g, "")
+    if (sanitized.length > 0) {
+      return `${sanitized}-${lang}.pdf`
+    }
+  }
+  
+  // Fallback to documentId if documentNumber is missing or empty after sanitization
+  return `${documentId}-${lang}.pdf`
+}
+
+/**
  * API Route: Download PDF for a finalized document
  * GET /api/documents/[documentId]/pdf
  * 
@@ -124,7 +143,7 @@ export async function GET(
           { status: 500 }
         )
       }
-      const fileName = `receipt-${doc.document_number || documentId}-${targetLanguage}.pdf`
+      const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage)
       const body = (preview.buffer as any).buffer
         ? (preview.buffer as any).buffer.slice(
             (preview.buffer as any).byteOffset || 0,
@@ -141,69 +160,11 @@ export async function GET(
       })
     }
 
-    // Copy: generate on-the-fly (do not store)
-    if (issueMode === "copy") {
-      const copyResult = await generateDocumentPDF(documentId, { language: targetLanguage, mode: "copy" })
-      if (!copyResult.success || !copyResult.buffer) {
-        const err = copyResult.error || "Failed to generate copy PDF"
-        if (err.startsWith("TEMPLATE_MISSING_LANGUAGE:")) {
-          const missingLang = err.split(":")[1] || targetLanguage
-          return NextResponse.json(
-            {
-              error: "TEMPLATE_MISSING_LANGUAGE",
-              message: `Missing ${missingLang.toUpperCase()} template variant (no fallback for copy).`,
-              details: err,
-            },
-            { status: 400 }
-          )
-        }
-        return NextResponse.json(
-          { error: err, code: "PDF_COPY_FAILED" },
-          { status: 500 }
-        )
-      }
-
-      console.info("[PDF] mode=copy", {
-        documentId: documentId.substring(0, 8),
-        generated: true,
-        stored: false,
-        targetLanguage,
-      })
-
-      // Best-effort audit event
-      try {
-        await adminClient.from("document_events").insert({
-          document_id: documentId,
-          company_id: doc.company_id,
-          event_type: "copy_downloaded",
-          performed_by: auth.user.id,
-          event_data: { language: targetLanguage },
-        })
-      } catch {
-        // ignore
-      }
-
-      const fileName = `receipt-${doc.document_number || documentId}-${targetLanguage}.pdf`
-      const body = (copyResult.buffer as any).buffer
-        ? (copyResult.buffer as any).buffer.slice(
-            (copyResult.buffer as any).byteOffset || 0,
-            ((copyResult.buffer as any).byteOffset || 0) + (copyResult.buffer as any).byteLength
-          )
-        : copyResult.buffer
-      return new NextResponse(body as any, {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${fileName}"`,
-          "Content-Length": copyResult.buffer.length.toString(),
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-          "X-Document-Issuance": "copy",
-        },
-      })
-    }
-
-    // Final/pdf_ready: serve immutable stored original (Hebrew) only (no regeneration),
-    // except: one-time recovery if original is missing.
-    const storageKey = `documents/${documentId}/source.he.pdf`
+    // MANDATORY: All downloads (original/copy) return the SAME stored PDF
+    // No PDF regeneration is allowed - single immutable PDF per document per language
+    // PDFs were created once during finalization and stored - we only serve them
+    // Final/pdf_ready: serve immutable stored PDF based on targetLanguage (he/en)
+    const storageKey = `documents/${documentId}/source.${targetLanguage}.pdf`
 
     // Signed URL for stored PDF
     const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
@@ -221,6 +182,14 @@ export async function GET(
     let pdfBlob = signedUrlData?.signedUrl ? await fetchFromSignedUrl(signedUrlData.signedUrl) : null
 
     if (!pdfBlob) {
+      // If English PDF is missing, return error (don't generate)
+      if (targetLanguage === "en") {
+        return NextResponse.json({
+          error: "PDF_EN_MISSING",
+          message: "English PDF not found. Please contact support.",
+        }, { status: 404 })
+      }
+
       const alreadyTriedRecovery = !!(doc as any).original_recovery_attempted_at
       // Regulatory: original is Hebrew-only; if it's missing we allow one-time recovery.
 
@@ -241,7 +210,7 @@ export async function GET(
         .update({ original_recovery_attempted_at: new Date().toISOString() })
         .eq("id", documentId)
 
-      // Recovery generation (signed) - only if missing
+      // Recovery generation (signed) - only for Hebrew, only if missing
       const recovered = await generateDocumentPDF(documentId, { language: targetLanguage, mode: "recovery" })
       if (!recovered.success || !recovered.buffer) {
         return NextResponse.json(
@@ -263,7 +232,7 @@ export async function GET(
         // ignore
       }
 
-      const fileName = `receipt-${doc.document_number || documentId}-${targetLanguage}.pdf`
+      const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage)
       const body = (recovered.buffer as any).buffer
         ? (recovered.buffer as any).buffer.slice(
             (recovered.buffer as any).byteOffset || 0,
@@ -281,9 +250,9 @@ export async function GET(
       })
     }
 
-    const fileName = `receipt-${doc.document_number || documentId}-${targetLanguage}.pdf`
+    const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage)
 
-    // Track original-once issuance + copies (best-effort)
+    // MANDATORY: Audit logging (logical differentiation only - same PDF for both)
     try {
       if (issueMode === "original") {
         const { data: existing } = await adminClient
@@ -332,6 +301,7 @@ export async function GET(
           })
         }
       } else {
+        // Copy download - same PDF as original, logical distinction in audit log only
         await adminClient.from("document_events").insert({
           document_id: documentId,
           company_id: doc.company_id,

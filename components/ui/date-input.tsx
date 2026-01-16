@@ -11,6 +11,7 @@ interface DateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   value: string // YYYY-MM-DD format
   onChange: (value: string) => void // YYYY-MM-DD format
   min?: string // YYYY-MM-DD format - minimum allowed date
+  max?: string // YYYY-MM-DD format - maximum allowed date
 }
 
 /**
@@ -20,7 +21,7 @@ interface DateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
  * while storing internally as YYYY-MM-DD for compatibility
  * Supports min date restriction and calendar picker
  */
-export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
+export function DateInput({ value, onChange, min, max, ...props }: DateInputProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [open, setOpen] = React.useState(false)
   // Convert YYYY-MM-DD to DD/MM/YYYY for display
@@ -126,6 +127,15 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
           setDisplayValue(formatToDisplay(min))
           return
         }
+        
+        // Validate against max date
+        if (max && isoDate > max) {
+          // Reset to max date if above maximum
+          onChange(max)
+          setDisplayValue(formatToDisplay(max))
+          return
+        }
+        
         onChange(isoDate)
         setDisplayValue(formatToDisplay(isoDate))
       } else {
@@ -141,10 +151,11 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
     }
   }
 
-  // Validate date against min when typing
+  // Validate date against min/max when typing
   const validateDate = (isoDate: string): boolean => {
     if (!isoDate) return true
     if (min && isoDate < min) return false
+    if (max && isoDate > max) return false
     return true
   }
 
@@ -220,10 +231,13 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
         if (isValidDate && validateDate(isoDate)) {
           onChange(isoDate)
         } else if (isValidDate && !validateDate(isoDate)) {
-          // Date is below minimum
-          if (min) {
+          // Date is outside allowed range
+          if (min && isoDate < min) {
             onChange(min)
             setDisplayValue(formatToDisplay(min))
+          } else if (max && isoDate > max) {
+            onChange(max)
+            setDisplayValue(formatToDisplay(max))
           }
         }
         // If invalid date, don't update - let blur handle it
@@ -236,6 +250,7 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
   // Convert selected date to YYYY-MM-DD format
   const selectedDate = value ? new Date(value + 'T00:00:00') : undefined
   const minDate = min ? new Date(min + 'T00:00:00') : undefined
+  const maxDate = max ? new Date(max + 'T00:00:00') : undefined
 
   const handleDaySelect = (date: Date | undefined) => {
     if (date) {
@@ -439,7 +454,14 @@ export function DateInput({ value, onChange, min, ...props }: DateInputProps) {
             mode="single"
             selected={selectedDate}
             onSelect={handleDaySelect}
-            disabled={minDate ? { before: minDate } : undefined}
+            disabled={
+              minDate || maxDate
+                ? {
+                    ...(minDate ? { before: minDate } : {}),
+                    ...(maxDate ? { after: maxDate } : {}),
+                  }
+                : undefined
+            }
             dir="rtl"
             className="rounded-[20px] p-4"
             style={{

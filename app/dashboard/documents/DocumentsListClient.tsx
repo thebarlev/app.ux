@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateInput } from "@/components/ui/date-input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/form-section";
@@ -147,6 +148,8 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   // Custom range input values are displayed as DD/MM/YYYY (per UX spec)
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  // Date range validation errors
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
 
   const [clientData, setClientData] = useState<DocumentsListResult | null>(null);
   const [clientLoading, setClientLoading] = useState(false);
@@ -400,6 +403,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     setDateFilter({ kind: "none", label: "טווח תאריכים" });
     setCustomFrom("");
     setCustomTo("");
+    setDateRangeError(null);
     setClientData(null);
     setClientError(null);
     setClientLoading(false);
@@ -407,7 +411,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   }
 
   const dateTriggerLabel = dateFilter.label;
-  const customRangePreview = customFrom && customTo ? `${customFrom} – ${customTo}` : "DD/MM/YYYY – DD/MM/YYYY";
+  const customRangePreview = customFrom && customTo ? `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(customTo)}` : "DD/MM/YYYY – DD/MM/YYYY";
 
   return (
     <div className="ui-container pt-10" style={{ minHeight: '100vh' }}>
@@ -519,6 +523,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   className="ui-dd-content"
                   style={{
                     direction: "rtl",
+                    maxWidth: "350px",
                     // SaaS tokens (local override only)
                     backgroundColor: "var(--input)",
                     borderColor: "var(--input-border)",
@@ -526,12 +531,13 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   }}
                 >
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last7");
-                      setCustomFrom(formatDmyFromIso(r.dateFrom));
-                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                      setDateRangeError(null); // Clear any validation errors
                       applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
                     }}
                   >
@@ -539,12 +545,13 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last30");
-                      setCustomFrom(formatDmyFromIso(r.dateFrom));
-                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                      setDateRangeError(null); // Clear any validation errors
                       applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
                     }}
                   >
@@ -552,12 +559,13 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const r = presetToRange("last12mo");
-                      setCustomFrom(formatDmyFromIso(r.dateFrom));
-                      setCustomTo(formatDmyFromIso(r.dateTo));
+                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                      setDateRangeError(null); // Clear any validation errors
                       applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
                     }}
                   >
@@ -565,15 +573,16 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
                       const y = now.getFullYear();
                       const dateFrom = `${y}-01-01`;
                       const dateTo = `${y}-12-31`;
-                      setCustomFrom(formatDmyFromIso(dateFrom));
-                      setCustomTo(formatDmyFromIso(dateTo));
+                      setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                      setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                      setDateRangeError(null); // Clear any validation errors
                       applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
                     }}
                   >
@@ -581,15 +590,16 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       const now = new Date();
                       const y = now.getFullYear() - 1;
                       const dateFrom = `${y}-01-01`;
                       const dateTo = `${y}-12-31`;
-                      setCustomFrom(formatDmyFromIso(dateFrom));
-                      setCustomTo(formatDmyFromIso(dateTo));
+                      setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                      setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                      setDateRangeError(null); // Clear any validation errors
                       applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
                     }}
                   >
@@ -597,54 +607,82 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   </DropdownMenuItem>
 
                   <div className="px-2 pb-2 pt-1" dir="rtl">
-                    <div className="flex justify-end">
-                      <div className="grid w-[75%] grid-cols-2 gap-2">
-                        <Input
+                    <div className="flex justify-start">
+                      <div className="grid w-[100%] grid-cols-2 gap-2">
+                        <DateInput
                           className="h-[50px] !text-[18px]"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD/MM/YYYY"
                           value={customFrom}
-                          onChange={(e) => {
-                            setCustomFrom(e.target.value);
-                            const fromIso = isoFromDmy(e.target.value);
-                            const toIso = isoFromDmy(customTo);
-                            if (fromIso && toIso) {
+                          onChange={(newFromIso) => {
+                            setCustomFrom(newFromIso);
+                            setDateRangeError(null); // Clear error when user changes date
+                            
+                            // If "to date" exists and is earlier than new "from date", clear it
+                            if (customTo && newFromIso && customTo < newFromIso) {
+                              setCustomTo("");
+                              setDateRangeError(null);
+                              return;
+                            }
+                            
+                            // Apply filter if both dates are valid
+                            if (newFromIso && customTo) {
+                              if (customTo < newFromIso) {
+                                setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                                return;
+                              }
+                              setDateRangeError(null);
                               applyDateFilter({
                                 kind: "custom",
-                                dateFrom: fromIso,
-                                dateTo: toIso,
-                                label: `${e.target.value} – ${customTo}`,
+                                dateFrom: newFromIso,
+                                dateTo: customTo,
+                                label: `${formatDmyFromIso(newFromIso)} – ${formatDmyFromIso(customTo)}`,
                               });
                             }
                           }}
+                          max={customTo || undefined}
+                          style={{
+                            borderColor: dateRangeError ? "#B91C1C" : undefined,
+                            borderWidth: dateRangeError ? "2px" : undefined,
+                          }}
                         />
-                        <Input
+                        <DateInput
                           className="h-[50px] !text-[18px]"
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="DD/MM/YYYY"
                           value={customTo}
-                          onChange={(e) => {
-                            setCustomTo(e.target.value);
-                            const fromIso = isoFromDmy(customFrom);
-                            const toIso = isoFromDmy(e.target.value);
-                            if (fromIso && toIso) {
+                          onChange={(newToIso) => {
+                            setCustomTo(newToIso);
+                            setDateRangeError(null); // Clear error when user changes date
+                            
+                            // Apply filter if both dates are valid
+                            if (customFrom && newToIso) {
+                              if (newToIso < customFrom) {
+                                setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                                return;
+                              }
+                              setDateRangeError(null);
                               applyDateFilter({
                                 kind: "custom",
-                                dateFrom: fromIso,
-                                dateTo: toIso,
-                                label: `${customFrom} – ${e.target.value}`,
+                                dateFrom: customFrom,
+                                dateTo: newToIso,
+                                label: `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(newToIso)}`,
                               });
                             }
+                          }}
+                          min={customFrom || undefined}
+                          style={{
+                            borderColor: dateRangeError ? "#B91C1C" : undefined,
+                            borderWidth: dateRangeError ? "2px" : undefined,
                           }}
                         />
                       </div>
                     </div>
+                    {dateRangeError && (
+                      <div className="mt-2 text-right" style={{ color: "#B91C1C", fontSize: "14px" }}>
+                        {dateRangeError}
+                      </div>
+                    )}
                   </div>
 
                   <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-end text-right cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
                     onSelect={(e) => {
                       e.preventDefault();
                       clearDateFilter();
@@ -685,8 +723,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 variant="secondary"
                 onClick={() => {
                   const r = presetToRange("last7");
-                  setCustomFrom(formatDmyFromIso(r.dateFrom));
-                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                  setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                  setDateRangeError(null); // Clear any validation errors
                   applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
                 }}
                 className="h-[50px] text-[18px] justify-end"
@@ -697,8 +736,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 variant="secondary"
                 onClick={() => {
                   const r = presetToRange("last30");
-                  setCustomFrom(formatDmyFromIso(r.dateFrom));
-                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                  setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                  setDateRangeError(null); // Clear any validation errors
                   applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
                 }}
                 className="h-[50px] text-[18px] justify-end"
@@ -709,8 +749,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 variant="secondary"
                 onClick={() => {
                   const r = presetToRange("last12mo");
-                  setCustomFrom(formatDmyFromIso(r.dateFrom));
-                  setCustomTo(formatDmyFromIso(r.dateTo));
+                  setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                  setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                  setDateRangeError(null); // Clear any validation errors
                   applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
                 }}
                 className="h-[50px] text-[18px] justify-end"
@@ -727,8 +768,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   const y = now.getFullYear();
                   const dateFrom = `${y}-01-01`;
                   const dateTo = `${y}-12-31`;
-                  setCustomFrom(formatDmyFromIso(dateFrom));
-                  setCustomTo(formatDmyFromIso(dateTo));
+                  setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                  setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                  setDateRangeError(null); // Clear any validation errors
                   applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
                 }}
                 className="h-[50px] text-[18px] justify-end"
@@ -742,8 +784,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                   const y = now.getFullYear() - 1;
                   const dateFrom = `${y}-01-01`;
                   const dateTo = `${y}-12-31`;
-                  setCustomFrom(formatDmyFromIso(dateFrom));
-                  setCustomTo(formatDmyFromIso(dateTo));
+                  setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                  setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                  setDateRangeError(null); // Clear any validation errors
                   applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
                 }}
                 className="h-[50px] text-[18px] justify-end"
@@ -752,38 +795,76 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               </Button>
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-start">
               <div className="grid w-[75%] grid-cols-1 gap-2">
-                <Input
+                <DateInput
                   className="h-[50px] !text-[18px]"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="DD/MM/YYYY"
                   value={customFrom}
-                  onChange={(e) => {
-                    setCustomFrom(e.target.value);
-                    const fromIso = isoFromDmy(e.target.value);
-                    const toIso = isoFromDmy(customTo);
-                    if (fromIso && toIso) {
-                      applyDateFilter({ kind: "custom", dateFrom: fromIso, dateTo: toIso, label: `${e.target.value} – ${customTo}` });
+                  onChange={(newFromIso) => {
+                    setCustomFrom(newFromIso);
+                    setDateRangeError(null); // Clear error when user changes date
+                    
+                    // If "to date" exists and is earlier than new "from date", clear it
+                    if (customTo && newFromIso && customTo < newFromIso) {
+                      setCustomTo("");
+                      setDateRangeError(null);
+                      return;
+                    }
+                    
+                    // Apply filter if both dates are valid
+                    if (newFromIso && customTo) {
+                      if (customTo < newFromIso) {
+                        setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                        return;
+                      }
+                      setDateRangeError(null);
+                      applyDateFilter({
+                        kind: "custom",
+                        dateFrom: newFromIso,
+                        dateTo: customTo,
+                        label: `${formatDmyFromIso(newFromIso)} – ${formatDmyFromIso(customTo)}`,
+                      });
                     }
                   }}
+                  max={customTo || undefined}
+                  style={{
+                    borderColor: dateRangeError ? "#B91C1C" : undefined,
+                    borderWidth: dateRangeError ? "2px" : undefined,
+                  }}
                 />
-                <Input
+                <DateInput
                   className="h-[50px] !text-[18px]"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="DD/MM/YYYY"
                   value={customTo}
-                  onChange={(e) => {
-                    setCustomTo(e.target.value);
-                    const fromIso = isoFromDmy(customFrom);
-                    const toIso = isoFromDmy(e.target.value);
-                    if (fromIso && toIso) {
-                      applyDateFilter({ kind: "custom", dateFrom: fromIso, dateTo: toIso, label: `${customFrom} – ${e.target.value}` });
+                  onChange={(newToIso) => {
+                    setCustomTo(newToIso);
+                    setDateRangeError(null); // Clear error when user changes date
+                    
+                    // Apply filter if both dates are valid
+                    if (customFrom && newToIso) {
+                      if (newToIso < customFrom) {
+                        setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                        return;
+                      }
+                      setDateRangeError(null);
+                      applyDateFilter({
+                        kind: "custom",
+                        dateFrom: customFrom,
+                        dateTo: newToIso,
+                        label: `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(newToIso)}`,
+                      });
                     }
                   }}
+                  min={customFrom || undefined}
+                  style={{
+                    borderColor: dateRangeError ? "#B91C1C" : undefined,
+                    borderWidth: dateRangeError ? "2px" : undefined,
+                  }}
                 />
+                {dateRangeError && (
+                  <div className="text-right" style={{ color: "#B91C1C", fontSize: "14px" }}>
+                    {dateRangeError}
+                  </div>
+                )}
               </div>
             </div>
 

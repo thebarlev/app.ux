@@ -1107,7 +1107,11 @@ export async function prepareDocumentData(
  */
 export async function generateDocumentPDF(
   documentId: string,
-  options?: { language?: "he" | "en"; mode?: "preview" | "final" | "recovery" | "copy" }
+  options?: { 
+    language?: "he" | "en"; 
+    mode?: "preview" | "final" | "recovery" | "copy";
+    allowEnInFinalization?: boolean; // Allow EN only in finalization context
+  }
 ): Promise<PDFGenerationResult> {
   console.log(`[generateDocumentPDF] Starting PDF generation for document: ${documentId}`)
   
@@ -1156,10 +1160,13 @@ export async function generateDocumentPDF(
     const pdfMode = options?.mode || "preview"
 
     // Regulatory: originals are Hebrew-only.
+    // Allow EN only if explicitly allowed (from finalizeDocument context)
     if ((pdfMode === "final" || pdfMode === "recovery") && targetLanguage !== "he") {
-      return {
-        success: false,
-        error: "ORIGINAL_MUST_BE_HE: מסמך מקור חייב להיות בעברית לפי הוראות ניהול ספרים",
+      if (!options?.allowEnInFinalization) {
+        return {
+          success: false,
+          error: "ORIGINAL_MUST_BE_HE: מסמך מקור חייב להיות בעברית. English PDF can only be created during finalization.",
+        }
       }
     }
 
