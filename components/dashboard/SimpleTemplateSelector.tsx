@@ -27,17 +27,32 @@ export default function SimpleTemplateSelector({ className }: Props) {
 
   const loadTemplates = async () => {
     setLoading(true)
+    let response: Response | null = null
     try {
       console.log("🔵 [SimpleTemplateSelector] Loading templates from API...")
-      const response = await fetch('/api/templates/user-templates')
-      if (!response.ok) throw new Error('Failed to load templates')
-      
-      const data = await response.json()
-      console.log("🔵 [SimpleTemplateSelector] Loaded templates:", data.templates?.map((t: any) => ({
-        name: t.name,
-        id: t.id.substring(0, 8),
-        is_default: t.is_default,
-        company_id: t.company_id ? 'company' : 'global'
+      response = await fetch('/api/templates/user-templates')
+
+      const contentType = response.headers.get("content-type") || ""
+
+      const raw = await response.text()
+      const rawPreview = raw.slice(0, 300)
+
+      if (!response.ok) {
+        throw new Error('Failed to load templates')
+      }
+
+      let data: any = null
+      try {
+        data = raw ? JSON.parse(raw) : {}
+      } catch (e: any) {
+        throw e
+      }
+
+      console.log("🔵 [SimpleTemplateSelector] Loaded templates:", (data?.templates || []).map((t: any) => ({
+        name: t?.name ?? null,
+        id: t?.id ? String(t.id).substring(0, 8) : null,
+        is_default: !!t?.is_default,
+        company_id: t?.company_id ? 'company' : 'global'
       })))
       setTemplates(data.templates || [])
     } catch (error) {

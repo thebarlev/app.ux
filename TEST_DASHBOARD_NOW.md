@@ -22,12 +22,6 @@ http://localhost:3000/dashboard
 ```
 Should show the new dashboard homepage with quick action cards.
 
-**All Receipts (כל הקבלות):**
-```
-http://localhost:3000/dashboard/documents/receipts
-```
-Should display the receipts list page.
-
 **Create New Receipt (קבלה חדשה):**
 ```
 http://localhost:3000/dashboard/documents/receipt
@@ -72,7 +66,6 @@ http://localhost:3000/dashboard/customers/new
    
 3. **Test navigation**:
    - Click "קבלה חדשה" (New Receipt) → Should navigate to receipt form
-   - Click "כל הקבלות" (All Receipts) → Should show receipts list
    - Click "לקוחות" (Customers) → Should show customers list
 
 4. **Test mobile**:

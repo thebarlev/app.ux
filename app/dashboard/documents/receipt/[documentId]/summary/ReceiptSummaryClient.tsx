@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getReceiptPreviewUrlAction } from "@/app/dashboard/documents/receipts/actions";
+import { getReceiptPreviewUrlAction } from "@/app/dashboard/documents/receipt/actions";
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -293,7 +293,7 @@ export default function ReceiptSummaryClient(props: {
                         await downloadPdf(props.receipt.id, {
                           issue: "copy",
                           lang: "he",
-                          fileName: `receipt-${props.receipt.document_number || props.receipt.id}-copy-he.pdf`,
+                          fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
                         });
                       } catch (e: any) {
                         alert(e?.message || "שגיאה בהורדה");

@@ -41,7 +41,6 @@ const menuSections: MenuSection[] = [
     ),
     title: "מסמכים",
     items: [
-      { href: "/dashboard/documents/receipts", label: "כל הקבלות" },
       { href: "/dashboard/documents/receipt", label: "קבלה חדשה" },
     ],
   },

@@ -272,7 +272,7 @@ If migrating to Handlebars+Playwright, use the SAME template for both preview (r
 ### ❌ Receipt List Enhancements
 
 **What Exists**: 
-- List view at `/dashboard/documents/receipts` ✅
+- List view at `/dashboard/documents/receipts` ✅ (removed later)
 - Filters (search, status, date range) ✅
 - Pagination ✅
 - CSV export ✅
@@ -384,7 +384,7 @@ templates/
 - `lib/pdf-generator.ts` - jsPDF implementation (543 lines)
 - `app/api/receipts/[id]/pdf/route.ts` - PDF generation route
 - `app/dashboard/documents/receipt/preview/PreviewClient.tsx` - HTML preview
-- `app/dashboard/documents/receipts/page.tsx` - Receipt list
+- `app/dashboard/documents/receipts/page.tsx` - Receipt list (removed)
 - `lib/document-helpers.ts` - Helper functions
 
 ---

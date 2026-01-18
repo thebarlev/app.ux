@@ -52,26 +52,6 @@ export async function getTemplateForDocument(
   const allowFallbackToHe = options?.allowFallbackToHe === true
   const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
 
-  // #region agent log
-  const __dbgRunId = process.env.DEBUG_TEMPLATES_RUN_ID || "pre-fix"
-  const __dbgPost = (hypothesisId: string, location: string, message: string, data: any) => {
-    if (!DEBUG_TEMPLATES) return
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId: 'debug-session',
-        runId: __dbgRunId,
-        hypothesisId,
-        location,
-        message,
-        data,
-        timestamp: Date.now(),
-      })
-    }).catch(() => {});
-  }
-  // #endregion
-
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
       companyId,
@@ -79,14 +59,6 @@ export async function getTemplateForDocument(
       language,
       allowFallbackToHe
     })
-    // #region agent log
-    __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:entry", "entry", {
-      companyId8: String(companyId).substring(0, 8),
-      documentType,
-      language,
-      allowFallbackToHe,
-    })
-    // #endregion
 
     // Diagnostic: compare what the user-session (RLS) can see vs what admin/service role can see.
     // This proves whether the issue is RLS visibility vs missing/mismatched data.
@@ -109,15 +81,6 @@ export async function getTemplateForDocument(
           is_default: t.is_default,
         })),
       })
-      // #region agent log
-      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:rlsVisible", "RLS-visible templates", {
-        documentType,
-        count: rlsVisible?.length || 0,
-        ids8: (rlsVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-        scopes: (rlsVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
-        defaults: (rlsVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] Failed to fetch RLS-visible templates (diagnostic):", e?.message || e)
     }
@@ -142,15 +105,6 @@ export async function getTemplateForDocument(
           is_default: t.is_default,
         })),
       })
-      // #region agent log
-      __dbgPost("H1", "lib/pdf-service.ts:getTemplateForDocument:adminVisible", "Admin-visible templates", {
-        documentType,
-        count: adminVisible?.length || 0,
-        ids8: (adminVisible || []).slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-        scopes: (adminVisible || []).slice(0, 10).map((t: any) => (t.company_id ? "company" : "global")),
-        defaults: (adminVisible || []).slice(0, 10).map((t: any) => !!t.is_default),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] Failed to fetch admin-visible templates (diagnostic):", e?.message || e)
     }
@@ -307,23 +261,6 @@ export async function getTemplateForDocument(
         : null,
     })
 
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_raw", "PRIORITY2 raw query result", {
-      runId: RUN_ID,
-      found: !!globalDefault,
-      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
-      name: (globalDefault as any)?.name || null,
-      company_id: (globalDefault as any)?.company_id ?? null,
-      company_id_typeof: typeof (globalDefault as any)?.company_id,
-      is_default: (globalDefault as any)?.is_default ?? null,
-      is_active: (globalDefault as any)?.is_active ?? null,
-      errorMessage: globalDefaultError?.message || null,
-      errorCode: (globalDefaultError as any)?.code || null,
-      errorDetails: (globalDefaultError as any)?.details || null,
-      errorHint: (globalDefaultError as any)?.hint || null,
-    })
-    // #endregion
-
     // 2) Verification count query: how many rows match the PRIORITY 2 filters (under RLS)
     const { count: verifyCount, error: verifyCountError } = await supabase
       .from("templates")
@@ -344,15 +281,6 @@ export async function getTemplateForDocument(
           }
         : null,
     })
-
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_verify_count", "PRIORITY2 verify count", {
-      runId: RUN_ID,
-      count: verifyCount ?? null,
-      errorMessage: verifyCountError?.message || null,
-      errorCode: (verifyCountError as any)?.code || null,
-    })
-    // #endregion
 
     // 3) Candidate global rows (limit 5) to validate company_id values
     const { data: globalCandidates5, error: globalCandidates5Error } = await supabase
@@ -385,19 +313,6 @@ export async function getTemplateForDocument(
       })),
     })
 
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_candidates5", "PRIORITY2 candidates (company_id IS NULL) sample", {
-      runId: RUN_ID,
-      length: globalCandidates5?.length || 0,
-      ids8: (globalCandidates5 || []).map((t: any) => String(t.id).substring(0, 8)),
-      company_ids: (globalCandidates5 || []).map((t: any) => t.company_id ?? null),
-      company_id_types: (globalCandidates5 || []).map((t: any) => typeof t.company_id),
-      defaults: (globalCandidates5 || []).map((t: any) => !!t.is_default),
-      errorMessage: globalCandidates5Error?.message || null,
-      errorCode: (globalCandidates5Error as any)?.code || null,
-    })
-    // #endregion
-
     // Diagnostic: count how many *global* active templates exist for this type under RLS.
     // (This checks the user's visibility; admin-visible list is already logged above.)
     try {
@@ -421,16 +336,6 @@ export async function getTemplateForDocument(
         globalDefaultIds8: globalDefaults.slice(0, 5).map((t: any) => String(t.id).substring(0, 8)),
       })
 
-      // #region agent log
-      __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_diag", "priority2 list/selection diagnostic", {
-        documentType,
-        rlsCount: rlsGlobalList?.length || 0,
-        rlsError: rlsGlobalErr?.message || null,
-        globalCandidatesCount: globalCandidates.length,
-        globalDefaultsCount: globalDefaults.length,
-        globalDefaultIds8: globalDefaults.slice(0, 10).map((t: any) => String(t.id).substring(0, 8)),
-      })
-      // #endregion
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] PRIORITY 2 diagnostic failed:", e?.message || e)
     }
@@ -442,14 +347,6 @@ export async function getTemplateForDocument(
       error: globalDefaultError?.message,
     })
 
-    // #region agent log
-    __dbgPost("H2", "lib/pdf-service.ts:getTemplateForDocument:priority2_result", "priority2 query result", {
-      found: !!globalDefault,
-      id8: globalDefault?.id ? String(globalDefault.id).substring(0, 8) : null,
-      name: (globalDefault as any)?.name || null,
-      error: globalDefaultError?.message || null,
-    })
-    // #endregion
   }
 
   if (globalDefault) {
@@ -551,6 +448,7 @@ export async function prepareDocumentData(
         id,
         company_name,
         company_name_en,
+        english_address,
         registration_number,
         company_number,
         contact_first_name,
@@ -624,7 +522,7 @@ export async function prepareDocumentData(
   if (docError?.code === "42703") {
     const msg = String((docError as any)?.message || "")
     const missingEnglishCols =
-      msg.includes("company_name_en") || msg.includes("contact_first_name_en")
+      msg.includes("company_name_en") || msg.includes("contact_first_name_en") || msg.includes("english_address")
     if (missingEnglishCols) {
       ;({ data: doc, error: docError } = await supabase
         .from("documents")
@@ -705,46 +603,91 @@ export async function prepareDocumentData(
     return new Intl.DateTimeFormat("he-IL").format(d)
   }
 
+  // Map stored payment method (Hebrew values from DB) to English for English PDFs.
+  const mapPaymentMethodForDisplay = (raw: any): string => {
+    const s = typeof raw === "string" ? raw.trim() : ""
+    if (!s) return ""
+
+    if (documentLanguage !== "en") return s
+
+    const map: Record<string, string> = {
+      "העברה בנקאית": "Bank Transfer",
+      "כרטיס אשראי": "Credit Card",
+      "מזומן": "Cash",
+      "צ׳ק": "Check",
+      "ביטקוין": "Bitcoin",
+      "אתריום": "Ethereum",
+      "שובר BuyME": "BuyME Voucher",
+      "שובר מתנה": "Gift Voucher",
+      "שווה כסף": "Cash Equivalent",
+      "ניכוי במקור": "Withholding Tax",
+      "ניכוי חלק עובד טל״א": "Employee Deduction",
+      "ניכוי אחר": "Other Deduction",
+    }
+
+    const mapped = map[s]
+    if (mapped) return mapped
+
+    // These are already English/brand strings in the DB.
+    if (/[A-Za-z]/.test(s)) return s
+
+    // Ensure no Hebrew leaks into EN PDF for method field.
+    const hasHebrew = /[\u0590-\u05FF]/.test(s)
+    return hasHebrew ? "Other" : s
+  }
+
   // Enhanced payment details builder - includes all relevant fields from user input
   const buildPaymentDetails = (p: any) => {
     const parts: string[] = []
+    const isEn = documentLanguage === "en"
     
     // Reference number / Transaction ID
     if (p.reference_number) parts.push(p.reference_number)
-    if (p.transaction_id && p.transaction_id !== p.reference_number) parts.push(`עסקה: ${p.transaction_id}`)
+    if (p.transaction_id && p.transaction_id !== p.reference_number) {
+      parts.push(isEn ? `${p.transaction_id}` : `עסקה: ${p.transaction_id}`)
+    }
     
     // Bank transfer details
     if (p.bank_name) parts.push(p.bank_name)
-    if (p.branch) parts.push(`סניף: ${p.branch}`)
-    if (p.account_number) parts.push(`חשבון: ${p.account_number}`)
+    if (p.branch) parts.push(isEn ? `${p.branch}` : `סניף: ${p.branch}`)
+    if (p.account_number) parts.push(isEn ? `${p.account_number}` : `חשבון: ${p.account_number}`)
     
     // Digital wallet / Payer account
-    if (p.payerAccount) parts.push(`חשבון משלם: ${p.payerAccount}`)
+    if (p.payerAccount) parts.push(isEn ? `${p.payerAccount}` : `חשבון משלם: ${p.payerAccount}`)
     
     // Check details
-    if (p.check_number) parts.push(`צ׳ק מס׳ ${p.check_number}`)
+    if (p.check_number) parts.push(isEn ? `${p.check_number}` : `צ׳ק מס׳ ${p.check_number}`)
     
     // Credit card details - all fields from user input
     if (p.card_last4) {
-      const cardParts: string[] = [`כרטיס: *${p.card_last4}`]
+      const cardParts: string[] = [isEn ? `*${p.card_last4}` : `כרטיס: *${p.card_last4}`]
       if (p.cardType) cardParts.push(p.cardType)
       if (p.cardDealType) {
-        const dealTypeMap: Record<string, string> = {
-          "regular": "רגיל",
-          "payments": "תשלומים",
-          "credit": "אשראי",
-          "deferred": "דחוי"
-        }
+        const dealTypeMap: Record<string, string> = isEn
+          ? {
+              regular: "Regular",
+              payments: "Installments",
+              credit: "Credit",
+              deferred: "Deferred",
+            }
+          : {
+              regular: "רגיל",
+              payments: "תשלומים",
+              credit: "אשראי",
+              deferred: "דחוי",
+            }
         cardParts.push(dealTypeMap[p.cardDealType] || p.cardDealType)
       }
-      if (p.cardInstallments) cardParts.push(`${p.cardInstallments} תשלומים`)
-      parts.push(cardParts.join(" - "))
+      if (p.cardInstallments) cardParts.push(isEn ? `${p.cardInstallments}` : `${p.cardInstallments} תשלומים`)
+      parts.push(isEn ? cardParts.join(", ") : cardParts.join(" - "))
     }
     
     // Notes / Description
     if (p.notes) parts.push(p.notes)
     
-    return parts.join(" | ").trim()
+    const joined = parts.join(isEn ? ", " : " | ").trim()
+
+    return joined
   }
 
   // Helper function to escape HTML and prevent XSS
@@ -764,7 +707,7 @@ export async function prepareDocumentData(
     const date = p.date || p.payment_date || doc.issue_date || ""
 
     return {
-      method: p.payment_method || "",
+      method: mapPaymentMethodForDisplay(p.payment_method || ""),
       date: date,
       amount: amount,
       currency: currencyCode,
@@ -789,18 +732,26 @@ export async function prepareDocumentData(
     } as any // Using 'as any' to allow extra display fields
   })
 
-  // Build company address from separate fields if available, otherwise use address field
-  let companyAddress = doc.company?.address || "";
-  if (doc.company?.street || doc.company?.city) {
-    const addressParts = [];
-    if (doc.company.street) addressParts.push(doc.company.street);
-    if (doc.company.city) addressParts.push(doc.company.city);
-    if (doc.company.postal_code) addressParts.push(doc.company.postal_code);
-    if (addressParts.length > 0) {
-      companyAddress = addressParts.join(", ");
+  // Build company address:
+  // - English PDF: use ONLY companies.english_address; if missing/empty => hide address block (no fallback to Hebrew)
+  // - Hebrew PDF: use street/city/postal_code when available, otherwise companies.address
+  let companyAddress = ""
+  if (documentLanguage === "en") {
+    const en = (doc.company as any)?.english_address
+    companyAddress = typeof en === "string" ? en.trim() : ""
+  } else {
+    companyAddress = doc.company?.address || ""
+    if (doc.company?.street || doc.company?.city) {
+      const addressParts: string[] = []
+      if (doc.company.street) addressParts.push(doc.company.street)
+      if (doc.company.city) addressParts.push(doc.company.city)
+      if (doc.company.postal_code) addressParts.push(doc.company.postal_code)
+      if (addressParts.length > 0) {
+        companyAddress = addressParts.join(", ")
+      }
     }
   }
-  
+
   // Use registration_number or company_number for tax ID
   const companyTaxId = doc.company?.registration_number || doc.company?.company_number || null;
   
@@ -1170,12 +1121,17 @@ export async function generateDocumentPDF(
       }
     }
 
+    // Regulatory UX:
+    // - Hebrew is the only "Original"
+    // - English is always a "Certified Copy"
     const documentCopyLabel =
-      pdfMode === "copy"
-        ? (targetLanguage === "en" ? "Certified Copy" : "העתק נאמן למקור")
-        : (pdfMode === "final" || pdfMode === "recovery")
-          ? "מקור"
-          : ""
+      targetLanguage === "en"
+        ? "Certified Copy"
+        : pdfMode === "copy"
+          ? "העתק נאמן למקור"
+          : (pdfMode === "final" || pdfMode === "recovery")
+            ? "מקור"
+            : ""
 
     // Regulatory check: If PDF already exists, return it (immutable) - only for base language.
     // IMPORTANT: for `mode=copy` we must NOT reuse the stored original; copies are generated on-the-fly.
@@ -1233,39 +1189,10 @@ export async function generateDocumentPDF(
     // 5. Render HTML from template    
     const renderedHtml = compileAndRender(template.html, templateData)
 
-    const markLanguage: "he" | "en" = (templateData as any)?.document?.language || targetLanguage
-    // Mandatory mark: "מסמך ממוחשב" / "Computerized document"
-    const computerizedMark =
-      (templateData as any)?.t?.document_computerized_mark ||
-      (markLanguage === "en" ? "Computerized document" : "מסמך ממוחשב")
-
-    const markHtml = `
-<div class="computerized-doc-mark" dir="${(templateData as any).document?.direction || (markLanguage === "en" ? "ltr" : "rtl")}">
-  ${String(computerizedMark)}
-</div>`.trim()
-
-    const markCss = `
-.computerized-doc-mark {
-  position: fixed;
-  bottom: 8mm;
-  ${markLanguage === "en" ? "left: 8mm;" : "right: 8mm;"}
-  font-size: 12px;
-  font-family: 'Heebo', 'Arial', sans-serif;
-  color: #111827;
-  opacity: 0.9;
-  z-index: 9999;
-}`.trim()
-
-    const injectMark = (html: string) => {
-      if (!html) return html
-      if (html.includes("computerized-doc-mark")) return html
-      if (html.includes("</body>")) return html.replace("</body>", `${markHtml}</body>`)
-      if (html.includes("</html>")) return html.replace("</html>", `${markHtml}</html>`)
-      return `${html}\n${markHtml}`
-    }
-
-    const renderedHtmlWithMark = injectMark(renderedHtml)
-    const cssWithMark = `${template.css || ""}\n${markCss}`
+    // IMPORTANT: Do NOT inject any extra content into the HTML.
+    // The template must be the only source of truth for PDF content.
+    const renderedHtmlWithMark = renderedHtml
+    const cssWithMark = `${template.css || ""}`
     // 6. Generate PDF using Playwright with minimal margins to prevent 2-page output
     console.log(`[generateDocumentPDF] Generating PDF buffer from HTML for document: ${documentId}`)
     const pdfResult = await generatePDFFromHTML(renderedHtmlWithMark, cssWithMark, {

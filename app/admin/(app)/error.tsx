@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import { AlertCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 export default function Error({
   error,
@@ -16,33 +14,57 @@ export default function Error({
   }, [error])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
-      <div className="max-w-md w-full text-center space-y-6">
-        <div className="flex justify-center">
-          <div className="h-16 w-16 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center">
-            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold">Something went wrong</h2>
-          <p className="text-muted-foreground">
-            An error occurred in the admin panel. Please try again.
-          </p>
-          {error.message && (
-            <p className="text-sm text-muted-foreground font-mono bg-muted p-3 rounded-lg mt-4">
-              {error.message}
-            </p>
-          )}
-        </div>
-
-        <div className="flex gap-3 justify-center">
-          <Button onClick={reset} variant="default">
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 520 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Admin error</h2>
+        <p style={{ marginBottom: 12, opacity: 0.8 }}>An error occurred in the admin panel.</p>
+        {error?.message ? (
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              background: "#f3f4f6",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: 12,
+              marginBottom: 16,
+              fontSize: 12,
+            }}
+          >
+            {error.message}
+          </pre>
+        ) : null}
+        <div style={{ display: "flex", gap: 12 }}>
+          <button
+            type="button"
+            onClick={reset}
+            style={{
+              height: 44,
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "1px solid #111827",
+              background: "#111827",
+              color: "white",
+              fontWeight: 600,
+            }}
+          >
             Try Again
-          </Button>
-          <Button onClick={() => window.location.href = "/admin"} variant="outline">
+          </button>
+          <button
+            type="button"
+            onClick={() => (window.location.href = "/admin")}
+            style={{
+              height: 44,
+              padding: "0 16px",
+              borderRadius: 8,
+              border: "1px solid #d1d5db",
+              background: "white",
+              color: "#111827",
+              fontWeight: 600,
+            }}
+          >
             Go to Dashboard
-          </Button>
+          </button>
         </div>
       </div>
     </div>

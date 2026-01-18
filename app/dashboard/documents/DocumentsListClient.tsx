@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
-import { getReceiptPreviewUrlAction } from "./receipts/actions";
+import { getReceiptPreviewUrlAction } from "./receipt/actions";
 import { Eye, Copy, Download, X } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
@@ -332,11 +332,18 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
       throw new Error("שגיאה בהורדת המסמך");
     }
 
+    // Prefer server-provided filename (already <documentNumber>-<lang>.pdf)
+    const contentDisposition = response.headers.get("content-disposition") || "";
+    const mQuoted = contentDisposition.match(/filename="([^"]+)"/i);
+    const mStar = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const serverFileName = mQuoted?.[1] || (mStar?.[1] ? decodeURIComponent(mStar[1]) : null);
+    const finalFileName = serverFileName || fileName;
+
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = fileName;
+    a.download = finalFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

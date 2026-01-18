@@ -117,17 +117,37 @@ export async function updateTextAction(payload: { key: string; page: string; lan
   try {
     const { supabase } = await verifyAdmin();
 
+    // First, fetch existing row to get default_value (required for upsert)
+    const { data: existing, error: fetchError } = await supabase
+      .from("system_texts")
+      .select("default_value, description")
+      .eq("key", payload.key)
+      .eq("page", payload.page)
+      .eq("lang", payload.lang)
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      // PGRST116 = not found, which is OK for new records
+      console.error("[TextsAction] Error fetching existing text:", fetchError);
+      return { ok: false, message: `Error fetching existing text: ${fetchError.message}` };
+    }
+
+    // For updates: use existing default_value. For new records: require default_value to be provided.
+    // Since we're only updating existing records here, use existing default_value or fallback
+    const defaultValue = existing?.default_value || "";
+
+    if (!existing && !defaultValue) {
+      // New record without default_value - this shouldn't happen in normal flow
+      return { ok: false, message: "Cannot update: text entry does not exist. Please create it first." };
+    }
+
+    // Update only the value field (not default_value or description)
     const { error } = await supabase
       .from("system_texts")
-      .upsert(
-        {
-          key: payload.key,
-          page: payload.page,
-          lang: payload.lang,
-          value: payload.value,
-        },
-        { onConflict: "key,page,lang" }
-      );
+      .update({ value: payload.value })
+      .eq("key", payload.key)
+      .eq("page", payload.page)
+      .eq("lang", payload.lang);
 
     if (error) {
       console.error("[TextsAction] Error updating text:", error);

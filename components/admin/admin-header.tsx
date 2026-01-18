@@ -76,7 +76,7 @@ export function AdminHeader({ adminName, onSettingsClick }: AdminHeaderProps) {
             </Button>
           </Link>
 
-          <Button variant="outline" size="sm" onClick={onSettingsClick} className="gap-2 bg-transparent">
+          <Button variant="secondary" size="sm" onClick={onSettingsClick} className="gap-2">
             <Settings className="h-4 w-4" />
             <span className="hidden sm:inline">Settings</span>
           </Button>

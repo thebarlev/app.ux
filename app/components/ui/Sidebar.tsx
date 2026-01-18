@@ -40,7 +40,6 @@ export function Sidebar() {
           </summary>
 
           <div className="mt-2 space-y-1 pr-3 border-r border-sidebar-border">
-            <NavLink label="כל הקבלות" href="/dashboard/documents/receipts" />
             <NavLink label="קבלה חדשה" href="/dashboard/documents/receipt" />
             <NavLink label="חשבונית מס קבלה" href="/dashboard/documents/tax-invoice-receipt" />
           </div>

@@ -15,10 +15,16 @@ export interface RegistrationData {
   companyNumber: string // מספר חברה / תעודת זהות (חובה)
   industry: string
   customIndustry: string // תחום פעילות מותאם אישית (אם בחר "אחר")
+  // Step 3: Optional English Details
+  businessNameEn: string
+  englishAddress: string
   // Step 3: Address (Final Step) - REMOVED
   // street: string
   // city: string // שדה טקסט חופשי
   // postalCode: string
+  // Legal and Marketing Checkboxes
+  acceptedLegalTerms: boolean
+  acceptedMarketing: boolean
 }
 
 interface RegistrationContextType {
@@ -45,9 +51,13 @@ const initialData: RegistrationData = {
   companyNumber: "",
   industry: "",
   customIndustry: "",
+  businessNameEn: "",
+  englishAddress: "",
   // street: "",
   // city: "",
   // postalCode: "",
+  acceptedLegalTerms: false,
+  acceptedMarketing: true,
 }
 
 const RegistrationContext = createContext<RegistrationContextType | null>(null)

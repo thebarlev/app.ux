@@ -3,6 +3,21 @@ import { AdminDashboard } from "@/components/admin/admin-dashboard"
 
 export default async function AdminPage() {
   const supabase = await createClient()
+  
+  // Get admin name for header
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  
+  let adminName = "Admin"
+  if (user) {
+    const { data: adminData } = await supabase
+      .from("system_admins")
+      .select("name, email")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
+    adminName = adminData?.name || adminData?.email || user.email || "Admin"
+  }
 
   // Fetch KPI data
   const now = new Date()
@@ -56,6 +71,7 @@ export default async function AdminPage() {
       kpiData={kpiData}
       companies={companies || []}
       settings={settings || []}
+      adminName={adminName}
     />
   )
 }

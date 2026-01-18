@@ -26,6 +26,7 @@ type Company = {
   id: string;
   company_name: string;
   company_name_en?: string | null;
+  english_address?: string | null;
   business_type: string | null;
   company_number: string | null;
   industry: string | null;
@@ -70,16 +71,28 @@ const BUSINESS_TYPES = [
   { value: "other", label: "אחר" },
 ];
 
+// Keep this list aligned with Registration Step 2 (which stores Hebrew labels in DB).
 const INDUSTRIES = [
-  { value: "retail", label: "קמעונאות" },
-  { value: "services", label: "שירותים" },
-  { value: "tech", label: "הייטק" },
-  { value: "construction", label: "בנייה" },
-  { value: "food", label: "מזון ומסעדנות" },
-  { value: "health", label: "בריאות" },
-  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
-  { value: "education", label: "חינוך" },
-  { value: "other", label: "אחר" },
+  "קמעונאות",
+  "מסעדנות",
+  "הייטק",
+  "שירותים מקצועיים",
+  "חינוך",
+  "בריאות",
+  "נדל״ן",
+  "בנייה",
+  "תחבורה",
+  "ייעוץ",
+  "שיווק דיגיטלי",
+  "שירותי פרסום",
+  "עיצוב",
+  "פיתוח תוכנה",
+  "חשבונאות",
+  "משפטים",
+  "רפואה אלטרנטיבית",
+  "כושר וספורט",
+  "יופי וטיפוח",
+  "אירועים",
 ];
 
 export default function SettingsClient({ company, initialTemplates }: Props) {
@@ -92,6 +105,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
     company_name_en: company.company_name_en || "",
+    english_address: company.english_address || "",
     business_type: (company.business_type as any) || "osek_patur",
     registration_number: company.registration_number || company.company_number || "",
     industry: company.industry || "",
@@ -115,13 +129,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  useEffect(() => {
-    // #region agent log (hypothesisId=H10)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'runReg',hypothesisId:'H10',location:'app/dashboard/settings/SettingsClient.tsx:SettingsClient',message:'registration_number visibility check (no PII)',data:{hasRegistrationNumber:Boolean(company?.registration_number),registrationNumberLen:typeof company?.registration_number==='string'?company.registration_number.length:0,formRegistrationNumberLen:typeof (formData as any)?.registration_number==='string'?(formData as any).registration_number.length:0},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Keep local state in sync with refreshed server props (e.g., signed URLs).
   useEffect(() => {
     if (company.logo_url && company.logo_url !== logoUrl) {
@@ -134,7 +141,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       }
       setLogoUrl(company.logo_url);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.logo_url]);
 
   useEffect(() => {
@@ -147,7 +153,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       }
       setSignatureUrl(company.signature_url);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [company.signature_url]);
 
   useEffect(() => {
@@ -173,18 +178,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   const handleSaveDetails = async () => {
-    // #region agent log (hypothesisId=H6)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H6',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Save clicked (entry)',data:{isSaving,formKeys:Object.keys(formData)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     setIsSaving(true);
     setMessage(null);
 
     // Validation
     if (!formData.company_name.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: company_name',data:{},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "שם העסק הוא שדה חובה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -192,9 +190,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (!formData.email.trim() || !formData.email.includes("@")) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: email',data:{hasAt:formData.email.includes("@"),emailLen:formData.email.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "נא להזין כתובת אימייל תקינה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -202,9 +197,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (!formData.industry) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: industry',data:{industry:formData.industry || null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "תחום פעילות הוא שדה חובה" });
       window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
@@ -212,27 +204,18 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     }
 
     if (formData.industry === "other" && !formData.custom_industry.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: custom_industry',data:{customIndustryLen:formData.custom_industry.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "נא לפרט את תחום הפעילות כאשר בוחרים 'אחר'" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.street.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: street',data:{streetLen:formData.street.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "רחוב ומספר הוא שדה חובה" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.city.trim()) {
-      // #region agent log (hypothesisId=H7)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run4',hypothesisId:'H7',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Validation failed: city',data:{cityLen:formData.city.length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "עיר הוא שדה חובה" });
       setIsSaving(false);
       return;
@@ -246,25 +229,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
       address: autoAddress, // Auto-generated full address
     };
 
-    // #region agent log (hypothesisId=H8)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'Calling updateBusinessDetailsAction',data:{payloadKeys:Object.keys(payload)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     let result: any;
     try {
       result = await updateBusinessDetailsAction(payload as BusinessDetailsPayload);
     } catch {
-      // #region agent log (hypothesisId=H8)
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'updateBusinessDetailsAction threw (catch)',data:{},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setMessage({ type: "error", text: "שגיאה בשמירה" });
       setIsSaving(false);
       return;
     }
-
-    // #region agent log (hypothesisId=H8)
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run3',hypothesisId:'H8',location:'app/dashboard/settings/SettingsClient.tsx:handleSaveDetails',message:'updateBusinessDetailsAction returned',data:{ok:result?.ok ?? null,hasMessage:Boolean(result?.message)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (result.ok) {
       setMessage({ type: "success", text: "הפרטים נשמרו בהצלחה!" });
@@ -649,6 +621,28 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
           {/* Business Details Section */}
           <FormSection title="פרטי העסק">
+            {/* If DB schema doesn't have english columns, show an actionable notice */}
+            {(company.company_name_en === undefined || company.english_address === undefined) && (
+              <Card className="mb-6 border-warning bg-warning/10">
+                <CardContent className="p-4">
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>
+                    ⚠️ חסרות עמודות באנגלית ב־DB
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.6, color: '#19183B' }}>
+                    כדי לשמור ולהציג <b>שם עסק באנגלית</b> ו־<b>כתובת באנגלית</b>, יש להריץ בסופאבייס:
+                    <div style={{ marginTop: 8 }}>
+                      <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>
+                        scripts/020-companies-english-fields.sql
+                      </code>
+                      {" "}וגם{" "}
+                      <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>
+                        scripts/026-companies-english-address-field.sql
+                      </code>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <div className="ui-form-grid">
             {/* Company Name */}
             <FieldWrapper label="שם העסק" id="company_name" required>
@@ -673,6 +667,20 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 dir="ltr"
                 className="text-left"
                 placeholder="Business name (English)"
+              />
+            </FieldWrapper>
+
+            {/* English Address */}
+            <FieldWrapper label="כתובת (English)" id="english_address">
+              <Input
+                type="text"
+                name="english_address"
+                id="english_address"
+                value={(formData as any).english_address}
+                onChange={handleInputChange}
+                dir="ltr"
+                className="text-left"
+                placeholder="English address (optional)"
               />
             </FieldWrapper>
 
@@ -739,24 +747,30 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>
                 <SelectTrigger><SelectValue placeholder="בחר תחום" /></SelectTrigger>
                 <SelectContent>
-                  {INDUSTRIES.map((ind) => (
-                    <SelectItem key={ind.value} value={ind.value}>{ind.label}</SelectItem>
+                  {/* If the stored value isn't in our list (legacy code values), still show it */}
+                  {formData.industry && !INDUSTRIES.includes(formData.industry) && (
+                    <SelectItem value={formData.industry}>{formData.industry}</SelectItem>
+                  )}
+                  {INDUSTRIES.map((label) => (
+                    <SelectItem key={label} value={label}>{label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </FieldWrapper>
 
-            {/* Custom Industry - shows if "other" selected */}
-            {formData.industry === "other" && (
-              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required>
+            {/* Custom Industry:
+                - Legacy: if industry === "other" we must collect custom_industry (existing behavior)
+                - Also show if there's already a value stored */}
+            {(formData.industry === "other" || Boolean(formData.custom_industry)) && (
+              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required={formData.industry === "other"}>
                 <Input
                   type="text"
                   name="custom_industry"
                   id="custom_industry"
                   value={formData.custom_industry}
                   onChange={handleInputChange}
-                  required
-                  placeholder="הזן את תחום הפעילות שלך"
+                  required={formData.industry === "other"}
+                  placeholder={formData.industry === "other" ? "הזן את תחום הפעילות שלך" : "הזן את תחום הפעילות שלך (אופציונלי)"}
                 />
               </FieldWrapper>
             )}

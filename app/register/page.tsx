@@ -1,88 +1,50 @@
-"use client"
+import { getSystemText } from "@/lib/system-texts"
+import { RegistrationProvider } from "@/components/registration/registration-context"
+import { RegistrationFlowClient } from "./registration-flow-client"
+import { createClient } from "@/lib/supabase/server"
 
-import { useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { RegistrationProvider, useRegistration } from "@/components/registration/registration-context"
-import { StepProgress } from "@/components/registration/step-progress"
-import { StepPersonalDetails } from "@/components/registration/step-personal-details"
-import { StepBusinessProfile } from "@/components/registration/step-business-profile"
-import { RegistrationLogo } from "@/components/registration/registration-logo"
-import Link from "next/link"
+export default async function RegisterPage() {
+  const supabase = await createClient()
 
-const STEPS = [
-  { id: 1, label: "פרטים אישיים" },
-  { id: 2, label: "פרופיל עסקי" },
-]
-
-function RegistrationFlow() {
-  const { currentStep, setCurrentStep } = useRegistration()
-
-  const handleStepChange = (stepId: number) => {
-    setCurrentStep(stepId)
-  }
-
-  const renderStep = useCallback(() => {
-    switch (currentStep) {
-      case 1:
-        return <StepPersonalDetails />
-      case 2:
-        return <StepBusinessProfile />
-      default:
-        return <StepPersonalDetails />
-    }
-  }, [currentStep])
-
-  return (
-    <div className="min-h-svh w-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }} dir="rtl">
-      <div className="w-full max-w-[600px] px-4">
-        {/* Logo */}
-        <div className="mb-10 flex justify-center">
-          <RegistrationLogo />
-        </div>
-
-        {/* Step Indicator */}
-        <div className="mb-8">
-          <StepProgress 
-            steps={STEPS} 
-            currentStep={currentStep}
-            onStepClick={handleStepChange}
-            allowBackNavigation={true}
-          />
-        </div>
-
-        {/* Step Content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-          >
-            {renderStep()}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Sign In Link */}
-        <p className="mt-8 text-center" style={{ color: 'var(--muted-fg)', fontSize: '14px' }}>
-          כבר יש לך חשבון?{" "}
-          <Link 
-            href="/login" 
-            className="font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-[5px]"
-            style={{ color: 'var(--link)' }}
-          >
-            התחברות לחשבון
-          </Link>
-        </p>
-      </div>
-    </div>
+  // Load registration texts from System Texts (system_texts table)
+  const legalTermsText = await getSystemText(
+    "registration_legal_terms_text",
+    "אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות, ולנספח שימוש בשירות הפקת מסמכים דיגיטליים",
+    "he",
+    "registration"
   )
-}
 
-export default function RegisterPage() {
+  const marketingText = await getSystemText(
+    "registration_marketing_text",
+    "אני רוצה לקבל מכם למייל הטבות ומידע שיווקי",
+    "he",
+    "registration"
+  )
+
+  // Load checkbox requirement settings from global_settings
+  const { data: legalTermsSetting } = await supabase
+    .from("global_settings")
+    .select("setting_value")
+    .eq("setting_key", "require_legal_terms_acceptance_on_signup")
+    .maybeSingle()
+
+  const { data: marketingSetting } = await supabase
+    .from("global_settings")
+    .select("setting_value")
+    .eq("setting_key", "require_marketing_acceptance_on_signup")
+    .maybeSingle()
+
+  const requireLegalTermsRequired = legalTermsSetting?.setting_value === "true"
+  const requireMarketingRequired = marketingSetting?.setting_value === "true"
+
   return (
     <RegistrationProvider>
-      <RegistrationFlow />
+      <RegistrationFlowClient 
+        legalTermsText={legalTermsText}
+        marketingText={marketingText}
+        requireLegalTermsRequired={requireLegalTermsRequired}
+        requireMarketingRequired={requireMarketingRequired}
+      />
     </RegistrationProvider>
   )
 }

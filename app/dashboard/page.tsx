@@ -1,9 +1,10 @@
 "use client";
 
-import { FileText, Users, Settings, PlusCircle, Receipt, BarChart } from "lucide-react";
+import { FileText, Users, Settings, PlusCircle, BarChart } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import DashboardCard from "./DashboardCard";
+import NewDocumentFab from "@/components/dashboard/NewDocumentFab";
 
 export default function DashboardPage() {
   return (
@@ -27,12 +28,6 @@ export default function DashboardPage() {
               icon={PlusCircle}
               title="קבלה חדשה"
               description="צור קבלה חדשה ללקוח"
-            />
-            <DashboardCard
-              href="/dashboard/documents/receipts"
-              icon={Receipt}
-              title="כל הקבלות"
-              description="צפה וערוך קבלות קיימות"
             />
             <DashboardCard
               href="/dashboard/customers/new"
@@ -76,6 +71,8 @@ export default function DashboardPage() {
           </Card>
         </FormSection>
       </div>
+
+      <NewDocumentFab />
     </main>
   );
 }

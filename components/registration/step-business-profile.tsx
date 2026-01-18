@@ -2,15 +2,14 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRegistration } from "./registration-context"
 import { useRouter } from "next/navigation"
+import { useRegistration } from "./registration-context"
+import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BusinessActivityField } from "@/components/ui/business-activity-field"
-import { createClient } from "@/lib/supabase/client"
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
@@ -19,18 +18,27 @@ const BUSINESS_TYPES = [
   { value: "partnership", label: "שותפות" },
 ]
 
-// Note: Industries are now handled by BusinessActivityField component
-// This list is kept for backward compatibility if needed
-const INDUSTRIES_LEGACY = [
-  { value: "retail", label: "קמעונאות" },
-  { value: "services", label: "שירותים" },
-  { value: "tech", label: "הייטק" },
-  { value: "construction", label: "בנייה" },
-  { value: "food", label: "מזון ומסעדנות" },
-  { value: "health", label: "בריאות" },
-  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
-  { value: "education", label: "חינוך" },
-  { value: "other", label: "אחר" },
+const INDUSTRIES = [
+  "קמעונאות",
+  "מסעדנות",
+  "הייטק",
+  "שירותים מקצועיים",
+  "חינוך",
+  "בריאות",
+  "נדל״ן",
+  "בנייה",
+  "תחבורה",
+  "ייעוץ",
+  "שיווק דיגיטלי",
+  "שירותי פרסום",
+  "עיצוב",
+  "פיתוח תוכנה",
+  "חשבונאות",
+  "משפטים",
+  "רפואה אלטרנטיבית",
+  "כושר וספורט",
+  "יופי וטיפוח",
+  "אירועים",
 ]
 
 export function StepBusinessProfile() {
@@ -44,23 +52,21 @@ export function StepBusinessProfile() {
     if (!data.businessName.trim()) newErrors.businessName = "שדה חובה"
     if (!data.businessType) newErrors.businessType = "שדה חובה"
     if (!data.companyNumber.trim()) newErrors.companyNumber = "שדה חובה"
-    if (!data.industry || !data.industry.trim()) newErrors.industry = "שדה חובה"
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
-
+  const submitRegistrationFromStep2 = async () => {
     setIsLoading(true)
     setError(null)
 
     try {
       const supabase = createClient()
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // 1) Create auth user (moved from Step 3)
+      let authUserId: string | null = null
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -69,65 +75,133 @@ export function StepBusinessProfile() {
         },
       })
 
-      if (authError) {
-        if (authError.message?.includes("already registered") || authError.message?.includes("User already registered")) {
-          setError("כתובת האימייל כבר רשומה במערכת. נסה להתחבר.")
+      if (signUpError) {
+        const code = (signUpError as any)?.code ?? null
+        if (code === "user_already_exists" || signUpError.message?.toLowerCase().includes("already")) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+          })
+          if (signInError || !signInData?.user?.id) {
+            setError("כתובת האימייל כבר רשומה במערכת. נסה להתחבר.")
+            setIsLoading(false)
+            return
+          }
+          authUserId = signInData.user.id
         } else {
-          setError(`שגיאה ביצירת חשבון: ${authError.message}`)
+          const errorMsg = signUpError.message?.includes("already registered")
+            ? "כתובת האימייל כבר רשומה במערכת. נסה להתחבר."
+            : `שגיאת הרשמה: ${signUpError.message || "Unknown error"}`
+          setError(errorMsg)
+          setIsLoading(false)
+          return
+        }
+      } else {
+        authUserId = signUpData?.user?.id ?? null
+      }
+
+      if (!authUserId) {
+        setError("ההרשמה נכשלה. נסה שוב.")
+        setIsLoading(false)
+        return
+      }
+
+      // 2) Create company + membership (keep schema-cache retry behavior)
+      const baseCompanyPayload: Record<string, any> = {
+        company_name: data.businessName,
+        business_type: data.businessType,
+        company_number: data.companyNumber || null,
+        registration_number: data.companyNumber || null,
+        industry: data.industry || null, // Hebrew text is source of truth
+        custom_industry: data.customIndustry || null,
+        contact_first_name: data.firstName,
+        contact_full_name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        mobile_phone: data.phone || null,
+        auth_user_id: authUserId,
+        status: "active",
+        accepted_legal_terms: data.acceptedLegalTerms,
+        accepted_legal_terms_at: data.acceptedLegalTerms ? new Date().toISOString() : null,
+        accepted_marketing: data.acceptedMarketing,
+      }
+
+      const removedCompanyCols: string[] = []
+      let companyPayload: Record<string, any> = { ...baseCompanyPayload }
+      let companyData: any = null
+      let companyError: any = null
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const r = await supabase.from("companies").insert(companyPayload).select("id").single()
+        companyData = r.data
+        companyError = r.error
+        if (!companyError) break
+
+        const code = (companyError as any)?.code ?? null
+        const msg = typeof companyError.message === "string" ? companyError.message : ""
+        if (code === "PGRST204") {
+          const m = msg.match(/Could not find the '([^']+)' column/i)
+          const missingCol = m?.[1]
+          if (missingCol && Object.prototype.hasOwnProperty.call(companyPayload, missingCol)) {
+            removedCompanyCols.push(missingCol)
+            delete companyPayload[missingCol]
+            continue
+          }
+        }
+        break
+      }
+
+      if (companyError || !companyData?.id) {
+        if ((companyError as any)?.code === "PGRST204" && typeof companyError?.message === "string") {
+          setError(
+            `שגיאה זמנית בשרת (Schema Cache). יש להריץ בסופאבייס: select pg_notify('pgrst','reload schema'); ואז לנסות שוב.\n` +
+              `(${companyError.message})`
+          )
+        } else {
+          setError(`שגיאה ביצירת חברה: ${companyError?.message || "Unknown error"}`)
         }
         setIsLoading(false)
         return
       }
 
-      if (!authData.user) {
-        setError("שגיאה ביצירת משתמש")
-        setIsLoading(false)
-        return
+      const insertMemberWithStatus = () =>
+        supabase.from("company_members").insert({ company_id: companyData.id, user_id: authUserId, role: "owner", status: "active" })
+
+      const insertMemberNoStatus = () =>
+        supabase.from("company_members").insert({ company_id: companyData.id, user_id: authUserId, role: "owner" })
+
+      let { error: memberError } = await insertMemberWithStatus()
+      if (
+        memberError &&
+        (memberError as any)?.code === "PGRST204" &&
+        typeof memberError.message === "string" &&
+        memberError.message.includes("status")
+      ) {
+        ;({ error: memberError } = await insertMemberNoStatus())
       }
-
-      const userId = authData.user.id
-
-      const { data: companyData, error: companyError } = await supabase
-        .from("companies")
-        .insert({
-          auth_user_id: userId,
-          company_name: data.businessName,
-          business_type: data.businessType,
-          registration_number: data.companyNumber || null,
-          industry: data.industry || null,
-          custom_industry: data.customIndustry || null,
-          contact_first_name: data.firstName,
-          contact_full_name: `${data.firstName} ${data.lastName}`,
-          email: data.email,
-          mobile_phone: data.phone || null,
-        })
-        .select("id")
-        .single()
-
-      if (companyError || !companyData?.id) {
-        setError(`שגיאה ביצירת חברה: ${companyError?.message || "Unknown error"}`)
-        setIsLoading(false)
-        return
-      }
-
-      const { error: memberError } = await supabase.from("company_members").insert({
-        company_id: companyData.id,
-        user_id: userId,
-        role: "owner",
-      })
 
       if (memberError) {
-        setError(`שגיאה ביצירת קישור לחברה: ${memberError.message}`)
+        setError(`שגיאה ביצירת קישור לחברה: ${memberError.message || "Unknown error"}`)
         setIsLoading(false)
         return
       }
 
-      router.push("/dashboard/settings")
-      setIsLoading(false)
-    } catch (err) {
-      setError("אירעה שגיאה לא צפויה. נסה שוב.")
+      // 3) Requirement: after Step 2 approval go to login.
+      try {
+        await supabase.auth.signOut()
+      } catch {}
+
+      router.replace("/login")
+    } catch (e: any) {
+      setError(e?.message ? `שגיאה: ${e.message}` : "שגיאה לא צפויה")
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setError(null)
+    await submitRegistrationFromStep2()
   }
 
   return (
@@ -219,23 +293,26 @@ export function StepBusinessProfile() {
 
           <div className="space-y-2">
             <Label htmlFor="industry" className="text-right">
-              תחום פעילות <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+              תחום פעילות
             </Label>
-            <BusinessActivityField
-              id="industry"
-              value={data.industry || ""}
-              onChange={(value) => {
-                updateData({ industry: value, customIndustry: "" })
-              }}
-              onCustomValue={(value) => {
-                // Mark as custom if not in common list
-                updateData({ industry: value, customIndustry: value })
-              }}
-              error={errors.industry}
-              required
-              label="תחום פעילות"
-              helperText="התחל להקליד או בחר מהרשימה"
-            />
+            <Select
+              value={data.industry ? data.industry : undefined}
+              onValueChange={(value) => updateData({ industry: value, customIndustry: "" })}
+            >
+              <SelectTrigger id="industry">
+                <SelectValue placeholder="בחר תחום פעילות (אופציונלי)" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRIES.map((label) => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs" style={{ color: "var(--muted-fg)" }}>
+              אופציונלי — ניתן להמשיך גם ללא בחירה
+            </p>
           </div>
 
           <div className="flex gap-3">

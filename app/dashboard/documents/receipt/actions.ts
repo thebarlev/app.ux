@@ -708,3 +708,105 @@ function todayYmd() {
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
+
+/**
+ * Build preview URL for a receipt by ID
+ * Fetches receipt data and constructs URL for preview page
+ *
+ * NOTE: This is used by multiple places (documents list, receipt create flow, receipt summary),
+ * and must not depend on the removed `/dashboard/documents/receipts` route.
+ */
+export async function getReceiptPreviewUrlAction(receiptId: string): Promise<{
+  ok: boolean;
+  url?: string;
+  message?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    // Fetch the receipt with company isolation
+    const { data: receipt, error: receiptError } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("id", receiptId)
+      .eq("company_id", companyId)
+      .eq("document_type", "receipt")
+      .maybeSingle();
+
+    if (receiptError || !receipt) {
+      return { ok: false, message: "Receipt not found" };
+    }
+
+    // Fetch company info
+    const { data: company } = await supabase
+      .from("companies")
+      .select("company_name")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    // Fetch line items (payments) - include payment_metadata for all payment fields
+    const { data: lineItems } = await supabase
+      .from("document_line_items")
+      .select("description, item_date, unit_price, line_total, currency, bank_name, branch, account_number, payment_metadata")
+      .eq("document_id", receiptId)
+      .order("line_number");
+
+    // Build payments array - include ALL fields from payment_metadata
+    const payments = (lineItems || []).map((item: any) => {
+      const metadata = item.payment_metadata || {};
+
+      return {
+        method: item.description || "תשלום",
+        date: item.item_date || receipt.issue_date || new Date().toISOString().split("T")[0],
+        amount: item.line_total || 0,
+        currency: item.currency || receipt.currency || "₪",
+        // Bank transfer fields (direct columns + metadata)
+        bankName: item.bank_name || metadata.bankName || undefined,
+        branch: item.branch || metadata.bankBranch || metadata.branch || undefined,
+        accountNumber: item.account_number || metadata.bankAccount || metadata.accountNumber || undefined,
+        // Credit card fields (from metadata)
+        cardLastDigits: metadata.cardLastDigits || undefined,
+        cardType: metadata.cardType || undefined,
+        cardDealType: metadata.cardDealType || undefined,
+        cardInstallments: metadata.cardInstallments || undefined,
+        // Check fields (from metadata)
+        checkBank: metadata.checkBank || undefined,
+        checkBranch: metadata.checkBranch || undefined,
+        checkAccount: metadata.checkAccount || undefined,
+        checkNumber: metadata.checkNumber || undefined,
+        // Digital wallet fields (from metadata)
+        payerAccount: metadata.payerAccount || undefined,
+        transactionReference: metadata.transactionReference || undefined,
+        // Other fields (from metadata)
+        description: metadata.description || undefined,
+        reference_number: metadata.reference_number || undefined,
+        reference: metadata.reference || undefined,
+        notes: metadata.notes || undefined,
+      };
+    });
+
+    // Build preview URL query params
+    const params = new URLSearchParams({
+      documentId: receiptId,
+      previewNumber: receipt.document_number || "",
+      companyName: company?.company_name || "העסק שלי",
+      customerName: receipt.customer_name || "",
+      customerId: receipt.customer_id || "",
+      documentDate: receipt.issue_date || new Date().toISOString().split("T")[0],
+      description: receipt.description || "",
+      notes: receipt.internal_notes || "",
+      footerNotes: receipt.customer_notes || "",
+      total: receipt.total_amount?.toString() || "0",
+      currency: receipt.currency || "₪",
+      payments: JSON.stringify(payments),
+      language: (receipt as any)?.language || "he",
+    });
+
+    const url = `/dashboard/documents/receipt/preview?${params.toString()}`;
+
+    return { ok: true, url };
+  } catch (error: any) {
+    return { ok: false, message: error?.message || "Failed to build preview URL" };
+  }
+}

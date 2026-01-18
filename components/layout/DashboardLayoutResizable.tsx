@@ -33,7 +33,6 @@ const navSections: NavSection[] = [
   {
     title: "קבלות וחשבוניות",
     items: [
-      { href: "/dashboard/documents/receipts", label: "כל הקבלות" },
       { href: "/dashboard/documents/receipt", label: "קבלה חדשה" },
       { href: "/dashboard/documents/tax-invoice-receipt", label: "חשבונית מס קבלה" },
     ],

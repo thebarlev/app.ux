@@ -6,6 +6,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, X, Home, FileText, Users, LogOut, BarChart, ChevronDown, Settings } from "lucide-react"
 import { logoutAction } from "@/app/dashboard/actions"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -42,7 +43,6 @@ const navItems: NavItem[] = [
     icon: FileText,
     subItems: [
       { href: "/dashboard/documents", label: "כל המסמכים" },
-      { href: "/dashboard/documents/receipts", label: "קבלות" },
     ],
   },
 ]
@@ -81,132 +81,88 @@ function isSubItemActive(subItemHref: string, pathname: string): boolean {
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const pathname = usePathname()
-  const [isFlyoutOpen, setIsFlyoutOpen] = useState(false)
-  const navItemRef = React.useRef<HTMLDivElement>(null)
   const isActive = isItemActive(item, pathname)
   
   // Check if any subitem is active
   const hasActiveSubItem = hasActiveChild(item, pathname)
 
-  React.useEffect(() => {
-    if (isFlyoutOpen && navItemRef.current) {
-      const menu = document.getElementById(`flyout-menu-${item.label}`)
-      if (menu) {
-        const rect = navItemRef.current.getBoundingClientRect()
-        menu.style.display = 'block'
-        menu.style.position = 'fixed'
-        menu.style.right = '250px' // sidebar width
-        menu.style.top = `${rect.top}px`
-      }
-    } else {
-      const menu = document.getElementById(`flyout-menu-${item.label}`)
-      if (menu) {
-        menu.style.display = 'none'
-      }
-    }
-  }, [isFlyoutOpen, item.label])
-
   if (item.subItems) {
-    return (
-      <div ref={navItemRef} className="relative block" style={{ position: 'relative' }}>
-        {/* Main Item */}
-        <div
-          onMouseEnter={() => setIsFlyoutOpen(true)}
-          onMouseLeave={() => {
-            // Delay closing to allow moving to menu
-            setTimeout(() => {
-              const menu = document.getElementById(`flyout-menu-${item.label}`)
-              if (menu && !menu.matches(':hover')) {
-                setIsFlyoutOpen(false)
-              }
-            }, 100)
-          }}
-          className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
-            hasActiveSubItem
-              ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-              : "text-sidebar-fg hover:bg-sidebar-hover"
-          }`}
-          style={{ fontSize: '18px', lineHeight: '1', margin: 0 }}
-        >
-          <span className="shrink-0 text-sidebar-fg">
-            <item.icon className="h-5 w-5" />
-          </span>
-          <span className="flex-1">{item.label}</span>
-          <ChevronDown
-            className={`h-4 w-4 text-sidebar-fg transition-transform duration-200 ${
-              isFlyoutOpen ? "rotate-180" : ""
-            }`}
-          />
-        </div>
+    const baseRowClass =
+      `block flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
+        hasActiveSubItem
+          ? "bg-sidebar-active text-sidebar-active-fg font-medium"
+          : "text-sidebar-fg hover:bg-sidebar-hover"
+      }`
 
-        {/* Flyout Menu - Opens to the LEFT of sidebar (into content area) for RTL */}
-        <div
-          id={`flyout-menu-${item.label}`}
-          onMouseEnter={() => setIsFlyoutOpen(true)}
-          onMouseLeave={() => setIsFlyoutOpen(false)}
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-          style={{ 
-            display: 'none',
-            background: '#FFF',
-            borderRadius: '12px',
-            boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-            border: '1px solid #E5E7EB',
-            minWidth: '160px',
-            zIndex: 100,
-            padding: '8px 0',
-          }}
-        >
+    return (
+      <div className="block">
+        {/* Mobile: inline accordion (no hover reliance) */}
+        <div className="md:hidden">
+          <details className="group">
+            <summary
+              className={`${baseRowClass} list-none [&::-webkit-details-marker]:hidden`}
+              style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
+              aria-label={item.label}
+            >
+              <span className="shrink-0 text-sidebar-fg">
+                <item.icon className="h-5 w-5" />
+              </span>
+              <span className="flex-1">{item.label}</span>
+              <ChevronDown className="h-4 w-4 text-sidebar-fg transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+
+            <div className="mt-1 mr-4 border-r border-sidebar-border">
               {item.subItems.map((subItem) => {
                 const isSubActive = isSubItemActive(subItem.href, pathname)
                 return (
                   <Link
                     key={subItem.href}
                     href={subItem.href}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setIsFlyoutOpen(false)
-                      onClick?.()
-                    }}
-                    className={`block px-4 py-2 transition-colors ${
+                    onClick={onClick}
+                    className={`block px-4 py-3 rounded-lg transition ${
                       isSubActive
                         ? "bg-sidebar-active text-sidebar-active-fg font-medium"
-                        : ""
+                        : "text-sidebar-fg hover:bg-sidebar-hover"
                     }`}
-                    style={{ 
-                      height: '50px',
-                      minHeight: '50px',
-                      maxHeight: '50px',
-                      fontSize: '18px',
-                      color: isSubActive ? '#FFFFFF' : '#19183B',
-                      backgroundColor: isSubActive ? '#1D868F' : 'transparent',
-                      textAlign: 'right',
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.height = '50px';
-                      e.currentTarget.style.minHeight = '50px';
-                      e.currentTarget.style.maxHeight = '50px';
-                      if (!isSubActive) {
-                        e.currentTarget.style.backgroundColor = '#C6EAE5'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.height = '50px';
-                      e.currentTarget.style.minHeight = '50px';
-                      e.currentTarget.style.maxHeight = '50px';
-                      if (!isSubActive) {
-                        e.currentTarget.style.backgroundColor = 'transparent'
-                      }
-                    }}
+                    style={{ fontSize: "18px", lineHeight: "1" }}
                   >
                     {subItem.label}
                   </Link>
                 )
               })}
             </div>
+          </details>
+        </div>
+
+        {/* Desktop: dropdown menu (stable, no DOM hacks) */}
+        <div className="hidden md:block">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={baseRowClass}
+                style={{ fontSize: "18px", lineHeight: "1", margin: 0, width: "100%", textAlign: "right" }}
+                aria-label={item.label}
+              >
+                <span className="shrink-0 text-sidebar-fg">
+                  <item.icon className="h-5 w-5" />
+                </span>
+                <span className="flex-1">{item.label}</span>
+                <ChevronDown className="h-4 w-4 text-sidebar-fg transition-transform duration-200" />
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent side="left" align="start" sideOffset={8} className="min-w-[160px]">
+              {item.subItems.map((subItem) => (
+                <DropdownMenuItem key={subItem.href} asChild onSelect={() => onClick?.()}>
+                  <Link href={subItem.href} className="w-full">
+                    {subItem.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     )
   }
@@ -232,31 +188,11 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [isNewDocMenuOpen, setIsNewDocMenuOpen] = useState(false)
-  const newDocButtonRef = React.useRef<HTMLButtonElement>(null)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
     await logoutAction()
   }
-
-  React.useEffect(() => {
-    if (isNewDocMenuOpen && newDocButtonRef.current) {
-      const menu = document.getElementById('new-doc-menu')
-      if (menu) {
-        const rect = newDocButtonRef.current.getBoundingClientRect()
-        menu.style.display = 'block'
-        menu.style.position = 'fixed'
-        menu.style.right = '250px' // sidebar width
-        menu.style.top = `${rect.top}px`
-      }
-    } else {
-      const menu = document.getElementById('new-doc-menu')
-      if (menu) {
-        menu.style.display = 'none'
-      }
-    }
-  }, [isNewDocMenuOpen])
 
   return (
     <div className="flex h-full flex-col">
@@ -277,87 +213,26 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* New Document Button - above logout, 100px margin */}
       <div style={{ marginBottom: '100px', marginTop: '50px', padding: '0 12px', position: 'relative' }}>
-        <button
-          ref={newDocButtonRef}
-          type="button"
-          id="new-doc-btn"
-          className="flex items-center justify-center gap-2 w-full rounded-lg transition-all font-bold"
-          style={{
-            background: '#F39600',
-            color: '#19183B',
-            fontSize: '18px',
-            padding: '14px 0',
-            boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-            border: 'none',
-            marginBottom: 0,
-            cursor: 'pointer',
-            position: 'relative',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#FFC669'
-            setIsNewDocMenuOpen(true)
-          }}
-          onMouseLeave={() => {
-            // Delay closing to allow moving to menu
-            setTimeout(() => {
-              const menu = document.getElementById('new-doc-menu')
-              if (menu && !menu.matches(':hover')) {
-                setIsNewDocMenuOpen(false)
-              }
-            }, 100)
-          }}
-        >
-          <span style={{ fontSize: '22px', fontWeight: 'bold', marginRight: '8px', color: '#19183B' }}>+</span>
-          <span style={{ color: '#19183B' }}>מסמך חדש</span>
-        </button>
-        <div
-          id="new-doc-menu"
-          onMouseEnter={() => setIsNewDocMenuOpen(true)}
-          onMouseLeave={() => setIsNewDocMenuOpen(false)}
-          style={{
-            display: 'none',
-            background: '#FFF',
-            borderRadius: '12px',
-            boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-            border: '1px solid #E5E7EB',
-            minWidth: '160px',
-            zIndex: 100,
-            padding: '8px 0',
-          }}
-        >
-            <Link
-              href="/dashboard/documents/receipt"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                height: '50px',
-                minHeight: '50px',
-                maxHeight: '50px',
-                padding: '0 24px',
-                color: '#19183B',
-                fontSize: '18px',
-                fontWeight: 500,
-                textAlign: 'right',
-                cursor: 'pointer',
-                borderRadius: '12px',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.height = '50px';
-                e.currentTarget.style.minHeight = '50px';
-                e.currentTarget.style.maxHeight = '50px';
-                e.currentTarget.style.background = '#C6EAE5';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.height = '50px';
-                e.currentTarget.style.minHeight = '50px';
-                e.currentTarget.style.maxHeight = '50px';
-                e.currentTarget.style.background = 'transparent';
-              }}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center justify-center gap-2 w-full rounded-lg transition-all font-bold bg-[#F39600] hover:bg-[#FFC669] text-[#19183B] text-[18px] py-[14px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)]"
+              aria-label="מסמך חדש"
             >
-              קבלה
-            </Link>
-        </div>
+              <span style={{ fontSize: '22px', fontWeight: 'bold', marginRight: '8px', color: '#19183B' }}>+</span>
+              <span style={{ color: '#19183B' }}>מסמך חדש</span>
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent side="left" align="start" sideOffset={8} className="min-w-[160px]">
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/dashboard/documents/receipt" className="w-full">
+                קבלה
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Settings Link - above logout */}
@@ -401,22 +276,171 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const mobileHeaderRef = React.useRef<HTMLDivElement>(null)
+  const hamburgerButtonRef = React.useRef<HTMLButtonElement>(null)
+
+  const captureHorizontalOverflowSnapshot = React.useCallback((reason: string) => {
+    try {
+      const runId = "hdrx-hamburger-mobile-1"
+      const html = document.documentElement
+      const body = document.body
+      const header = mobileHeaderRef.current
+      const btn = hamburgerButtonRef.current
+
+      const elAtHamburgerCenter = (() => {
+        if (!btn) return null
+        const r = btn.getBoundingClientRect()
+        const x = r.left + r.width / 2
+        const y = r.top + r.height / 2
+        const el = document.elementFromPoint(x, y) as any
+        return el
+          ? { tag: String(el.tagName || "").toLowerCase(), className: String(el.className || "").slice(0, 140) }
+          : null
+      })()
+
+      const iconState = (() => {
+        if (!btn) return null
+        const xSvg = btn.querySelector("svg.lucide-x") as SVGElement | null
+        const mSvg = btn.querySelector("svg.lucide-menu") as SVGElement | null
+        const xCss = xSvg ? getComputedStyle(xSvg) : null
+        const mCss = mSvg ? getComputedStyle(mSvg) : null
+        return {
+          hasX: !!xSvg,
+          hasMenu: !!mSvg,
+          xOpacity: xCss ? xCss.opacity : null,
+          xDisplay: xCss ? xCss.display : null,
+          mOpacity: mCss ? mCss.opacity : null,
+          mDisplay: mCss ? mCss.display : null,
+        }
+      })()
+
+      const base = {
+        reason,
+        pathname: window.location?.pathname || null,
+        viewportW: window.innerWidth,
+        viewportH: window.innerHeight,
+        headerRendered: !!header,
+        htmlClientW: html?.clientWidth ?? null,
+        htmlScrollW: html?.scrollWidth ?? null,
+        bodyClientW: body?.clientWidth ?? null,
+        bodyScrollW: body?.scrollWidth ?? null,
+        htmlOverflowX: html ? getComputedStyle(html).overflowX : null,
+        bodyOverflowX: body ? getComputedStyle(body).overflowX : null,
+        headerClientW: header?.clientWidth ?? null,
+        headerScrollW: header?.scrollWidth ?? null,
+        sidebarOpen,
+        hamburger: btn
+          ? {
+              left: Math.round(btn.getBoundingClientRect().left),
+              right: Math.round(btn.getBoundingClientRect().right),
+              top: Math.round(btn.getBoundingClientRect().top),
+              bottom: Math.round(btn.getBoundingClientRect().bottom),
+              w: Math.round(btn.getBoundingClientRect().width),
+              h: Math.round(btn.getBoundingClientRect().height),
+            }
+          : null,
+        elAtHamburgerCenter,
+        hamburgerColor: btn ? getComputedStyle(btn).color : null,
+        headerBg: header ? getComputedStyle(header).backgroundColor : null,
+        iconState,
+      }
+
+      const offenders: Array<{ tag: string; className: string; left: number; right: number; w: number }> = []
+      if (header) {
+        const vw = window.innerWidth
+        const nodes = Array.from(header.querySelectorAll<HTMLElement>("*"))
+        for (const el of nodes) {
+          const r = el.getBoundingClientRect()
+          if (r.right > vw + 0.5 || r.left < -0.5) {
+            offenders.push({
+              tag: el.tagName.toLowerCase(),
+              className: String(el.className || "").slice(0, 120),
+              left: Math.round(r.left),
+              right: Math.round(r.right),
+              w: Math.round(r.width),
+            })
+          }
+          if (offenders.length >= 5) break
+        }
+      }
+
+      const bodyOffenders: Array<{ tag: string; className: string; left: number; right: number; w: number }> = []
+      try {
+        const vw = window.innerWidth
+        const nodes = Array.from(document.body.querySelectorAll<HTMLElement>("*")).slice(0, 2000)
+        for (const el of nodes) {
+          const r = el.getBoundingClientRect()
+          if (r.right > vw + 0.5 || r.left < -0.5) {
+            bodyOffenders.push({
+              tag: el.tagName.toLowerCase(),
+              className: String(el.className || "").slice(0, 120),
+              left: Math.round(r.left),
+              right: Math.round(r.right),
+              w: Math.round(r.width),
+            })
+          }
+          if (bodyOffenders.length >= 5) break
+        }
+      } catch {
+        // ignore
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'components/layout/DashboardLayout.tsx:DashboardLayout',message:'horizontal_overflow_snapshot',data:{...base,offenders,bodyOffenders},timestamp:Date.now(),sessionId:'debug-session',runId,hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion agent log
+    } catch {
+      // ignore
+    }
+  }, [sidebarOpen])
+
+  React.useEffect(() => {
+    if (!sidebarOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [sidebarOpen])
+
+  React.useEffect(() => {
+    captureHorizontalOverflowSnapshot("mount")
+    const onResize = () => captureHorizontalOverflowSnapshot("resize")
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
+  }, [captureHorizontalOverflowSnapshot])
+
+  React.useEffect(() => {
+    captureHorizontalOverflowSnapshot(sidebarOpen ? "drawer_open" : "drawer_closed")
+  }, [sidebarOpen, captureHorizontalOverflowSnapshot])
 
   return (
-    <div className="flex min-h-screen text-fg" dir="rtl" style={{ backgroundColor: '#EDF1F5' }}>
+    <div className="flex min-h-screen text-fg overflow-x-hidden" dir="rtl" style={{ backgroundColor: '#EDF1F5' }}>
       {/* Main Content Area */}
-      <div className="flex-1 mr-0 lg:mr-[250px]" style={{ backgroundColor: '#EDF1F5' }}>
+      <div className="relative z-0 flex-1 pr-0 md:pr-[250px]" style={{ backgroundColor: '#EDF1F5' }}>
         {/* Mobile Header */}
-        <div className="sticky top-0 z-40 lg:hidden bg-bg/95 backdrop-blur border-b border-border">
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="font-semibold text-lg">ניהול</span>
+        <div ref={mobileHeaderRef} className="sticky top-0 z-[60] md:hidden bg-bg/95 backdrop-blur border-b border-border w-full max-w-full">
+          <div className="flex items-center justify-start px-4 py-3">
             <button
+              ref={hamburgerButtonRef}
               type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md hover:bg-muted transition"
-              aria-label="פתח תפריט"
+              onClick={() => setSidebarOpen((v) => !v)}
+              className={`p-2 rounded-md hover:bg-muted transition ${sidebarOpen ? "text-white" : "text-fg"}`}
+              aria-label={sidebarOpen ? "סגור תפריט" : "פתח תפריט"}
+              aria-expanded={sidebarOpen}
+              aria-controls="mobile-sidebar"
             >
-              <Menu className="h-6 w-6" />
+              <span className="relative block h-6 w-6" aria-hidden="true">
+                <Menu
+                  className={`absolute inset-0 h-6 w-6 transition-all duration-200 ${
+                    sidebarOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
+                  }`}
+                />
+                <X
+                  className={`absolute inset-0 h-6 w-6 transition-all duration-200 ${
+                    sidebarOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-75"
+                  }`}
+                />
+              </span>
             </button>
           </div>
         </div>
@@ -428,39 +452,40 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Desktop Sidebar - Fixed Right */}
-      <aside className="hidden lg:block fixed right-0 top-0 h-screen w-[250px] max-w-[250px] bg-sidebar border-l border-sidebar-border overflow-hidden">
+      <aside className="hidden md:block fixed right-0 top-0 z-50 h-screen w-[250px] max-w-[250px] bg-sidebar border-l border-sidebar-border overflow-hidden">
         <SidebarContent />
       </aside>
 
       {/* Mobile Sidebar */}
-      <aside
-        className={`fixed top-0 right-0 z-50 h-full w-[250px] max-w-[250px] bg-sidebar border-l border-sidebar-border transform transition-transform duration-300 lg:hidden ${
-          sidebarOpen ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-          <span className="font-semibold text-lg">תפריט</span>
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(false)}
-            className="p-2 rounded-md hover:bg-sidebar-hover transition"
-            aria-label="סגור תפריט"
+      {sidebarOpen ? (
+        <>
+          <aside
+            id="mobile-sidebar"
+            className="fixed top-0 right-0 z-50 h-full w-[85vw] max-w-[320px] bg-sidebar border-l border-sidebar-border md:hidden"
           >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-        <div className="h-[calc(100%-73px)]">
-          <SidebarContent onNavigate={() => setSidebarOpen(false)} />
-        </div>
-      </aside>
+            <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
+              <span className="font-semibold text-lg">תפריט</span>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(false)}
+                className="p-2 rounded-md hover:bg-sidebar-hover transition"
+                aria-label="סגור תפריט"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="h-[calc(100%-73px)]">
+              <SidebarContent onNavigate={() => setSidebarOpen(false)} />
+            </div>
+          </aside>
 
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-overlay z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+          {/* Mobile Overlay */}
+          <div
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        </>
+      ) : null}
     </div>
   )
 }

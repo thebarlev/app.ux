@@ -23,7 +23,7 @@ Previously, there were TWO competing implementations causing confusion and incon
 - **Why**: This was the legacy preview system that didn't match the new layout
 
 ### 2. **Created Preview URL Builder** 🆕
-- **File**: [app/dashboard/documents/receipts/actions.ts](app/dashboard/documents/receipts/actions.ts)
+- **File**: [app/dashboard/documents/receipt/actions.ts](app/dashboard/documents/receipt/actions.ts)
 - **New function**: `getReceiptPreviewUrlAction(receiptId: string)`
 - **What it does**:
   ```typescript
@@ -35,26 +35,9 @@ Previously, there were TWO competing implementations causing confusion and incon
   ```
 - **Result**: Centralized way to build preview URLs from receipt IDs
 
-### 3. **Updated Receipts List View Action** 🔄
-- **File**: [app/dashboard/documents/receipts/ReceiptsListClient.tsx](app/dashboard/documents/receipts/ReceiptsListClient.tsx)
-- **Before**:
-  ```tsx
-  <Link href={`/dashboard/documents/receipt/view?id=${receipt.id}`}>
-    👁 צפייה
-  </Link>
-  ```
-- **After**:
-  ```tsx
-  <button onClick={async () => {
-    const result = await getReceiptPreviewUrlAction(receipt.id);
-    if (result.ok && result.url) {
-      window.open(result.url, "_blank");
-    }
-  }}>
-    👁 צפייה
-  </button>
-  ```
-- **Why**: Now uses the server action to build proper preview URL dynamically
+### 3. **Receipts List Route** 🧹
+- The route `/dashboard/documents/receipts` was removed (no longer needed).
+- Preview links remain supported via `getReceiptPreviewUrlAction()` from any screen that needs to open `/dashboard/documents/receipt/preview`.
 
 ### 4. **Verified Receipt Creation Flow** ✅
 - **File**: [app/dashboard/documents/receipt/ReceiptFormClient.tsx](app/dashboard/documents/receipt/ReceiptFormClient.tsx)

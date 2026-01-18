@@ -51,7 +51,6 @@ All navigation links have been corrected:
 - ✅ `/dashboard` - Dashboard homepage
 - ✅ `/dashboard/documents` - Documents overview
 - ✅ `/dashboard/documents/all` - All documents list
-- ✅ `/dashboard/documents/receipts` - **All receipts list**
 - ✅ `/dashboard/documents/receipt` - **Create new receipt**
 - ✅ `/dashboard/documents/tax-invoice-receipt` - Tax invoice receipt
 - ✅ `/dashboard/customers` - All customers list
@@ -70,7 +69,6 @@ href="/dashboard/invoices/tax-receipt" // ❌ Route doesn't exist
 
 **After (Working Links):**
 ```tsx
-href="/dashboard/documents/receipts"      // ✅ Correct route
 href="/dashboard/documents/receipt"       // ✅ Correct route
 href="/dashboard/documents/tax-invoice-receipt" // ✅ Correct route
 ```

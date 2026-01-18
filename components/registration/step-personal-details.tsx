@@ -8,16 +8,33 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { checkEmailExists } from "@/app/register/actions"
+import { cn } from "@/lib/utils"
 import Link from "next/link"
 
-export function StepPersonalDetails() {
+interface StepPersonalDetailsProps {
+  legalTermsText: string
+  marketingText: string
+  requireLegalTermsRequired: boolean
+  requireMarketingRequired: boolean
+}
+
+export function StepPersonalDetails({ 
+  legalTermsText, 
+  marketingText,
+  requireLegalTermsRequired,
+  requireMarketingRequired,
+}: StepPersonalDetailsProps) {
   const { data, updateData, nextStep, error, setError } = useRegistration()
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
+  // Use props instead of loading from client-side
+  const legalTermsRequired = requireLegalTermsRequired
+  const marketingRequired = requireMarketingRequired
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -38,6 +55,16 @@ export function StepPersonalDetails() {
       newErrors.password = "שדה חובה"
     } else if (data.password.length < 8) {
       newErrors.password = "סיסמה חייבת להכיל לפחות 8 תווים"
+    }
+
+    // Dynamic validation for legal terms based on system setting
+    if (legalTermsRequired && !data.acceptedLegalTerms) {
+      newErrors.acceptedLegalTerms = "יש לאשר את התנאים המשפטיים כדי להמשיך"
+    }
+
+    // Dynamic validation for marketing based on system setting
+    if (marketingRequired && !data.acceptedMarketing) {
+      newErrors.acceptedMarketing = "יש לאשר את קבלת המידע השיווקי כדי להמשיך"
     }
 
     setErrors(newErrors)
@@ -277,11 +304,85 @@ export function StepPersonalDetails() {
           )}
         </div>
 
+        {/* Legal Terms Checkbox - Always shown, validation depends on system setting */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="legal-terms"
+              checked={data.acceptedLegalTerms}
+              onCheckedChange={(checked) => {
+                updateData({ acceptedLegalTerms: checked === true })
+                if (errors.acceptedLegalTerms) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.acceptedLegalTerms
+                    return newErrors
+                  })
+                }
+              }}
+              className={cn(
+                "mt-1",
+                errors.acceptedLegalTerms && "border-danger"
+              )}
+            />
+            <label
+              htmlFor="legal-terms"
+              className={cn(
+                "text-sm cursor-pointer",
+                errors.acceptedLegalTerms && "text-danger"
+              )}
+              dangerouslySetInnerHTML={{ __html: legalTermsText + (legalTermsRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
+            />
+          </div>
+          {errors.acceptedLegalTerms && (
+            <p className="text-xs text-danger mt-1">{errors.acceptedLegalTerms}</p>
+          )}
+        </div>
+
+        {/* Marketing Checkbox - Validation depends on system setting */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="marketing"
+              checked={data.acceptedMarketing}
+              onCheckedChange={(checked) => {
+                updateData({ acceptedMarketing: checked === true })
+                if (errors.acceptedMarketing) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.acceptedMarketing
+                    return newErrors
+                  })
+                }
+              }}
+              className={cn(
+                "mt-1",
+                errors.acceptedMarketing && "border-danger"
+              )}
+            />
+            <label 
+              htmlFor="marketing" 
+              className={cn(
+                "text-sm cursor-pointer",
+                errors.acceptedMarketing && "text-danger"
+              )}
+              dangerouslySetInnerHTML={{ __html: marketingText + (marketingRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
+            />
+          </div>
+          {errors.acceptedMarketing && (
+            <p className="text-xs text-danger mt-1">{errors.acceptedMarketing}</p>
+          )}
+        </div>
+
         <Button 
           type="submit" 
           variant="primary"
           className="w-full"
-          disabled={isCheckingEmail}
+          disabled={
+            isCheckingEmail || 
+            (legalTermsRequired && !data.acceptedLegalTerms) ||
+            (marketingRequired && !data.acceptedMarketing)
+          }
           aria-busy={isCheckingEmail}
           loading={isCheckingEmail}
         >

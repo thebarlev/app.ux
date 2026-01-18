@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Text cache to reduce database queries
@@ -70,6 +71,44 @@ export async function getSystemText(
         textCache.set(cacheKey, { value: resolvedLegacy, timestamp: Date.now() })
         return resolvedLegacy
       }
+      // Admin fallback (server-side only): if public read is blocked by RLS or similar,
+      // we can still resolve a fixed key used in server components (e.g. /register).
+      try {
+        const admin = createAdminClient()
+        let q = admin
+          .from("system_texts")
+          .select("value, default_value, lang")
+          .eq("key", key)
+          .eq("lang", lang)
+        if (page) q = q.eq("page", page)
+
+        const adminRes = await q.maybeSingle()
+        if (adminRes?.error) {
+          const adminMsg = String((adminRes.error as any)?.message ?? adminRes.error)
+          // If admin query fails due to lang/page not existing, try legacy select
+          if (adminMsg.includes("lang") || adminMsg.includes("column")) {
+            const adminLegacy = await admin
+              .from("system_texts")
+              .select("value, default_value")
+              .eq("key", key)
+              .maybeSingle()
+            if (!adminLegacy.error) {
+              const t = adminLegacy.data?.value || adminLegacy.data?.default_value
+              const resolved = t || fallback || key
+              textCache.set(cacheKey, { value: resolved, timestamp: Date.now() })
+              return resolved
+            }
+          }
+        } else if (adminRes?.data) {
+          const t = (adminRes.data as any).value || (adminRes.data as any).default_value
+          const resolved = t || fallback || key
+          textCache.set(cacheKey, { value: resolved, timestamp: Date.now() })
+          return resolved
+        }
+      } catch (e: any) {
+        // ignore
+      }
+
       console.error(`[SystemText] Error fetching key "${key}" (${lang}):`, error);
       return fallback || key;
     }

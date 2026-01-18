@@ -8,7 +8,7 @@
    - `/dashboard/documents` → Portal page with document type cards
    - `/dashboard/documents/receipt` → Receipt creation form (ReceiptFormClient)
    - `/dashboard/documents/new/receipt` → (Duplicate?) Receipt creation
-   - `/dashboard/documents/receipts` → List of receipts (?)
+   - `/dashboard/documents/receipts` → List of receipts (?) (removed later)
 
 2. **Form Component** (`app/dashboard/documents/receipt/ReceiptFormClient.tsx`):
    - Client component with ~760 lines
@@ -140,7 +140,7 @@
 ### 📋 Receipt List/Management
 
 **Files**: 
-- `app/dashboard/documents/receipts/page.tsx` (?)
+- `app/dashboard/documents/receipts/page.tsx` (?) (removed)
 - Main list view: TBD (need to check)
 
 ### 🐛 Known Issues & Inconsistencies
@@ -154,7 +154,7 @@
 2. **Duplicate Routes**:
    - `/dashboard/documents/receipt` - Main form
    - `/dashboard/documents/new/receipt` - Duplicate?
-   - `/dashboard/documents/receipts` - List view?
+   - `/dashboard/documents/receipts` - List view? (removed later)
 
 3. **Preview vs PDF Mismatch**:
    - Preview uses HTML/CSS (PreviewClient.tsx)

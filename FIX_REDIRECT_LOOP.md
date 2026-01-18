@@ -49,7 +49,7 @@ http://localhost:3000/admin/login
 
 ### עבור קבלות:
 ```
-http://localhost:3000/dashboard/documents/receipts
+http://localhost:3000/dashboard/documents/receipts (removed)
 ```
 
 ### קבלה חדשה:

@@ -1,62 +1,77 @@
-"use server";
+"use server"
 
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server"
 
-export type CheckEmailResult = 
-  | { exists: true; message: string }
-  | { exists: false }
-  | { error: true; message: string };
-
-/**
- * Check if an email is already registered in the system
- * This runs on the server only - safe to use Supabase client
- * 
- * Returns:
- * - { exists: true } if email is taken
- * - { exists: false } if email is available
- * - { error: true } if there was a network/server error
- */
-export async function checkEmailExists(email: string): Promise<CheckEmailResult> {
+export async function getLegalTermsRequiredSetting(): Promise<boolean> {
   try {
-    // Validate email format first
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return { error: true, message: "כתובת אימייל לא תקינה" };
-    }
-
-    const supabase = await createClient();
-
-    // Check if email exists in companies table
-    // This is the authoritative source since every user has a company
+    const supabase = await createClient()
+    
     const { data, error } = await supabase
-      .from("companies")
-      .select("id")
-      .eq("email", email.toLowerCase().trim())
-      .maybeSingle();
+      .from("global_settings")
+      .select("setting_value")
+      .eq("setting_key", "require_legal_terms_acceptance_on_signup")
+      .maybeSingle()
 
     if (error) {
-      console.error("Error checking email existence:", error);
-      return { 
-        error: true, 
-        message: "לא ניתן לאמת את האימייל כרגע. נסה שוב." 
-      };
+      console.error("Error fetching legal terms setting:", error)
+      return false // Default to not required if error
     }
 
-    // If data exists, email is taken
+    return data?.setting_value === "true"
+  } catch (e: any) {
+    console.error("Error in getLegalTermsRequiredSetting:", e)
+    return false // Default to not required
+  }
+}
+
+export async function getMarketingRequiredSetting(): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    
+    const { data, error } = await supabase
+      .from("global_settings")
+      .select("setting_value")
+      .eq("setting_key", "require_marketing_acceptance_on_signup")
+      .maybeSingle()
+
+    if (error) {
+      console.error("Error fetching marketing setting:", error)
+      return false // Default to not required if error
+    }
+
+    return data?.setting_value === "true"
+  } catch (e: any) {
+    console.error("Error in getMarketingRequiredSetting:", e)
+    return false // Default to not required
+  }
+}
+
+export async function checkEmailExists(email: string): Promise<{ exists: boolean; message?: string } | { error: true; message: string }> {
+  try {
+    const supabase = await createClient()
+    
+    // בדיקה מול companies table (מקור האמת לאימיילים)
+    const { data, error } = await supabase
+      .from("companies")
+      .select("email")
+      .eq("email", email.toLowerCase().trim())
+      .maybeSingle()
+
+    if (error) {
+      console.error("Error checking email:", error)
+      return { error: true, message: "שגיאה בבדיקת אימייל. נסה שוב." }
+    }
+
     if (data) {
       return { 
         exists: true, 
         message: "כתובת האימייל כבר רשומה במערכת" 
-      };
+      }
     }
 
-    // Email is available
-    return { exists: false };
-
-  } catch (err) {
-    console.error("Unexpected error in checkEmailExists:", err);
-    return { 
-      error: true, 
-      message: "אירעה שגיאה לא צפויה. נסה שוב." 
-    };
+    return { exists: false }
+  } catch (e: any) {
+    console.error("Error in checkEmailExists:", e)
+    return { error: true, message: "שגיאה לא צפויה. נסה שוב." }
   }
 }

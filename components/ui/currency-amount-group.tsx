@@ -8,31 +8,32 @@ interface CurrencyAmountGroupProps {
 }
 
 /**
- * CurrencyAmountGroup Component
- * 
- * Ensures consistent layout for currency selector + amount input pairs:
- * - Currency selector: fixed narrow width (72px)
- * - Amount input: flexible width (takes remaining space)
- * - RTL aligned, 12px gap, vertically aligned
- * - Responsive: wraps naturally on mobile if needed
+ * CurrencyAmountGroup
+ *
+ * Layout for currency selector + amount input:
+ * - Amount: flexible (takes remaining space)
+ * - Currency: fixed-ish width (but not forced too small)
+ * - Responsive: wraps on small widths without overflow
  */
-export function CurrencyAmountGroup({
-  currencyControl,
-  amountControl,
-  className,
-}: CurrencyAmountGroupProps) {
+export function CurrencyAmountGroup({ currencyControl, amountControl, className }: CurrencyAmountGroupProps) {
   return (
     <div
+      dir="rtl"
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_72px] gap-3 items-center w-full",
+        "flex items-center gap-3 w-full min-w-0", // בלי flex-wrap
         className
       )}
-      dir="rtl"
     >
-      {/* Amount input: flexible width, appears first (on right in RTL) */}
-      <div className="min-w-0">{amountControl}</div>
-      {/* Currency selector: fixed narrow width (72px), appears second (on left in RTL) */}
-      <div className="min-w-0">{currencyControl}</div>
+      {/* Amount: takes remaining space, allowed to shrink */}
+      <div className="min-w-0 flex-1">
+        {amountControl}
+      </div>
+
+      {/* Currency: fixed width */}
+      <div className="shrink-0 w-[92px]">
+        {currencyControl}
+      </div>
     </div>
   );
 }
+

@@ -274,8 +274,10 @@ export function CompaniesTable({ companies, onStatusChange }: CompaniesTableProp
                         {company.status === "active" ? "Active" : "Suspended"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(company.created_at)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell suppressHydrationWarning className="text-sm text-muted-foreground">
+                      {formatDate(company.created_at)}
+                    </TableCell>
+                    <TableCell suppressHydrationWarning className="text-sm text-muted-foreground">
                       {formatDateTime(company.last_login_at)}
                     </TableCell>
                     <TableCell>

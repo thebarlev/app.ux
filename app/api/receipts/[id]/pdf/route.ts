@@ -184,7 +184,7 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="receipt-${receipt.document_number}.pdf"`,
+        "Content-Disposition": `attachment; filename="${receipt.document_number}-he.pdf"`,
         "Content-Length": pdfBuffer.length.toString(),
         "Cache-Control": "no-store, must-revalidate",
         "Pragma": "no-cache",

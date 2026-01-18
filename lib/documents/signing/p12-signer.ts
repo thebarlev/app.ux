@@ -3,7 +3,6 @@ import "server-only"
 import crypto from "crypto"
 import forge from "node-forge"
 import SignPdf from "node-signpdf"
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore - node-signpdf helper has no stable types
 import { plainAddPlaceholder } from "node-signpdf/dist/helpers"
 

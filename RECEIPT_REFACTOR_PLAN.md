@@ -79,7 +79,7 @@ export type ReceiptDraftPayload = { ... }
 Move all receipt-related types here, remove duplicates.
 
 ### 2.2 Add Receipt List Functionality
-**File**: `app/dashboard/documents/receipts/page.tsx` ✅ EXISTS
+**File**: `app/dashboard/documents/receipts/page.tsx` ✅ EXISTS (removed later)
 - [x] List view implemented
 - [ ] Add "Edit Draft" action
 - [ ] Add "View PDF" action
