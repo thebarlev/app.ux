@@ -169,175 +169,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     return () => mq.removeEventListener?.("change", apply);
   }, []);
 
-  useEffect(() => {
-    // #region agent log: docs-filters-grid-1
-    const card = searchFiltersCardRef.current;
-    const grid = searchFiltersGridRef.current;
-    const itemSearch = searchFiltersItemSearchRef.current;
-    const itemDocType = searchFiltersItemDocTypeRef.current;
-    const itemDate = searchFiltersItemDateRef.current;
-    if (!card || !grid) return;
-    const cs = window.getComputedStyle(grid);
-    const cols = cs.gridTemplateColumns;
-    const gap = cs.gap;
-    const colCount = cols ? cols.split(" ").filter(Boolean).length : null;
-    const cardW = Math.round(card.getBoundingClientRect().width);
-    const gridW = Math.round(grid.getBoundingClientRect().width);
-    const itemWidths = {
-      search: itemSearch ? Math.round(itemSearch.getBoundingClientRect().width) : null,
-      docType: itemDocType ? Math.round(itemDocType.getBoundingClientRect().width) : null,
-      date: itemDate ? Math.round(itemDate.getBoundingClientRect().width) : null,
-    };
-    const itemMinWidths = {
-      search: itemSearch ? window.getComputedStyle(itemSearch).minWidth : null,
-      docType: itemDocType ? window.getComputedStyle(itemDocType).minWidth : null,
-      date: itemDate ? window.getComputedStyle(itemDate).minWidth : null,
-    };
-    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "docs-filters-grid-1",
-        hypothesisId: "A",
-        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersGrid",
-        message: "Search & Filters layout measurements",
-        data: {
-          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
-          isMobile,
-          cardW,
-          gridW,
-          gridTemplateColumns: cols,
-          gridColCount: colCount,
-          gridGap: gap,
-          itemWidths,
-          itemMinWidths,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion agent log: docs-filters-grid-1
-  }, [isMobile]);
-
-  useEffect(() => {
-    // #region agent log: docs-filters-align-1
-    const itemSearch = searchFiltersItemSearchRef.current;
-    const itemDocType = searchFiltersItemDocTypeRef.current;
-    const itemDate = searchFiltersItemDateRef.current;
-    if (!itemSearch || !itemDocType || !itemDate) return;
-
-    const searchControl = itemSearch.querySelector("input,button,select,textarea") as HTMLElement | null;
-    const docTypeControl = itemDocType.querySelector("input,button,select,textarea") as HTMLElement | null;
-    const dateControl = itemDate.querySelector("input,button,select,textarea") as HTMLElement | null;
-
-    const searchLabel = itemSearch.querySelector("label") as HTMLElement | null;
-    const docTypeLabel = itemDocType.querySelector("label") as HTMLElement | null;
-    const dateLabel = itemDate.querySelector("label") as HTMLElement | null;
-
-    const rect = (el: HTMLElement | null) => {
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { top: Math.round(r.top), height: Math.round(r.height) };
-    };
-
-    const cs = (el: HTMLElement | null) => {
-      if (!el) return null;
-      const s = window.getComputedStyle(el);
-      return {
-        marginTop: s.marginTop,
-        marginBottom: s.marginBottom,
-        paddingTop: s.paddingTop,
-        paddingBottom: s.paddingBottom,
-        lineHeight: s.lineHeight,
-        alignSelf: s.alignSelf,
-      };
-    };
-
-    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "docs-filters-align-1",
-        hypothesisId: "B",
-        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersAlign",
-        message: "Search & Filters control top alignment",
-        data: {
-          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
-          isMobile,
-          itemRects: {
-            search: rect(itemSearch),
-            docType: rect(itemDocType),
-            date: rect(itemDate),
-          },
-          labelRects: {
-            search: rect(searchLabel),
-            docType: rect(docTypeLabel),
-            date: rect(dateLabel),
-          },
-          controlRects: {
-            search: rect(searchControl),
-            docType: rect(docTypeControl),
-            date: rect(dateControl),
-          },
-          controlComputed: {
-            search: cs(searchControl),
-            docType: cs(docTypeControl),
-            date: cs(dateControl),
-          },
-          labelComputed: {
-            search: cs(searchLabel),
-            docType: cs(docTypeLabel),
-            date: cs(dateLabel),
-          },
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion agent log: docs-filters-align-1
-  }, [isMobile, search, documentType, dateFilter.kind, dateFilter.label]);
-
-  useEffect(() => {
-    // #region agent log: docs-filters-responsive-1
-    const card = searchFiltersCardRef.current;
-    const grid = searchFiltersGridRef.current;
-    if (!card || !grid) return;
-
-    const de = document.documentElement;
-    const body = document.body;
-    const csGrid = window.getComputedStyle(grid);
-    const cols = csGrid.gridTemplateColumns;
-    const colCount = cols ? cols.split(" ").filter(Boolean).length : null;
-
-    const cardRect = card.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
-
-    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId: "docs-filters-responsive-1",
-        hypothesisId: "C",
-        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersResponsive",
-        message: "Search & Filters responsive + overflow signals",
-        data: {
-          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
-          visualViewportW: typeof window !== "undefined" && window.visualViewport ? Math.round(window.visualViewport.width) : null,
-          isMobile,
-          docEl: { clientWidth: de.clientWidth, scrollWidth: de.scrollWidth },
-          body: { clientWidth: body.clientWidth, scrollWidth: body.scrollWidth },
-          card: { width: Math.round(cardRect.width), left: Math.round(cardRect.left), right: Math.round(cardRect.right) },
-          grid: { width: Math.round(gridRect.width), left: Math.round(gridRect.left), right: Math.round(gridRect.right) },
-          gridTemplateColumns: cols,
-          gridColCount: colCount,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion agent log: docs-filters-responsive-1
-  }, [isMobile]);
-
 
 
   if (!initialData.ok) {
@@ -596,10 +427,13 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     customFrom && customTo ? `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(customTo)}` : "DD/MM/YYYY – DD/MM/YYYY";
 
   return (
-    <div className="ui-container pt-10" style={{ minHeight: "100vh" }}>
+    <div
+      className="ui-container pt-6 sm:pt-10 max-w-full sm:max-w-[1200px] px-0 sm:px-[2px]"
+      style={{ minHeight: "100vh" }}
+    >
       {/* Page Header */}
-      <div className="mb-[50px]">
-        <h1 className="text-right mb-4">מסמכים</h1>
+      <div className="mb-8 sm:mb-[20px]">
+        <h1 className="text-right mb-2 sm:mb-4">מסמכים</h1>
         <p className="text-right">{totalCount} מסמכים סה״כ</p>
       </div>
 
@@ -607,11 +441,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
       <FormSection title="חיפוש וסינון">
         <div
           ref={searchFiltersCardRef}
-          className="relative w-full max-w-full px-4 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
+          className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
           style={{
             backgroundColor: "white",
             borderRadius: "20px",
-            boxShadow: "0 0 13px 0 rgba(0, 0, 0, 0.10)",
+           /* boxShadow: "0 0 13px 0 rgba(0, 0, 0, 0.10)", */
             border: "none",
           }}
         >
@@ -639,7 +473,47 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
             <div ref={searchFiltersItemDocTypeRef} className="min-w-0">
               <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
-                <DropdownMenu>
+                <DropdownMenu
+                  // #region agent log: docs-docType-dd-width-1
+                  onOpenChange={(open) => {
+                    if (!open) return
+                    try {
+                      const trigger = document.getElementById("documentType")
+                      const content = document.querySelector('[data-debug="docType-dd-content"]') as HTMLElement | null
+                      const r = content?.getBoundingClientRect?.()
+                      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          sessionId: "debug-session",
+                          runId: "docs-docType-dd-width-1",
+                          hypothesisId: "A",
+                          location: "app/dashboard/documents/DocumentsListClient.tsx:docTypeDropdown",
+                          message: "DocType dropdown opened - width metrics",
+                          data: {
+                            innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
+                            visualViewportW: typeof window !== "undefined" && window.visualViewport ? Math.round(window.visualViewport.width) : null,
+                            triggerRect: trigger ? trigger.getBoundingClientRect() : null,
+                            contentRect: r
+                              ? { left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) }
+                              : null,
+                            contentComputed: content
+                              ? {
+                                  width: getComputedStyle(content).width,
+                                  minWidth: getComputedStyle(content).minWidth,
+                                  maxWidth: getComputedStyle(content).maxWidth,
+                                }
+                              : null,
+                          },
+                          timestamp: Date.now(),
+                        }),
+                      }).catch(() => {})
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                  // #endregion agent log: docs-docType-dd-width-1
+                >
                   <DropdownMenuTrigger asChild>
                     <Button type="button" variant="secondary" className="ui-dd-trigger">
                       <span>
@@ -655,7 +529,12 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                     </Button>
                   </DropdownMenuTrigger>
 
-                  <DropdownMenuContent align="end" className="ui-dd-content min-w-[260px]" style={{ direction: "rtl" }}>
+                  <DropdownMenuContent
+                    align="end"
+                    className="ui-dd-content min-w-[260px]"
+                    style={{ direction: "rtl" }}
+                    data-debug="docType-dd-content"
+                  >
                     <DropdownMenuCheckboxItem
                       className="ui-dd-check"
                       checked={isAllDocTypesSelected}
@@ -1186,33 +1065,29 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 </div>
               </div>
             )}
-          </div>
           
-          {documents.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <p style={{ fontSize: '18px', color: '#708993' }}>לא נמצאו מסמכים</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {monthGroups.map((group, groupIndex) => (
-                <div
-                  key={group.key}
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderRadius: "20px",
-                    boxShadow: "0 0 13px 0 rgba(0, 0, 0, 0.10)",
-                    border: "1px solid #EDF1F5",
-                  }}
-                >
-                  <div style={{ padding: "18px 20px 10px 20px" }}>
-                    <h4 className="text-right text-base font-semibold" style={{ color: "#19183B", margin: 0 }}>
-                      {group.label}
-                    </h4>
-                  </div>
+            {documents.length === 0 ? (
+              <Card>
+                <CardContent className="p-8 text-center">
+                  <p style={{ fontSize: '18px', color: '#708993' }}>לא נמצאו מסמכים</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {monthGroups.map((group, groupIndex) => (
+                  <div
+                    key={group.key}
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                     
+                    }}
+                  >
+                    <div style={{ padding: "18px 20px 10px 20px" }}>
+                      <h4 className="text-right text-base font-semibold" style={{ color: "#19183B", margin: 0 }}>
+                        {group.label}
+                      </h4>
+                    </div>
 
-                  <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: tableFontSize, tableLayout: "fixed" }}>
                       <colgroup>
                         {/* checkbox */}
@@ -1237,16 +1112,16 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
                       <tbody>
                         {group.docs.map((doc, index) => (
-                    <tr
-                      key={doc.id}
-                      style={{
-                        backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#EDF1F5',
-                        borderBottom: '1px solid #EDF1F5',
-                        position: 'relative',
-                      }}
-                      onMouseEnter={() => setHoveredRowId(doc.id)}
-                      onMouseLeave={() => setHoveredRowId(null)}
-                    >
+                          <tr
+                            key={doc.id}
+                            style={{
+                              backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#EDF1F5',
+                              borderBottom: '1px solid #EDF1F5',
+                              position: 'relative',
+                            }}
+                            onMouseEnter={() => setHoveredRowId(doc.id)}
+                            onMouseLeave={() => setHoveredRowId(null)}
+                          >
                       {/* Checkbox */}
                       <td style={{ padding: '10px 6px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <input
@@ -1472,15 +1347,15 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                             </button>
                         </div>
                       </td>
-                    </tr>
+                          </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Pagination */}
           {totalPages > 1 && (

@@ -403,7 +403,7 @@
   /* ==================== UI Kit Utility Classes ==================== */
   
   .ui-container {
-    @apply mx-auto max-w-[1200px] px-[50px];
+    @apply mx-auto max-w-[1200px] px-[10px];
   }
 
   .ui-form-grid {

@@ -581,12 +581,12 @@ export default function ReceiptFormClient({
           </div>
 
           <form className="ui-section-gap">
-            <FormSection title="פרטי לקוח" description="בחר לקוח קיים או הזן שם חדש">
+            <FormSection title="פרטי לקוח" description="">
               <div
-                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                  <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="min-w-0">
+                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="w-full min-w-0">
                     <div ref={customerNameRef}>
                       <CustomerAutocomplete
                         value={customerName}
@@ -606,7 +606,7 @@ export default function ReceiptFormClient({
                     </div>
                   </FieldWrapper>
 
-                  <FieldWrapper label="תאריך מסמך" required id="documentDate" className="min-w-0">
+                  <FieldWrapper label="תאריך מסמך" required id="documentDate" className="w-full min-w-0">
                     <div className="min-w-0 w-full">
                       <DateInput
                         id="documentDate"
@@ -624,18 +624,18 @@ export default function ReceiptFormClient({
               </div>
             </FormSection>
 
-            <FormSection title="פרטי המסמך" description="תיאור התשלום או השירות">
+            <FormSection title="פרטי המסמך" description="">
               <div
-                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
                   <FieldWrapper
                     label="תיאור"
                     required
                     error={descriptionError}
                     id="description"
                     hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
-                    className="ui-field-wide"
+                    className="ui-field-wide w-full min-w-0"
                   >
                     <Input
                       id="description"
@@ -646,7 +646,7 @@ export default function ReceiptFormClient({
                         if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
                       }}
                       placeholder="הזן תיאור..."
-                      className={descriptionError ? "border-danger" : ""}
+                      className={cn("w-1/2", descriptionError ? "border-danger" : "")}
                       aria-required="true"
                       aria-invalid={!!descriptionError}
                       aria-describedby={descriptionError ? "description-error" : "description-hint"}
@@ -657,7 +657,7 @@ export default function ReceiptFormClient({
             </FormSection>
 
             {/* Payments Section (UPDATED LAYOUT) */}
-            <FormSection title="פירוט תקבולים" description="איך שילמו לך? אפשר לבחור מספר צורות תשלום שונות">
+            <FormSection title="פירוט תקבולים" description="">
               <div ref={paymentsTableRef} className="space-y-[50px]">
                 {Object.keys(paymentErrors).length > 0 && (
                   <div
@@ -681,11 +681,10 @@ export default function ReceiptFormClient({
                   {payments.map((row, i) => (
                     <div
                     key={i}
-                    className="relative px-4 sm:px-6 lg:px-8 py-6"
+                    className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
                     style={{ 
                       backgroundColor: 'white', 
-                      borderRadius: '20px', 
-                      boxShadow: '0 0 13px 0 rgba(0, 0, 0, 0.10)', 
+
                       border: 'none',
                     }}
                   >
@@ -706,13 +705,13 @@ export default function ReceiptFormClient({
 
                       <div className="min-w-0">
                         {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
-                        <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
                           <FieldWrapper
                             label="אמצעי תשלום"
                             required
                             error={paymentErrors[i]?.method}
                             id={`payment-method-${i}`}
-                            className="min-w-0"
+                          className="w-full min-w-0"
                           >
                             <Select
                               value={row.method}
@@ -751,7 +750,7 @@ export default function ReceiptFormClient({
                             </Select>
                           </FieldWrapper>
 
-                          <FieldWrapper label="תאריך תשלום" required id={`payment-date-${i}`} className="min-w-0">
+                        <FieldWrapper label="תאריך תשלום" required id={`payment-date-${i}`} className="w-full min-w-0">
                             {/* עטיפה כדי לאפשר shrink בתוך grid */}
                             <div className="min-w-0 w-full">
                               <DateInput
@@ -768,7 +767,7 @@ export default function ReceiptFormClient({
                             required
                             error={paymentErrors[i]?.amount}
                             id={`payment-amount-${i}`}
-                            className="min-w-0"
+                          className="w-full min-w-0"
                           >
                             {/* עטיפה כדי להבטיח min-w-0 + w-full */}
                             <div className="min-w-0 w-full">
@@ -781,7 +780,7 @@ export default function ReceiptFormClient({
                                       onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                                     >
                                       <SelectTrigger
-                                        className="w-[92px] shrink-0"
+                                        className="w-[72px] shrink-0"
                                         style={{ fontSize: "18px", fontWeight: 600 }}
                                         aria-label="מטבע"
                                       >
@@ -835,31 +834,23 @@ export default function ReceiptFormClient({
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={addPaymentRow}
-                  className="mt-[50px]"
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    fontSize: "18px",
-                    color: "#19183B",
-                    textDecoration: "underline",
-                    cursor: "pointer",
-                    padding: 0,
-                    fontWeight: 500,
-                  }}
-                >
-                  הוספת תקבול
-                </button>
+                <div className="pr-[25px]">
+  <Button
+    type="button"
+    onClick={addPaymentRow}
+    variant="secondary"
+  >
+    הוספת תקבול
+  </Button>
+</div>
 
                 <div className="pt-[50px] mt-[50px] border-t" style={{ borderColor: "#EDF1F5" }}>
                   <div className="flex justify-between items-center">
                     <div className="text-lg font-bold" style={{ color: "#19183B" }}>
-                      סה״כ שולם
+                      
                     </div>
-                    <div className="text-2xl font-bold" style={{ color: "#19183B" }}>
-                      {formatMoney(total, currency)}
+                    <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
+                    סה״כ   {formatMoney(total, currency)}
                     </div>
                   </div>
                   {roundTotals && (
@@ -873,10 +864,10 @@ export default function ReceiptFormClient({
 
             <FormSection title="הערות">
               <div
-                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                  <FieldWrapper label="הערות שיופיעו במסמך" id="notes" className="min-w-0">
+                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FieldWrapper label="הערות שיופיעו במסמך" id="notes" className="w-full min-w-0">
                     <Textarea
                       id="notes"
                       value={notes}
@@ -887,7 +878,7 @@ export default function ReceiptFormClient({
                     />
                   </FieldWrapper>
 
-                  <FieldWrapper label="הערות שיופיעו בגוף המייל" id="emailNotes" className="min-w-0">
+                  <FieldWrapper label="הערות שיופיעו בגוף המייל" id="emailNotes" className="w-full min-w-0">
                     <Textarea
                       id="emailNotes"
                       value={emailNotes}

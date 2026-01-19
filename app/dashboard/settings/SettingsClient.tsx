@@ -462,7 +462,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             )}
 
             {/* Combined Grid: Logo on Right, Signature on Left */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, marginBottom: 24 }}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 px-[20px]">
               
               {/* Logo Section */}
               <div>
@@ -518,7 +518,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   style={{ display: "none" }}
                 />
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingLogo}
@@ -594,7 +594,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   style={{ display: "none" }}
                 />
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() => signatureInputRef.current?.click()}
                     disabled={isUploadingSignature}
@@ -643,9 +643,10 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 </CardContent>
               </Card>
             )}
-            <div className="ui-form-grid">
+            <div className="relative w-full max-w-full px-6 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+            <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
             {/* Company Name */}
-            <FieldWrapper label="שם העסק" id="company_name" required>
+            <FieldWrapper label="שם העסק" id="company_name" required className="w-full min-w-0">
               <Input
                 type="text"
                 name="company_name"
@@ -657,7 +658,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Company Name (English) */}
-            <FieldWrapper label="שם העסק (English)" id="company_name_en">
+            <FieldWrapper label="שם העסק (English)" id="company_name_en" className="w-full min-w-0">
               <Input
                 type="text"
                 name="company_name_en"
@@ -671,7 +672,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* English Address */}
-            <FieldWrapper label="כתובת (English)" id="english_address">
+            <FieldWrapper label="כתובת (English)" id="english_address" className="w-full min-w-0">
               <Input
                 type="text"
                 name="english_address"
@@ -685,7 +686,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Issuer first name (English) */}
-            <FieldWrapper label="שם פרטי לחתימה (English)" id="contact_first_name_en">
+            <FieldWrapper label="שם פרטי לחתימה (English)" id="contact_first_name_en" className="w-full min-w-0">
               <Input
                 type="text"
                 name="contact_first_name_en"
@@ -699,7 +700,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Books region (metadata) */}
-            <FieldWrapper label="אזור שמירת ספרים" id="books_region">
+            <FieldWrapper label="אזור שמירת ספרים" id="books_region" className="w-full min-w-0">
               <Select
                 value={(formData as any).books_region}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, books_region: value as any }))}
@@ -716,7 +717,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
 
             {/* Business Type - READ ONLY */}
-            <FieldWrapper label="סוג עסק" id="business_type" required>
+            <FieldWrapper label="סוג עסק" id="business_type" required className="w-full min-w-0">
               <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -728,7 +729,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Registration Number (Company ID) - READ ONLY */}
-            <FieldWrapper label="מספר חברה / תעודת זהות" id="registration_number" required>
+            <FieldWrapper label="מספר חברה / תעודת זהות" id="registration_number" required className="w-full min-w-0">
               <Input
                 type="text"
                 name="registration_number"
@@ -743,7 +744,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Industry */}
-            <FieldWrapper label="תחום פעילות" id="industry" required>
+            <FieldWrapper label="תחום פעילות" id="industry" required className="w-full min-w-0">
               <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>
                 <SelectTrigger><SelectValue placeholder="בחר תחום" /></SelectTrigger>
                 <SelectContent>
@@ -762,7 +763,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 - Legacy: if industry === "other" we must collect custom_industry (existing behavior)
                 - Also show if there's already a value stored */}
             {(formData.industry === "other" || Boolean(formData.custom_industry)) && (
-              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required={formData.industry === "other"}>
+              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required={formData.industry === "other"} className="w-full min-w-0">
                 <Input
                   type="text"
                   name="custom_industry"
@@ -776,7 +777,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             )}
 
             {/* Street */}
-            <FieldWrapper label="רחוב ומספר" id="street" required>
+            <FieldWrapper label="רחוב ומספר" id="street" required className="w-full min-w-0">
               <Input
                 type="text"
                 name="street"
@@ -789,7 +790,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* City */}
-            <FieldWrapper label="עיר" id="city" required>
+            <FieldWrapper label="עיר" id="city" required className="w-full min-w-0">
               <Input
                 type="text"
                 name="city"
@@ -802,7 +803,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Postal Code */}
-            <FieldWrapper label="מיקוד" id="postal_code">
+            <FieldWrapper label="מיקוד" id="postal_code" className="w-full min-w-0">
               <Input
                 type="text"
                 name="postal_code"
@@ -815,7 +816,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
 
             {/* Email */}
-            <FieldWrapper label="אימייל" id="email" required>
+            <FieldWrapper label="אימייל" id="email" required className="w-full min-w-0">
               <Input
                 type="email"
                 name="email"
@@ -827,7 +828,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Mobile Phone */}
-            <FieldWrapper label="נייד" id="mobile_phone">
+            <FieldWrapper label="נייד" id="mobile_phone" className="w-full min-w-0">
               <Input
                 type="tel"
                 name="mobile_phone"
@@ -838,7 +839,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Phone */}
-            <FieldWrapper label="טלפון" id="phone">
+            <FieldWrapper label="טלפון" id="phone" className="w-full min-w-0">
               <Input
                 type="tel"
                 name="phone"
@@ -849,7 +850,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </FieldWrapper>
 
             {/* Website */}
-            <FieldWrapper label="אתר אינטרנט" id="website">
+            <FieldWrapper label="אתר אינטרנט" id="website" className="w-full min-w-0">
               <Input
                 type="url"
                 name="website"
@@ -859,6 +860,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                 placeholder="https://example.com"
               />
             </FieldWrapper>
+            </div>
             </div>
           </FormSection>
 

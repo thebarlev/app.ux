@@ -86,15 +86,28 @@ export default function CustomersListClient({ initialCustomers }: Props) {
 
         {/* Search Section */}
         <FormSection title="חיפוש">
-          <FieldWrapper label="חיפוש" id="search" className="!w-full">
-            <Input
-              id="search"
-              type="text"
-              placeholder="חיפוש לפי שם..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </FieldWrapper>
+          <div
+            className="relative w-full max-w-full px-4 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
+            style={{
+              backgroundColor: "white",
+              borderRadius: "20px",
+              border: "none",
+            }}
+          >
+            <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+              <div className="min-w-0">
+                <FieldWrapper label="חיפוש" id="search" className="w-full min-w-0">
+                  <Input
+                    id="search"
+                    type="text"
+                    placeholder="חיפוש לפי שם..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </FieldWrapper>
+              </div>
+            </div>
+          </div>
         </FormSection>
 
         {/* Customers List */}
@@ -152,86 +165,88 @@ export default function CustomersListClient({ initialCustomers }: Props) {
               overflow: 'hidden',
             }}
           >
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 18, color: '#19183B' }}>
-              <thead>
-                <tr style={{ background: '#EDF1F5', borderBottom: '1px solid #e5e7eb' }}>
-                  <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>שם</th>
-                  <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>אימייל</th>
-                  <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>טלפון</th>
-                  <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>נייד</th>
-                  <th style={{ padding: 20, textAlign: 'center', fontWeight: 700 }}>פעולות</th>
-                </tr>
-              </thead>
-              <tbody>
-                  {filteredCustomers.map((customer, idx) => (
-                  <tr
-                    key={customer.id}
-                    style={{
-                      borderBottom: idx < filteredCustomers.length - 1 ? '1px solid #EDF1F5' : 'none',
-                      cursor: 'pointer',
-                      background: idx % 2 === 0 ? '#FFF' : '#F9FAFB',
-                    }}
-                    onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
-                  >
-                    <td style={{ padding: 20, fontWeight: 600 }}>{customer.name}</td>
-                    <td style={{ padding: 20, opacity: 0.8 }}>{customer.email || '-'}</td>
-                    <td style={{ padding: 20, opacity: 0.8, direction: 'ltr', textAlign: 'right' }}>
-                      {customer.phone || '-'}
-                    </td>
-                    <td style={{ padding: 20, opacity: 0.8, direction: 'ltr', textAlign: 'right' }}>
-                      {customer.mobile || '-'}
-                    </td>
-                    <td style={{ padding: 20, textAlign: 'center' }}>
-                      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/dashboard/customers/${customer.id}`);
-                          }}
-                          style={{
-                            padding: '8px 18px',
-                            background: '#1D868F',
-                            color: '#FFF',
-                            border: 'none',
-                            borderRadius: 8,
-                            cursor: 'pointer',
-                            fontSize: 16,
-                            fontWeight: 700,
-                            boxShadow: '0 0 8px 0 rgba(29,134,143,0.10)',
-                          }}
-                        >
-                          ערוך
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteClick(customer.id, customer.name);
-                          }}
-                          disabled={isDeleting === customer.id}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: isDeleting === customer.id ? 'not-allowed' : 'pointer',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            opacity: isDeleting === customer.id ? 0.5 : 1,
-                          }}
-                          aria-label="מחק לקוח"
-                          title="מחק לקוח"
-                        >
-                          <X 
-                            size={20} 
-                            style={{ color: '#9B0003' }}
-                          />
-                        </button>
-                      </div>
-                    </td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 18, color: '#19183B' }}>
+                <thead>
+                  <tr style={{ background: '#EDF1F5', borderBottom: '1px solid #e5e7eb' }}>
+                    <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>שם</th>
+                    <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>אימייל</th>
+                    <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>טלפון</th>
+                    <th style={{ padding: 20, textAlign: 'right', fontWeight: 700 }}>נייד</th>
+                    <th style={{ padding: 20, textAlign: 'center', fontWeight: 700 }}>פעולות</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {filteredCustomers.map((customer, idx) => (
+                    <tr
+                      key={customer.id}
+                      style={{
+                        borderBottom: idx < filteredCustomers.length - 1 ? '1px solid #EDF1F5' : 'none',
+                        cursor: 'pointer',
+                        background: idx % 2 === 0 ? '#FFF' : '#F9FAFB',
+                      }}
+                      onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
+                    >
+                      <td style={{ padding: 20, fontWeight: 600 }}>{customer.name}</td>
+                      <td style={{ padding: 20, opacity: 0.8 }}>{customer.email || '-'}</td>
+                      <td style={{ padding: 20, opacity: 0.8, direction: 'ltr', textAlign: 'right' }}>
+                        {customer.phone || '-'}
+                      </td>
+                      <td style={{ padding: 20, opacity: 0.8, direction: 'ltr', textAlign: 'right' }}>
+                        {customer.mobile || '-'}
+                      </td>
+                      <td style={{ padding: 20, textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/dashboard/customers/${customer.id}`);
+                            }}
+                            style={{
+                              padding: '8px 18px',
+                              background: '#1D868F',
+                              color: '#FFF',
+                              border: 'none',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              fontSize: 16,
+                              fontWeight: 700,
+                              boxShadow: '0 0 8px 0 rgba(29,134,143,0.10)',
+                            }}
+                          >
+                            ערוך
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(customer.id, customer.name);
+                            }}
+                            disabled={isDeleting === customer.id}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: isDeleting === customer.id ? 'not-allowed' : 'pointer',
+                              padding: '4px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: isDeleting === customer.id ? 0.5 : 1,
+                            }}
+                            aria-label="מחק לקוח"
+                            title="מחק לקוח"
+                          >
+                            <X 
+                              size={20} 
+                              style={{ color: '#9B0003' }}
+                            />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

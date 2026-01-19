@@ -168,8 +168,9 @@ export default function CustomerFormClient({ customer }: Props) {
       <form onSubmit={handleSubmit} className="ui-section-gap">
         {/* Basic Info Section */}
         <FormSection title="פרטי לקוח בסיסיים">
-          <div className="ui-form-grid-customer">
-                <FieldWrapper label="שם העסק / לקוח" required id="name">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="שם העסק / לקוח" required id="name" className="w-full min-w-0">
                   <Input
                     id="name"
                     type="text"
@@ -180,7 +181,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר עוסק (ת.ז / ח.פ)" id="tax_id">
+                <FieldWrapper label="מספר עוסק (ת.ז / ח.פ)" id="tax_id" className="w-full min-w-0">
                   <Input
                     id="tax_id"
                     type="text"
@@ -192,7 +193,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="עיסוק ומקצוע" id="profession">
+                <FieldWrapper label="עיסוק ומקצוע" id="profession" className="w-full min-w-0">
                   <Input
                     id="profession"
                     type="text"
@@ -202,12 +203,14 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
           </div>
+          </div>
         </FormSection>
 
         {/* Contact Section */}
         <FormSection title="פרטי התקשרות">
-          <div className="ui-form-grid-customer">
-                <FieldWrapper label="איש קשר" id="contact_person">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="איש קשר" id="contact_person" className="w-full min-w-0">
                   <Input
                     id="contact_person"
                     type="text"
@@ -217,7 +220,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="טלפון" id="phone">
+                <FieldWrapper label="טלפון" id="phone" className="w-full min-w-0">
                   <Input
                     id="phone"
                     type="tel"
@@ -229,7 +232,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="טלפון נוסף" id="phone_secondary">
+                <FieldWrapper label="טלפון נוסף" id="phone_secondary" className="w-full min-w-0">
                   <Input
                     id="phone_secondary"
                     type="tel"
@@ -241,7 +244,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="נייד" id="mobile">
+                <FieldWrapper label="נייד" id="mobile" className="w-full min-w-0">
                   <Input
                     id="mobile"
                     type="tel"
@@ -253,7 +256,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="דוא״ל" id="email">
+                <FieldWrapper label="דוא״ל" id="email" className="w-full min-w-0">
                   <Input
                     id="email"
                     type="email"
@@ -265,12 +268,14 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
           </div>
+          </div>
         </FormSection>
 
         {/* Address Section */}
         <FormSection title="כתובת">
-          <div className="ui-form-grid-customer">
-                <FieldWrapper label="רחוב" id="address_street">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="רחוב" id="address_street" className="w-full min-w-0">
                   <Input
                     id="address_street"
                     type="text"
@@ -280,7 +285,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר" id="address_number">
+                <FieldWrapper label="מספר" id="address_number" className="w-full min-w-0">
                   <Input
                     id="address_number"
                     type="text"
@@ -290,7 +295,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="יישוב" id="address_city">
+                <FieldWrapper label="יישוב" id="address_city" className="w-full min-w-0">
                   <Input
                     id="address_city"
                     type="text"
@@ -300,7 +305,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מיקוד" id="address_zip">
+                <FieldWrapper label="מיקוד" id="address_zip" className="w-full min-w-0">
                   <Input
                     id="address_zip"
                     type="text"
@@ -311,7 +316,7 @@ export default function CustomerFormClient({ customer }: Props) {
                     className="text-left"
                   />
                 </FieldWrapper>
-            <FieldWrapper label="מדינה" id="address_country">
+            <FieldWrapper label="מדינה" id="address_country" className="w-full min-w-0">
               <Input
                 id="address_country"
                 type="text"
@@ -321,12 +326,14 @@ export default function CustomerFormClient({ customer }: Props) {
               />
             </FieldWrapper>
           </div>
+          </div>
         </FormSection>
 
         {/* Accounting Section */}
         <FormSection title="פרטים חשבונאיים">
-          <div className="ui-form-grid-customer">
-                <FieldWrapper label="תנאי תשלום" id="payment_terms_text">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="תנאי תשלום" id="payment_terms_text" className="w-full min-w-0">
                   <Select 
                     value={formData.payment_terms_text} 
                     onValueChange={(value) => setFormData(prev => ({...prev, payment_terms_text: value}))}
@@ -347,7 +354,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   </Select>
                 </FieldWrapper>
 
-                <FieldWrapper label="מפתח לקוח" id="external_account_key">
+                <FieldWrapper label="מפתח לקוח" id="external_account_key" className="w-full min-w-0">
                   <Input
                     id="external_account_key"
                     type="text"
@@ -357,14 +364,16 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
           </div>
+          </div>
         </FormSection>
 
         {/* Bank Details Section */}
         <FormSection 
           title="פרטי חשבון בנק"
         >
-          <div className="ui-form-grid-customer">
-                <FieldWrapper label="שם הבנק" id="bank_name">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="שם הבנק" id="bank_name" className="w-full min-w-0">
                   <Input
                     id="bank_name"
                     type="text"
@@ -374,7 +383,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר סניף" id="bank_branch">
+                <FieldWrapper label="מספר סניף" id="bank_branch" className="w-full min-w-0">
                   <Input
                     id="bank_branch"
                     type="text"
@@ -386,7 +395,7 @@ export default function CustomerFormClient({ customer }: Props) {
                   />
                 </FieldWrapper>
 
-                <FieldWrapper label="מספר חשבון" id="bank_account">
+                <FieldWrapper label="מספר חשבון" id="bank_account" className="w-full min-w-0">
                   <Input
                     id="bank_account"
                     type="text"
@@ -397,6 +406,7 @@ export default function CustomerFormClient({ customer }: Props) {
                     className="text-left"
                   />
                 </FieldWrapper>
+          </div>
           </div>
         </FormSection>
 
