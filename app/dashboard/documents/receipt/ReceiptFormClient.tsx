@@ -582,68 +582,78 @@ export default function ReceiptFormClient({
 
           <form className="ui-section-gap">
             <FormSection title="פרטי לקוח" description="בחר לקוח קיים או הזן שם חדש">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 lg:gap-[50px]">
-                <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="min-w-0">
-                  <div ref={customerNameRef}>
-                    <CustomerAutocomplete
-                      value={customerName}
-                      onChange={(value) => {
-                        setCustomerName(value);
-                        if (customerNameError && value.trim().length > 0) setCustomerNameError(null);
-                      }}
-                      onSelectCustomer={(customer) => {
-                        if (customer) {
-                          setCustomerId(customer.id);
-                          setCustomerNameError(null);
-                        }
-                      }}
-                      onAddNewCustomer={() => setShowQuickAddModal(true)}
-                      placeholder="התחל להקליד שם לקוח..."
-                    />
-                  </div>
-                </FieldWrapper>
+              <div
+                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+              >
+                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="min-w-0">
+                    <div ref={customerNameRef}>
+                      <CustomerAutocomplete
+                        value={customerName}
+                        onChange={(value) => {
+                          setCustomerName(value);
+                          if (customerNameError && value.trim().length > 0) setCustomerNameError(null);
+                        }}
+                        onSelectCustomer={(customer) => {
+                          if (customer) {
+                            setCustomerId(customer.id);
+                            setCustomerNameError(null);
+                          }
+                        }}
+                        onAddNewCustomer={() => setShowQuickAddModal(true)}
+                        placeholder="התחל להקליד שם לקוח..."
+                      />
+                    </div>
+                  </FieldWrapper>
 
-                <FieldWrapper label="תאריך מסמך" required id="documentDate" className="min-w-0">
-                  <div className="min-w-0 w-full">
-                    <DateInput
-                      id="documentDate"
-                      value={documentDate}
-                      onChange={(value) => {
-                        if (minAllowedDate && value < minAllowedDate) setDocumentDate(minAllowedDate);
-                        else setDocumentDate(value);
-                      }}
-                      min={minAllowedDate || undefined}
-                      aria-required="true"
-                    />
-                  </div>
-                </FieldWrapper>
+                  <FieldWrapper label="תאריך מסמך" required id="documentDate" className="min-w-0">
+                    <div className="min-w-0 w-full">
+                      <DateInput
+                        id="documentDate"
+                        value={documentDate}
+                        onChange={(value) => {
+                          if (minAllowedDate && value < minAllowedDate) setDocumentDate(minAllowedDate);
+                          else setDocumentDate(value);
+                        }}
+                        min={minAllowedDate || undefined}
+                        aria-required="true"
+                      />
+                    </div>
+                  </FieldWrapper>
+                </div>
               </div>
             </FormSection>
 
             <FormSection title="פרטי המסמך" description="תיאור התשלום או השירות">
-              <FieldWrapper
-                label="תיאור"
-                required
-                error={descriptionError}
-                id="description"
-                hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
-                className="ui-field-wide"
+              <div
+                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                <Input
-                  id="description"
-                  ref={descriptionInputRef}
-                  value={description}
-                  onChange={(e) => {
-                    setDescription(e.target.value);
-                    if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
-                  }}
-                  placeholder="הזן תיאור..."
-                  className={descriptionError ? "border-danger" : ""}
-                  aria-required="true"
-                  aria-invalid={!!descriptionError}
-                  aria-describedby={descriptionError ? "description-error" : "description-hint"}
-                />
-              </FieldWrapper>
+                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FieldWrapper
+                    label="תיאור"
+                    required
+                    error={descriptionError}
+                    id="description"
+                    hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
+                    className="ui-field-wide"
+                  >
+                    <Input
+                      id="description"
+                      {...({ ref: descriptionInputRef } as any)}
+                      value={description}
+                      onChange={(e) => {
+                        setDescription(e.target.value);
+                        if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
+                      }}
+                      placeholder="הזן תיאור..."
+                      className={descriptionError ? "border-danger" : ""}
+                      aria-required="true"
+                      aria-invalid={!!descriptionError}
+                      aria-describedby={descriptionError ? "description-error" : "description-hint"}
+                    />
+                  </FieldWrapper>
+                </div>
+              </div>
             </FormSection>
 
             {/* Payments Section (UPDATED LAYOUT) */}
@@ -862,27 +872,31 @@ export default function ReceiptFormClient({
             </FormSection>
 
             <FormSection title="הערות">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FieldWrapper label="הערות שיופיעו במסמך" id="notes" className="min-w-0">
-                  <Textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="חשוב לדעת..."
-                    className="min-h-[100px] resize-y"
-                    aria-describedby="notes-hint"
-                  />
-                </FieldWrapper>
+              <div
+                className="relative px-4 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] shadow-[0_0_13px_0_rgba(0,0,0,0.10)] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+              >
+                <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FieldWrapper label="הערות שיופיעו במסמך" id="notes" className="min-w-0">
+                    <Textarea
+                      id="notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="חשוב לדעת..."
+                      className="min-h-[100px] resize-y"
+                      aria-describedby="notes-hint"
+                    />
+                  </FieldWrapper>
 
-                <FieldWrapper label="הערות שיופיעו בגוף המייל" id="emailNotes" className="min-w-0">
-                  <Textarea
-                    id="emailNotes"
-                    value={emailNotes}
-                    onChange={(e) => setEmailNotes(e.target.value)}
-                    placeholder="חשוב לדעת..."
-                    className="min-h-[100px] resize-y"
-                  />
-                </FieldWrapper>
+                  <FieldWrapper label="הערות שיופיעו בגוף המייל" id="emailNotes" className="min-w-0">
+                    <Textarea
+                      id="emailNotes"
+                      value={emailNotes}
+                      onChange={(e) => setEmailNotes(e.target.value)}
+                      placeholder="חשוב לדעת..."
+                      className="min-h-[100px] resize-y"
+                    />
+                  </FieldWrapper>
+                </div>
               </div>
             </FormSection>
 

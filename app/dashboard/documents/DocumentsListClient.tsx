@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -76,7 +76,7 @@ function normalizeStatus(raw: string | null | undefined): "open" | "pending" | "
   return null;
 }
 
-function getStatusBadge(statusRaw: string): { label: string; style: React.CSSProperties } {
+function getStatusBadge(statusRaw: string): { label: string; style: CSSProperties } {
   const status = normalizeStatus(statusRaw);
   if (!status) {
     return {
@@ -155,6 +155,12 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   const [clientLoading, setClientLoading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
 
+  const searchFiltersCardRef = useRef<HTMLDivElement | null>(null);
+  const searchFiltersGridRef = useRef<HTMLDivElement | null>(null);
+  const searchFiltersItemSearchRef = useRef<HTMLDivElement | null>(null);
+  const searchFiltersItemDocTypeRef = useRef<HTMLDivElement | null>(null);
+  const searchFiltersItemDateRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
     const apply = () => setIsMobile(mq.matches);
@@ -162,6 +168,175 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     mq.addEventListener?.("change", apply);
     return () => mq.removeEventListener?.("change", apply);
   }, []);
+
+  useEffect(() => {
+    // #region agent log: docs-filters-grid-1
+    const card = searchFiltersCardRef.current;
+    const grid = searchFiltersGridRef.current;
+    const itemSearch = searchFiltersItemSearchRef.current;
+    const itemDocType = searchFiltersItemDocTypeRef.current;
+    const itemDate = searchFiltersItemDateRef.current;
+    if (!card || !grid) return;
+    const cs = window.getComputedStyle(grid);
+    const cols = cs.gridTemplateColumns;
+    const gap = cs.gap;
+    const colCount = cols ? cols.split(" ").filter(Boolean).length : null;
+    const cardW = Math.round(card.getBoundingClientRect().width);
+    const gridW = Math.round(grid.getBoundingClientRect().width);
+    const itemWidths = {
+      search: itemSearch ? Math.round(itemSearch.getBoundingClientRect().width) : null,
+      docType: itemDocType ? Math.round(itemDocType.getBoundingClientRect().width) : null,
+      date: itemDate ? Math.round(itemDate.getBoundingClientRect().width) : null,
+    };
+    const itemMinWidths = {
+      search: itemSearch ? window.getComputedStyle(itemSearch).minWidth : null,
+      docType: itemDocType ? window.getComputedStyle(itemDocType).minWidth : null,
+      date: itemDate ? window.getComputedStyle(itemDate).minWidth : null,
+    };
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "docs-filters-grid-1",
+        hypothesisId: "A",
+        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersGrid",
+        message: "Search & Filters layout measurements",
+        data: {
+          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
+          isMobile,
+          cardW,
+          gridW,
+          gridTemplateColumns: cols,
+          gridColCount: colCount,
+          gridGap: gap,
+          itemWidths,
+          itemMinWidths,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion agent log: docs-filters-grid-1
+  }, [isMobile]);
+
+  useEffect(() => {
+    // #region agent log: docs-filters-align-1
+    const itemSearch = searchFiltersItemSearchRef.current;
+    const itemDocType = searchFiltersItemDocTypeRef.current;
+    const itemDate = searchFiltersItemDateRef.current;
+    if (!itemSearch || !itemDocType || !itemDate) return;
+
+    const searchControl = itemSearch.querySelector("input,button,select,textarea") as HTMLElement | null;
+    const docTypeControl = itemDocType.querySelector("input,button,select,textarea") as HTMLElement | null;
+    const dateControl = itemDate.querySelector("input,button,select,textarea") as HTMLElement | null;
+
+    const searchLabel = itemSearch.querySelector("label") as HTMLElement | null;
+    const docTypeLabel = itemDocType.querySelector("label") as HTMLElement | null;
+    const dateLabel = itemDate.querySelector("label") as HTMLElement | null;
+
+    const rect = (el: HTMLElement | null) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), height: Math.round(r.height) };
+    };
+
+    const cs = (el: HTMLElement | null) => {
+      if (!el) return null;
+      const s = window.getComputedStyle(el);
+      return {
+        marginTop: s.marginTop,
+        marginBottom: s.marginBottom,
+        paddingTop: s.paddingTop,
+        paddingBottom: s.paddingBottom,
+        lineHeight: s.lineHeight,
+        alignSelf: s.alignSelf,
+      };
+    };
+
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "docs-filters-align-1",
+        hypothesisId: "B",
+        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersAlign",
+        message: "Search & Filters control top alignment",
+        data: {
+          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
+          isMobile,
+          itemRects: {
+            search: rect(itemSearch),
+            docType: rect(itemDocType),
+            date: rect(itemDate),
+          },
+          labelRects: {
+            search: rect(searchLabel),
+            docType: rect(docTypeLabel),
+            date: rect(dateLabel),
+          },
+          controlRects: {
+            search: rect(searchControl),
+            docType: rect(docTypeControl),
+            date: rect(dateControl),
+          },
+          controlComputed: {
+            search: cs(searchControl),
+            docType: cs(docTypeControl),
+            date: cs(dateControl),
+          },
+          labelComputed: {
+            search: cs(searchLabel),
+            docType: cs(docTypeLabel),
+            date: cs(dateLabel),
+          },
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion agent log: docs-filters-align-1
+  }, [isMobile, search, documentType, dateFilter.kind, dateFilter.label]);
+
+  useEffect(() => {
+    // #region agent log: docs-filters-responsive-1
+    const card = searchFiltersCardRef.current;
+    const grid = searchFiltersGridRef.current;
+    if (!card || !grid) return;
+
+    const de = document.documentElement;
+    const body = document.body;
+    const csGrid = window.getComputedStyle(grid);
+    const cols = csGrid.gridTemplateColumns;
+    const colCount = cols ? cols.split(" ").filter(Boolean).length : null;
+
+    const cardRect = card.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "docs-filters-responsive-1",
+        hypothesisId: "C",
+        location: "app/dashboard/documents/DocumentsListClient.tsx:searchFiltersResponsive",
+        message: "Search & Filters responsive + overflow signals",
+        data: {
+          innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
+          visualViewportW: typeof window !== "undefined" && window.visualViewport ? Math.round(window.visualViewport.width) : null,
+          isMobile,
+          docEl: { clientWidth: de.clientWidth, scrollWidth: de.scrollWidth },
+          body: { clientWidth: body.clientWidth, scrollWidth: body.scrollWidth },
+          card: { width: Math.round(cardRect.width), left: Math.round(cardRect.left), right: Math.round(cardRect.right) },
+          grid: { width: Math.round(gridRect.width), left: Math.round(gridRect.left), right: Math.round(gridRect.right) },
+          gridTemplateColumns: cols,
+          gridColCount: colCount,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion agent log: docs-filters-responsive-1
+  }, [isMobile]);
 
 
 
@@ -331,7 +506,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     if (!response.ok) {
       throw new Error("שגיאה בהורדת המסמך");
     }
-
     // Prefer server-provided filename (already <documentNumber>-<lang>.pdf)
     const contentDisposition = response.headers.get("content-disposition") || "";
     const mQuoted = contentDisposition.match(/filename="([^"]+)"/i);
@@ -418,298 +592,315 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   }
 
   const dateTriggerLabel = dateFilter.label;
-  const customRangePreview = customFrom && customTo ? `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(customTo)}` : "DD/MM/YYYY – DD/MM/YYYY";
+  const customRangePreview =
+    customFrom && customTo ? `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(customTo)}` : "DD/MM/YYYY – DD/MM/YYYY";
 
   return (
-    <div className="ui-container pt-10" style={{ minHeight: '100vh' }}>
+    <div className="ui-container pt-10" style={{ minHeight: "100vh" }}>
       {/* Page Header */}
       <div className="mb-[50px]">
-        <h1 className="text-right mb-4">
-          מסמכים
-        </h1>
-        <p className="text-right">
-          {totalCount} מסמכים סה״כ
-        </p>
+        <h1 className="text-right mb-4">מסמכים</h1>
+        <p className="text-right">{totalCount} מסמכים סה״כ</p>
       </div>
 
       {/* Search Section */}
       <FormSection title="חיפוש וסינון">
-        <div className="ui-form-grid">
-          <FieldWrapper label="חיפוש לפי מספר מסמך או שם לקוח" id="search">
-            <input
-              id="search"
-              type="text"
-              placeholder="חיפוש לפי מספר מסמך או שם לקוח..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  applyFilters();
-                }
-              }}
-              className="ui-filter-input"
-            />
-          </FieldWrapper>
-
-          <FieldWrapper label="סוג מסמך" id="documentType">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="secondary" className="ui-dd-trigger">
-                  <span>
-                    {selectedDocTypes.size === 0 || isAllDocTypesSelected
-                      ? "כל המסמכים"
-                      : selectedDocTypes.size === 1
-                      ? Array.from(selectedDocTypes)[0] === "receipt"
-                        ? "קבלות"
-                        : getDocumentTypeLabel(Array.from(selectedDocTypes)[0])
-                      : `${selectedDocTypes.size} סוגי מסמכים`}
-                  </span>
-                  <span>▾</span>
-                </Button>
-              </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="ui-dd-content min-w-[260px]" style={{ direction: "rtl" }}>
-                <DropdownMenuCheckboxItem
-                  className="ui-dd-check"
-                  checked={isAllDocTypesSelected}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setSelectedDocTypes(() => (isAllDocTypesSelected ? new Set() : new Set(documentTypeOptions)));
+        <div
+          ref={searchFiltersCardRef}
+          className="relative w-full max-w-full px-4 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
+          style={{
+            backgroundColor: "white",
+            borderRadius: "20px",
+            boxShadow: "0 0 13px 0 rgba(0, 0, 0, 0.10)",
+            border: "none",
+          }}
+        >
+          <div
+            ref={searchFiltersGridRef}
+            className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
+          >
+            <div ref={searchFiltersItemSearchRef} className="min-w-0">
+              <FieldWrapper label="חיפוש לפי מספר מסמך או שם לקוח" id="search" className="w-full min-w-0">
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="חיפוש לפי מספר מסמך או שם לקוח..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      applyFilters();
+                    }
                   }}
-                >
-                  <span className="ui-dd-check-label">כל המסמכים</span>
-                </DropdownMenuCheckboxItem>
+                  className="ui-filter-input"
+                />
+              </FieldWrapper>
+            </div>
 
-                <DropdownMenuSeparator className="ui-dd-sep" />
+            <div ref={searchFiltersItemDocTypeRef} className="min-w-0">
+              <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="secondary" className="ui-dd-trigger">
+                      <span>
+                        {selectedDocTypes.size === 0 || isAllDocTypesSelected
+                          ? "כל המסמכים"
+                          : selectedDocTypes.size === 1
+                          ? Array.from(selectedDocTypes)[0] === "receipt"
+                            ? "קבלות"
+                            : getDocumentTypeLabel(Array.from(selectedDocTypes)[0])
+                          : `${selectedDocTypes.size} סוגי מסמכים`}
+                      </span>
+                      <span>▾</span>
+                    </Button>
+                  </DropdownMenuTrigger>
 
-                {documentTypeOptions.map((t) => (
-                  <DropdownMenuCheckboxItem
-                    key={t}
-                    className="ui-dd-check"
-                    checked={selectedDocTypes.has(t) || isAllDocTypesSelected}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      setSelectedDocTypes((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(t)) next.delete(t);
-                        else next.add(t);
-                        return next;
-                      });
-                    }}
+                  <DropdownMenuContent align="end" className="ui-dd-content min-w-[260px]" style={{ direction: "rtl" }}>
+                    <DropdownMenuCheckboxItem
+                      className="ui-dd-check"
+                      checked={isAllDocTypesSelected}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setSelectedDocTypes(() => (isAllDocTypesSelected ? new Set() : new Set(documentTypeOptions)));
+                      }}
+                    >
+                      <span className="ui-dd-check-label">כל המסמכים</span>
+                    </DropdownMenuCheckboxItem>
+
+                    <DropdownMenuSeparator className="ui-dd-sep" />
+
+                    {documentTypeOptions.map((t) => (
+                      <DropdownMenuCheckboxItem
+                        key={t}
+                        className="ui-dd-check"
+                        checked={selectedDocTypes.has(t) || isAllDocTypesSelected}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setSelectedDocTypes((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(t)) next.delete(t);
+                            else next.add(t);
+                            return next;
+                          });
+                        }}
+                      >
+                        <span className="ui-dd-check-label">{t === "receipt" ? "קבלות" : getDocumentTypeLabel(t)}</span>
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </FieldWrapper>
+            </div>
+
+            {/* Date range filter block */}
+            <div ref={searchFiltersItemDateRef} className="min-w-0">
+              <FieldWrapper label="טווח תאריכים" id="dateRange" className="w-full min-w-0">
+                {isMobile ? (
+                  <Button
+                    id="dateRange"
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setDateSheetOpen(true)}
+                    className="ui-dd-trigger"
                   >
-                    <span className="ui-dd-check-label">{t === "receipt" ? "קבלות" : getDocumentTypeLabel(t)}</span>
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </FieldWrapper>
-
-          {/* Date range filter block */}
-          <div className="w-[300px] justify-self-end">
-            <label className="block mb-1 text-right">טווח תאריכים</label>
-            {isMobile ? (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setDateSheetOpen(true)}
-                className="ui-dd-trigger"
-              >
-                <span>{dateTriggerLabel}</span>
-                <span>▾</span>
-              </Button>
-            ) : (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="secondary" className="ui-dd-trigger">
                     <span>{dateTriggerLabel}</span>
                     <span>▾</span>
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="ui-dd-content"
-                  style={{
-                    direction: "rtl",
-                    maxWidth: "350px",
-                    // SaaS tokens (local override only)
-                    backgroundColor: "var(--input)",
-                    borderColor: "var(--input-border)",
-                    color: "var(--input-fg)",
-                  }}
-                >
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      const r = presetToRange("last7");
-                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
-                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
-                      setDateRangeError(null); // Clear any validation errors
-                      applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
-                    }}
-                  >
-                    7 ימים אחרונים
-                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button id="dateRange" type="button" variant="secondary" className="ui-dd-trigger">
+                        <span>{dateTriggerLabel}</span>
+                        <span>▾</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="ui-dd-content"
+                      style={{
+                        direction: "rtl",
+                        maxWidth: "350px",
+                        // SaaS tokens (local override only)
+                        backgroundColor: "var(--input)",
+                        borderColor: "var(--input-border)",
+                        color: "var(--input-fg)",
+                      }}
+                    >
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        const r = presetToRange("last7");
+                        setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                        setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                        setDateRangeError(null); // Clear any validation errors
+                        applyDateFilter({ kind: "preset", preset: "last7", ...r, label: "7 ימים אחרונים" });
+                      }}
+                    >
+                      7 ימים אחרונים
+                    </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      const r = presetToRange("last30");
-                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
-                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
-                      setDateRangeError(null); // Clear any validation errors
-                      applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
-                    }}
-                  >
-                    30 ימים אחרונים
-                  </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        const r = presetToRange("last30");
+                        setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                        setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                        setDateRangeError(null); // Clear any validation errors
+                        applyDateFilter({ kind: "preset", preset: "last30", ...r, label: "30 ימים אחרונים" });
+                      }}
+                    >
+                      30 ימים אחרונים
+                    </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      const r = presetToRange("last12mo");
-                      setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
-                      setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
-                      setDateRangeError(null); // Clear any validation errors
-                      applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
-                    }}
-                  >
-                    12 חודשים אחרונים
-                  </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        const r = presetToRange("last12mo");
+                        setCustomFrom(r.dateFrom); // Store in ISO format (YYYY-MM-DD)
+                        setCustomTo(r.dateTo); // Store in ISO format (YYYY-MM-DD)
+                        setDateRangeError(null); // Clear any validation errors
+                        applyDateFilter({ kind: "preset", preset: "last12mo", ...r, label: "12 חודשים אחרונים" });
+                      }}
+                    >
+                      12 חודשים אחרונים
+                    </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      const now = new Date();
-                      const y = now.getFullYear();
-                      const dateFrom = `${y}-01-01`;
-                      const dateTo = `${y}-12-31`;
-                      setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
-                      setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
-                      setDateRangeError(null); // Clear any validation errors
-                      applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
-                    }}
-                  >
-                    שנה נוכחית
-                  </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        const now = new Date();
+                        const y = now.getFullYear();
+                        const dateFrom = `${y}-01-01`;
+                        const dateTo = `${y}-12-31`;
+                        setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                        setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                        setDateRangeError(null); // Clear any validation errors
+                        applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה נוכחית (${y})` });
+                      }}
+                    >
+                      שנה נוכחית
+                    </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      const now = new Date();
-                      const y = now.getFullYear() - 1;
-                      const dateFrom = `${y}-01-01`;
-                      const dateTo = `${y}-12-31`;
-                      setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
-                      setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
-                      setDateRangeError(null); // Clear any validation errors
-                      applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
-                    }}
-                  >
-                    שנה קודמת
-                  </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        const now = new Date();
+                        const y = now.getFullYear() - 1;
+                        const dateFrom = `${y}-01-01`;
+                        const dateTo = `${y}-12-31`;
+                        setCustomFrom(dateFrom); // Store in ISO format (YYYY-MM-DD)
+                        setCustomTo(dateTo); // Store in ISO format (YYYY-MM-DD)
+                        setDateRangeError(null); // Clear any validation errors
+                        applyDateFilter({ kind: "calendarYear", year: y, dateFrom, dateTo, label: `שנה קודמת (${y})` });
+                      }}
+                    >
+                      שנה קודמת
+                    </DropdownMenuItem>
 
-                  <div className="px-2 pb-2 pt-1" dir="rtl">
-                    <div className="flex justify-start">
-                      <div className="grid w-[100%] grid-cols-2 gap-2">
-                        <DateInput
-                          className="h-[50px] !text-[18px]"
-                          value={customFrom}
-                          onChange={(newFromIso) => {
-                            setCustomFrom(newFromIso);
-                            setDateRangeError(null); // Clear error when user changes date
-                            
-                            // If "to date" exists and is earlier than new "from date", clear it
-                            if (customTo && newFromIso && customTo < newFromIso) {
-                              setCustomTo("");
-                              setDateRangeError(null);
-                              return;
-                            }
-                            
-                            // Apply filter if both dates are valid
-                            if (newFromIso && customTo) {
-                              if (customTo < newFromIso) {
-                                setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                    <div className="px-2 pb-2 pt-1" dir="rtl">
+                      <div className="flex justify-start">
+                        <div className="grid w-[100%] grid-cols-2 gap-2">
+                          <DateInput
+                            className="h-[50px] !text-[18px]"
+                            value={customFrom}
+                            onChange={(newFromIso) => {
+                              setCustomFrom(newFromIso);
+                              setDateRangeError(null); // Clear error when user changes date
+
+                              // If "to date" exists and is earlier than new "from date", clear it
+                              if (customTo && newFromIso && customTo < newFromIso) {
+                                setCustomTo("");
+                                setDateRangeError(null);
                                 return;
                               }
-                              setDateRangeError(null);
-                              applyDateFilter({
-                                kind: "custom",
-                                dateFrom: newFromIso,
-                                dateTo: customTo,
-                                label: `${formatDmyFromIso(newFromIso)} – ${formatDmyFromIso(customTo)}`,
-                              });
-                            }
-                          }}
-                          max={customTo || undefined}
-                          style={{
-                            borderColor: dateRangeError ? "#B91C1C" : undefined,
-                            borderWidth: dateRangeError ? "2px" : undefined,
-                          }}
-                        />
-                        <DateInput
-                          className="h-[50px] !text-[18px]"
-                          value={customTo}
-                          onChange={(newToIso) => {
-                            setCustomTo(newToIso);
-                            setDateRangeError(null); // Clear error when user changes date
-                            
-                            // Apply filter if both dates are valid
-                            if (customFrom && newToIso) {
-                              if (newToIso < customFrom) {
-                                setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
-                                return;
+
+                              // Apply filter if both dates are valid
+                              if (newFromIso && customTo) {
+                                if (customTo < newFromIso) {
+                                  setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                                  return;
+                                }
+                                setDateRangeError(null);
+                                applyDateFilter({
+                                  kind: "custom",
+                                  dateFrom: newFromIso,
+                                  dateTo: customTo,
+                                  label: `${formatDmyFromIso(newFromIso)} – ${formatDmyFromIso(customTo)}`,
+                                });
                               }
-                              setDateRangeError(null);
-                              applyDateFilter({
-                                kind: "custom",
-                                dateFrom: customFrom,
-                                dateTo: newToIso,
-                                label: `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(newToIso)}`,
-                              });
-                            }
-                          }}
-                          min={customFrom || undefined}
-                          style={{
-                            borderColor: dateRangeError ? "#B91C1C" : undefined,
-                            borderWidth: dateRangeError ? "2px" : undefined,
-                          }}
-                        />
+                            }}
+                            max={customTo || undefined}
+                            style={{
+                              borderColor: dateRangeError ? "#B91C1C" : undefined,
+                              borderWidth: dateRangeError ? "2px" : undefined,
+                            }}
+                          />
+                          <DateInput
+                            className="h-[50px] !text-[18px]"
+                            value={customTo}
+                            onChange={(newToIso) => {
+                              setCustomTo(newToIso);
+                              setDateRangeError(null); // Clear error when user changes date
+
+                              // Apply filter if both dates are valid
+                              if (customFrom && newToIso) {
+                                if (newToIso < customFrom) {
+                                  setDateRangeError("תאריך הסיום לא יכול להיות מוקדם מתאריך ההתחלה");
+                                  return;
+                                }
+                                setDateRangeError(null);
+                                applyDateFilter({
+                                  kind: "custom",
+                                  dateFrom: customFrom,
+                                  dateTo: newToIso,
+                                  label: `${formatDmyFromIso(customFrom)} – ${formatDmyFromIso(newToIso)}`,
+                                });
+                              }
+                            }}
+                            min={customFrom || undefined}
+                            style={{
+                              borderColor: dateRangeError ? "#B91C1C" : undefined,
+                              borderWidth: dateRangeError ? "2px" : undefined,
+                            }}
+                          />
+                        </div>
                       </div>
+                      {dateRangeError && (
+                        <div className="mt-2 text-right" style={{ color: "#B91C1C", fontSize: "14px" }}>
+                          {dateRangeError}
+                        </div>
+                      )}
                     </div>
-                    {dateRangeError && (
-                      <div className="mt-2 text-right" style={{ color: "#B91C1C", fontSize: "14px" }}>
-                        {dateRangeError}
-                      </div>
-                    )}
-                  </div>
 
-                  <DropdownMenuItem
-                    className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      clearDateFilter();
-                    }}
-                  >
-                    איפוס
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                    <DropdownMenuItem
+                      className="ui-dd-item w-full !justify-start text-left cursor-pointer hover:!bg-[var(--dropdown-item-hover)] data-[highlighted]:!bg-[var(--dropdown-item-hover)]"
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        clearDateFilter();
+                      }}
+                    >
+                      איפוס
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </FieldWrapper>
+            </div>
           </div>
-        </div>
 
-        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-          <Button onClick={applyFilters} style={{ height: "50px", fontSize: "18px" }}>
-            חפש
-          </Button>
-          <Button onClick={resetFilters} variant="secondary" style={{ height: "50px", fontSize: "18px" }}>
-            איפוס
-          </Button>
+          <div className="mt-[50px] flex gap-3">
+            <Button onClick={applyFilters} style={{ height: "50px", fontSize: "18px" }}>
+              חפש
+            </Button>
+            <Button onClick={resetFilters} variant="secondary" style={{ height: "50px", fontSize: "18px" }}>
+              איפוס
+            </Button>
+          </div>
         </div>
       </FormSection>
 

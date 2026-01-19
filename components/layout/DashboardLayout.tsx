@@ -281,7 +281,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const captureHorizontalOverflowSnapshot = React.useCallback((reason: string) => {
     try {
-      const runId = "hdrx-hamburger-mobile-1"
+      const runId = "hdrx-hamburger-swap-1"
       const html = document.documentElement
       const body = document.body
       const header = mobileHeaderRef.current
@@ -413,6 +413,52 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     captureHorizontalOverflowSnapshot(sidebarOpen ? "drawer_open" : "drawer_closed")
   }, [sidebarOpen, captureHorizontalOverflowSnapshot])
 
+  React.useEffect(() => {
+    // #region agent log: dash-main-metrics-1
+    const root = document.querySelector("div.flex.min-h-screen") as HTMLElement | null
+    const contentWrap = document.querySelector("div.relative.z-0.flex-1") as HTMLElement | null
+    const main = document.querySelector("main.w-full") as HTMLElement | null
+    if (!main) return
+
+    const rect = (el: HTMLElement | null) => {
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      return { left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) }
+    }
+
+    const cs = (el: HTMLElement | null) => {
+      if (!el) return null
+      const s = window.getComputedStyle(el)
+      return { minWidth: s.minWidth, width: s.width, maxWidth: s.maxWidth, overflowX: s.overflowX, transform: s.transform }
+    }
+
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: "debug-session",
+        runId: "dash-main-metrics-1",
+        hypothesisId: "D",
+        location: "components/layout/DashboardLayout.tsx:mainMetrics",
+        message: "Dashboard main/container metrics",
+        data: {
+          pathname: window.location?.pathname || null,
+          innerWidth: window.innerWidth,
+          visualViewportW: window.visualViewport ? Math.round(window.visualViewport.width) : null,
+          rootRect: rect(root),
+          contentWrapRect: rect(contentWrap),
+          mainRect: rect(main),
+          rootStyle: cs(root),
+          contentWrapStyle: cs(contentWrap),
+          mainStyle: cs(main),
+          mainScroll: { clientWidth: main.clientWidth, scrollWidth: main.scrollWidth },
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+    // #endregion agent log: dash-main-metrics-1
+  }, [sidebarOpen])
+
   return (
     <div className="flex min-h-screen text-fg overflow-x-hidden" dir="rtl" style={{ backgroundColor: '#EDF1F5' }}>
       {/* Main Content Area */}
@@ -429,18 +475,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               aria-expanded={sidebarOpen}
               aria-controls="mobile-sidebar"
             >
-              <span className="relative block h-6 w-6" aria-hidden="true">
-                <Menu
-                  className={`absolute inset-0 h-6 w-6 transition-all duration-200 ${
-                    sidebarOpen ? "opacity-0 rotate-90 scale-75" : "opacity-100 rotate-0 scale-100"
-                  }`}
-                />
-                <X
-                  className={`absolute inset-0 h-6 w-6 transition-all duration-200 ${
-                    sidebarOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 -rotate-90 scale-75"
-                  }`}
-                />
-              </span>
+              {sidebarOpen ? (
+                <X className="h-6 w-6 text-white transition-transform duration-200 rotate-0 scale-100" aria-hidden="true" />
+              ) : (
+                <Menu className="h-6 w-6 transition-transform duration-200 rotate-0 scale-100" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
