@@ -401,7 +401,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">

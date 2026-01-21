@@ -147,9 +147,11 @@ export default function ReceiptSuccessModal({
     // the "original" button becomes "copy" but stays active
     const hebrewOriginal: ModalAction = {
       id: "original_he",
-      label: hasDownloadedOriginal 
-        ? "הורדת העתק נאמן למקור"
-        : (args.baseLanguage === "en" ? "הורדת מקור בעברית" : "הורדת מסמך מקור"),
+      label: args.baseLanguage === "he"
+        ? "הורדת מסמך מקור"
+        : hasDownloadedOriginal
+          ? "הורדת העתק נאמן למקור"
+          : "הורדת מקור בעברית",
       icon: <Download className="h-6 w-6 text-modal-fg" />,
       onClick: () => {
         if (hasDownloadedOriginal) {
@@ -161,10 +163,13 @@ export default function ReceiptSuccessModal({
           setOriginalIssued(true);
         }
       },
-      title: hasDownloadedOriginal
-        ? "הורדת העתק נאמן למקור (עברית)"
-        : "הורדת מסמך מקור (עברית, פעם אחת)",
+      title: args.baseLanguage === "he"
+        ? "הורדת מסמך מקור (עברית, פעם אחת)"
+        : hasDownloadedOriginal
+          ? "הורדת העתק נאמן למקור (עברית)"
+          : "הורדת מסמך מקור (עברית, פעם אחת)",
       variant: "primary",
+      disabled: false,
     };
 
     const hebrewCopy: ModalAction = {
@@ -178,10 +183,10 @@ export default function ReceiptSuccessModal({
 
     const englishCopy: ModalAction = {
       id: "copy_en",
-      label: "הורדת העתק באנגלית",
+      label: "הורדת העתק נאמן למקור (אנגלית)",
       icon: <FileText className="h-6 w-6 text-modal-fg" />,
       onClick: () => onDownloadEnglish({ issue: "copy" }),
-      title: "הורדת העתק באנגלית (Certified Copy)",
+      title: "הורדת העתק נאמן למקור (אנגלית)",
       variant: "secondary",
     };
 
@@ -203,6 +208,10 @@ export default function ReceiptSuccessModal({
   };
 
   const actions = buildReceiptSuccessActions({ baseLanguage, originalIssued });
+
+  useEffect(() => {
+    if (!isOpen) return;
+  }, [isOpen, baseLanguage, originalIssued, actions.topRow]);
 
   return (
     <div

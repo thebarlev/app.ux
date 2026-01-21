@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { isPdfDebugEnabled, logPdfEvent, type PdfLogContext } from "@/lib/pdf-logger"
 import { 
   compileAndRender, 
   generatePDFFromHTML, 
@@ -639,28 +640,56 @@ export async function prepareDocumentData(
   // Enhanced payment details builder - includes all relevant fields from user input
   const buildPaymentDetails = (p: any) => {
     const parts: string[] = []
+    const includedKeys: string[] = []
     const isEn = documentLanguage === "en"
+    const hasCheck = !!p.check_number
+    const hasRef = !!p.reference_number
+    const hasTxn = !!p.transaction_id
+    const hasNotes = !!p.notes
+    const hasBank = !!p.bank_name
+    const hasBranch = !!p.branch
+    const hasAccount = !!p.account_number
+    const dupCheckRef = hasCheck && hasRef && String(p.check_number) === String(p.reference_number)
     
     // Reference number / Transaction ID
-    if (p.reference_number) parts.push(p.reference_number)
+    if (p.reference_number && !(dupCheckRef && p.check_number)) {
+      parts.push(p.reference_number)
+      includedKeys.push("reference_number")
+    }
     if (p.transaction_id && p.transaction_id !== p.reference_number) {
-      parts.push(isEn ? `${p.transaction_id}` : `עסקה: ${p.transaction_id}`)
+      parts.push(`${p.transaction_id}`)
+      includedKeys.push("transaction_id")
     }
     
     // Bank transfer details
-    if (p.bank_name) parts.push(p.bank_name)
-    if (p.branch) parts.push(isEn ? `${p.branch}` : `סניף: ${p.branch}`)
-    if (p.account_number) parts.push(isEn ? `${p.account_number}` : `חשבון: ${p.account_number}`)
+    if (p.bank_name) {
+      parts.push(p.bank_name)
+      includedKeys.push("bank_name")
+    }
+    if (p.branch) {
+      parts.push(`${p.branch}`)
+      includedKeys.push("branch")
+    }
+    if (p.account_number) {
+      parts.push(`${p.account_number}`)
+      includedKeys.push("account_number")
+    }
     
     // Digital wallet / Payer account
-    if (p.payerAccount) parts.push(isEn ? `${p.payerAccount}` : `חשבון משלם: ${p.payerAccount}`)
+    if (p.payerAccount) {
+      parts.push(`${p.payerAccount}`)
+      includedKeys.push("payerAccount")
+    }
     
     // Check details
-    if (p.check_number) parts.push(isEn ? `${p.check_number}` : `צ׳ק מס׳ ${p.check_number}`)
+    if (p.check_number) {
+      parts.push(`${p.check_number}`)
+      includedKeys.push("check_number")
+    }
     
     // Credit card details - all fields from user input
     if (p.card_last4) {
-      const cardParts: string[] = [isEn ? `*${p.card_last4}` : `כרטיס: *${p.card_last4}`]
+      const cardParts: string[] = [`*${p.card_last4}`]
       if (p.cardType) cardParts.push(p.cardType)
       if (p.cardDealType) {
         const dealTypeMap: Record<string, string> = isEn
@@ -678,14 +707,18 @@ export async function prepareDocumentData(
             }
         cardParts.push(dealTypeMap[p.cardDealType] || p.cardDealType)
       }
-      if (p.cardInstallments) cardParts.push(isEn ? `${p.cardInstallments}` : `${p.cardInstallments} תשלומים`)
-      parts.push(isEn ? cardParts.join(", ") : cardParts.join(" - "))
+      if (p.cardInstallments) cardParts.push(`${p.cardInstallments}`)
+      parts.push(cardParts.join(", "))
+      includedKeys.push("card_last4")
     }
     
     // Notes / Description
-    if (p.notes) parts.push(p.notes)
+    if (p.notes) {
+      parts.push(p.notes)
+      includedKeys.push("notes")
+    }
     
-    const joined = parts.join(isEn ? ", " : " | ").trim()
+    const joined = parts.join(", ").trim()
 
     return joined
   }
@@ -879,6 +912,7 @@ export async function prepareDocumentData(
   }
 
   // Build template data structure  
+  const resolvedCustomerName = doc.customer?.name || doc.customer_name || ""
   const templateData: ReceiptTemplateData & Record<string, any> = {
     t,
     DOCUMENT_COPY_LABEL: options?.documentCopyLabel ?? "",
@@ -896,13 +930,13 @@ export async function prepareDocumentData(
       company_logo: logoUrl || null, // Use signed URL if available, null if no logo
     } as any,
     customer: doc.customer ? {
-      customer_name: doc.customer.name || "",
+      customer_name: resolvedCustomerName,
       customer_tax_id: doc.customer.tax_id || null,
       customer_email: doc.customer.email || null,
       customer_phone: customerPhone,
       customer_address: customerAddress,
     } : {
-      customer_name: "",
+      customer_name: resolvedCustomerName,
     },
     document: {
       document_type: doc.document_type as any,
@@ -961,7 +995,7 @@ export async function prepareDocumentData(
     SIGNATURE_URL: signatureUrl || null, // Use signed URL if available, null if no signature (template can use {{#if}})
     
     // Customer legacy placeholders
-    CLIENTNAME: doc.customer?.name || "",
+    CLIENTNAME: resolvedCustomerName,
     BUSINESSID: doc.customer?.tax_id || "",
     CLIENTPHONE: customerPhone || "",
     CLIENTADDRESS: customerAddress || "",
@@ -985,7 +1019,7 @@ export async function prepareDocumentData(
     company_phone: companyPhone || "",
     company_email: doc.company?.email || "",
     company_logo: logoUrl || null, // Use signed URL if available, null if no logo
-    customer_name: doc.customer?.name || "",
+    customer_name: resolvedCustomerName,
     customer_tax_id: doc.customer?.tax_id || "",
     customer_phone: customerPhone || "",
     customer_address: customerAddress || "",
@@ -1062,9 +1096,18 @@ export async function generateDocumentPDF(
     language?: "he" | "en"; 
     mode?: "preview" | "final" | "recovery" | "copy";
     allowEnInFinalization?: boolean; // Allow EN only in finalization context
+    isIssuance?: boolean; // Explicit issuance context (allowed to generate)
+    requestId?: string;
+    context?: "preview" | "finalize" | "issue" | "recovery" | "download" | "view";
+    variant?: "original" | "copy";
   }
 ): Promise<PDFGenerationResult> {
-  console.log(`[generateDocumentPDF] Starting PDF generation for document: ${documentId}`)
+  const pdfDebugEnabled = isPdfDebugEnabled()
+  if (pdfDebugEnabled) {
+    console.log(`[generateDocumentPDF] Starting PDF generation for document: ${documentId}`)
+  }
+  const pdfStartedAt = Date.now()
+  const requestId = options?.requestId || "unknown"
   
   // Use admin client for ALL operations (ONE SOURCE OF TRUTH - server-side only)
   let adminClient: ReturnType<typeof createAdminClient>
@@ -1086,12 +1129,14 @@ export async function generateDocumentPDF(
       .single()
     
     // Log document_number for debugging
-    console.log(`[generateDocumentPDF] Document number from DB:`, {
-      documentId,
-      document_number: doc?.document_number || 'NULL',
-      document_number_type: typeof doc?.document_number,
-      document_number_length: doc?.document_number?.length || 0,
-    })
+    if (pdfDebugEnabled) {
+      console.log(`[generateDocumentPDF] Document number from DB:`, {
+        documentId,
+        document_number: doc?.document_number || 'NULL',
+        document_number_type: typeof doc?.document_number,
+        document_number_length: doc?.document_number?.length || 0,
+      })
+    }
     if (docError || !doc) {      return {
         success: false,
         error: "Document not found",
@@ -1109,6 +1154,28 @@ export async function generateDocumentPDF(
     const docLanguage: "he" | "en" = ((doc as any)?.language as any) || "he"
     const targetLanguage: "he" | "en" = options?.language || docLanguage
     const pdfMode = options?.mode || "preview"
+    const context =
+      options?.context ||
+      (pdfMode === "final" ? "issue" : pdfMode === "copy" ? "view" : pdfMode === "preview" ? "preview" : pdfMode)
+    const resolvedContext = context as PdfLogContext
+
+    // Hard guard: preview must never use generateDocumentPDF
+    if (pdfMode === "preview" || resolvedContext === "preview") {
+      logPdfEvent("core", "PREVIEW_RENDERED_NO_STORAGE_WRITE", {
+        docId: documentId,
+        requestId,
+        context: "preview",
+        lang: targetLanguage,
+        result: "MISSING",
+        source: "generateDocumentPDF",
+        timingMs: Date.now() - pdfStartedAt,
+        businessId: doc.company_id,
+      })
+      return {
+        success: false,
+        error: "PREVIEW_MUST_USE_GENERATE_PREVIEW",
+      }
+    }
 
     // Regulatory: originals are Hebrew-only.
     // Allow EN only if explicitly allowed (from finalizeDocument context)
@@ -1122,35 +1189,103 @@ export async function generateDocumentPDF(
     }
 
     // Regulatory UX:
-    // - Hebrew is the only "Original"
-    // - English is always a "Certified Copy"
+    // - HE: embed label based on variant (original/copy) for regulatory marking
+    // - EN: certified copy label is always embedded
     const documentCopyLabel =
       targetLanguage === "en"
         ? "Certified Copy"
-        : pdfMode === "copy"
+        : options?.variant === "copy"
           ? "העתק נאמן למקור"
-          : (pdfMode === "final" || pdfMode === "recovery")
+          : options?.variant === "original"
             ? "מקור"
             : ""
 
-    // Regulatory check: If PDF already exists, return it (immutable) - only for base language.
-    // IMPORTANT: for `mode=copy` we must NOT reuse the stored original; copies are generated on-the-fly.
-    if (pdfMode !== "copy" && !options?.language && doc.pdf_storage_key) {
-      // Use admin client to verify file exists (bypasses RLS)
+
+    // Compute storage key early (immutable storage naming rules).
+    const storageKey =
+      targetLanguage === "he" && options?.variant
+        ? `documents/${documentId}/${options.variant}.he.pdf`
+        : `documents/${documentId}/source.${targetLanguage}.pdf`
+    const storageBucket = "business-assets"
+
+
+    // Regulatory check: If PDF already exists, return it (immutable).
+    // IMPORTANT: for `mode=copy` we must NOT reuse stored originals; copies are generated on-the-fly.
+    if (pdfMode !== "copy") {
+      const filename = storageKey.split("/").pop() || "source.pdf"
       const { data: fileData } = await adminClient.storage
         .from("business-assets")
         .list(`documents/${documentId}`, {
           limit: 1,
-          search: "source.pdf"
+          search: filename,
         })
 
       if (fileData && fileData.length > 0) {
-        console.log(`[generateDocumentPDF] PDF already exists for document ${documentId}, returning existing`)
+        if (pdfDebugEnabled) {
+          console.log(`[generateDocumentPDF] PDF already exists for document ${documentId}, returning existing`)
+        }
+        logPdfEvent("core", "PDF_RETURNED_STORED", {
+          docId: documentId,
+          requestId,
+          context: resolvedContext,
+          lang: targetLanguage,
+          result: "RETURNED_STORED",
+          bucket: storageBucket,
+          fullPath: storageKey,
+          timingMs: Date.now() - pdfStartedAt,
+          source: "generateDocumentPDF",
+          businessId: doc.company_id,
+        })
         return {
           success: true,
-          path: doc.pdf_storage_key, // Return storage key (bucket is private)
-          storageKey: doc.pdf_storage_key, // Explicit storageKey field
+          path: storageKey,
+          storageKey,
           buffer: undefined,
+        }
+      }
+
+      const pdfExpected =
+        doc.document_status === "final" ||
+        doc.document_status === "pdf_ready" ||
+        (!options?.language && !!doc.pdf_storage_key)
+
+      if (pdfExpected) {
+        console.error(`[generateDocumentPDF] PDF_MISSING_BUT_EXPECTED`, {
+          documentId,
+          documentStatus: doc.document_status,
+          pdfMode,
+          targetLanguage,
+          storageKey,
+        })
+        logPdfEvent("core", "PDF_MISSING_BUT_EXPECTED", {
+          docId: documentId,
+          requestId,
+          context: resolvedContext,
+          lang: targetLanguage,
+          result: "MISSING",
+          bucket: storageBucket,
+          fullPath: storageKey,
+          timingMs: Date.now() - pdfStartedAt,
+          source: "generateDocumentPDF",
+          businessId: doc.company_id,
+        })
+        return {
+          success: false,
+          error: "PDF_MISSING_BUT_EXPECTED",
+        }
+      }
+
+      if (!options?.isIssuance) {
+        console.error(`[generateDocumentPDF] PDF_NOT_ISSUED`, {
+          documentId,
+          documentStatus: doc.document_status,
+          pdfMode,
+          targetLanguage,
+          storageKey,
+        })
+        return {
+          success: false,
+          error: "PDF_NOT_ISSUED",
         }
       }
     }
@@ -1164,7 +1299,7 @@ export async function generateDocumentPDF(
     const template = await getTemplateForDocument(doc.company_id, doc.document_type as any, {
       language: targetLanguage,
       // IMPORTANT: For issuance (copy/final/recovery), do NOT fallback across languages.
-      allowFallbackToHe: pdfMode === "preview",
+      allowFallbackToHe: false,
     })
     
     const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
@@ -1194,16 +1329,31 @@ export async function generateDocumentPDF(
     const renderedHtmlWithMark = renderedHtml
     const cssWithMark = `${template.css || ""}`
     // 6. Generate PDF using Playwright with minimal margins to prevent 2-page output
-    console.log(`[generateDocumentPDF] Generating PDF buffer from HTML for document: ${documentId}`)
+    if (pdfDebugEnabled) {
+      console.log(`[generateDocumentPDF] Generating PDF buffer from HTML for document: ${documentId}`)
+    }
+    const footerDateTime = templateData.CURRENT_DATE_TIME || ""
+    const footerTemplate = `
+      <div style="font-family: Heebo, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
+<div style="border-top: 1px solid #e5e7eb; padding-top: 3mm; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
+  <span style="justify-self: start; text-align: right;">הופק ב-${footerDateTime}</span>
+  <span style="justify-self: center;">עמוד <span class="pageNumber"></span> מתוך <span class="totalPages"></span></span>
+  <span style="justify-self: end; text-align: left; direction: rtl; unicode-bidi: plaintext;">מסמך ממוחשב הופק על ידי thebarlev</span>
+</div>
+      </div>
+    `
     const pdfResult = await generatePDFFromHTML(renderedHtmlWithMark, cssWithMark, {
       format: "A4",
       printBackground: true,
       margin: {
         top: "3mm",     // Minimal top margin to start content higher
         right: "8mm",   // Minimal side margins
-        bottom: "3mm",  // Minimal bottom margin to prevent footer from causing 2nd page
+        bottom: "15mm", // Space for footer template
         left: "8mm",    // Minimal side margins
       },
+      displayHeaderFooter: true,
+      headerTemplate: "<div></div>",
+      footerTemplate,
     })
     if (!pdfResult.success || !pdfResult.buffer) {
       const errorMsg = pdfResult.error || "PDF generation failed"
@@ -1239,33 +1389,13 @@ export async function generateDocumentPDF(
       }
     }
 
-    // 7. Check if PDF already exists (immutable - never regenerate)
-    const storageKey =
-      (!options?.language && doc.pdf_storage_key) 
-        ? doc.pdf_storage_key 
-        : `documents/${documentId}/source.${targetLanguage}.pdf`
-    // Check if PDF already exists in storage (use admin client to bypass RLS)
-    const { data: existingFile, error: listError } = await adminClient.storage
-      .from("business-assets")
-      .list(`documents/${documentId}`, {
-        limit: 1,
-        search: storageKey.split("/").pop() || "source.pdf"
-      })
-    if (existingFile && existingFile.length > 0) {      console.log(`[generateDocumentPDF] PDF already exists for document ${documentId}, returning existing`)
-      
-      return {
-        success: true,
-        path: storageKey, // Return storage key (bucket is private)
-        storageKey: storageKey, // Explicit storageKey field
-        buffer: undefined, // Don't return buffer if already exists
-      }
-    }
-
-    // 8. Upload PDF to Supabase Storage using admin client (bypasses RLS)
+    // 7. Upload PDF to Supabase Storage using admin client (bypasses RLS)
     // Use service role key to upload - this bypasses RLS policies
-    console.log(
-      `[generateDocumentPDF] Uploading PDF to storage for document ${documentId}, path: ${storageKey}, size: ${finalPdfBuffer.length} bytes`
-    )    
+    if (pdfDebugEnabled) {
+      console.log(
+        `[generateDocumentPDF] Uploading PDF to storage for document ${documentId}, path: ${storageKey}, size: ${finalPdfBuffer.length} bytes`
+      )
+    }    
     const { data: uploadData, error: uploadError } = await adminClient.storage
       .from("business-assets")
       .upload(storageKey, finalPdfBuffer, {
@@ -1287,7 +1417,9 @@ export async function generateDocumentPDF(
       })      
       // If error is "already exists", that's fine - return existing storage key
       if (uploadError.message.includes("already exists") || uploadError.message.includes("duplicate")) {
-        console.log(`[generateDocumentPDF] PDF already exists in storage for document ${documentId}, returning existing storage key`)
+        if (pdfDebugEnabled) {
+          console.log(`[generateDocumentPDF] PDF already exists in storage for document ${documentId}, returning existing storage key`)
+        }
         return {
           success: true,
           path: storageKey, // Return storage key (bucket is private)
@@ -1302,16 +1434,41 @@ export async function generateDocumentPDF(
       }
     }
 
-    console.log(`[generateDocumentPDF] PDF uploaded successfully to storage for document ${documentId}, path: ${storageKey}`)
+    if (pdfDebugEnabled) {
+      console.log(`[generateDocumentPDF] PDF uploaded successfully to storage for document ${documentId}, path: ${storageKey}`)
+    }
 
     // 9. Calculate SHA256 checksum for integrity verification
     const crypto = await import("crypto")
     const pdfSha256 = signingInfo?.signedPdfSha256 || crypto.createHash("sha256").update(finalPdfBuffer as any).digest("hex")
+    logPdfEvent("core", "PDF_GENERATED_AND_UPLOADED", {
+      docId: documentId,
+      requestId,
+      context: resolvedContext,
+      lang: targetLanguage,
+      result: "GENERATED_NEW",
+      bucket: storageBucket,
+      fullPath: storageKey,
+      sizeBytes: finalPdfBuffer.length,
+      sha256: pdfSha256,
+      timingMs: Date.now() - pdfStartedAt,
+      source: "generateDocumentPDF",
+      businessId: doc.company_id,
+    })
 
     // 10. Note: Bucket is private, so we don't use getPublicUrl
     // PDFs are accessed via signed URLs only (created in API route)
     const shouldPersistPdfStorageKey =
-      (pdfMode === "final" || pdfMode === "recovery") && targetLanguage === "he"
+      (pdfMode === "final" || pdfMode === "recovery") &&
+      targetLanguage === "he" &&
+      options?.variant !== "copy"
+    const shouldPersistCopyStorageKey =
+      (pdfMode === "final" || pdfMode === "recovery") &&
+      targetLanguage === "he" &&
+      options?.variant === "copy"
+    const shouldPersistEnStorageKey =
+      (pdfMode === "final" || pdfMode === "recovery") &&
+      targetLanguage === "en"
 
     // 11. Persist PDF metadata only for the document's base language.
     // IMPORTANT: When generating an alternate-language PDF (e.g. downloading EN for a HE document),
@@ -1339,12 +1496,14 @@ export async function generateDocumentPDF(
         .eq("id", documentId)
       updateError = res.error
     } else {
-      console.log(`[generateDocumentPDF] Skipping pdf_storage_key DB update (alternate language PDF):`, {
-        documentId,
-        docLanguage: (doc as any)?.language || "he",
-        requestedLanguage: options?.language,
-        storageKey,
-      })
+      if (pdfDebugEnabled) {
+        console.log(`[generateDocumentPDF] Skipping pdf_storage_key DB update (alternate language PDF):`, {
+          documentId,
+          docLanguage: (doc as any)?.language || "he",
+          requestedLanguage: options?.language,
+          storageKey,
+        })
+      }
     }
     // CRITICAL: Even if DB update fails, PDF exists in Storage - return success with storageKey
     // The API route will use storageKey directly, not relying on DB
@@ -1366,6 +1525,24 @@ export async function generateDocumentPDF(
         storageKey: storageKey, // Explicit storageKey field - API route will use this
         buffer: finalPdfBuffer,
       }
+    }
+
+    // Persist storage key for Hebrew copy / English variants (for reporting exports).
+    if (shouldPersistCopyStorageKey) {
+      const { data: copyUpdated, error: copyError } = await adminClient
+        .from("documents")
+        .update({ pdf_storage_key_he_copy: storageKey })
+        .eq("id", documentId)
+        .is("pdf_storage_key_he_copy", null)
+        .select("id")
+    }
+    if (shouldPersistEnStorageKey) {
+      const { data: enUpdated, error: enError } = await adminClient
+        .from("documents")
+        .update({ pdf_storage_key_en: storageKey })
+        .eq("id", documentId)
+        .is("pdf_storage_key_en", null)
+        .select("id")
     }
 
     // Verify that pdf_storage_key was saved correctly (optional - only when we persisted it)
@@ -1454,10 +1631,15 @@ export async function generatePreviewPDF(
   documentId: string,
   options?: {
     language?: "he" | "en";
+    requestId?: string;
+    context?: "preview";
   }
 ): Promise<PDFGenerationResult> {  
   try {
-    console.log(`[generatePreviewPDF] Starting for document: ${documentId}`)
+    const pdfDebugEnabled = isPdfDebugEnabled()
+    if (pdfDebugEnabled) {
+      console.log(`[generatePreviewPDF] Starting for document: ${documentId}`)
+    }
     
     const targetLanguage: "he" | "en" = options?.language || "he"
     // Prepare document data (preview is not "original" and not "copy")
@@ -1471,7 +1653,9 @@ export async function generatePreviewPDF(
       .single()
 
     if (docError || !doc) {
-      console.warn(`[generatePreviewPDF] Document not found: ${documentId}`, docError)
+      if (pdfDebugEnabled) {
+        console.warn(`[generatePreviewPDF] Document not found: ${documentId}`, docError)
+      }
       return { success: false, error: `DOCUMENT_NOT_FOUND:${documentId}` }
     }
 
@@ -1495,20 +1679,37 @@ export async function generatePreviewPDF(
     }
     
     if (template.didFallbackToHe) {
-      console.warn("[PDF PREVIEW] Template fallback to HE (missing EN variant)", {
-        documentId: documentId.substring(0, 8),
-        requestedLanguage: targetLanguage,
-      })
+      if (pdfDebugEnabled) {
+        console.warn("[PDF PREVIEW] Template fallback to HE (missing EN variant)", {
+          documentId: documentId.substring(0, 8),
+          requestedLanguage: targetLanguage,
+        })
+      }
     }
     // Render and generate PDF (no storage)
-    console.log(`[generatePreviewPDF] Rendering template for document: ${documentId}`)
+    if (pdfDebugEnabled) {
+      console.log(`[generatePreviewPDF] Rendering template for document: ${documentId}`)
+    }
     const renderedHtml = compileAndRender(template.html, templateData)    
-    console.log(`[generatePreviewPDF] Generating PDF from HTML`)
+    if (pdfDebugEnabled) {
+      console.log(`[generatePreviewPDF] Generating PDF from HTML`)
+    }
     const pdfResult = await generatePDFFromHTML(renderedHtml, template.css, {
       format: "A4",
       printBackground: true,
     })
-    console.log(`[generatePreviewPDF] PDF generated successfully`)
+    if (pdfDebugEnabled) {
+      console.log(`[generatePreviewPDF] PDF generated successfully`)
+    }
+    logPdfEvent("core", "PREVIEW_RENDERED_NO_STORAGE_WRITE", {
+      docId: documentId,
+      requestId: options?.requestId || "unknown",
+      context: "preview",
+      lang: targetLanguage,
+      result: "GENERATED_NEW",
+      timingMs: Date.now(),
+      source: "generatePreviewPDF",
+    })
     return pdfResult
   } catch (error) {    
     console.error(`[generatePreviewPDF] Error:`, error)

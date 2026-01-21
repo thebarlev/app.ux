@@ -668,8 +668,7 @@ export async function generatePDFFromHTML(
         wouldFitOnOnePage: (body?.scrollHeight || 0) < 1123,
       };
     });
-    // Generate PDF with minimal margins to prevent 2-page output
-    // Use displayHeaderFooter: false to prevent empty second page
+    // Generate PDF (optional header/footer if provided in options)
     const pdfBuffer = await page.pdf({
       format,
       landscape,
@@ -683,7 +682,9 @@ export async function generatePDFFromHTML(
       scale,
       path: outputPath, // If provided, saves to disk
       preferCSSPageSize: false, // Use PDF format size, not CSS @page size
-      displayHeaderFooter: false, // Prevent Playwright from adding header/footer that might cause empty page
+      displayHeaderFooter: options.displayHeaderFooter || false,
+      headerTemplate: options.headerTemplate,
+      footerTemplate: options.footerTemplate,
     })
     await browser.close()
 

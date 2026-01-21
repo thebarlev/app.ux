@@ -68,6 +68,9 @@ export async function GET(request: NextRequest) {
   if (documentsError) {
     return NextResponse.json({ error: documentsError.message }, { status: 500 })
   }
+  const docCount = documents?.length || 0
+  const docsWithCopyKey = (documents || []).filter((d: any) => !!d.pdf_storage_key_he_copy).length
+  const docsWithEnKey = (documents || []).filter((d: any) => !!d.pdf_storage_key_en).length
 
   // Fetch global settings for VAT
   const { data: settings } = await supabase.from("global_settings").select("*").eq("setting_key", "vat_rate").single()
@@ -154,8 +157,15 @@ export async function GET(request: NextRequest) {
   XLSX.utils.book_append_sheet(workbook, companiesSheet, "Companies & Activity")
 
   // Documents Detail Sheet
+  const baseUrl = new URL(request.url).origin
   const docsData = (documents || []).map((doc) => {
     const company = (companies || []).find((c) => c.id === doc.company_id)
+    const copyLink = doc.pdf_storage_key_he_copy
+      ? `${baseUrl}/api/documents/${doc.id}/pdf?lang=he&issue=copy`
+      : ""
+    const enLink = doc.pdf_storage_key_en
+      ? `${baseUrl}/api/documents/${doc.id}/pdf?lang=en&issue=copy`
+      : ""
     return {
       "Document ID": doc.id,
       "Document Number": doc.document_number,
@@ -166,6 +176,10 @@ export async function GET(request: NextRequest) {
       "Issue Date": doc.issue_date ? new Date(doc.issue_date).toLocaleDateString() : "N/A",
       "Created At": doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "N/A",
       "Is Goal Marked": doc.is_goal_marked ? "Yes" : "No",
+      "Copy PDF Storage Key": doc.pdf_storage_key_he_copy || "",
+      "Copy PDF Link": copyLink,
+      "English PDF Storage Key": doc.pdf_storage_key_en || "",
+      "English PDF Link": enLink,
     }
   })
 

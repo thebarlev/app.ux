@@ -7,6 +7,7 @@
 
 import type { PaymentMethod, PaymentRow } from "./actions";
 import type { ReactNode } from "react";
+import { useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
@@ -16,12 +17,25 @@ type PaymentDetailsSectionProps = {
   onUpdate: (updates: Partial<PaymentRow>) => void;
 };
 
-function PaymentGrid({ children }: { children: ReactNode }) {
+function PaymentGrid({
+  children,
+  gridRef,
+}: {
+  children: ReactNode;
+  gridRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   // Responsive behavior tuned for narrow content areas (e.g. sidebar):
   // - 1 col on mobile
   // - 2 cols only when there's actual space (sm+)
   // - 3 cols only on very wide screens (xl+)
-  return <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">{children}</div>;
+  return (
+    <div
+      ref={gridRef}
+      className="grid w-full grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
+    >
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -33,12 +47,15 @@ export default function PaymentDetailsSection({
   onUpdate,
 }: PaymentDetailsSectionProps) {
   const { method } = payment;
+  const gridRef = useRef<HTMLDivElement | null>(null);
+
+
 
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
     return (
-      <PaymentGrid>
-        <FieldWrapper label="מספר כרטיס" id="cardLastDigits" hint="4 ספרות אחרונות" className="min-w-0">
+      <PaymentGrid gridRef={gridRef}>
+        <FieldWrapper label="מספר כרטיס" id="cardLastDigits" hint="4 ספרות אחרונות" className="w-full min-w-0">
           <Input
             type="text"
             maxLength={4}
@@ -49,7 +66,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סוג כרטיס" id="cardType" className="min-w-0">
+        <FieldWrapper label="סוג כרטיס" id="cardType" className="w-full min-w-0">
           <Select
             value={payment.cardType ?? ""}
             onValueChange={(v) => onUpdate({ cardType: v })}
@@ -66,7 +83,7 @@ export default function PaymentDetailsSection({
           </Select>
         </FieldWrapper>
 
-        <FieldWrapper label="סוג עסקה" id="cardDealType" className="min-w-0">
+        <FieldWrapper label="סוג עסקה" id="cardDealType" className="w-full min-w-0">
           <Select
             value={payment.cardDealType ?? "regular"}
             onValueChange={(v) => onUpdate({ cardDealType: v })}
@@ -81,7 +98,7 @@ export default function PaymentDetailsSection({
           </Select>
         </FieldWrapper>
 
-        <FieldWrapper label="מספר תשלומים" id="cardInstallments" className="min-w-0">
+        <FieldWrapper label="מספר תשלומים" id="cardInstallments" className="w-full min-w-0">
           <Input
             type="number"
             min={1}
@@ -99,8 +116,8 @@ export default function PaymentDetailsSection({
   // Bank transfer: 3 fields (bank, branch, account) - order: בנק | סניף | חשבון לקוח
   if (method === "העברה בנקאית") {
     return (
-      <PaymentGrid>
-        <FieldWrapper label="בנק" id="bankName" className="min-w-0">
+      <PaymentGrid gridRef={gridRef}>
+        <FieldWrapper label="בנק" id="bankName" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="שם הבנק"
@@ -109,7 +126,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סניף" id="bankBranch" className="min-w-0">
+        <FieldWrapper label="סניף" id="bankBranch" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מספר סניף"
@@ -118,7 +135,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="חשבון לקוח" id="bankAccount" className="min-w-0">
+        <FieldWrapper label="חשבון לקוח" id="bankAccount" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מספר חשבון"
@@ -133,8 +150,8 @@ export default function PaymentDetailsSection({
   // Check: 4 fields (bank, branch, account, check number)
   if (method === "צ׳ק") {
     return (
-      <PaymentGrid>
-        <FieldWrapper label="בנק לקוח" id="checkBank" className="min-w-0">
+      <PaymentGrid gridRef={gridRef}>
+        <FieldWrapper label="בנק לקוח" id="checkBank" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="שם הבנק"
@@ -143,7 +160,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="סניף לקוח" id="checkBranch" className="min-w-0">
+        <FieldWrapper label="סניף לקוח" id="checkBranch" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מספר סניף"
@@ -152,7 +169,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="חשבון לקוח" id="checkAccount" className="min-w-0">
+        <FieldWrapper label="חשבון לקוח" id="checkAccount" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מספר חשבון"
@@ -161,7 +178,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="מס׳ הצ׳ק" id="checkNumber" className="min-w-0">
+        <FieldWrapper label="מס׳ הצ׳ק" id="checkNumber" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מספר צ׳ק"
@@ -181,9 +198,9 @@ export default function PaymentDetailsSection({
   // Payoneer: Single full-width transaction field
   if (method === "Payoneer") {
     return (
-      <PaymentGrid>
+      <PaymentGrid gridRef={gridRef}>
         <div className="xl:col-span-2 min-w-0 w-full">
-          <FieldWrapper label="מספר עסקה" id="transactionReference" className="min-w-0">
+          <FieldWrapper label="מספר עסקה" id="transactionReference" className="w-full min-w-0">
             <Input
               type="text"
               placeholder="הזן מספר עסקה"
@@ -208,8 +225,8 @@ export default function PaymentDetailsSection({
     method === "Pay"
   ) {
     return (
-      <PaymentGrid>
-        <FieldWrapper label="חשבון משלם" id="payerAccount" className="min-w-0">
+      <PaymentGrid gridRef={gridRef}>
+        <FieldWrapper label="חשבון משלם" id="payerAccount" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מזהה חשבון (אופציונלי)"
@@ -219,7 +236,7 @@ export default function PaymentDetailsSection({
           />
         </FieldWrapper>
 
-        <FieldWrapper label="מספר עסקה" id="transactionReference" className="min-w-0">
+        <FieldWrapper label="מספר עסקה" id="transactionReference" className="w-full min-w-0">
           <Input
             type="text"
             placeholder="מזהה עסקה (אופציונלי)"
@@ -237,7 +254,7 @@ export default function PaymentDetailsSection({
     return (
       <PaymentGrid>
         <div className="xl:col-span-2 min-w-0 w-full">
-          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="min-w-0">
+          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="w-full min-w-0">
             <Input
               type="text"
               placeholder="מספר עסקה"
@@ -288,7 +305,7 @@ export default function PaymentDetailsSection({
     return (
       <PaymentGrid>
         <div className="xl:col-span-2 min-w-0 w-full">
-          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="min-w-0">
+          <FieldWrapper label="מס׳ העסקה" id="transactionReference" className="w-full min-w-0">
             <Input
               type="text"
               placeholder="מספר עסקה"
@@ -306,7 +323,7 @@ export default function PaymentDetailsSection({
     return (
       <PaymentGrid>
         <div className="xl:col-span-2 min-w-0 w-full">
-          <FieldWrapper label="תיאור" id="description" className="min-w-0">
+          <FieldWrapper label="תיאור" id="description" className="w-full min-w-0">
             <Input
               type="text"
               placeholder="תיאור הניכוי"

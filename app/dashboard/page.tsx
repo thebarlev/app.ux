@@ -8,7 +8,7 @@ import NewDocumentFab from "@/components/dashboard/NewDocumentFab";
 
 export default function DashboardPage() {
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
@@ -22,7 +22,7 @@ export default function DashboardPage() {
 
         {/* Quick Actions */}
         <FormSection title="פעולות מהירות">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1100px] mx-auto w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1120px] mx-auto w-full px-4 sm:px-6 lg:px-10">
             <DashboardCard
               href="/dashboard/documents/receipt"
               icon={PlusCircle}
@@ -63,13 +63,7 @@ export default function DashboardPage() {
         </FormSection>
 
         {/* Recent Activity */}
-        <FormSection title="פעילות אחרונה" className="mt-[50px]">
-          <Card style={{ backgroundColor: 'white', border: 'none', boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)' }}>
-            <CardContent style={{ padding: '60px 30px', textAlign: 'center' }}>
-              <p>אין פעילות אחרונה להצגה</p>
-            </CardContent>
-          </Card>
-        </FormSection>
+
       </div>
 
       <NewDocumentFab />

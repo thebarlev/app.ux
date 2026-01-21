@@ -473,47 +473,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
             <div ref={searchFiltersItemDocTypeRef} className="min-w-0">
               <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
-                <DropdownMenu
-                  // #region agent log: docs-docType-dd-width-1
-                  onOpenChange={(open) => {
-                    if (!open) return
-                    try {
-                      const trigger = document.getElementById("documentType")
-                      const content = document.querySelector('[data-debug="docType-dd-content"]') as HTMLElement | null
-                      const r = content?.getBoundingClientRect?.()
-                      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          sessionId: "debug-session",
-                          runId: "docs-docType-dd-width-1",
-                          hypothesisId: "A",
-                          location: "app/dashboard/documents/DocumentsListClient.tsx:docTypeDropdown",
-                          message: "DocType dropdown opened - width metrics",
-                          data: {
-                            innerWidth: typeof window !== "undefined" ? window.innerWidth : null,
-                            visualViewportW: typeof window !== "undefined" && window.visualViewport ? Math.round(window.visualViewport.width) : null,
-                            triggerRect: trigger ? trigger.getBoundingClientRect() : null,
-                            contentRect: r
-                              ? { left: Math.round(r.left), right: Math.round(r.right), width: Math.round(r.width) }
-                              : null,
-                            contentComputed: content
-                              ? {
-                                  width: getComputedStyle(content).width,
-                                  minWidth: getComputedStyle(content).minWidth,
-                                  maxWidth: getComputedStyle(content).maxWidth,
-                                }
-                              : null,
-                          },
-                          timestamp: Date.now(),
-                        }),
-                      }).catch(() => {})
-                    } catch {
-                      // ignore
-                    }
-                  }}
-                  // #endregion agent log: docs-docType-dd-width-1
-                >
+                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button type="button" variant="secondary" className="ui-dd-trigger">
                       <span>

@@ -12,7 +12,7 @@ export default async function ReceiptSummaryPage({
   const { data: receipt, error: receiptError } = await supabase
     .from("documents")
     .select(
-      "id, document_number, document_type, issue_date, created_at, customer_name, customer_id, company_id, document_description, total_amount, currency, document_status, internal_notes, customer_notes"
+      "id, document_number, document_type, issue_date, created_at, customer_name, customer_id, company_id, document_description, total_amount, currency, document_status, internal_notes, customer_notes, language"
     )
     .eq("id", documentId)
     .maybeSingle();

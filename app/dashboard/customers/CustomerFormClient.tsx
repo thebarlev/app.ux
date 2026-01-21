@@ -115,7 +115,7 @@ export default function CustomerFormClient({ customer }: Props) {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10">
         {/* Page Header - Title aligned right, 50px margin bottom */}
         <h1 className="text-right">

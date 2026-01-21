@@ -190,16 +190,26 @@ export default function PreviewClient({
   }
   
   // Enable print-friendly styling on mount
+  const PREVIEW_SCALE = 0.5
+
   useEffect(() => {
     document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyNameBase}`;
     setIsMounted(true); // Mark as mounted after first render
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PreviewClient.tsx:197',message:'preview_client_mount',data:{previewNumber,language,hasTemplateHtml:!!templateHtml,hasTemplateCss:!!templateCss,viewportW:window.innerWidth,viewportH:window.innerHeight},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
     
     // Listen for iframe resize messages
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'resize' && event.data.height) {
         const iframe = document.getElementById('receipt-pdf-root') as HTMLIFrameElement;
         if (iframe) {
+          const scaledHeight = event.data.height * PREVIEW_SCALE
           iframe.style.height = `${event.data.height}px`;
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PreviewClient.tsx:208',message:'preview_iframe_resize',data:{height:event.data.height,scaledHeight:scaledHeight,iframeW:iframe.getBoundingClientRect().width,rootW:event.data.rootW,rootH:event.data.rootH,docScrollH:event.data.docScrollH,bodyW:event.data.bodyW,bodyH:event.data.bodyH,scale:event.data.scale},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-2',hypothesisId:'D'})}).catch(()=>{});
+          // #endregion
         }
       }
     };
@@ -224,7 +234,7 @@ export default function PreviewClient({
     const parts: string[] = [];
     
     if (payment.method === "כרטיס אשראי") {
-      if (payment.cardLastDigits) parts.push(`כרטיס: *${payment.cardLastDigits}`);
+      if (payment.cardLastDigits) parts.push(`*${payment.cardLastDigits}`);
       if (payment.cardType) parts.push(payment.cardType);
       if (payment.cardDealType && payment.cardDealType !== "regular") {
         const dealTypeMap: Record<string, string> = {
@@ -235,43 +245,43 @@ export default function PreviewClient({
         };
         parts.push(dealTypeMap[payment.cardDealType] || payment.cardDealType);
       }
-      if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments} תשלומים`);
+      if (payment.cardInstallments && payment.cardInstallments > 1) parts.push(`${payment.cardInstallments}`);
     } else if (payment.method === "העברה בנקאית") {
       // Check all possible field names for bank transfer
       const bankName = payment.bankName || payment.bank_name || null;
       const bankBranch = payment.bankBranch || payment.branch || payment.bank_branch || null;
       const bankAccount = payment.bankAccount || payment.accountNumber || payment.account_number || payment.bank_account || null;
       
-      // Add all three fields if they exist (בנק | סניף | חשבון לקוח)
+      // Add all three fields if they exist
       if (bankName) parts.push(bankName);
       if (bankBranch) parts.push(bankBranch);
       if (bankAccount) parts.push(bankAccount);
     } else if (payment.method === "צ׳ק") {
-      if (payment.checkNumber) parts.push(`צ׳ק מס׳ ${payment.checkNumber}`);
+      if (payment.checkNumber) parts.push(`${payment.checkNumber}`);
       if (payment.checkBank) parts.push(payment.checkBank);
-      if (payment.checkBranch) parts.push(`סניף: ${payment.checkBranch}`);
-      if (payment.checkAccount) parts.push(`חשבון: ${payment.checkAccount}`);
+      if (payment.checkBranch) parts.push(`${payment.checkBranch}`);
+      if (payment.checkAccount) parts.push(`${payment.checkAccount}`);
     } else if ([
       "Bit", "PayBox", "PayPal", "Apple Pay", "Google Pay", 
       "Colu", "Pay", "Payoneer", "V-CHECK", "שווה כסף", 
       "שובר מתנה", "שובר BuyME", "אתריום", "ביטקוין", 
       "ניכוי חלק עובד טל״א"
     ].includes(payment.method)) {
-      if (payment.payerAccount) parts.push(`חשבון: ${payment.payerAccount}`);
-      if (payment.transactionReference) parts.push(`עסקה: ${payment.transactionReference}`);
+      if (payment.payerAccount) parts.push(`${payment.payerAccount}`);
+      if (payment.transactionReference) parts.push(`${payment.transactionReference}`);
     } else if (payment.method === "ניכוי אחר" && payment.description) {
       return payment.description;
     }
     
     // Add ALL generic fields that user might fill (reference, notes, description)
     // These are shown for all payment methods if filled
-    if (payment.reference_number) parts.push(`אסמכתא: ${payment.reference_number}`);
-    if (payment.reference && payment.reference !== payment.reference_number) parts.push(`אסמכתא: ${payment.reference}`);
-    if (payment.transactionReference && !parts.some(p => p.includes("עסקה:"))) parts.push(`עסקה: ${payment.transactionReference}`);
-    if (payment.notes) parts.push(`הערות: ${payment.notes}`);
-    if (payment.description && payment.method !== "ניכוי אחר") parts.push(`תיאור: ${payment.description}`);
+    if (payment.reference_number && payment.reference_number !== payment.checkNumber) parts.push(`${payment.reference_number}`);
+    if (payment.reference && payment.reference !== payment.reference_number) parts.push(`${payment.reference}`);
+    if (payment.transactionReference) parts.push(`${payment.transactionReference}`);
+    if (payment.notes) parts.push(`${payment.notes}`);
+    if (payment.description && payment.method !== "ניכוי אחר") parts.push(`${payment.description}`);
     
-    return parts.join(" | ");
+    return parts.join(", ");
   };
 
   // Generate PAYMENTS_ROWS_HTML (same logic as in lib/pdf-service.ts)
@@ -476,12 +486,7 @@ export default function PreviewClient({
     TOTAL_PAGES: "1",
 
     // Regulatory: original vs copy label (Preview-only; controlled by URL param issue=original|copy)
-    DOCUMENT_COPY_LABEL:
-      issue === "original"
-        ? (language === "en" ? "Original" : "מקור")
-        : issue === "copy"
-          ? (language === "en" ? "Copy" : "העתק נאמן למקור")
-          : "",
+    DOCUMENT_COPY_LABEL: "להמחשה בלבד",
     
     // Current date and time for footer
     CURRENT_DATE_TIME: new Date().toLocaleString(language === "en" ? "en-US" : "he-IL", { 
@@ -900,18 +905,18 @@ useEffect(() => {
       
       {/* Render template HTML or fallback to hardcoded */}
       {renderError ? (
-        <div 
+        <div
           id="receipt-pdf-root"
           className="receipt-document receipt-pdf"
-          style={{ 
-            width: "210mm", 
-            minHeight: "297mm", 
-            padding: "40px", 
-            textAlign: "center", 
+          style={{
+            width: "100%",
+            minHeight: "297mm",
+            padding: "40px",
+            textAlign: "center",
             color: "#c00",
             margin: "0 auto",
             background: "#fee",
-            border: "2px solid #f00"
+            border: "2px solid #f00",
           }}
         >
           <h2>שגיאה בעיבוד התבנית</h2>
@@ -942,19 +947,21 @@ useEffect(() => {
         });
         
         return (
-          <iframe
-            id="receipt-pdf-root"
-            title="Receipt Preview"
-            style={{
-              width: "210mm",
-              minHeight: "297mm",
-              margin: "0 auto",
-              display: "block",
-              border: "1px solid #e5e7eb",
-              boxShadow: "0 0 10px rgba(0,0,0,0.1)",
-              background: "#ffffff",
-            }}
-            srcDoc={`<!DOCTYPE html>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <iframe
+              id="receipt-pdf-root"
+              title="Receipt Preview"
+              style={{
+                width: "210mm",
+                minHeight: "297mm",
+                margin: "0 auto",
+                display: "block",
+                border: "1px solid #e5e7eb",
+                boxShadow: "0 0 10px rgba(0,0,0,0.1)",
+                background: "#ffffff",
+                zoom: PREVIEW_SCALE,
+              }}
+              srcDoc={`<!DOCTYPE html>
 <html lang="${language}" dir="${language === "en" ? "ltr" : "rtl"}">
 <head>
   <meta charset="UTF-8">
@@ -977,6 +984,11 @@ useEffect(() => {
       font-family: Arial, 'Assistant', 'Heebo', sans-serif;
       font-size: 14px;
       line-height: 1.6;
+    }
+
+    body {
+      padding-top: 100px;
+      box-sizing: border-box;
     }
     
     /* Hide broken images and images with empty/null src */
@@ -1024,7 +1036,16 @@ useEffect(() => {
     // Auto-resize iframe to content height
     function resizeIframe() {
       const height = document.documentElement.scrollHeight;
-      window.parent.postMessage({ type: 'resize', height: height }, '*');
+      window.parent.postMessage({
+        type: 'resize',
+        height: height,
+        rootW: null,
+        rootH: null,
+        docScrollH: document.documentElement.scrollHeight,
+        bodyW: document.body.clientWidth,
+        bodyH: document.body.clientHeight,
+        scale: 1,
+      }, '*');
     }
     
     window.addEventListener('load', resizeIframe);
@@ -1038,7 +1059,8 @@ useEffect(() => {
   ${processedHtml}
 </body>
 </html>`}
-          />
+            />
+          </div>
         );
       })() : useTemplate && !isMounted ? (
         <div 

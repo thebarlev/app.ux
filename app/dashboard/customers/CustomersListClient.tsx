@@ -61,10 +61,11 @@ export default function CustomersListClient({ initialCustomers }: Props) {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen">
       <div className="ui-container pt-10">
-        {/* Page Header */}
-        <div className="mb-[50px]">
+      {/* Page Header + Action */}
+      <div className="mb-[50px] flex items-start justify-between gap-4">
+        <div className="text-right">
           <h1 className="text-right mb-4">
             לקוחות
           </h1>
@@ -72,17 +73,14 @@ export default function CustomersListClient({ initialCustomers }: Props) {
             {customers.length} לקוחות סה״כ
           </p>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mb-[50px]">
-          <Link href="/dashboard/customers/new">
-            <Button 
-              style={{ height: '50px', fontSize: '18px' }}
-            >
-              לקוח חדש
-            </Button>
-          </Link>
-        </div>
+        <Link href="/dashboard/customers/new" className="shrink-0">
+          <Button
+            style={{ height: '50px', fontSize: '18px' }}
+          >
+            לקוח חדש
+          </Button>
+        </Link>
+      </div>
 
         {/* Search Section */}
         <FormSection title="חיפוש">

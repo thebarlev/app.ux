@@ -37,6 +37,7 @@ export function FormSection({
         /* Background and border radius */
         backgroundColor: '#FFF',
         borderRadius: '20px',
+        boxShadow: 'var(--card-shadow)',
         /* 50px padding מכל הצדדים למעט top/bottom שזה 30px */
         paddingTop: '30px',
         paddingRight: '0px',
@@ -48,7 +49,7 @@ export function FormSection({
       {/* Title - aligned to right, 30px from top, 50px from right edge */}
       <h3 
         className="text-right"
-        style={{ marginBottom: description ? '5px' : '10px', paddingRight : '25px' }}
+        style={{ marginBottom: description ? '5px' : '10px', paddingRight : '30px' }}
       >
         {title}
       </h3>

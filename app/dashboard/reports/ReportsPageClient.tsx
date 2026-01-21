@@ -63,7 +63,7 @@ export default function ReportsPageClient() {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
@@ -76,7 +76,7 @@ export default function ReportsPageClient() {
         </div>
 
         {/* Reports Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1100px] mx-auto w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1200px] mx-auto w-full">
           {REPORTS.map((report) => (
             <ReportCard
               key={report.id}

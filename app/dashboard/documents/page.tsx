@@ -34,7 +34,7 @@ export default async function DocumentsPage({ searchParams }: PageProps) {
   const result = await getAllDocumentsListAction(filters);
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen" >
       <DocumentsListClient initialData={result} initialFilters={filters} />
     </main>
   );

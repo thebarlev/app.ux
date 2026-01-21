@@ -113,7 +113,7 @@ export default function IncomeReportClient() {
   const isFormValid = startDate && endDate;
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: '#EDF1F5' }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10">
         {/* Page Header */}
         <div className="mb-[50px]">
@@ -159,186 +159,198 @@ export default function IncomeReportClient() {
         <form onSubmit={handleSubmit} className="ui-section-gap">
           {/* Document Type & Period */}
           <FormSection title="פרטי הדוח">
-            <div className="ui-form-grid">
-              <FieldWrapper label="סוג מסמך" id="documentType">
-                <Select value={documentType} onValueChange={setDocumentType}>
-                  <SelectTrigger id="documentType">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOCUMENT_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldWrapper>
+            <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+              <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
+                  <Select value={documentType} onValueChange={setDocumentType}>
+                    <SelectTrigger id="documentType">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOCUMENT_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWrapper>
 
-              <FieldWrapper label="תאריך התחלה" required id="startDate">
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  aria-required="true"
-                />
-              </FieldWrapper>
+                <FieldWrapper label="תאריך התחלה" required id="startDate" className="w-full min-w-0">
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    aria-required="true"
+                  />
+                </FieldWrapper>
 
-              <FieldWrapper label="תאריך סיום" required id="endDate">
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  aria-required="true"
-                />
-              </FieldWrapper>
+                <FieldWrapper label="תאריך סיום" required id="endDate" className="w-full min-w-0">
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    aria-required="true"
+                  />
+                </FieldWrapper>
+              </div>
             </div>
           </FormSection>
 
           {/* Customer Search */}
           <FormSection title="סינון לפי לקוח">
-            <FieldWrapper 
-              label="דוח לפי לקוח" 
-              id="customerSearch"
-              hint="אם השדה ריק, הדוח יופק עבור כל הלקוחות"
-              className="ui-field-wide"
-            >
-              <Input
-                id="customerSearch"
-                type="text"
-                placeholder="הקלד שם לקוח לסינון (אופציונלי)"
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-              />
-            </FieldWrapper>
+            <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+              <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper 
+                  label="דוח לפי לקוח" 
+                  id="customerSearch"
+                  hint="אם השדה ריק, הדוח יופק עבור כל הלקוחות"
+                  className="w-full min-w-0"
+                >
+                  <Input
+                    id="customerSearch"
+                    type="text"
+                    placeholder="הקלד שם לקוח לסינון (אופציונלי)"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                  />
+                </FieldWrapper>
+              </div>
+            </div>
           </FormSection>
 
           {/* File Format & Data Scope */}
           <FormSection title="הגדרות קובץ">
-            <div className="ui-form-grid">
-              <FieldWrapper label="סוג קובץ" id="fileFormat">
-                <Select value={fileFormat} onValueChange={setFileFormat}>
-                  <SelectTrigger id="fileFormat">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FILE_FORMATS.map((format) => (
-                      <SelectItem key={format.value} value={format.value}>
-                        {format.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FieldWrapper>
+            <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+              <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper label="סוג קובץ" id="fileFormat" className="w-full min-w-0">
+                  <Select value={fileFormat} onValueChange={setFileFormat}>
+                    <SelectTrigger id="fileFormat">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FILE_FORMATS.map((format) => (
+                        <SelectItem key={format.value} value={format.value}>
+                          {format.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldWrapper>
 
-              <FieldWrapper label="היקף נתונים" id="dataScope" className="!w-full">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', backgroundColor: dataScope === "10000" ? '#EDF1F5' : 'transparent', transition: 'background 0.2s' }}>
-                    <input
-                      type="radio"
-                      name="dataScope"
-                      value="10000"
-                      checked={dataScope === "10000"}
-                      onChange={(e) => setDataScope(e.target.value as "10000")}
-                      style={{ marginLeft: '8px' }}
-                    />
-                    <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
-                      הקובץ מכיל עד 10,000 מסמכים
-                    </div>
-                  </label>
+                <FieldWrapper label="היקף נתונים" id="dataScope" className="w-full min-w-0">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', backgroundColor: dataScope === "10000" ? '#EDF1F5' : 'transparent', transition: 'background 0.2s' }}>
+                      <input
+                        type="radio"
+                        name="dataScope"
+                        value="10000"
+                        checked={dataScope === "10000"}
+                        onChange={(e) => setDataScope(e.target.value as "10000")}
+                        style={{ marginLeft: '8px' }}
+                      />
+                      <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
+                        הקובץ מכיל עד 10,000 מסמכים
+                      </div>
+                    </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', backgroundColor: dataScope === "500000" ? '#EDF1F5' : 'transparent', transition: 'background 0.2s' }}>
-                    <input
-                      type="radio"
-                      name="dataScope"
-                      value="500000"
-                      checked={dataScope === "500000"}
-                      onChange={(e) => setDataScope(e.target.value as "500000")}
-                      style={{ marginLeft: '8px' }}
-                    />
-                    <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
-                      הקובץ מכיל עד 500,000 מסמכים
-                    </div>
-                  </label>
-                </div>
-
-                {/* Info Message */}
-                {fileFormat === "pdf" && (
-                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#1D868F', borderRadius: '8px', display: 'flex', alignItems: 'start', gap: '8px' }}>
-                    <AlertCircle className="h-4 w-4" style={{ color: '#FFFFFF', marginTop: '2px', flexShrink: 0 }} />
-                    <p style={{ fontSize: '14px', color: '#FFFFFF' }}>
-                      בהפקת דוח PDF שעולה מעל 300 מסמכים, יופק רק עמוד סיכום ללא פירוט המסמכים
-                    </p>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', backgroundColor: dataScope === "500000" ? '#EDF1F5' : 'transparent', transition: 'background 0.2s' }}>
+                      <input
+                        type="radio"
+                        name="dataScope"
+                        value="500000"
+                        checked={dataScope === "500000"}
+                        onChange={(e) => setDataScope(e.target.value as "500000")}
+                        style={{ marginLeft: '8px' }}
+                      />
+                      <div style={{ fontSize: '18px', color: '#19183B', fontWeight: 500 }}>
+                        הקובץ מכיל עד 500,000 מסמכים
+                      </div>
+                    </label>
                   </div>
-                )}
-              </FieldWrapper>
+
+                  {/* Info Message */}
+                  {fileFormat === "pdf" && (
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#1D868F', borderRadius: '8px', display: 'flex', alignItems: 'start', gap: '8px' }}>
+                      <AlertCircle className="h-4 w-4" style={{ color: '#FFFFFF', marginTop: '2px', flexShrink: 0 }} />
+                      <p style={{ fontSize: '14px', color: '#FFFFFF' }}>
+                        בהפקת דוח PDF שעולה מעל 300 מסמכים, יופק רק עמוד סיכום ללא פירוט המסמכים
+                      </p>
+                    </div>
+                  )}
+                </FieldWrapper>
+              </div>
             </div>
           </FormSection>
 
           {/* Email Tags */}
           <FormSection title="שליחת דוח במייל">
-            <FieldWrapper 
-              label="כתובת מייל לשליחת הדוח" 
-              id="emailInput"
-              hint="ניתן להזין עד 5 כתובות מייל. הדוח יישלח גם למייל וגם יורד אוטומטית למחשב שלך"
-              className="ui-field-wide"
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {/* Email Tags */}
-                {emails.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                    {emails.map((email, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          backgroundColor: '#EDF1F5',
-                          color: '#19183B',
-                          padding: '6px 12px',
-                          borderRadius: '20px',
-                          fontSize: '16px',
-                        }}
-                      >
-                        <span>{email}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEmail(index)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '2px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            color: '#19183B',
-                          }}
-                          aria-label="הסר מייל"
-                        >
-                          <span style={{ fontSize: '18px', lineHeight: 1 }}>×</span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Email Input */}
-                <Input
+            <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+              <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FieldWrapper 
+                  label="כתובת מייל לשליחת הדוח" 
                   id="emailInput"
-                  type="email"
-                  placeholder="הזן כתובת מייל ולחץ Enter"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  onKeyDown={handleAddEmail}
-                  disabled={emails.length >= 5}
-                  dir="ltr"
-                  style={{ textAlign: 'left' }}
-                />
+                  hint="ניתן להזין עד 5 כתובות מייל. הדוח יישלח גם למייל וגם יורד אוטומטית למחשב שלך"
+                  className="w-full min-w-0"
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Email Tags */}
+                    {emails.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                        {emails.map((email, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              backgroundColor: '#EDF1F5',
+                              color: '#19183B',
+                              padding: '6px 12px',
+                              borderRadius: '20px',
+                              fontSize: '16px',
+                            }}
+                          >
+                            <span>{email}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEmail(index)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: '#19183B',
+                              }}
+                              aria-label="הסר מייל"
+                            >
+                              <span style={{ fontSize: '18px', lineHeight: 1 }}>×</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Email Input */}
+                    <Input
+                      id="emailInput"
+                      type="email"
+                      placeholder="הזן כתובת מייל ולחץ Enter"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={handleAddEmail}
+                      disabled={emails.length >= 5}
+                      dir="ltr"
+                      style={{ textAlign: 'left' }}
+                    />
+                  </div>
+                </FieldWrapper>
               </div>
-            </FieldWrapper>
+            </div>
           </FormSection>
 
           {/* Action Buttons */}

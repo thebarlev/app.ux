@@ -193,6 +193,8 @@ export default function ReceiptFormClient({
     }
   }, [currency]);
 
+
+
   if (!initial.ok) {
     return (
       <div className="p-4 border-2 border-red-200 rounded-xl bg-red-50">
@@ -508,7 +510,7 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: "#EDF1F5" }}>
+    <main dir="rtl" className="min-h-screen">
       <style>{`
         main[dir="rtl"] .ui-container p { font-size: 18px !important; }
         main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
@@ -585,7 +587,10 @@ export default function ReceiptFormClient({
               <div
                 className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                          <div
+                            className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
+                            data-payment-primary-grid="true"
+                          >
                   <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="w-full min-w-0">
                     <div ref={customerNameRef}>
                       <CustomerAutocomplete
@@ -658,7 +663,7 @@ export default function ReceiptFormClient({
 
             {/* Payments Section (UPDATED LAYOUT) */}
             <FormSection title="פירוט תקבולים" description="">
-              <div ref={paymentsTableRef} className="space-y-[50px]">
+              <div ref={paymentsTableRef} className="space-y-[10px]">
                 {Object.keys(paymentErrors).length > 0 && (
                   <div
                     style={{
@@ -677,17 +682,17 @@ export default function ReceiptFormClient({
                   </div>
                 )}
 
-                <div className="space-y-[50px]">
+                <div className="space-y-[20px]">
                   {payments.map((row, i) => (
-                    <div
-                    key={i}
-                    className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
-                    style={{ 
-                      backgroundColor: 'white', 
-
-                      border: 'none',
-                    }}
-                  >
+                    <div key={i}>
+                      <div
+                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
+                        style={{
+                          backgroundColor: "white",
+                          border: "none",
+                        }}
+                        data-payment-card="true"
+                      >
                       {payments.length > 1 && (
                         <Button
                           type="button"
@@ -705,7 +710,7 @@ export default function ReceiptFormClient({
 
                       <div className="min-w-0">
                         {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
-                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
                           <FieldWrapper
                             label="אמצעי תשלום"
                             required
@@ -830,6 +835,10 @@ export default function ReceiptFormClient({
                           <PaymentDetailsSection payment={row} onUpdate={(updates) => updatePaymentRow(i, updates)} />
                         </div>
                       </div>
+                      </div>
+                      {i < payments.length - 1 ? (
+                        <div className="h-px bg-[var(--muted-fg)] opacity-50 mx-[20px] sm:mx-6 lg:mx-8 mt-[15px]" />
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -844,7 +853,7 @@ export default function ReceiptFormClient({
   </Button>
 </div>
 
-                <div className="pt-[50px] mt-[50px] border-t" style={{ borderColor: "#EDF1F5" }}>
+                <div className="pt-[50px] mt-[50px]">
                   <div className="flex justify-between items-center">
                     <div className="text-lg font-bold" style={{ color: "#19183B" }}>
                       
@@ -1054,7 +1063,9 @@ export default function ReceiptFormClient({
                   const downloadUrl = window.URL.createObjectURL(pdfBlob);
                   const link = document.createElement("a");
                   link.href = downloadUrl;
-                  link.download = `${successModalData.documentNumber || successModalData.documentId}-he.pdf`;
+                  const baseName = successModalData.documentNumber || successModalData.documentId;
+                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-he.pdf`;
+                  link.download = fileName;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);
@@ -1082,7 +1093,9 @@ export default function ReceiptFormClient({
                   const downloadUrl = window.URL.createObjectURL(pdfBlob);
                   const link = document.createElement("a");
                   link.href = downloadUrl;
-                  link.download = `${successModalData.documentNumber || successModalData.documentId}-en.pdf`;
+                  const baseName = successModalData.documentNumber || successModalData.documentId;
+                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-en.pdf`;
+                  link.download = fileName;
                   document.body.appendChild(link);
                   link.click();
                   document.body.removeChild(link);

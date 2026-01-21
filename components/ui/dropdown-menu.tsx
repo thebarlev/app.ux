@@ -46,7 +46,7 @@ function DropdownMenuGroup({
  * - Consistent height & font size
  */
 const DD_ITEM_BASE =
-  "relative flex cursor-default select-none items-center gap-2 rounded-[var(--dropdown-radius)] px-3 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-right justify-end"
+  "relative flex cursor-default select-none items-center gap-2 rounded-[var(--dropdown-radius)] px-10 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-right justify-end"
 
 const DD_ITEM_SIZING =
   "min-h-[var(--dropdown-height)] text-[length:var(--dropdown-text-size)] leading-[var(--dropdown-line-height)]"
@@ -66,8 +66,8 @@ const DD_ITEM_COLORS =
           sideOffset={sideOffset}
           className={cn(
             "z-50 min-w-[8rem] overflow-hidden p-1",
-            "!bg-white text-[var(--dropdown-fg)]",
-            "border border-[var(--dropdown-border)]",
+            " text-[var(--dropdown-fg)]",
+
             "rounded-[var(--dropdown-radius)]",
             "shadow-[0_12px_30px_var(--dropdown-shadow)]",
             className

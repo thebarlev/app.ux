@@ -18,6 +18,7 @@ type ReceiptRow = {
   total_amount: number | null;
   currency: string | null;
   document_status: string;
+  language?: "he" | "en" | null;
   internal_notes?: string | null;
   customer_notes?: string | null;
 };
@@ -258,6 +259,8 @@ export default function ReceiptSummaryClient(props: {
     return props.payments || [];
   }, [paymentsState.status, paymentsState.payments, props.payments]);
 
+  const isEnglishDocument = props.receipt.language === "en";
+
   async function openFullPreview() {
     setBusy("view");
     try {
@@ -273,7 +276,7 @@ export default function ReceiptSummaryClient(props: {
   }
 
   return (
-    <main dir="rtl" className="min-h-screen" style={{ backgroundColor: "#EDF1F5" }}>
+    <main dir="rtl" className="min-h-screen bg-bg">
       <div className="ui-container pt-10 pb-10">
         <div className="flex flex-col gap-4">
           <div>
@@ -281,36 +284,102 @@ export default function ReceiptSummaryClient(props: {
               <h1 className="text-right">{title}</h1>
 
               <div className="flex items-center gap-2">
-                <div className="relative group">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="הורדה"
-                    onClick={async () => {
-                      if (busy !== null) return;
-                      setBusy("download");
-                      try {
-                        await downloadPdf(props.receipt.id, {
-                          issue: "copy",
-                          lang: "he",
-                          fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
-                        });
-                      } catch (e: any) {
-                        alert(e?.message || "שגיאה בהורדה");
-                      } finally {
-                        setBusy(null);
-                      }
-                    }}
-                    disabled={busy !== null}
-                  >
-                    <Download className="h-5 w-5" />
-                  </Button>
-                  <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                    <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                      הורדה
+                {isEnglishDocument ? (
+                  <>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדה (עברית)"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.receipt.id, {
+                              issue: "copy",
+                              lang: "he",
+                              fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          הורדת העתק (עברית)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדה (אנגלית)"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.receipt.id, {
+                              issue: "copy",
+                              lang: "en",
+                              fileName: `${props.receipt.document_number || props.receipt.id}-en.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          הורדת העתק (אנגלית)
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="relative group">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="הורדה"
+                      onClick={async () => {
+                        if (busy !== null) return;
+                        setBusy("download");
+                        try {
+                          await downloadPdf(props.receipt.id, {
+                            issue: "copy",
+                            lang: "he",
+                            fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
+                          });
+                        } catch (e: any) {
+                          alert(e?.message || "שגיאה בהורדה");
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      disabled={busy !== null}
+                    >
+                      <Download className="h-5 w-5" />
+                    </Button>
+                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                        הורדה
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 <div className="relative group">
                   <Button
@@ -342,7 +411,7 @@ export default function ReceiptSummaryClient(props: {
               <CardHeader className="pb-3">
                 <h4 className="text-right text-base font-semibold">סכום מסמך</h4>
               </CardHeader>
-              <CardContent className="text-right text-2xl font-bold">
+              <CardContent className="pr-0 text-right text-2xl font-bold">
                 {formatAmount(props.receipt.total_amount, props.receipt.currency)}
               </CardContent>
             </Card>
@@ -351,7 +420,7 @@ export default function ReceiptSummaryClient(props: {
               <CardHeader className="pb-3">
                 <h4 className="text-right text-base font-semibold">פרטי העסק</h4>
               </CardHeader>
-              <CardContent className="text-right text-sm">
+              <CardContent className="pr-0 text-right text-sm">
                 <div className="font-semibold">{props.company?.company_name || "—"}</div>
                 <div className="mt-2 text-muted-foreground">
                   <div>
@@ -370,7 +439,7 @@ export default function ReceiptSummaryClient(props: {
               <CardHeader className="pb-3">
                 <h4 className="text-right text-base font-semibold">פרטי הלקוח</h4>
               </CardHeader>
-              <CardContent className="text-right text-sm">
+              <CardContent className="pr-0 text-right text-sm">
                 <div className="font-semibold">{props.customer?.name || props.receipt.customer_name || "—"}</div>
                 <div className="mt-2 text-muted-foreground">
                   {props.customer?.tax_id ? <div>מס׳ עוסק/ת.ז: {props.customer.tax_id}</div> : null}
@@ -386,7 +455,7 @@ export default function ReceiptSummaryClient(props: {
             <div className="mt-6">
               <h4 className="text-right text-base font-semibold mb-2">תיאור</h4>
               <Card>
-                <CardContent className="p-4 text-right whitespace-pre-wrap">{documentDescription}</CardContent>
+              <CardContent className="p-4 pr-0 text-right whitespace-pre-wrap">{documentDescription}</CardContent>
               </Card>
             </div>
           ) : null}
@@ -403,21 +472,21 @@ export default function ReceiptSummaryClient(props: {
             ) : null}
 
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="!p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full" style={{ borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ borderBottom: "1px solid #EDF1F5" }}>
-                        <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993" }}>
+                        <th style={{ padding: "12px 0", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993" }}>
                           אמצעי תשלום
                         </th>
-                        <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993" }}>
+                        <th style={{ padding: "12px 0", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993" }}>
                           פירוט
                         </th>
-                        <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993", whiteSpace: "nowrap" }}>
+                        <th style={{ padding: "12px 0", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993", whiteSpace: "nowrap" }}>
                           תאריך
                         </th>
-                        <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993", whiteSpace: "nowrap" }}>
+                        <th style={{ padding: "12px 0", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#708993", whiteSpace: "nowrap" }}>
                           סכום
                         </th>
                       </tr>
@@ -425,25 +494,25 @@ export default function ReceiptSummaryClient(props: {
                     <tbody>
                       {paymentsToShow.length === 0 ? (
                         <tr>
-                          <td colSpan={4} style={{ padding: "20px 16px", textAlign: "center", color: "#708993" }}>
+                          <td colSpan={4} style={{ padding: "20px 0", textAlign: "center", color: "#708993" }}>
                             —
                           </td>
                         </tr>
                       ) : (
                         paymentsToShow.map((p, idx) => (
                           <tr key={idx} style={{ borderBottom: "1px solid #EDF1F5" }}>
-                            <td style={{ padding: "14px 16px", textAlign: "right", color: "#19183B", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "14px 0", textAlign: "right", color: "#19183B", fontWeight: 600, whiteSpace: "nowrap" }}>
                               {p.method || "—"}
                             </td>
-                            <td style={{ padding: "14px 16px", textAlign: "right", color: "#19183B" }}>
+                            <td style={{ padding: "14px 0", textAlign: "right", color: "#19183B" }}>
                               <span className="text-sm text-muted-foreground">
                                 {formatDetailsInline(p.details)}
                               </span>
                             </td>
-                            <td style={{ padding: "14px 16px", textAlign: "right", color: "#19183B", whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "14px 0", textAlign: "right", color: "#19183B", whiteSpace: "nowrap" }}>
                               {formatDate(p.date)}
                             </td>
-                            <td style={{ padding: "14px 16px", textAlign: "right", color: "#19183B", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            <td style={{ padding: "14px 0", textAlign: "right", color: "#19183B", fontWeight: 600, whiteSpace: "nowrap" }}>
                               {formatAmount(p.amount, p.currency || props.receipt.currency)}
                             </td>
                           </tr>
@@ -460,7 +529,7 @@ export default function ReceiptSummaryClient(props: {
             <div className="mt-6">
               <h4 className="text-right text-base font-semibold mb-2">הערות</h4>
               <Card>
-                <CardContent className="p-4 text-right whitespace-pre-wrap">{notes}</CardContent>
+                <CardContent className="p-4 pr-0 text-right whitespace-pre-wrap">{notes}</CardContent>
               </Card>
             </div>
           ) : null}

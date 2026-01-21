@@ -194,35 +194,25 @@ export default function ReceiptConfirmationModal({
             </h2>
 
             {/* Document Info - Horizontal row layout, centered, 18px font */}
-            <div className="mb-6 flex flex-row items-center justify-center gap-5 mx-auto max-w-[500px] flex-nowrap">
+            <div className="mb-3 flex flex-row items-center justify-center gap-6 mx-auto max-w-[500px] flex-nowrap">
               <div className="flex flex-col items-center py-2">
-                <span className="text-muted-fg font-medium mb-1" style={{ fontSize: "18px" }}>תאריך המסמך:</span>
+                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>תאריך המסמך</span>
                 <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{formatDate(documentDate)}</span>
               </div>
               <div className="flex flex-col items-center py-2">
-                <span className="text-muted-fg font-medium mb-1" style={{ fontSize: "18px" }}>שם הלקוח:</span>
+                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>שם הלקוח</span>
                 <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{customerName}</span>
               </div>
               <div className="flex flex-col items-center py-2">
-                <span className="text-muted-fg font-medium mb-1" style={{ fontSize: "18px" }}>סכום מסמך:</span>
+                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>סכום מסמך</span>
                 <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{formatMoney(total, currency)}</span>
               </div>
             </div>
 
-            {/* Email Note - Blue background, aligned with background */}
-            {!hasEmail && (
-              <div className="p-3 rounded-lg mx-auto max-w-[500px]" style={{ backgroundColor: "#DBEAFE", border: "1px solid #93C5FD" }}>
-                <p className="text-blue-900" style={{ fontSize: "18px" }}>
-                  רק אומרים שלא הזנת כתובת מייל לשליחת המסמך (אבל אפשר להפיק אותו ולשלוח אחר כך)
-                </p>
-              </div>
-            )}
-
-            {/* Consent (computerized document) - TEMP: deferred when consentState is not provided */}
             {consentState && (
               <div className="mt-6 mx-auto max-w-[500px] text-right">
                 {consentState.status === "loading" && (
-                <div className="p-3 rounded-lg" style={{ backgroundColor: "#F3F4F6", border: "1px solid #E5E7EB" }}>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: "#F3F4F6" }}>
                   <p className="text-modal-fg" style={{ fontSize: "18px" }}>
                     טוען סטטוס הסכמה…
                   </p>
@@ -279,7 +269,7 @@ export default function ReceiptConfirmationModal({
           </div>
 
           {/* Action Buttons - Footer at bottom, RTL aligned */}
-          <div className="p-8 pt-0 flex flex-col gap-4 items-center border-t" style={{ borderColor: "#E5E7EB" }}>
+          <div className="p-8 pt-0 flex flex-col gap-4 items-center " style={{ borderColor: "#E5E7EB" }}>
             <Button
               ref={confirmButtonRef}
               type="button"

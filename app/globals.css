@@ -10,11 +10,12 @@
 @layer base {
   :root {
     /* ===== App Base ===== */
-    --bg: #EDF1F5;
+    --bg: #ffffff;
     --fg: #19183B;
 
     --card: #FFFFFF;
     --card-fg: #19183B;
+    --card-shadow: 0 0 13px 0 rgba(36, 36, 36, 0.1); 
 
     --muted: #EDF1F5;
     --muted-fg: #708993;
@@ -37,7 +38,7 @@
     /* ===== Links ===== */
     --link: #1D868F;
     --link-hover: #97B2BD;
-    --link-visited: #97B2BD;
+    --link-visited:var(--fg);
     --link-focus: #F39600;
 
     /* ===== Forms / States ===== */
@@ -60,15 +61,15 @@
     --modal-fg: #19183B;
 
     /* ===== Sidebar (Inverse) ===== */
-    --sidebar-bg: #19183B;
-    --sidebar-fg: #EDF1F5;
-    --sidebar-muted-fg: #EDF1F5;
+    --sidebar-bg: #E8F6F8;
+    --sidebar-fg: var(--fg);
+    --sidebar-muted-fg: var(--fg);
     --sidebar-muted-bg: #1D868F;
 
     --sidebar-border: none;
-    --sidebar-hover: #1A3954;
-    --sidebar-active: #1D868F;
-    --sidebar-active-fg: #FFFFFF;
+    --sidebar-hover: #99DE76;
+    --sidebar-active: #ffffff;
+    --sidebar-active-fg: var(--fg);
     --sidebar-ring: #EDF1F5;
 
     /* ===== Tables ===== */
@@ -112,6 +113,9 @@
 --sheet-radius: 12px;
 --sheet-height-mobile: 80vh;
 --sheet-padding: 16px;
+--sidebar-active: #ffffff;
+--sidebar-active-fg: var(--fg); /* טקסט/אייקון כהים ב-current */
+
 
   }
 
@@ -185,8 +189,8 @@
   a {
     font-size: 18px;
     line-height: 1.3;
-    color: var(--link);
-    text-decoration: underline;
+    color: inherit;
+    text-decoration: none;
     text-underline-offset: 3px;
   }
 
@@ -198,11 +202,21 @@
     color: var(--link-visited);
   }
 
+  /* Keep visited links dark inside dropdown menus (submenus) */
+  [data-slot="dropdown-menu-content"] a:visited {
+    color: var(--dropdown-fg);
+  }
+
   a:focus-visible {
     outline: none;
     text-decoration-thickness: 2px;
     text-decoration-color: var(--link-focus);
   }
+  .ui-sidebar a,
+.ui-sidebar a:visited {
+  color: inherit;
+}
+
 }
 
 @layer components {
@@ -403,7 +417,7 @@
   /* ==================== UI Kit Utility Classes ==================== */
   
   .ui-container {
-    @apply mx-auto max-w-[1200px] px-[10px];
+    @apply mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-10;
   }
 
   .ui-form-grid {
@@ -556,3 +570,139 @@
 [data-slot="dropdown-menu-checkbox-item"]:not([data-state="checked"]):hover {
   background-color: var(--dropdown-item-hover) !important;
 }
+/* Sidebar color lock (prevents visited/global overrides) */
+.ui-sidebar, .sidebar {
+  color: var(--sidebar-fg);
+}
+
+.ui-sidebar a,
+.ui-sidebar a:visited,
+.sidebar a,
+.sidebar a:visited {
+  color: inherit;
+}
+
+.ui-sidebar-item-active,
+.sidebar .active {
+  color: var(--sidebar-active-fg);
+}
+
+.ui-sidebar-item-active svg,
+.sidebar .active svg {
+  color: currentColor;
+}
+/* HARD Sidebar lock - overrides Tailwind text-* */
+.ui-sidebar,
+.ui-sidebar * {
+  color: var(--sidebar-fg) !important;
+}
+
+.ui-sidebar .ui-sidebar-item-active,
+.ui-sidebar .ui-sidebar-item-active * {
+  color: var(--sidebar-active-fg) !important;
+}
+
+.ui-sidebar svg {
+  color: currentColor !important;
+}
+
+/* TEMP: lock all sidebar nav links (structure-based) */
+aside nav,
+aside nav * {
+  color: var(--sidebar-fg) !important;
+}
+
+aside nav a,
+aside nav a:visited {
+  color: inherit !important;
+}
+
+aside nav .ui-sidebar-item-active,
+aside nav .active,
+aside nav [aria-current="page"] {
+  color: var(--sidebar-active-fg) !important;
+}
+
+aside nav svg {
+  color: currentColor !important;
+}
+/* Sidebar: ensure children always inherit current color */
+.ui-sidebar .ui-sidebar-item,
+.ui-sidebar .ui-sidebar-item * {
+  color: inherit !important;
+}
+
+/* Active/current item: force children to inherit active fg (even if inner has text-fg etc.) */
+.ui-sidebar .bg-sidebar-active,
+.ui-sidebar .bg-sidebar-active * {
+  color: var(--sidebar-active-fg) !important;
+}
+
+/* If you want current to be APP fg (dark) instead of white, use this instead:
+.ui-sidebar .bg-sidebar-active,
+.ui-sidebar .bg-sidebar-active * {
+  color: var(--fg) !important;
+}
+*/
+
+/* Icons follow text */
+.ui-sidebar svg {
+  color: currentColor !important;
+  opacity: 1 !important;
+}
+.ui-sidebar summary { list-style: none; }
+.ui-sidebar summary::-webkit-details-marker { display: none; }
+/* ===============================
+   Sidebar – Current item (active)
+   Background: light
+   Text/Icon: app fg (dark)
+   =============================== */
+
+/* current / active item (state is on the parent) */
+.ui-sidebar .bg-sidebar-active,
+.ui-sidebar .bg-sidebar-active * {
+  background-color: var(--sidebar-active) !important; /* בהיר */
+  color: var(--fg) !important;                        /* כהה */
+}
+
+/* icons always follow text */
+.ui-sidebar .bg-sidebar-active svg {
+  color: currentColor !important;
+  opacity: 1 !important;
+}
+/* CURRENT (bg-sidebar-active) => light bg + dark text/icon */
+.ui-sidebar .ui-sidebar-item.bg-sidebar-active,
+.ui-sidebar .ui-sidebar-item.bg-sidebar-active * {
+  background-color: var(--sidebar-active) !important; /* light */
+  color: var(--fg) !important;                        /* dark */
+  --tw-text-opacity: 1 !important;                    /* kill Tailwind fade */
+  opacity: 1 !important;                              /* kill opacity-* */
+}
+
+/* icons follow text */
+.ui-sidebar .ui-sidebar-item.bg-sidebar-active svg {
+  color: currentColor !important;
+}
+.ui-sidebar summary.bg-sidebar-active,
+.ui-sidebar summary.bg-sidebar-active * {
+  background-color: var(--sidebar-active) !important;
+  color: var(--fg) !important;
+  --tw-text-opacity: 1 !important;
+  opacity: 1 !important;
+}
+/* Sidebar current (active) */
+.ui-sidebar-current {
+  background: var(--sidebar-active) !important; /* light */
+  color: var(--fg) !important;                 /* dark */
+}
+
+.ui-sidebar-current * {
+  color: currentColor !important;
+  --tw-text-opacity: 1 !important;
+  opacity: 1 !important;
+}
+
+.ui-sidebar-current svg {
+  color: currentColor !important;
+}
+.ui-sidebar svg { color: currentColor !important; }
