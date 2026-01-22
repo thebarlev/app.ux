@@ -47,6 +47,79 @@
     --input-border: #1D868F;
     --placeholder: #97B2BD;
 
+    /* ===== Field Tokens: Shared Base ===== */
+    --field-bg: transparent;
+    --field-text: var(--fg);
+    --field-border: var(--border);
+    --field-border-focus: var(--border);
+    --field-border-error: var(--danger);
+    --field-radius: 0px;
+    --field-padding-x: 0px;
+    --field-block-offset-y: 8px;
+
+    /* ===== Field Tokens: Floating Labels (inputs/textareas) ===== */
+    --field-label: var(--fg);
+    --field-label-focus: var(--fg);
+    --field-label-size: 13px;
+    --field-label-line-height: 1;
+    --field-label-top: 3px;
+    --field-label-margin-bottom: 7px;
+
+    /* ===== Field Tokens: Inputs/Textareas (spacing + height) ===== */
+    --field-padding-y: 32px;
+    --field-text-offset: 2px;
+    --field-input-padding-top: calc(var(--field-padding-y) + 16px);
+    --field-input-padding-bottom: 10px;
+    --field-input-height: calc(var(--field-input-padding-top) + var(--field-input-padding-bottom) + 1px);
+    --field-height: var(--field-input-height);
+    --field-height-sm: 35px;
+
+    /* ===== Field Tokens: Money Input (amount + underline) ===== */
+    --field-money-label-gap: -7px;
+    --field-money-text-size: 10px;
+    --field-money-label-offset-y: 13px;
+    --field-money-padding-top: 10px;
+    --field-money-padding-bottom: 4px;
+    --field-money-height:40px;
+    --field-money-block-height: auto;
+
+    /* ===== Field Tokens: Date Input Icon ===== */
+    --field-calendar-icon-inset: 15px;
+    --field-calendar-icon-right: 0px;
+    --field-calendar-icon-size: 20px;
+    --field-calendar-icon-gap: 10px;
+    --field-calendar-icon-hit-padding: 4px;
+    --field-calendar-icon-offset-y: 0px;
+    --field-calendar-icon-translate-y: 8px;
+    --field-calendar-icon-padding-right: calc(
+      var(--field-calendar-icon-right) +
+      var(--field-calendar-icon-size) +
+      var(--field-calendar-icon-gap)
+    );
+    --field-calendar-icon-top: calc(var(--field-padding-y) + 19px);
+    --field-calendar-icon-color: var(--muted-fg);
+    --field-date-inline-offset-y: -11px;
+    --field-date-text-offset-y: -7px;
+    --field-date-label-size: var(--field-label-size);
+    --field-date-label-offset-y: -7px;
+    --field-date-label-gap: 19px;
+    --field-date-underline-gap: 6px;
+    --field-date-icon-offset-y: var(--field-date-text-offset-y);
+
+    /* ===== Dropdown Tokens: Labels (separate from inputs) ===== */
+    --field-select-label-margin-top: 15px;
+    --field-select-label-gap: -10px;
+
+    /* ===== Dropdown Tokens: Trigger (separate from inputs) ===== */
+    --field-select-padding-top: 10px;
+    --field-select-underline-gap: -10px;
+    --field-select-padding-bottom: var(--field-select-underline-gap);
+    --field-select-offset-y: -10px;
+    --field-select-text-offset-y: 13px;
+    --field-select-height: var(--field-height);
+    --field-select-height-sm: var(--field-height-sm);
+    --field-select-max-height: 280px;
+
     --success: #1D868F;
     --success-fg: #19183B;
 
@@ -81,7 +154,7 @@
     --table-negative: #19183B;
 
     /* ===== Layout ===== */
-    --radius: 5px;
+    --radius: 12px;
 
     /* ===== Dropdown / Select Tokens ===== */
     --dropdown-bg: var(--card);
@@ -142,9 +215,56 @@
 
   label {
     color: var(--muted-fg);
-    font-size: 18px;
+    font-size: 13px;
     line-height: 1.6;
   }
+
+label.ui-floating-label {
+  font-size: var(--field-label-size) !important;
+  line-height: var(--field-label-line-height) !important;
+}
+
+label.ui-date-label {
+  font-size: var(--field-date-label-size) !important;
+  margin-top: var(--field-date-label-offset-y);
+}
+
+.ui-select-label {
+  margin-top: var(--field-select-label-margin-top);
+  margin-bottom: var(--field-select-label-gap);
+}
+
+.ui-no-spin {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  -webkit-appearance: textfield;
+}
+
+.ui-no-spin::-webkit-outer-spin-button,
+.ui-no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.ui-money-block {
+  min-height: var(--field-money-block-height);
+}
+
+.ui-document-date-offset {
+  --field-block-offset-y: calc(var(--field-block-offset-y) - 10px);
+}
+
+.ui-date-inline {
+  position: relative;
+  display: block;
+  width: 100%;
+  transform: translateY(var(--field-date-inline-offset-y));
+}
+
+[data-slot="select-trigger"] [data-slot="select-value"] {
+  display: inline-block;
+  transform: translateY(var(--field-select-text-offset-y));
+}
 
   input::placeholder,
   textarea::placeholder {
@@ -153,6 +273,11 @@
     text-align: right;
     direction: rtl;
   }
+
+/* Global input text size override (runtime reliable) */
+:root {
+  --field-input-text-size:20px;
+}
 
   h1 {
     font-size: 56px;
@@ -220,6 +345,9 @@
 }
 
 @layer components {
+  .ui-field-block {
+    transform: translateY(var(--field-block-offset-y));
+  }
   /* ===== Dropdown UI Classes ===== */
   .ui-dd-trigger {
     @apply h-dropdown w-full rounded-dropdown border border-dropdown-border bg-dropdown-bg text-dropdown-fg px-3 flex items-center gap-3 outline-none transition-colors;
@@ -327,7 +455,7 @@
   width: 20px;
   height: 20px;
   border: 1px solid var(--dropdown-border);
-  border-radius: 4px;
+  border-radius: 0px;
 }
 
 /* label wrapper (so RTL alignment works even though Radix renders text nodes) */
@@ -464,8 +592,8 @@
     }
   }
 /* Override FieldWrapper label styles */
-.ui-form-grid label,
-[class*="field-wrapper"] label {
+.ui-form-grid label:not(.ui-floating-label):not(.ui-select-label),
+[class*="field-wrapper"] label:not(.ui-floating-label):not(.ui-select-label) {
   color: var(--muted-fg) !important;
   font-size: 18px !important;
   line-height: 1.6 !important;

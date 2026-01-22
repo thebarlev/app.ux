@@ -25,12 +25,12 @@ export function CurrencyAmountGroup({ currencyControl, amountControl, className 
       )}
     >
       {/* Amount: takes remaining space, allowed to shrink */}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1" data-currency-amount="amount">
         {amountControl}
       </div>
 
       {/* Currency: fixed width */}
-      <div className="shrink-0 w-[92px]">
+      <div className="shrink-0 w-[92px]" data-currency-amount="currency">
         {currencyControl}
       </div>
     </div>

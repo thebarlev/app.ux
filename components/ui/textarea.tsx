@@ -3,6 +3,8 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 function Textarea({ className, style, ...props }: React.ComponentProps<'textarea'>) {
+  const id = props.id as string | undefined;
+
   return (
     <textarea
       data-slot="textarea"

@@ -44,21 +44,32 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const isPrimary = variant === "primary";
     const isSecondary = variant === "secondary";
     const isDanger = variant === "danger";
+    const isUnderlineTrigger = className?.includes("ui-dd-trigger") || className?.includes("border-b");
     
-    const baseStyle = isPrimary ? {
-      backgroundColor: "#1D868F",
-      color: "#FFFFFF",
-      ...style,
-    } : isSecondary ? {
-      backgroundColor: "#EDF1F5",
-      color: "#19183B",
-      border: "1px solid #1D868F",
-      ...style,
-    } : isDanger ? {
-      backgroundColor: "#9B0003",
-      color: "#FFFFFF",
-      ...style,
-    } : style;
+    const baseStyle = isPrimary
+      ? {
+          backgroundColor: "#1D868F",
+          color: "#FFFFFF",
+          ...style,
+        }
+      : isSecondary
+        ? (isUnderlineTrigger
+            ? {
+                ...style,
+              }
+            : {
+                backgroundColor: "#EDF1F5",
+                color: "#19183B",
+                border: "1px solid #1D868F",
+                ...style,
+              })
+        : isDanger
+          ? {
+              backgroundColor: "#9B0003",
+              color: "#FFFFFF",
+              ...style,
+            }
+          : style;
 
     return (
       <button

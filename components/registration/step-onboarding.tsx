@@ -8,7 +8,7 @@ import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Label } from "@/components/ui/label"
 
 interface StepOnboardingProps {
@@ -254,35 +254,25 @@ export function StepOnboarding(_props: StepOnboardingProps) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="businessNameEn" className="text-right">
-              שם עסק באנגלית (אופציונלי)
-            </Label>
-            <Input
-              id="businessNameEn"
-              type="text"
-              placeholder="Business name (optional)"
-              value={data.businessNameEn}
-              onChange={(e) => updateData({ businessNameEn: e.target.value })}
-              dir="ltr"
-              className="text-left"
-            />
-          </div>
+          <FloatingInput
+            label="שם עסק באנגלית (אופציונלי)"
+            id="businessNameEn"
+            value={data.businessNameEn}
+            onChange={(e) => updateData({ businessNameEn: e.target.value })}
+            dir="ltr"
+            className="text-left"
+            containerClassName="w-full min-w-0"
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="englishAddress" className="text-right">
-              כתובת באנגלית (אופציונלי)
-            </Label>
-            <Input
-              id="englishAddress"
-              type="text"
-              placeholder="English address (optional)"
-              value={data.englishAddress}
-              onChange={(e) => updateData({ englishAddress: e.target.value })}
-              dir="ltr"
-              className="text-left"
-            />
-          </div>
+          <FloatingInput
+            label="כתובת באנגלית (אופציונלי)"
+            id="englishAddress"
+            value={data.englishAddress}
+            onChange={(e) => updateData({ englishAddress: e.target.value })}
+            dir="ltr"
+            className="text-left"
+            containerClassName="w-full min-w-0"
+          />
 
           <div className="space-y-2">
             <Label className="text-right">לוגו (אופציונלי)</Label>

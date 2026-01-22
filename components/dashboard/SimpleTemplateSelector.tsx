@@ -122,9 +122,9 @@ export default function SimpleTemplateSelector({ className }: Props) {
 
   if (loading) {
     return (
-      <Card className={cn("p-8", className)}>
+      <Card className={cn("p-6 border border-border/60 bg-white/80", className)}>
         <div className="flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       </Card>
     )
@@ -132,33 +132,33 @@ export default function SimpleTemplateSelector({ className }: Props) {
 
   if (templates.length === 0) {
     return (
-      <Card className={cn("p-8", className)}>
+      <Card className={cn("p-6 border border-border/60 bg-white/80", className)}>
         <div className="text-center text-muted-foreground">
-          <FileCode className="h-12 w-12 mx-auto mb-3 opacity-50" />
-          <p>אין תבניות זמינות</p>
+          <FileCode className="h-8 w-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">אין תבניות זמינות</p>
         </div>
       </Card>
     )
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div className={cn("space-y-2", className)}>
       {templates.map((template) => (
         <Card
           key={template.id}
           className={cn(
-            "transition-all hover:shadow-md",
+            "transition-all border border-border/60 bg-white/80 hover:bg-white",
             !template.is_default && "cursor-pointer",
-            template.is_default && "bg-green-50 ring-2 ring-green-500 shadow-lg"
+            template.is_default && "bg-emerald-50/70 ring-1 ring-emerald-500/70"
           )}
           onClick={() => {
             if (updatingId || template.is_default) return
             handleToggleDefault(template)
           }}
         >
-          <div className="flex items-center gap-4 p-4">
+          <div className="flex items-center gap-3 p-3">
             {/* Thumbnail - Right side (RTL) */}
-            <div className="flex-shrink-0 w-24 h-32 bg-muted rounded-lg overflow-hidden border">
+            <div className="flex-shrink-0 w-20 h-24 bg-muted/70 rounded-md overflow-hidden border border-border/60">
               {template.thumbnail_url ? (
                 <img
                   src={template.thumbnail_url}
@@ -167,7 +167,7 @@ export default function SimpleTemplateSelector({ className }: Props) {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <FileCode className="h-10 w-10 text-muted-foreground/50" />
+                  <FileCode className="h-6 w-6 text-muted-foreground/50" />
                 </div>
               )}
             </div>
@@ -176,30 +176,30 @@ export default function SimpleTemplateSelector({ className }: Props) {
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-lg truncate mb-1">
+                  <h3 className="font-semibold text-sm truncate mb-1">
                     {template.name}
                   </h3>
                   
                   {template.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                       {template.description}
                     </p>
                   )}
 
                   {/* Badges */}
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="text-xs">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="text-[11px] px-2 py-0.5">
                       {getDocumentTypeLabel(template.document_type)}
                     </Badge>
                     
                     {template.company_id === null && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-[11px] px-2 py-0.5">
                         תבנית גלובלית
                       </Badge>
                     )}
                     
                     {template.is_default && (
-                      <Badge className="text-xs bg-green-600 hover:bg-green-700">
+                      <Badge className="text-[11px] px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700">
                         ברירת מחדל ✓
                       </Badge>
                     )}
@@ -207,29 +207,29 @@ export default function SimpleTemplateSelector({ className }: Props) {
                 </div>
 
                 {/* Status Indicator */}
-                <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                   {template.is_default ? (
                     <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg">
+                      <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
                           viewBox="0 0 24 24" 
                           fill="white"
-                          className="w-7 h-7"
+                          className="w-5 h-5"
                         >
                           <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                         </svg>
                       </div>
-                      <span className="text-xs font-semibold text-green-600 mt-1">
+                      <span className="text-[11px] font-semibold text-emerald-700 mt-1">
                         פעיל
                       </span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center transition-colors">
-                        <span className="text-gray-400 text-2xl font-light">○</span>
+                      <div className="w-9 h-9 rounded-full bg-gray-200/70 flex items-center justify-center transition-colors">
+                        <span className="text-gray-400 text-lg font-light">○</span>
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">
+                      <span className="text-[11px] text-muted-foreground mt-1">
                         {updatingId === template.id ? "מעדכן..." : "בחר"}
                       </span>
                     </div>

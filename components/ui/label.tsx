@@ -10,6 +10,8 @@ function Label({
   style,
   ...props
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
+  const isSelectLabel = className?.includes('ui-select-label')
+  const isMoneyLabel = className?.includes('ui-money-label')
   return (
     <LabelPrimitive.Root
       data-slot="label"
@@ -18,9 +20,14 @@ function Label({
         className,
       )}
       style={{
-        marginBottom: '7px',
+        marginBottom: isSelectLabel
+          ? undefined
+          : isMoneyLabel
+          ? 'var(--field-money-label-gap)'
+          : 'var(--field-label-margin-bottom)',
+        marginTop: isMoneyLabel ? 'var(--field-money-label-offset-y)' : undefined,
         color: '#19183B',
-        fontSize: '18px',
+        fontSize: 'var(--field-label-size)',
         ...style,
       }}
       {...props}

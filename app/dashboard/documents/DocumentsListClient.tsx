@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/components/ui/date-input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
@@ -24,6 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { selectUnderline } from "@/components/ui/field-styles";
+import { cn } from "@/lib/utils";
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -168,8 +171,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     mq.addEventListener?.("change", apply);
     return () => mq.removeEventListener?.("change", apply);
   }, []);
-
-
 
   if (!initialData.ok) {
     return (
@@ -454,28 +455,30 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
             className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
           >
             <div ref={searchFiltersItemSearchRef} className="min-w-0">
-              <FieldWrapper label="חיפוש לפי מספר מסמך או שם לקוח" id="search" className="w-full min-w-0">
-                <input
-                  id="search"
-                  type="text"
-                  placeholder="חיפוש לפי מספר מסמך או שם לקוח..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      applyFilters();
-                    }
-                  }}
-                  className="ui-filter-input"
-                />
-              </FieldWrapper>
+              <FloatingInput
+                label="חיפוש לפי מספר מסמך או שם לקוח"
+                id="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    applyFilters();
+                  }
+                }}
+                containerClassName="w-full min-w-0"
+              />
             </div>
 
             <div ref={searchFiltersItemDocTypeRef} className="min-w-0">
-              <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
+              <FieldWrapper
+                label="סוג מסמך"
+                id="documentType"
+                className="w-full min-w-0"
+                labelClassName="ui-select-label"
+              >
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="secondary" className="ui-dd-trigger">
+                    <Button type="button" variant="secondary" className={cn("ui-dd-trigger", selectUnderline)}>
                       <span>
                         {selectedDocTypes.size === 0 || isAllDocTypesSelected
                           ? "כל המסמכים"
@@ -533,14 +536,19 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
             {/* Date range filter block */}
             <div ref={searchFiltersItemDateRef} className="min-w-0">
-              <FieldWrapper label="טווח תאריכים" id="dateRange" className="w-full min-w-0">
+              <FieldWrapper
+                label="טווח תאריכים"
+                id="dateRange"
+                className="w-full min-w-0"
+                labelClassName="ui-select-label"
+              >
                 {isMobile ? (
                   <Button
                     id="dateRange"
                     type="button"
                     variant="secondary"
                     onClick={() => setDateSheetOpen(true)}
-                    className="ui-dd-trigger"
+                    className={cn("ui-dd-trigger", selectUnderline)}
                   >
                     <span>{dateTriggerLabel}</span>
                     <span>▾</span>
@@ -548,7 +556,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 ) : (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button id="dateRange" type="button" variant="secondary" className="ui-dd-trigger">
+                      <Button id="dateRange" type="button" variant="secondary" className={cn("ui-dd-trigger", selectUnderline)}>
                         <span>{dateTriggerLabel}</span>
                         <span>▾</span>
                       </Button>

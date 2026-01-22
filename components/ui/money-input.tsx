@@ -1,4 +1,8 @@
-import { Input } from "./input"
+import { cn } from "@/lib/utils";
+import {
+  fieldBase,
+  fieldStateBorders,
+} from "@/components/ui/field-styles";
 
 interface MoneyInputProps {
   value: number
@@ -27,17 +31,25 @@ export function MoneyInput({
 }: MoneyInputProps) {
   const fontSize = style?.fontSize || '18px'
   const fontWeight = style?.fontWeight || 'normal'
+
+  const stateClasses = error ? fieldStateBorders.error : fieldStateBorders.default;
+
   
   return (
     <div className="relative" style={{ width: style?.width || '100%' }}>
-      <Input
+      <input
         id={id}
         type="number"
         min={0}
         step="0.01"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className={`${error ? "border-red-500" : ""} ${className}`}
+        className={cn(
+          fieldBase,
+          "ui-no-spin h-[var(--field-money-height)] text-[length:var(--field-money-text-size)] px-[var(--field-padding-x)] pt-[var(--field-money-padding-top)] pb-[var(--field-money-padding-bottom)]",
+          stateClasses,
+          className
+        )}
         style={{
           ...style,
           fontSize: typeof fontSize === 'string' ? fontSize : `${fontSize}px`,

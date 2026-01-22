@@ -10,6 +10,7 @@ interface FieldWrapperProps {
   children: React.ReactNode
   className?: string
   id?: string
+  labelClassName?: string
 }
 
 /**
@@ -34,7 +35,8 @@ export function FieldWrapper({
   hint,
   children, 
   className = "",
-  id
+  id,
+  labelClassName
 }: FieldWrapperProps) {
   const errorId = id ? `${id}-error` : undefined;
   const hintId = id ? `${id}-hint` : undefined;
@@ -43,7 +45,7 @@ export function FieldWrapper({
     <div className={cn("w-[300px]", className)}>
       <Label 
         htmlFor={id}
-        className="text-right"
+        className={cn("text-right", labelClassName)}
         style={{ color: '#19183B' }}
       >
         {label}

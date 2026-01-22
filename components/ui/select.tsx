@@ -5,6 +5,7 @@ import * as SelectPrimitive from '@radix-ui/react-select'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { selectBase, selectSizes, selectUnderline, fieldStateBorders } from '@/components/ui/field-styles'
 
 function Select({
   ...props
@@ -22,8 +23,11 @@ function SelectValue({
   className,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
+  const valueRef = React.useRef<HTMLSpanElement | null>(null)
+
   return (
     <SelectPrimitive.Value 
+      ref={valueRef}
       data-slot="select-value" 
       className={cn("text-right", className)}
       {...props} 
@@ -34,37 +38,38 @@ function SelectValue({
 function SelectTrigger({
   className,
   size = 'default',
+  variant = 'default',
+  iconClassName,
+  iconStyle,
   children,
-  style,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: 'sm' | 'default'
+  variant?: 'default' | 'underline'
+  iconClassName?: string
+  iconStyle?: React.CSSProperties
 }) {
   // Standard trigger height: exactly 50px for default, 40px for sm
-  const heightClass = size === 'sm' ? 'h-[40px]' : 'h-[50px]';
+  const heightClass = size === 'sm' ? selectSizes.sm : selectSizes.default;
+  const variantClass =
+    variant === 'underline'
+      ? cn(selectUnderline, fieldStateBorders.default, "disabled:border-muted-fg")
+      : "rounded-[5px] px-[15px] border border-transparent bg-input focus:ring-2 focus:ring-ring focus:ring-offset-0";
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
   
   return (
     <SelectPrimitive.Trigger
+      ref={triggerRef}
       data-slot="select-trigger"
       data-size={size}
-      className={cn(
-        "w-full flex items-center justify-between gap-2 rounded-[5px] px-[15px] whitespace-nowrap outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 transition-colors data-[placeholder]:text-[#97B2BD] text-right",
-        heightClass,
-        className,
-      )}
+      className={cn(selectBase, heightClass, variantClass, className)}
       dir="rtl"
-      style={{
-        border: "1px solid transparent",
-        backgroundColor: "#EDF1F5",
-        color: "#19183B",
-        fontSize: "18px",
-        ...style,
-      }}
+      style={{ fontSize: "18px" }}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4" style={{ color: '#19183B', opacity: 1 }} />
+        <ChevronDownIcon className={cn("size-4 text-current", iconClassName)} style={iconStyle} />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -78,9 +83,12 @@ function SelectContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
+        ref={contentRef}
         data-slot="select-content"
         className={cn(
           'border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden rounded-[5px] shadow-ui-lg',
@@ -100,7 +108,7 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            'p-1 max-h-[400px] overflow-y-auto',
+            'p-1 max-h-[var(--field-select-max-height)] overflow-y-auto',
             position === 'popper' &&
               'w-full min-w-[var(--radix-select-trigger-width)]',
           )}

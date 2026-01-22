@@ -4,10 +4,9 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
 
 export function StepAddress() {
@@ -147,62 +146,39 @@ export function StepAddress() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="street" className="text-right">
-              רחוב ומספר <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-            </Label>
-            <Input
-              id="street"
-              type="text"
-              className={errors.street ? "border-danger focus:ring-danger" : ""}
-              placeholder="רחוב הרצל 1"
-              value={data.street}
-              onChange={(e) => updateData({ street: e.target.value })}
-              disabled={isLoading}
-            />
-            {errors.street && (
-              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.street}
-              </p>
-            )}
-          </div>
+          <FloatingInput
+            label="רחוב ומספר"
+            id="street"
+            required
+            value={data.street}
+            onChange={(e) => updateData({ street: e.target.value })}
+            error={errors.street}
+            disabled={isLoading}
+            containerClassName="w-full min-w-0"
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="city" className="text-right">
-                עיר <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-              </Label>
-              <Input
-                id="city"
-                type="text"
-                className={errors.city ? "border-danger focus:ring-danger" : ""}
-                placeholder="תל אביב-יפו"
-                value={data.city}
-                onChange={(e) => updateData({ city: e.target.value })}
-                disabled={isLoading}
-              />
-              {errors.city && (
-                <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                  {errors.city}
-                </p>
-              )}
-            </div>
+            <FloatingInput
+              label="עיר"
+              id="city"
+              required
+              value={data.city}
+              onChange={(e) => updateData({ city: e.target.value })}
+              error={errors.city}
+              disabled={isLoading}
+              containerClassName="w-full min-w-0"
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="postalCode" className="text-right">
-                מיקוד
-              </Label>
-              <Input
-                id="postalCode"
-                type="text"
-                className="text-left"
-                placeholder="1234567"
-                value={data.postalCode}
-                onChange={(e) => updateData({ postalCode: e.target.value })}
-                dir="ltr"
-                disabled={isLoading}
-              />
-            </div>
+            <FloatingInput
+              label="מיקוד"
+              id="postalCode"
+              value={data.postalCode}
+              onChange={(e) => updateData({ postalCode: e.target.value })}
+              dir="ltr"
+              className="text-left"
+              disabled={isLoading}
+              containerClassName="w-full min-w-0"
+            />
           </div>
 
           <div className="flex gap-3">

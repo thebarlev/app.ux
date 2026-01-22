@@ -264,7 +264,7 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <div style={{ position: 'relative', width: '100%' }}>
+      <span className="ui-date-inline">
         {/* Display input with DD/MM/YYYY format */}
         <Input
           {...props}
@@ -298,7 +298,12 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
           maxLength={10}
           inputMode="numeric"
           style={{ 
-            paddingRight: '45px',
+            paddingTop:
+              "calc(var(--field-input-padding-top) + var(--field-date-label-gap) + var(--field-date-text-offset-y))",
+            paddingBottom:
+              "calc(var(--field-input-padding-bottom) + var(--field-date-underline-gap))",
+            paddingRight: "var(--field-calendar-icon-padding-right)",
+            fontSize: "var(--field-input-text-size)",
             ...props.style 
           }}
         />
@@ -307,13 +312,13 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
             type="button"
             style={{
               position: 'absolute',
-              right: '15px',
-              top: '50%',
-              transform: 'translateY(-50%)',
+              right: 'var(--field-calendar-icon-right)',
+              top: 'var(--field-calendar-icon-top)',
+              transform: 'translateY(calc(-50% + var(--field-calendar-icon-translate-y)))',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '4px',
+              padding: 'var(--field-calendar-icon-hit-padding)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -326,7 +331,13 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
               setOpen(true)
             }}
           >
-            <Calendar size={20} style={{ color: '#708993' }} />
+            <Calendar
+              style={{
+                width: 'var(--field-calendar-icon-size)',
+                height: 'var(--field-calendar-icon-size)',
+                color: 'var(--field-calendar-icon-color)',
+              }}
+            />
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start" sideOffset={8} dir="rtl">
@@ -469,7 +480,7 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
             }}
           />
         </PopoverContent>
-      </div>
+      </span>
     </Popover>
   )
 }

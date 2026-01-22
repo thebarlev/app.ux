@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { RegistrationLogo } from "@/components/registration/registration-logo"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
@@ -115,55 +115,44 @@ function LoginForm() {
 
           <CardContent>
           <form onSubmit={handleLogin} className="space-y-5">
-              {/* Email Field */}
-              <div className="space-y-2">
-                <label htmlFor="email" className="block text-right">
-                  כתובת אימייל
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="israel@example.com"
+              <FloatingInput
+                label="כתובת אימייל"
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                dir="ltr"
+                className="text-left"
+                aria-required="true"
+                aria-invalid={!!error}
+                aria-describedby={error ? "login-error" : undefined}
+              />
+
+              {/* Password Field */}
+              <div className="relative">
+                <FloatingInput
+                  label="סיסמה"
+                  id="password"
+                  type={showPassword ? "text" : "password"}
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   dir="ltr"
-                  className="text-left"
+                  className="text-left pr-12"
                   aria-required="true"
                   aria-invalid={!!error}
                   aria-describedby={error ? "login-error" : undefined}
                 />
-              </div>
-
-              {/* Password Field */}
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-right">
-                  סיסמה
-                </label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    dir="ltr"
-                    className="text-left pr-12"
-                    placeholder="הזן סיסמה"
-                    aria-required="true"
-                    aria-invalid={!!error}
-                    aria-describedby={error ? "login-error" : undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-fg hover:text-fg transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
-                    aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-fg hover:text-fg transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
+                  aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
 
               {/* Forgot Password Link - below password input, above submit, RTL right-aligned */}

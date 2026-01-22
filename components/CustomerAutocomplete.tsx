@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import {
+  fieldBase,
+  fieldSizes,
+  fieldStateBorders,
+  labelBase,
+  labelStates,
+  helperTextBase,
+  helperTextError,
+} from "@/components/ui/field-styles";
+import { cn } from "@/lib/utils";
 
 type Customer = {
   id: string;
@@ -16,6 +26,15 @@ type Props = {
   onAddNewCustomer?: () => void;
   placeholder?: string;
   disabled?: boolean;
+  id?: string;
+  label?: string;
+  error?: string | null;
+  helperText?: string;
+  required?: boolean;
+  fieldSize?: "default" | "sm";
+  className?: string;
+  containerClassName?: string;
+  labelClassName?: string;
 };
 
 export default function CustomerAutocomplete({
@@ -25,6 +44,15 @@ export default function CustomerAutocomplete({
   onAddNewCustomer,
   placeholder = "התחל להקליד שם לקוח...",
   disabled = false,
+  id,
+  label,
+  error,
+  helperText,
+  required,
+  fieldSize = "default",
+  className,
+  containerClassName,
+  labelClassName,
 }: Props) {
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,6 +61,7 @@ export default function CustomerAutocomplete({
   const [lastValue, setLastValue] = useState("");
   const timeoutRef = useRef<NodeJS.Timeout>();
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const justSelectedRef = useRef(false);
 
   // Close dropdown when clicking outside
@@ -149,77 +178,34 @@ export default function CustomerAutocomplete({
     }
   };
 
+  const stateClasses = error ? fieldStateBorders.error : fieldStateBorders.default;
+  const labelStateClasses = error ? labelStates.error : labelStates.default;
+  const errorId = error && id ? `${id}-error` : undefined;
+  const helperId = !error && helperText && id ? `${id}-help` : undefined;
+  const describedBy = errorId ?? helperId;
+
   return (
-    <div ref={wrapperRef} style={{ position: "relative", width: "100%" }}>
+    <div ref={wrapperRef} className={cn("relative w-full min-w-0", containerClassName)}>
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={async () => {
-          // Don't show dropdown if user just selected a customer
-          if (justSelectedRef.current) {
-            return;
-          }
-          
-          // Don't show dropdown if value exists and matches lastValue (already selected)
-          // This prevents reopening after selection
-          if (value && value.trim().length > 0 && value === lastValue) {
-            return;
-          }
-          
-          // Show dropdown only if user is actively searching (empty or typing)
-          if (value.trim().length === 0) {
-            // Empty field - fetch initial customers
-            if (!isLoading) {
-              setIsLoading(true);
-              try {
-                const response = await fetch('/api/customers/search?q=');
-                if (response.ok) {
-                  const data = await response.json();
-                  setSuggestions(data.customers || []);
-                  setShowDropdown(true);
-                  setSelectedIndex(-1);
-                }
-              } catch (error) {
-                console.error('Customer search error:', error);
-              } finally {
-                setIsLoading(false);
-              }
-            }
-          } else if (suggestions.length > 0) {
-            // Has suggestions from typing - show them
-            setShowDropdown(true);
-          }
-        }}
-        placeholder={placeholder}
-        disabled={disabled}
-        style={{
-          width: "100%",
-          height: 50,
-          padding: "0 16px",
-          borderRadius: 12,
-          border: "none",
-          backgroundColor: "#EDF1F5",
-          fontSize: 18,
-          color: "#19183B",
-          outline: "none",
-          transition: "border-color 200ms, box-shadow 200ms",
-        }}
         onFocus={async (e) => {
           e.currentTarget.style.boxShadow = "0 0 0 2px rgba(29, 134, 143, 0.3)";
-          
+
           // Don't show dropdown if user just selected a customer
           if (justSelectedRef.current) {
             return;
           }
-          
+
           // Don't show dropdown if value exists and matches lastValue (already selected)
           // This prevents reopening after selection
           if (value && value.trim().length > 0 && value === lastValue) {
             return;
           }
-          
+
           // Show dropdown only if user is actively searching (empty or typing)
           if (value.trim().length === 0) {
             // Empty field - fetch initial customers
@@ -247,7 +233,33 @@ export default function CustomerAutocomplete({
         onBlur={(e) => {
           e.currentTarget.style.boxShadow = "none";
         }}
+        placeholder={label ? " " : placeholder}
+        disabled={disabled}
+        id={id}
+        aria-invalid={!!error}
+        aria-describedby={describedBy}
+        className={cn(
+          fieldBase,
+          fieldSizes[fieldSize].input,
+          stateClasses,
+          className
+        )}
       />
+      {label && (
+        <label
+          htmlFor={id}
+          className={cn(
+            labelBase,
+            "peer-disabled:text-muted-fg",
+            fieldSizes[fieldSize].label,
+            labelStateClasses,
+            labelClassName
+          )}
+        >
+          {label}
+          {required && <span className="ms-1">*</span>}
+        </label>
+      )}
 
       {isLoading && (
         <div
@@ -371,6 +383,16 @@ export default function CustomerAutocomplete({
             </div>
           )}
         </div>
+      )}
+      {helperText && !error && (
+        <p id={helperId} className={helperTextBase}>
+          {helperText}
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className={cn(helperTextBase, helperTextError)}>
+          {error}
+        </p>
       )}
     </div>
   );

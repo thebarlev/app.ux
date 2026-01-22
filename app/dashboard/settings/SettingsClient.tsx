@@ -13,7 +13,7 @@ import {
   type BusinessDetailsPayload,
 } from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -101,6 +101,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
   const signatureInputRef = useRef<HTMLInputElement>(null);
   const logoObjectUrlRef = useRef<string | null>(null);
   const signatureObjectUrlRef = useRef<string | null>(null);
+  const booksRegionLabelRef = useRef<HTMLLabelElement | null>(null);
 
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
@@ -170,6 +171,16 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
         signatureObjectUrlRef.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const blocks = Array.from(document.querySelectorAll(".ui-field-block"));
+    if (blocks.length === 0) return;
+    const rootStyles = getComputedStyle(document.documentElement);
+    const offsetVar = rootStyles.getPropertyValue("--field-block-offset-y").trim();
+    if (!offsetVar || offsetVar === "0px") {
+      document.documentElement.style.setProperty("--field-block-offset-y", "-14px");
+    }
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -462,29 +473,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             )}
 
             {/* Combined Grid: Logo on Right, Signature on Left */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6 px-[20px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 px-4">
               
               {/* Logo Section */}
-              <div>
-                <h3 style={{ marginBottom: 12 }}>לוגו העסק</h3>
+              <div className="rounded-[14px] border border-border/60 bg-white/80 p-4">
+                <h3 className="text-sm font-semibold text-fg mb-2">לוגו העסק</h3>
               
                 {/* Logo Preview */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: 200,
-                    borderWidth: 2,
-                    borderStyle: "dashed",
-                    borderColor: "#EDF1F5",
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 20,
-                    marginBottom: 16,
-                    backgroundColor: "#EDF1F5",
-                  }}
-                >
+                <div className="w-full h-[160px] rounded-[12px] border border-dashed border-border/60 bg-muted/60 flex items-center justify-center p-4 mb-3">
                   {logoUrl ? (
                     <img
                       src={logoUrl}
@@ -499,14 +495,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                       }}
                     />
                   ) : (
-                    <div style={{ textAlign: "center", opacity: 0.4 }}>
-                      <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                      <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                    <div className="text-center text-muted-fg/70">
+                      <div className="text-2xl mb-2">📄</div>
+                      <div className="text-xs">לא הועלה</div>
                     </div>
                   )}
                 </div>
 
-                <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                <p className="text-xs text-muted-fg leading-5 mb-3">
                   הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
                 </p>
 
@@ -522,7 +518,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   <Button
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingLogo}
-                    style={{ height: '50px', fontSize: '18px' }}
+                    className="h-9 px-4 text-sm"
                   >
                     {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
                   </Button>
@@ -532,7 +528,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                       onClick={handleDeleteLogo}
                       disabled={isUploadingLogo}
                       variant="danger"
-                      style={{ height: '50px', fontSize: '18px' }}
+                      className="h-9 px-4 text-sm"
                     >
                       מחק
                     </Button>
@@ -541,26 +537,11 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               </div>
 
               {/* Signature Section */}
-              <div>
-                <h3 style={{ marginBottom: 12 }}>חתימת העסק</h3>
+              <div className="rounded-[14px] border border-border/60 bg-white/80 p-4">
+                <h3 className="text-sm font-semibold text-fg mb-2">חתימת העסק</h3>
                 
                 {/* Signature Preview */}
-                <div
-                  style={{
-                    width: "100%",
-                    height: 200,
-                    borderWidth: 2,
-                    borderStyle: "dashed",
-                    borderColor: "#EDF1F5",
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 20,
-                    marginBottom: 16,
-                    backgroundColor: "#EDF1F5",
-                  }}
-                >
+                <div className="w-full h-[160px] rounded-[12px] border border-dashed border-border/60 bg-muted/60 flex items-center justify-center p-4 mb-3">
                   {signatureUrl ? (
                     <img
                       src={signatureUrl}
@@ -575,14 +556,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                       }}
                     />
                   ) : (
-                    <div style={{ textAlign: "center", opacity: 0.4 }}>
-                      <div style={{ fontSize: 40, marginBottom: 8 }}>📄</div>
-                      <div style={{ fontSize: 13, color: "#708993" }}>לא הועלה</div>
+                    <div className="text-center text-muted-fg/70">
+                      <div className="text-2xl mb-2">📄</div>
+                      <div className="text-xs">לא הועלה</div>
                     </div>
                   )}
                 </div>
 
-                <p style={{ marginBottom: 12, lineHeight: 1.5 }}>
+                <p className="text-xs text-muted-fg leading-5 mb-3">
                   החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
                 </p>
 
@@ -598,7 +579,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   <Button
                     onClick={() => signatureInputRef.current?.click()}
                     disabled={isUploadingSignature}
-                    style={{ height: '50px', fontSize: '18px' }}
+                    className="h-9 px-4 text-sm"
                   >
                     {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
                   </Button>
@@ -608,7 +589,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                       onClick={handleDeleteSignature}
                       disabled={isUploadingSignature}
                       variant="danger"
-                      style={{ height: '50px', fontSize: '18px' }}
+                      className="h-9 px-4 text-sm"
                     >
                       מחק
                     </Button>
@@ -646,66 +627,75 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             <div className="relative w-full max-w-full px-6 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
             <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
             {/* Company Name */}
-            <FieldWrapper label="שם העסק" id="company_name" required className="w-full min-w-0">
-              <Input
-                type="text"
-                name="company_name"
-                id="company_name"
-                value={formData.company_name}
-                onChange={handleInputChange}
-                required
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="שם העסק"
+              name="company_name"
+              id="company_name"
+              value={formData.company_name}
+              onChange={handleInputChange}
+              required
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Company Name (English) */}
-            <FieldWrapper label="שם העסק (English)" id="company_name_en" className="w-full min-w-0">
-              <Input
-                type="text"
-                name="company_name_en"
-                id="company_name_en"
-                value={(formData as any).company_name_en}
-                onChange={handleInputChange}
-                dir="ltr"
-                className="text-left"
-                placeholder="Business name (English)"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="שם העסק (English)"
+              type="text"
+              name="company_name_en"
+              id="company_name_en"
+              value={(formData as any).company_name_en}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* English Address */}
-            <FieldWrapper label="כתובת (English)" id="english_address" className="w-full min-w-0">
-              <Input
-                type="text"
-                name="english_address"
-                id="english_address"
-                value={(formData as any).english_address}
-                onChange={handleInputChange}
-                dir="ltr"
-                className="text-left"
-                placeholder="English address (optional)"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="כתובת (English)"
+              type="text"
+              name="english_address"
+              id="english_address"
+              value={(formData as any).english_address}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              helperText="English address (optional)"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Issuer first name (English) */}
-            <FieldWrapper label="שם פרטי לחתימה (English)" id="contact_first_name_en" className="w-full min-w-0">
-              <Input
-                type="text"
-                name="contact_first_name_en"
-                id="contact_first_name_en"
-                value={(formData as any).contact_first_name_en}
-                onChange={handleInputChange}
-                dir="ltr"
-                className="text-left"
-                placeholder="First name (English)"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="שם פרטי לחתימה (English)"
+              type="text"
+              name="contact_first_name_en"
+              id="contact_first_name_en"
+              value={(formData as any).contact_first_name_en}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Books region (metadata) */}
-            <FieldWrapper label="אזור שמירת ספרים" id="books_region" className="w-full min-w-0">
+            <div className="w-full min-w-0 ui-field-block">
+              <label
+                ref={booksRegionLabelRef}
+                htmlFor="books_region"
+                className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+              >
+                אזור שמירת ספרים
+              </label>
               <Select
                 value={(formData as any).books_region}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, books_region: value as any }))}
               >
-                <SelectTrigger>
+                <SelectTrigger
+                  variant="underline"
+                  id="books_region"
+                  className="text-fg border-border focus:border-border"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -713,40 +703,58 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   <SelectItem value="OTHER">אחר</SelectItem>
                 </SelectContent>
               </Select>
-            </FieldWrapper>
+            </div>
 
 
             {/* Business Type - READ ONLY */}
-            <FieldWrapper label="סוג עסק" id="business_type" required className="w-full min-w-0">
+            <div className="w-full min-w-0 ui-field-block">
+              <label htmlFor="business_type" className="block text-right text-[length:var(--field-label-size)] text-muted-fg mb-0 leading-none mt-[7px]">
+                סוג עסק<span className="ms-1">*</span>
+              </label>
               <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger
+                  variant="underline"
+                  id="business_type"
+                  className="text-[#708993] border-[#708993]"
+                >
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {BUSINESS_TYPES.map((type) => (
                     <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </FieldWrapper>
+            </div>
 
             {/* Registration Number (Company ID) - READ ONLY */}
-            <FieldWrapper label="מספר חברה / תעודת זהות" id="registration_number" required className="w-full min-w-0">
-              <Input
-                type="text"
-                name="registration_number"
-                id="registration_number"
-                value={formData.registration_number}
-                onChange={handleInputChange}
-                disabled
-                required
-                dir="ltr"
-                className="text-left"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="מספר חברה / תעודת זהות"
+              type="text"
+              name="registration_number"
+              id="registration_number"
+              value={formData.registration_number}
+              onChange={handleInputChange}
+              disabled
+              required
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Industry */}
-            <FieldWrapper label="תחום פעילות" id="industry" required className="w-full min-w-0">
+            <div className="w-full min-w-0">
+              <label htmlFor="industry" className="block text-right text-[12px] text-fg mb-0 leading-none mt-[7px]">
+                תחום פעילות<span className="ms-1">*</span>
+              </label>
               <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>
-                <SelectTrigger><SelectValue placeholder="בחר תחום" /></SelectTrigger>
+                <SelectTrigger
+                  variant="underline"
+                  id="industry"
+                  className="text-fg border-border focus:border-border"
+                >
+                  <SelectValue placeholder="בחר תחום" />
+                </SelectTrigger>
                 <SelectContent>
                   {/* If the stored value isn't in our list (legacy code values), still show it */}
                   {formData.industry && !INDUSTRIES.includes(formData.industry) && (
@@ -757,109 +765,117 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-            </FieldWrapper>
+            </div>
 
             {/* Custom Industry:
                 - Legacy: if industry === "other" we must collect custom_industry (existing behavior)
                 - Also show if there's already a value stored */}
             {(formData.industry === "other" || Boolean(formData.custom_industry)) && (
-              <FieldWrapper label="פרט תחום פעילות" id="custom_industry" required={formData.industry === "other"} className="w-full min-w-0">
-                <Input
-                  type="text"
-                  name="custom_industry"
-                  id="custom_industry"
-                  value={formData.custom_industry}
-                  onChange={handleInputChange}
-                  required={formData.industry === "other"}
-                  placeholder={formData.industry === "other" ? "הזן את תחום הפעילות שלך" : "הזן את תחום הפעילות שלך (אופציונלי)"}
-                />
-              </FieldWrapper>
+              <FloatingInput
+                label="פרט תחום פעילות"
+                type="text"
+                name="custom_industry"
+                id="custom_industry"
+                value={formData.custom_industry}
+                onChange={handleInputChange}
+                required={formData.industry === "other"}
+                helperText={
+                  formData.industry === "other"
+                    ? "הזן את תחום הפעילות שלך"
+                    : "הזן את תחום הפעילות שלך (אופציונלי)"
+                }
+                className="border-border focus:border-border"
+                containerClassName="w-full min-w-0"
+              />
             )}
 
             {/* Street */}
-            <FieldWrapper label="רחוב ומספר" id="street" required className="w-full min-w-0">
-              <Input
-                type="text"
-                name="street"
-                id="street"
-                value={formData.street}
-                onChange={handleInputChange}
-                required
-                placeholder="רחוב הרצל 1"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="רחוב ומספר"
+              type="text"
+              name="street"
+              id="street"
+              value={formData.street}
+              onChange={handleInputChange}
+              required
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* City */}
-            <FieldWrapper label="עיר" id="city" required className="w-full min-w-0">
-              <Input
-                type="text"
-                name="city"
-                id="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                required
-                placeholder="תל אביב-יפו"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="עיר"
+              type="text"
+              name="city"
+              id="city"
+              value={formData.city}
+              onChange={handleInputChange}
+              required
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Postal Code */}
-            <FieldWrapper label="מיקוד" id="postal_code" className="w-full min-w-0">
-              <Input
-                type="text"
-                name="postal_code"
-                id="postal_code"
-                value={formData.postal_code}
-                onChange={handleInputChange}
-                placeholder="1234567"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="מיקוד"
+              type="text"
+              name="postal_code"
+              id="postal_code"
+              value={formData.postal_code}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
 
             {/* Email */}
-            <FieldWrapper label="אימייל" id="email" required className="w-full min-w-0">
-              <Input
-                type="email"
-                name="email"
-                id="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="אימייל"
+              type="email"
+              name="email"
+              id="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Mobile Phone */}
-            <FieldWrapper label="נייד" id="mobile_phone" className="w-full min-w-0">
-              <Input
-                type="tel"
-                name="mobile_phone"
-                id="mobile_phone"
-                value={formData.mobile_phone}
-                onChange={handleInputChange}
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="נייד"
+              type="tel"
+              name="mobile_phone"
+              id="mobile_phone"
+              value={formData.mobile_phone}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Phone */}
-            <FieldWrapper label="טלפון" id="phone" className="w-full min-w-0">
-              <Input
-                type="tel"
-                name="phone"
-                id="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="טלפון"
+              type="tel"
+              name="phone"
+              id="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
 
             {/* Website */}
-            <FieldWrapper label="אתר אינטרנט" id="website" className="w-full min-w-0">
-              <Input
-                type="url"
-                name="website"
-                id="website"
-                value={formData.website}
-                onChange={handleInputChange}
-                placeholder="https://example.com"
-              />
-            </FieldWrapper>
+            <FloatingInput
+              label="אתר אינטרנט"
+              type="url"
+              name="website"
+              id="website"
+              value={formData.website}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
             </div>
             </div>
           </FormSection>

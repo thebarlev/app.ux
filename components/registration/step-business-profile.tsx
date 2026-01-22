@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -223,24 +223,15 @@ export function StepBusinessProfile() {
               {error}
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="businessName" className="text-right">
-              שם העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-            </Label>
-            <Input
-              id="businessName"
-              type="text"
-              className={errors.businessName ? "border-danger focus:ring-danger" : ""}
-              placeholder="שם העסק המלא"
-              value={data.businessName}
-              onChange={(e) => updateData({ businessName: e.target.value })}
-            />
-            {errors.businessName && (
-              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.businessName}
-              </p>
-            )}
-          </div>
+          <FloatingInput
+            label="שם העסק"
+            id="businessName"
+            required
+            value={data.businessName}
+            onChange={(e) => updateData({ businessName: e.target.value })}
+            error={errors.businessName}
+            containerClassName="w-full min-w-0"
+          />
 
           <div className="space-y-2">
             <Label htmlFor="businessType" className="text-right">
@@ -252,7 +243,8 @@ export function StepBusinessProfile() {
             >
               <SelectTrigger 
                 id="businessType"
-                className={errors.businessType ? "border-danger focus:ring-danger" : ""}
+                variant="underline"
+                className={errors.businessType ? "border-danger focus:border-danger" : ""}
               >
                 <SelectValue placeholder="בחר סוג עסק" />
               </SelectTrigger>
@@ -271,25 +263,17 @@ export function StepBusinessProfile() {
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="companyNumber" className="text-right">
-              מספר חברה / תעודת זהות <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-            </Label>
-            <Input
-              id="companyNumber"
-              type="text"
-              className={`text-left ${errors.companyNumber ? "border-danger focus:ring-danger" : ""}`}
-              placeholder="123456789"
-              value={data.companyNumber}
-              onChange={(e) => updateData({ companyNumber: e.target.value })}
-              dir="ltr"
-            />
-            {errors.companyNumber && (
-              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.companyNumber}
-              </p>
-            )}
-          </div>
+          <FloatingInput
+            label="מספר חברה / תעודת זהות"
+            id="companyNumber"
+            required
+            value={data.companyNumber}
+            onChange={(e) => updateData({ companyNumber: e.target.value })}
+            dir="ltr"
+            className="text-left"
+            error={errors.companyNumber}
+            containerClassName="w-full min-w-0"
+          />
 
           <div className="space-y-2">
             <Label htmlFor="industry" className="text-right">
@@ -299,7 +283,7 @@ export function StepBusinessProfile() {
               value={data.industry ? data.industry : undefined}
               onValueChange={(value) => updateData({ industry: value, customIndustry: "" })}
             >
-              <SelectTrigger id="industry">
+              <SelectTrigger id="industry" variant="underline">
                 <SelectValue placeholder="בחר תחום פעילות (אופציונלי)" />
               </SelectTrigger>
               <SelectContent>

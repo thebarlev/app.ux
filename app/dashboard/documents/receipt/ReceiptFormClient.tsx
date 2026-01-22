@@ -20,11 +20,11 @@ import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
 import PaymentDetailsSection from "./PaymentDetailsSection";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { FloatingTextarea } from "@/components/ui/floating-textarea";
+import { FloatingDateInput } from "@/components/ui/floating-date-input";
 import { MoneyInput } from "@/components/ui/money-input";
-import { Input } from "@/components/ui/input";
-import { DateInput } from "@/components/ui/date-input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CurrencyAmountGroup } from "@/components/ui/currency-amount-group";
 import { Card, CardContent } from "@/components/ui/card";
@@ -519,7 +519,7 @@ export default function ReceiptFormClient({
         main[dir="rtl"] .ui-container input:not([style*="font-size"]),
         main[dir="rtl"] .ui-container select:not([style*="font-size"]),
         main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container label,
+        main[dir="rtl"] .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*="font-size"]),
         main[dir="rtl"] .ui-container span:not([style*="font-size"]),
         main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
         main[dir="rtl"] .ui-container p { font-size: 18px !important; }
@@ -591,40 +591,41 @@ export default function ReceiptFormClient({
                             className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
                             data-payment-primary-grid="true"
                           >
-                  <FieldWrapper label="שם לקוח" required error={customerNameError} id="customerName" className="w-full min-w-0">
-                    <div ref={customerNameRef}>
-                      <CustomerAutocomplete
-                        value={customerName}
-                        onChange={(value) => {
-                          setCustomerName(value);
-                          if (customerNameError && value.trim().length > 0) setCustomerNameError(null);
-                        }}
-                        onSelectCustomer={(customer) => {
-                          if (customer) {
-                            setCustomerId(customer.id);
-                            setCustomerNameError(null);
-                          }
-                        }}
-                        onAddNewCustomer={() => setShowQuickAddModal(true)}
-                        placeholder="התחל להקליד שם לקוח..."
-                      />
-                    </div>
-                  </FieldWrapper>
+                  <div ref={customerNameRef}>
+                    <CustomerAutocomplete
+                      id="customerName"
+                      label="שם לקוח"
+                      required
+                      error={customerNameError}
+                      value={customerName}
+                      onChange={(value) => {
+                        setCustomerName(value);
+                        if (customerNameError && value.trim().length > 0) setCustomerNameError(null);
+                      }}
+                      onSelectCustomer={(customer) => {
+                        if (customer) {
+                          setCustomerId(customer.id);
+                          setCustomerNameError(null);
+                        }
+                      }}
+                      onAddNewCustomer={() => setShowQuickAddModal(true)}
+                      placeholder="התחל להקליד שם לקוח..."
+                      containerClassName="w-full min-w-0"
+                    />
+                  </div>
 
-                  <FieldWrapper label="תאריך מסמך" required id="documentDate" className="w-full min-w-0">
-                    <div className="min-w-0 w-full">
-                      <DateInput
-                        id="documentDate"
-                        value={documentDate}
-                        onChange={(value) => {
-                          if (minAllowedDate && value < minAllowedDate) setDocumentDate(minAllowedDate);
-                          else setDocumentDate(value);
-                        }}
-                        min={minAllowedDate || undefined}
-                        aria-required="true"
-                      />
-                    </div>
-                  </FieldWrapper>
+                  <FloatingDateInput
+                    label="תאריך מסמך"
+                    required
+                    id="documentDate"
+                    value={documentDate}
+                    onChange={(value) => {
+                      if (minAllowedDate && value < minAllowedDate) setDocumentDate(minAllowedDate);
+                      else setDocumentDate(value);
+                    }}
+                    min={minAllowedDate || undefined}
+                    containerClassName="w-full min-w-0 ui-document-date-offset"
+                  />
                 </div>
               </div>
             </FormSection>
@@ -634,29 +635,24 @@ export default function ReceiptFormClient({
                 className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
                 <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                  <FieldWrapper
-                    label="תיאור"
-                    required
-                    error={descriptionError}
-                    id="description"
-                    hint="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
-                    className="ui-field-wide w-full min-w-0"
-                  >
-                    <Input
-                      id="description"
-                      {...({ ref: descriptionInputRef } as any)}
-                      value={description}
-                      onChange={(e) => {
-                        setDescription(e.target.value);
-                        if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
-                      }}
-                      placeholder="הזן תיאור..."
-                      className={cn("w-1/2", descriptionError ? "border-danger" : "")}
-                      aria-required="true"
-                      aria-invalid={!!descriptionError}
-                      aria-describedby={descriptionError ? "description-error" : "description-hint"}
-                    />
-                  </FieldWrapper>
+                  <div className="ui-field-wide w-full min-w-0">
+                    <div className="w-1/2">
+                      <FloatingInput
+                        label="תיאור"
+                        required
+                        error={descriptionError}
+                        id="description"
+                        value={description}
+                        onChange={(e) => {
+                          setDescription(e.target.value);
+                          if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
+                        }}
+                        helperText="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
+                        containerClassName="w-full min-w-0"
+                        {...({ ref: descriptionInputRef } as any)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </FormSection>
@@ -711,13 +707,13 @@ export default function ReceiptFormClient({
                       <div className="min-w-0">
                         {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
                       <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-                          <FieldWrapper
-                            label="אמצעי תשלום"
-                            required
-                            error={paymentErrors[i]?.method}
-                            id={`payment-method-${i}`}
-                          className="w-full min-w-0"
-                          >
+                          <div className="w-full min-w-0">
+                            <label
+                              htmlFor={`payment-method-${i}`}
+                              className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+                            >
+                              אמצעי תשלום<span className="ms-1">*</span>
+                            </label>
                             <Select
                               value={row.method}
                               onValueChange={(v) => {
@@ -734,9 +730,10 @@ export default function ReceiptFormClient({
                             >
                               <SelectTrigger
                                 id={`payment-method-${i}`}
+                                variant="underline"
                                 className={cn(
                                   "w-full min-w-0",
-                                  paymentErrors[i]?.method ? "border-danger" : ""
+                                  paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
                                 )}
                                 aria-required="true"
                                 aria-invalid={!!paymentErrors[i]?.method}
@@ -753,26 +750,24 @@ export default function ReceiptFormClient({
                                 ))}
                               </SelectContent>
                             </Select>
-                          </FieldWrapper>
+                          </div>
 
-                        <FieldWrapper label="תאריך תשלום" required id={`payment-date-${i}`} className="w-full min-w-0">
-                            {/* עטיפה כדי לאפשר shrink בתוך grid */}
-                            <div className="min-w-0 w-full">
-                              <DateInput
-                                id={`payment-date-${i}`}
-                                value={row.date}
-                                onChange={(value) => updatePaymentRow(i, { date: value })}
-                                aria-required="true"
-                              />
-                            </div>
-                          </FieldWrapper>
+                          <FloatingDateInput
+                            label="תאריך תשלום"
+                            required
+                            id={`payment-date-${i}`}
+                            value={row.date}
+                            onChange={(value) => updatePaymentRow(i, { date: value })}
+                            containerClassName="w-full min-w-0"
+                          />
 
                           <FieldWrapper
                             label="סכום"
                             required
                             error={paymentErrors[i]?.amount}
                             id={`payment-amount-${i}`}
-                          className="w-full min-w-0"
+                            className="w-full min-w-0 ui-money-block"
+                            labelClassName="ui-money-label"
                           >
                             {/* עטיפה כדי להבטיח min-w-0 + w-full */}
                             <div className="min-w-0 w-full">
@@ -785,6 +780,7 @@ export default function ReceiptFormClient({
                                       onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                                     >
                                       <SelectTrigger
+                                        variant="underline"
                                         className="w-[72px] shrink-0"
                                         style={{ fontSize: "18px", fontWeight: 600 }}
                                         aria-label="מטבע"
@@ -876,26 +872,23 @@ export default function ReceiptFormClient({
                 className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
                 <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                  <FieldWrapper label="הערות שיופיעו במסמך" id="notes" className="w-full min-w-0">
-                    <Textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="חשוב לדעת..."
-                      className="min-h-[100px] resize-y"
-                      aria-describedby="notes-hint"
-                    />
-                  </FieldWrapper>
+                  <FloatingTextarea
+                    label="הערות שיופיעו במסמך"
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    containerClassName="w-full min-w-0"
+                    className="min-h-[100px] resize-y"
+                  />
 
-                  <FieldWrapper label="הערות שיופיעו בגוף המייל" id="emailNotes" className="w-full min-w-0">
-                    <Textarea
-                      id="emailNotes"
-                      value={emailNotes}
-                      onChange={(e) => setEmailNotes(e.target.value)}
-                      placeholder="חשוב לדעת..."
-                      className="min-h-[100px] resize-y"
-                    />
-                  </FieldWrapper>
+                  <FloatingTextarea
+                    label="הערות שיופיעו בגוף המייל"
+                    id="emailNotes"
+                    value={emailNotes}
+                    onChange={(e) => setEmailNotes(e.target.value)}
+                    containerClassName="w-full min-w-0"
+                    className="min-h-[100px] resize-y"
+                  />
                 </div>
               </div>
             </FormSection>

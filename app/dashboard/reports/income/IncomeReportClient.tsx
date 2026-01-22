@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { FloatingDateInput } from "@/components/ui/floating-date-input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import {
   Select,
@@ -161,9 +162,15 @@ export default function IncomeReportClient() {
           <FormSection title="פרטי הדוח">
             <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
               <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="סוג מסמך" id="documentType" className="w-full min-w-0">
+                <div className="w-full min-w-0">
+                  <label
+                    htmlFor="documentType"
+                    className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+                  >
+                    סוג מסמך
+                  </label>
                   <Select value={documentType} onValueChange={setDocumentType}>
-                    <SelectTrigger id="documentType">
+                    <SelectTrigger id="documentType" variant="underline" className="text-fg border-border focus:border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -174,27 +181,25 @@ export default function IncomeReportClient() {
                       ))}
                     </SelectContent>
                   </Select>
-                </FieldWrapper>
+                </div>
 
-                <FieldWrapper label="תאריך התחלה" required id="startDate" className="w-full min-w-0">
-                  <Input
-                    id="startDate"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    aria-required="true"
-                  />
-                </FieldWrapper>
+                <FloatingDateInput
+                  label="תאריך התחלה"
+                  required
+                  id="startDate"
+                  value={startDate}
+                  onChange={setStartDate}
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="תאריך סיום" required id="endDate" className="w-full min-w-0">
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    aria-required="true"
-                  />
-                </FieldWrapper>
+                <FloatingDateInput
+                  label="תאריך סיום"
+                  required
+                  id="endDate"
+                  value={endDate}
+                  onChange={setEndDate}
+                  containerClassName="w-full min-w-0"
+                />
               </div>
             </div>
           </FormSection>
@@ -203,20 +208,14 @@ export default function IncomeReportClient() {
           <FormSection title="סינון לפי לקוח">
             <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
               <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper 
-                  label="דוח לפי לקוח" 
+                <FloatingInput
+                  label="דוח לפי לקוח"
                   id="customerSearch"
-                  hint="אם השדה ריק, הדוח יופק עבור כל הלקוחות"
-                  className="w-full min-w-0"
-                >
-                  <Input
-                    id="customerSearch"
-                    type="text"
-                    placeholder="הקלד שם לקוח לסינון (אופציונלי)"
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                  />
-                </FieldWrapper>
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  helperText="אם השדה ריק, הדוח יופק עבור כל הלקוחות"
+                  containerClassName="w-full min-w-0"
+                />
               </div>
             </div>
           </FormSection>
@@ -225,9 +224,12 @@ export default function IncomeReportClient() {
           <FormSection title="הגדרות קובץ">
             <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
               <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="סוג קובץ" id="fileFormat" className="w-full min-w-0">
+                <div className="w-full min-w-0">
+                  <label htmlFor="fileFormat" className="block text-right text-[12px] text-fg mb-0 leading-none">
+                    סוג קובץ
+                  </label>
                   <Select value={fileFormat} onValueChange={setFileFormat}>
-                    <SelectTrigger id="fileFormat">
+                    <SelectTrigger id="fileFormat" variant="underline" className="text-fg border-border focus:border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -238,9 +240,14 @@ export default function IncomeReportClient() {
                       ))}
                     </SelectContent>
                   </Select>
-                </FieldWrapper>
+                </div>
 
-                <FieldWrapper label="היקף נתונים" id="dataScope" className="w-full min-w-0">
+                <FieldWrapper
+                  label="היקף נתונים"
+                  id="dataScope"
+                  className="w-full min-w-0"
+                  labelClassName="ui-select-label"
+                >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', borderRadius: '8px', backgroundColor: dataScope === "10000" ? '#EDF1F5' : 'transparent', transition: 'background 0.2s' }}>
                       <input
@@ -289,12 +296,7 @@ export default function IncomeReportClient() {
           <FormSection title="שליחת דוח במייל">
             <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
               <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper 
-                  label="כתובת מייל לשליחת הדוח" 
-                  id="emailInput"
-                  hint="ניתן להזין עד 5 כתובות מייל. הדוח יישלח גם למייל וגם יורד אוטומטית למחשב שלך"
-                  className="w-full min-w-0"
-                >
+                <div className="w-full min-w-0">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {/* Email Tags */}
                     {emails.length > 0 && (
@@ -335,20 +337,21 @@ export default function IncomeReportClient() {
                       </div>
                     )}
 
-                    {/* Email Input */}
-                    <Input
+                    <FloatingInput
+                      label="כתובת מייל לשליחת הדוח"
                       id="emailInput"
                       type="email"
-                      placeholder="הזן כתובת מייל ולחץ Enter"
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
                       onKeyDown={handleAddEmail}
                       disabled={emails.length >= 5}
                       dir="ltr"
-                      style={{ textAlign: 'left' }}
+                      className="text-left"
+                      helperText="ניתן להזין עד 5 כתובות מייל. הדוח יישלח גם למייל וגם יורד אוטומטית למחשב שלך"
+                      containerClassName="w-full min-w-0"
                     />
                   </div>
-                </FieldWrapper>
+                </div>
               </div>
             </div>
           </FormSection>

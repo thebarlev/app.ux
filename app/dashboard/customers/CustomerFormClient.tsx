@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Customer, createCustomerAction, updateCustomerAction } from "./actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/form-section";
 import { FormActions } from "@/components/ui/form-actions";
@@ -58,6 +57,7 @@ export default function CustomerFormClient({ customer }: Props) {
 
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -170,38 +170,40 @@ export default function CustomerFormClient({ customer }: Props) {
         <FormSection title="פרטי לקוח בסיסיים">
           <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
           <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="שם העסק / לקוח" required id="name" className="w-full min-w-0">
-                  <Input
-                    id="name"
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    required
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="שם העסק / לקוח"
+                  required
+                  id="name"
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="מספר עוסק (ת.ז / ח.פ)" id="tax_id" className="w-full min-w-0">
-                  <Input
-                    id="tax_id"
-                    type="text"
-                    name="tax_id"
-                    value={formData.tax_id}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="מספר עוסק (ת.ז / ח.פ)"
+                  id="tax_id"
+                  type="text"
+                  name="tax_id"
+                  value={formData.tax_id}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="עיסוק ומקצוע" id="profession" className="w-full min-w-0">
-                  <Input
-                    id="profession"
-                    type="text"
-                    name="profession"
-                    value={formData.profession}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="עיסוק ומקצוע"
+                  id="profession"
+                  type="text"
+                  name="profession"
+                  value={formData.profession}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
           </div>
           </div>
         </FormSection>
@@ -210,63 +212,64 @@ export default function CustomerFormClient({ customer }: Props) {
         <FormSection title="פרטי התקשרות">
           <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
           <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="איש קשר" id="contact_person" className="w-full min-w-0">
-                  <Input
-                    id="contact_person"
-                    type="text"
-                    name="contact_person"
-                    value={formData.contact_person}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="איש קשר"
+                  id="contact_person"
+                  type="text"
+                  name="contact_person"
+                  value={formData.contact_person}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="טלפון" id="phone" className="w-full min-w-0">
-                  <Input
-                    id="phone"
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="טלפון"
+                  id="phone"
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="טלפון נוסף" id="phone_secondary" className="w-full min-w-0">
-                  <Input
-                    id="phone_secondary"
-                    type="tel"
-                    name="phone_secondary"
-                    value={formData.phone_secondary}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="טלפון נוסף"
+                  id="phone_secondary"
+                  type="tel"
+                  name="phone_secondary"
+                  value={formData.phone_secondary}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="נייד" id="mobile" className="w-full min-w-0">
-                  <Input
-                    id="mobile"
-                    type="tel"
-                    name="mobile"
-                    value={formData.mobile}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="נייד"
+                  id="mobile"
+                  type="tel"
+                  name="mobile"
+                  value={formData.mobile}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="דוא״ל" id="email" className="w-full min-w-0">
-                  <Input
-                    id="email"
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="דוא״ל"
+                  id="email"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
           </div>
           </div>
         </FormSection>
@@ -275,56 +278,60 @@ export default function CustomerFormClient({ customer }: Props) {
         <FormSection title="כתובת">
           <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
           <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="רחוב" id="address_street" className="w-full min-w-0">
-                  <Input
-                    id="address_street"
-                    type="text"
-                    name="address_street"
-                    value={formData.address_street}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="רחוב"
+                  id="address_street"
+                  type="text"
+                  name="address_street"
+                  value={formData.address_street}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="מספר" id="address_number" className="w-full min-w-0">
-                  <Input
-                    id="address_number"
-                    type="text"
-                    name="address_number"
-                    value={formData.address_number}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="מספר"
+                  id="address_number"
+                  type="text"
+                  name="address_number"
+                  value={formData.address_number}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="יישוב" id="address_city" className="w-full min-w-0">
-                  <Input
-                    id="address_city"
-                    type="text"
-                    name="address_city"
-                    value={formData.address_city}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="יישוב"
+                  id="address_city"
+                  type="text"
+                  name="address_city"
+                  value={formData.address_city}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="מיקוד" id="address_zip" className="w-full min-w-0">
-                  <Input
-                    id="address_zip"
-                    type="text"
-                    name="address_zip"
-                    value={formData.address_zip}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
-            <FieldWrapper label="מדינה" id="address_country" className="w-full min-w-0">
-              <Input
-                id="address_country"
-                type="text"
-                name="address_country"
-                value={formData.address_country}
-                onChange={handleInputChange}
-              />
-            </FieldWrapper>
+                <FloatingInput
+                  label="מיקוד"
+                  id="address_zip"
+                  type="text"
+                  name="address_zip"
+                  value={formData.address_zip}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
+            <FloatingInput
+              label="מדינה"
+              id="address_country"
+              type="text"
+              name="address_country"
+              value={formData.address_country}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
           </div>
           </div>
         </FormSection>
@@ -333,12 +340,15 @@ export default function CustomerFormClient({ customer }: Props) {
         <FormSection title="פרטים חשבונאיים">
           <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
           <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="תנאי תשלום" id="payment_terms_text" className="w-full min-w-0">
+                <div className="w-full min-w-0">
+                  <label htmlFor="payment_terms_text" className="block text-right text-[12px] text-fg mb-0 leading-none mt-[0px]">
+                    תנאי תשלום
+                  </label>
                   <Select 
                     value={formData.payment_terms_text} 
                     onValueChange={(value) => setFormData(prev => ({...prev, payment_terms_text: value}))}
                   >
-                    <SelectTrigger id="payment_terms_text">
+                    <SelectTrigger id="payment_terms_text" variant="underline" className="text-fg border-border focus:border-border">
                       <SelectValue placeholder="בחר תנאי תשלום" />
                     </SelectTrigger>
                     <SelectContent>
@@ -352,17 +362,18 @@ export default function CustomerFormClient({ customer }: Props) {
                       ))}
                     </SelectContent>
                   </Select>
-                </FieldWrapper>
+                </div>
 
-                <FieldWrapper label="מפתח לקוח" id="external_account_key" className="w-full min-w-0">
-                  <Input
-                    id="external_account_key"
-                    type="text"
-                    name="external_account_key"
-                    value={formData.external_account_key}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="מפתח לקוח"
+                  id="external_account_key"
+                  type="text"
+                  name="external_account_key"
+                  value={formData.external_account_key}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
           </div>
           </div>
         </FormSection>
@@ -373,39 +384,40 @@ export default function CustomerFormClient({ customer }: Props) {
         >
           <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
           <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FieldWrapper label="שם הבנק" id="bank_name" className="w-full min-w-0">
-                  <Input
-                    id="bank_name"
-                    type="text"
-                    name="bank_name"
-                    value={formData.bank_name}
-                    onChange={handleInputChange}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="שם הבנק"
+                  id="bank_name"
+                  type="text"
+                  name="bank_name"
+                  value={formData.bank_name}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="מספר סניף" id="bank_branch" className="w-full min-w-0">
-                  <Input
-                    id="bank_branch"
-                    type="text"
-                    name="bank_branch"
-                    value={formData.bank_branch}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="מספר סניף"
+                  id="bank_branch"
+                  type="text"
+                  name="bank_branch"
+                  value={formData.bank_branch}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-                <FieldWrapper label="מספר חשבון" id="bank_account" className="w-full min-w-0">
-                  <Input
-                    id="bank_account"
-                    type="text"
-                    name="bank_account"
-                    value={formData.bank_account}
-                    onChange={handleInputChange}
-                    dir="ltr"
-                    className="text-left"
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="מספר חשבון"
+                  id="bank_account"
+                  type="text"
+                  name="bank_account"
+                  value={formData.bank_account}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
           </div>
           </div>
         </FormSection>

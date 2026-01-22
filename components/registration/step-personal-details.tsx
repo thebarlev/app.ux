@@ -5,9 +5,8 @@ import type React from "react"
 import { useState } from "react"
 import { useRegistration } from "./registration-context"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { checkEmailExists } from "@/app/register/actions"
@@ -138,148 +137,90 @@ export function StepPersonalDetails({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="firstName" className="text-right">
-              שם פרטי <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-            </Label>
-            <Input
-              id="firstName"
-              type="text"
-              required
-              aria-required="true"
-              aria-invalid={!!errors.firstName}
-              aria-describedby={errors.firstName ? "firstName-error" : undefined}
-              className={errors.firstName ? "border-danger focus:ring-danger" : ""}
-              placeholder="ישראל"
-              value={data.firstName}
-              onChange={(e) => updateData({ firstName: e.target.value })}
-            />
-            {errors.firstName && (
-              <p id="firstName-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.firstName}
-              </p>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="text-right">
-              שם משפחה <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-            </Label>
-            <Input
-              id="lastName"
-              type="text"
-              required
-              aria-required="true"
-              aria-invalid={!!errors.lastName}
-              aria-describedby={errors.lastName ? "lastName-error" : undefined}
-              className={errors.lastName ? "border-danger focus:ring-danger" : ""}
-              placeholder="ישראלי"
-              value={data.lastName}
-              onChange={(e) => updateData({ lastName: e.target.value })}
-            />
-            {errors.lastName && (
-              <p id="lastName-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.lastName}
-              </p>
-            )}
-          </div>
+          <FloatingInput
+            label="שם פרטי"
+            id="firstName"
+            required
+            value={data.firstName}
+            onChange={(e) => updateData({ firstName: e.target.value })}
+            error={errors.firstName}
+            containerClassName="w-full min-w-0"
+          />
+
+          <FloatingInput
+            label="שם משפחה"
+            id="lastName"
+            required
+            value={data.lastName}
+            onChange={(e) => updateData({ lastName: e.target.value })}
+            error={errors.lastName}
+            containerClassName="w-full min-w-0"
+          />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-right">
-            כתובת אימייל <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-          </Label>
-          <Input
+          <FloatingInput
+            label="כתובת אימייל"
             id="email"
             type="email"
             required
-            aria-required="true"
-            aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? "email-error" : "email-hint"}
-            className={errors.email ? "border-danger focus:ring-danger text-left" : "text-left"}
-            placeholder="israel@example.com"
             value={data.email}
             onChange={(e) => {
               updateData({ email: e.target.value })
-              // Clear email error when user types
               if (errors.email) {
                 setErrors(prev => ({ ...prev, email: "" }))
                 setEmailExists(false)
               }
             }}
             dir="ltr"
+            className="text-left"
+            helperText="נשתמש בכתובת זו להתחברות למערכת"
+            error={errors.email}
+            containerClassName="w-full min-w-0"
           />
-          {!errors.email && (
-            <p id="email-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
-              נשתמש בכתובת זו להתחברות למערכת
-            </p>
-          )}
-          {errors.email && (
-            <div className="mt-1">
-              <p id="email-error" className="text-sm" style={{ color: 'var(--danger)' }} role="alert">
-                {errors.email}
-              </p>
-              {emailExists && (
-                <div className="mt-2">
-                  <Link 
-                    href="/login" 
-                    className="inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
-                    style={{ color: 'var(--link)' }}
-                  >
-                    ← חזרה להתחברות
-                  </Link>
-                </div>
-              )}
+          {errors.email && emailExists && (
+            <div className="mt-2">
+              <Link 
+                href="/login" 
+                className="inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+                style={{ color: 'var(--link)' }}
+              >
+                ← חזרה להתחברות
+              </Link>
             </div>
           )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="phone" className="text-right">
-            טלפון נייד <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-          </Label>
-          <Input
+          <FloatingInput
+            label="טלפון נייד"
             id="phone"
             type="tel"
             required
-            aria-required="true"
-            aria-invalid={!!errors.phone}
-            aria-describedby={errors.phone ? "phone-error" : "phone-hint"}
-            className={errors.phone ? "border-danger focus:ring-danger text-left" : "text-left"}
-            placeholder="050-1234567"
             value={data.phone}
             onChange={(e) => updateData({ phone: e.target.value })}
             dir="ltr"
+            className="text-left"
+            helperText="פורמט: 050-1234567"
+            error={errors.phone}
+            containerClassName="w-full min-w-0"
           />
-          {!errors.phone && (
-            <p id="phone-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
-              פורמט: 050-1234567
-            </p>
-          )}
-          {errors.phone && (
-            <p id="phone-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-              {errors.phone}
-            </p>
-          )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-right">
-            סיסמה <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
-          </Label>
           <div className="relative">
-            <Input
+            <FloatingInput
+              label="סיסמה"
               id="password"
               type={showPassword ? "text" : "password"}
               required
-              aria-required="true"
-              aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? "password-error" : "password-hint"}
-              className={errors.password ? "border-danger focus:ring-danger text-left pr-12" : "text-left pr-12"}
-              placeholder="לפחות 8 תווים"
               value={data.password}
               onChange={(e) => updateData({ password: e.target.value })}
               dir="ltr"
+              className="text-left pr-12"
+              helperText="מינימום 8 תווים"
+              error={errors.password}
+              containerClassName="w-full min-w-0"
             />
             <button
               type="button"
@@ -292,16 +233,6 @@ export function StepPersonalDetails({
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {!errors.password && (
-            <p id="password-hint" className="text-xs mt-1" style={{ color: 'var(--muted-fg)' }}>
-              מינימום 8 תווים
-            </p>
-          )}
-          {errors.password && (
-            <p id="password-error" className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
-              {errors.password}
-            </p>
-          )}
         </div>
 
         {/* Legal Terms Checkbox - Always shown, validation depends on system setting */}

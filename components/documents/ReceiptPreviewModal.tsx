@@ -73,10 +73,6 @@ export default function ReceiptPreviewModal({
     document.addEventListener("keydown", handleTab);
     document.body.style.overflow = "hidden";
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptPreviewModal.tsx:79',message:'preview_modal_open',data:{isOpen,viewportW:window.innerWidth,viewportH:window.innerHeight,pdfUrlPresent:!!pdfUrl,isLoading,errorPresent:!!error},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.removeEventListener("keydown", handleTab);
@@ -88,21 +84,6 @@ export default function ReceiptPreviewModal({
       }
     };
   }, [isOpen, isLoading, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const logSizes = (reason: string) => {
-      const modalBox = modalRef.current?.getBoundingClientRect();
-      const iframeBox = iframeRef.current?.getBoundingClientRect();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptPreviewModal.tsx:102',message:'preview_modal_sizes',data:{reason,modalW:modalBox?.width,modalH:modalBox?.height,iframeW:iframeBox?.width,iframeH:iframeBox?.height,modalLeft:modalBox?.left,modalRight:modalBox?.right},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-    };
-    logSizes("mount");
-    const onResize = () => logSizes("resize");
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -175,16 +156,9 @@ export default function ReceiptPreviewModal({
                   aria-label="תצוגה מקדימה של הקבלה"
                   onLoad={() => {
                     console.log("[ReceiptPreviewModal] Preview iframe loaded successfully");
-                    const iframeBox = iframeRef.current?.getBoundingClientRect();
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptPreviewModal.tsx:171',message:'preview_iframe_loaded',data:{iframeW:iframeBox?.width,iframeH:iframeBox?.height},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'B'})}).catch(()=>{});
-                    // #endregion
                   }}
                   onError={(e) => {
                     console.error("[ReceiptPreviewModal] Preview iframe error:", e);
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptPreviewModal.tsx:180',message:'preview_iframe_error',data:{hasError:true},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'A'})}).catch(()=>{});
-                    // #endregion
                   }}
                 />
 

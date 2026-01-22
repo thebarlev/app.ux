@@ -7,8 +7,7 @@ import { X } from "lucide-react";
 import { Customer, deleteCustomerAction } from "./actions";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FloatingInput } from "@/components/ui/floating-input";
 import { FormSection } from "@/components/ui/form-section";
 
 type Props = {
@@ -94,15 +93,13 @@ export default function CustomersListClient({ initialCustomers }: Props) {
           >
             <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
               <div className="min-w-0">
-                <FieldWrapper label="חיפוש" id="search" className="w-full min-w-0">
-                  <Input
-                    id="search"
-                    type="text"
-                    placeholder="חיפוש לפי שם..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </FieldWrapper>
+                <FloatingInput
+                  label="חיפוש"
+                  id="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  containerClassName="w-full min-w-0"
+                />
               </div>
             </div>
           </div>

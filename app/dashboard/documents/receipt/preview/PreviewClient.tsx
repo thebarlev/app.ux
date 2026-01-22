@@ -196,10 +196,6 @@ export default function PreviewClient({
     document.title = `קבלה${previewNumber ? ` - ${previewNumber}` : ""} - ${companyNameBase}`;
     setIsMounted(true); // Mark as mounted after first render
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PreviewClient.tsx:197',message:'preview_client_mount',data:{previewNumber,language,hasTemplateHtml:!!templateHtml,hasTemplateCss:!!templateCss,viewportW:window.innerWidth,viewportH:window.innerHeight},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
     // Listen for iframe resize messages
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'resize' && event.data.height) {
@@ -207,9 +203,6 @@ export default function PreviewClient({
         if (iframe) {
           const scaledHeight = event.data.height * PREVIEW_SCALE
           iframe.style.height = `${event.data.height}px`;
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PreviewClient.tsx:208',message:'preview_iframe_resize',data:{height:event.data.height,scaledHeight:scaledHeight,iframeW:iframe.getBoundingClientRect().width,rootW:event.data.rootW,rootH:event.data.rootH,docScrollH:event.data.docScrollH,bodyW:event.data.bodyW,bodyH:event.data.bodyH,scale:event.data.scale},timestamp:Date.now(),sessionId:'debug-session',runId:'preview-size-2',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
         }
       }
     };
