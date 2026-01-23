@@ -607,6 +607,26 @@ export async function prepareDocumentData(
   // Map line items to payments array
   const payments = (items || []).map((item: any) => {
     const metadata = item.payment_metadata || {}
+    if (doc.document_type === "tax_invoice") {
+      return {
+        payment_method: metadata.label || item.description || "",
+        date: item.item_date || doc.issue_date || "",
+        amount: parseFloat(item.line_total || item.unit_price || 0),
+        currency: item.currency || doc.currency || "₪",
+        reference_number: metadata.sku || null,
+        notes: metadata.details || null,
+        bank_name: null,
+        branch: null,
+        account_number: null,
+        check_number: null,
+        card_last4: null,
+        transaction_id: null,
+        payerAccount: null,
+        cardInstallments: null,
+        cardDealType: null,
+        cardType: null,
+      }
+    }
     return {
       payment_method: item.description || "", // Payment method name
       date: item.item_date || doc.issue_date || "",
@@ -1000,18 +1020,23 @@ export async function prepareDocumentData(
     },
     document: {
       document_type: doc.document_type as any,
+      document_type_label: doc.document_type === "tax_invoice" ? "חשבונית מס" : "קבלה",
       document_number: doc.document_number || "",
       document_date: doc.issue_date || "",
       reference_number: null,
       language: documentLanguage,
       direction: documentLanguage === "en" ? "ltr" : "rtl",
     } as any,
+    document_type: doc.document_type as any,
+    document_type_label: doc.document_type === "tax_invoice" ? "חשבונית מס" : "קבלה",
     payments: mappedPayments,
     items: (items || []).map((item) => ({
       description: item.description,
       quantity: item.quantity,
       unit_price: parseFloat(item.unit_price),
       amount: parseFloat(item.line_total),
+      total_price: parseFloat(item.line_total),
+      vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : undefined,
       notes: item.notes || null,
     })),
     totals: {
@@ -1086,14 +1111,21 @@ export async function prepareDocumentData(
     document_number: doc.document_number || "",
     document_date: formatDate(doc.issue_date),
     document_language: documentLanguage,
+    subtotal: formatCurrency(doc.subtotal ? parseFloat(doc.subtotal) : 0),
+    vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : undefined,
+    vat_amount: formatCurrency(doc.vat_amount ? parseFloat(doc.vat_amount) : 0),
     total_amount: formatCurrency(parseFloat(doc.total_amount || 0)),
     description: doc.document_description || "",
     notes: doc.internal_notes || "",
+    payment_due_date: (doc as any).payment_due_date || "",
   }
 
   // Generate HTML rows for payments table
   // This is used when template engine doesn't support {{#each}}
-  if (mappedPayments.length > 0) {
+  if (doc.document_type === "tax_invoice") {
+    templateData.PAYMENTS_ROWS_HTML = ""
+    templateData.TOTAL_AMOUNT = ""
+  } else if (mappedPayments.length > 0) {
     const paymentRows = mappedPayments.map((payment: any) => {
       // Get payment date (fallback to document date if missing)
       const paymentDate = payment.date || doc.issue_date || ""
@@ -1137,6 +1169,56 @@ export async function prepareDocumentData(
   } else {
     // Empty string if no payments (not null)
     templateData.PAYMENTS_ROWS_HTML = ""
+  }
+  if (doc.document_type === "tax_invoice") {
+    const itemRows = (items || []).map((item: any) => {
+      const metadata = item.payment_metadata || {}
+      const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
+      const lineTotal = Number(item.line_total || 0)
+      const itemDate = item.item_date || doc.issue_date || ""
+      const formattedDate = formatDate(itemDate)
+      const formattedTotal = formatCurrency(lineTotal)
+      const escapedQty = escapeHtml(String(quantity))
+      const escapedDetails = escapeHtml(
+        metadata.details || item.description || metadata.label || ""
+      )
+      const escapedDate = escapeHtml(formattedDate)
+      const escapedTotal = escapeHtml(formattedTotal)
+
+      return `<tr>
+  <td>${escapedQty}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedDate}</td>
+  <td>${escapedTotal}</td>
+</tr>`
+    })
+    templateData.TI_ROWS_HTML = itemRows.join("\n")
+    templateData.TI_SUBTOTAL = formatCurrency(doc.subtotal ? parseFloat(doc.subtotal) : 0)
+    templateData.TI_VAT_RATE = doc.vat_rate ? parseFloat(doc.vat_rate) : 0
+    templateData.TI_VAT_AMOUNT = formatCurrency(doc.vat_amount ? parseFloat(doc.vat_amount) : 0)
+    templateData.TI_TOTAL_AMOUNT = formatCurrency(parseFloat(doc.total_amount || 0))
+  } else {
+    templateData.TI_ROWS_HTML = ""
+    templateData.TI_SUBTOTAL = ""
+    templateData.TI_VAT_RATE = ""
+    templateData.TI_VAT_AMOUNT = ""
+    templateData.TI_TOTAL_AMOUNT = ""
+  }
+  if (process.env.NODE_ENV !== "production") {
+    if (doc.document_type === "tax_invoice") {
+      console.log("[template-vars][tax_invoice]", {
+        TI_ROWS_HTML: templateData.TI_ROWS_HTML,
+        TI_SUBTOTAL: templateData.TI_SUBTOTAL,
+        TI_VAT_RATE: templateData.TI_VAT_RATE,
+        TI_VAT_AMOUNT: templateData.TI_VAT_AMOUNT,
+        TI_TOTAL_AMOUNT: templateData.TI_TOTAL_AMOUNT,
+      })
+    } else {
+      console.log("[template-vars][receipt]", {
+        PAYMENTS_ROWS_HTML: templateData.PAYMENTS_ROWS_HTML,
+        TOTAL_AMOUNT: templateData.TOTAL_AMOUNT,
+      })
+    }
   }
   return templateData
 }

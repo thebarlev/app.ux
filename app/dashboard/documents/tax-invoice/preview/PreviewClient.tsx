@@ -314,24 +314,26 @@ export default function PreviewClient({
   };
 
   const generatePaymentsRowsHTML = () => {
-    if (payments.length === 0) return "";
+    if (items.length === 0) return "";
 
-    return payments
-      .map((p) => {
-        const paymentDetails = buildPaymentDetails(p);
-        const formattedDate = formatDate(p.date, language);
-        const formattedAmount = formatMoney(p.amount, p.currency || currency, language);
+    return items
+      .map((item) => {
+        const qty = Number.isFinite(item.quantity) ? item.quantity : 0;
+        const unit = Number(item.unitPrice || 0);
+        const lineTotal = Number(item.lineTotal || unit * qty);
+        const formattedUnit = formatMoney(unit, item.currency || currency, language);
+        const formattedTotal = formatMoney(lineTotal, item.currency || currency, language);
 
-        const escapedMethod = escapeHtml(p.method);
-        const escapedDetails = escapeHtml(paymentDetails);
-        const escapedDate = escapeHtml(formattedDate);
-        const escapedAmount = escapeHtml(formattedAmount);
+        const escapedQty = escapeHtml(String(qty));
+        const escapedDetails = escapeHtml(item.description || item.label || "");
+        const escapedUnit = escapeHtml(formattedUnit);
+        const escapedTotal = escapeHtml(formattedTotal);
 
         return `<tr>
-  <td>${escapedMethod}</td>
+  <td>${escapedQty}</td>
   <td>${escapedDetails}</td>
-  <td>${escapedDate}</td>
-  <td>${escapedAmount}</td>
+  <td>${escapedUnit}</td>
+  <td>${escapedTotal}</td>
 </tr>`;
       })
       .join("\n");

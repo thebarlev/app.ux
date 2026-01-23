@@ -42,6 +42,7 @@ export type DocumentDraftPayload = Omit<ReceiptDraftPayload, "documentType"> & {
   vatRate?: number;
   vatAmount?: number;
   subtotal?: number;
+  paymentDueDate?: string;
 };
 
 export type InitialDocumentCreateData =
@@ -434,35 +435,50 @@ export async function saveDocumentDraftAction(
         }
       : {};
 
-  const { data, error } = await supabase
+  const baseInsert = {
+    company_id: companyId,
+    document_type: documentType,
+    document_status: "draft",
+    document_number: null,
+    customer_id: payload.customerId || null,
+    customer_name: payload.customerName,
+    issue_date: payload.documentDate,
+    payment_due_date: payload.paymentDueDate || null,
+    document_description: payload.description || null,
+    total_amount: payload.total,
+    currency: payload.currency,
+    internal_notes: payload.notes,
+    language: payload.language,
+    ...taxFields,
+  };
+
+  let { data, error } = await supabase
     .from("documents")
-    .insert({
-      company_id: companyId,
-      document_type: documentType,
-      document_status: "draft",
-      document_number: null,
-      customer_id: payload.customerId || null,
-      customer_name: payload.customerName,
-      issue_date: payload.documentDate,
-      document_description: payload.description || null,
-      total_amount: payload.total,
-      currency: payload.currency,
-      internal_notes: payload.notes,
-      language: payload.language,
-      ...taxFields,
-    })
+    .insert(baseInsert)
     .select("id")
     .single();
 
   if (error) {
-    if (error.code === "PGRST204" && String(error.message || "").includes("language")) {
+    const message = String(error.message || "");
+    if (error.code === "PGRST204" && message.includes("payment_due_date")) {
+      const { payment_due_date: _paymentDueDate, ...fallbackInsert } = baseInsert;
+      ({ data, error } = await supabase
+        .from("documents")
+        .insert(fallbackInsert)
+        .select("id")
+        .single());
+    }
+    if (error && error.code === "PGRST204" && String(error.message || "").includes("language")) {
       return {
         ok: false as const,
         message:
           "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
       };
     }
-    return { ok: false as const, message: error.message };
+    if (error) return { ok: false as const, message: error.message };
+  }
+  if (!data) {
+    return { ok: false as const, message: "Draft creation failed." };
   }
 
   if (documentType === "tax_invoice" && payload.items && payload.items.length > 0) {
@@ -580,26 +596,40 @@ export async function issueDocumentAction(
           }
         : {};
 
-    const { data: draft, error: draftError } = await supabase
+    const baseDraftInsert = {
+      company_id: companyId,
+      document_type: documentType,
+      document_status: "draft",
+      document_number: null,
+      customer_id: payload.customerId || null,
+      customer_name: payload.customerName,
+      issue_date: payload.documentDate,
+      payment_due_date: payload.paymentDueDate || null,
+      document_description: payload.description || null,
+      total_amount: payload.total,
+      currency: payload.currency,
+      internal_notes: payload.notes,
+      language: payload.language,
+      ...taxFields,
+    };
+
+    let { data: draft, error: draftError } = await supabase
       .from("documents")
-      .insert({
-        company_id: companyId,
-        document_type: documentType,
-        document_status: "draft",
-        document_number: null,
-        customer_id: payload.customerId || null,
-        customer_name: payload.customerName,
-        issue_date: payload.documentDate,
-        document_description: payload.description || null,
-        total_amount: payload.total,
-        currency: payload.currency,
-        internal_notes: payload.notes,
-        language: payload.language,
-        ...taxFields,
-      })
+      .insert(baseDraftInsert)
       .select("id")
       .single();
 
+    if (draftError) {
+      const message = String(draftError.message || "");
+      if (draftError.code === "PGRST204" && message.includes("payment_due_date")) {
+        const { payment_due_date: _paymentDueDate, ...fallbackInsert } = baseDraftInsert;
+        ({ data: draft, error: draftError } = await supabase
+          .from("documents")
+          .insert(fallbackInsert)
+          .select("id")
+          .single());
+      }
+    }
     if (draftError) {
       console.error(`${logPrefix} Draft creation failed`, {
         error: draftError.message,
@@ -615,6 +645,9 @@ export async function issueDocumentAction(
         };
       }
       return { ok: false as const, message: draftError.message || "Failed to create draft document" };
+    }
+    if (!draft) {
+      return { ok: false as const, message: "Failed to create draft document" };
     }
 
     console.log(`${logPrefix} Draft created`, { draftId: draft.id });
@@ -767,29 +800,41 @@ export async function updateDocumentDraftAction(
         }
       : {};
 
-  const { error: updateError } = await supabase
+  const baseUpdate = {
+    customer_name: payload.customerName,
+    issue_date: payload.documentDate,
+    payment_due_date: payload.paymentDueDate || null,
+    total_amount: payload.total,
+    currency: payload.currency,
+    internal_notes: payload.notes,
+    language: payload.language,
+    ...taxFields,
+  };
+
+  let { error: updateError } = await supabase
     .from("documents")
-    .update({
-      customer_name: payload.customerName,
-      issue_date: payload.documentDate,
-      total_amount: payload.total,
-      currency: payload.currency,
-      internal_notes: payload.notes,
-      language: payload.language,
-      ...taxFields,
-    })
+    .update(baseUpdate)
     .eq("id", draftId)
     .eq("company_id", companyId);
 
   if (updateError) {
-    if (updateError.code === "PGRST204" && String(updateError.message || "").includes("language")) {
+    const updateMessage = String(updateError.message || "");
+    if (updateError.code === "PGRST204" && updateMessage.includes("payment_due_date")) {
+      const { payment_due_date: _paymentDueDate, ...fallbackUpdate } = baseUpdate;
+      ({ error: updateError } = await supabase
+        .from("documents")
+        .update(fallbackUpdate)
+        .eq("id", draftId)
+        .eq("company_id", companyId));
+    }
+    if (updateError && updateError.code === "PGRST204" && String(updateError.message || "").includes("language")) {
       return {
         ok: false as const,
         message:
           "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
       };
     }
-    return { ok: false as const, message: updateError.message };
+    if (updateError) return { ok: false as const, message: updateError.message };
   }
 
   return { ok: true as const };
@@ -824,6 +869,7 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
         id: data.id,
         customerName: data.customer_name ?? "",
         documentDate: data.issue_date ?? todayYmd(),
+        paymentDueDate: (data as any).payment_due_date ?? null,
         total: data.total_amount ?? 0,
         currency: data.currency ?? "₪",
         notes: data.internal_notes ?? "",
@@ -945,6 +991,9 @@ export async function getDocumentPreviewUrlAction(
       const vatRateNum = Number((doc as any).vat_rate ?? 0);
       params.set("vatType", vatRateNum > 0 ? "regular" : "no_vat");
       params.set("items", JSON.stringify(items));
+      if ((doc as any).payment_due_date) {
+        params.set("paymentDueDate", String((doc as any).payment_due_date));
+      }
     }
 
     const url = `/dashboard/documents/${routeSegment}/preview?${params.toString()}`;

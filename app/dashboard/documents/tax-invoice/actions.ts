@@ -37,6 +37,7 @@ export type TaxInvoiceDraftPayload = Omit<ReceiptDraftPayload, "documentType"> &
   vatRate?: number;
   vatAmount?: number;
   subtotal?: number;
+  paymentDueDate?: string;
 };
 
 export type InitialTaxInvoiceCreateData = InitialDocumentCreateData;

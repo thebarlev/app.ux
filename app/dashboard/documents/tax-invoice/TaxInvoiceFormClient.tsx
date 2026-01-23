@@ -67,6 +67,7 @@ export default function TaxInvoiceFormClient({
     id: string;
     customerName: string;
     documentDate: string;
+    paymentDueDate?: string;
     total: number;
     currency: string;
     notes: string;
@@ -167,6 +168,7 @@ export default function TaxInvoiceFormClient({
     if (editData) {
       setCustomerName(editData.customerName);
       setDocumentDate(editData.documentDate);
+      setDueDate(editData.paymentDueDate || editData.documentDate);
       setCurrency(editData.currency);
       setNotes(editData.notes);
       if (editData.vatType) setVatType(editData.vatType);
@@ -234,6 +236,7 @@ export default function TaxInvoiceFormClient({
       customerName,
       customerId,
       documentDate,
+      paymentDueDate: dueDate,
       description,
       payments: [],
       items: items.map((item) => ({
@@ -254,6 +257,7 @@ export default function TaxInvoiceFormClient({
     customerName,
     customerId,
     documentDate,
+    dueDate,
     description,
     items,
     notes,
@@ -407,6 +411,7 @@ export default function TaxInvoiceFormClient({
         customerName: customerName || "",
         customerId: customerId || "",
         documentDate: documentDate || todayYmd(),
+        paymentDueDate: dueDate || documentDate || todayYmd(),
         description: description || "",
         notes: notes || "",
         footerNotes: footerText || "",
