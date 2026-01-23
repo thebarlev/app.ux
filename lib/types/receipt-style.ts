@@ -55,6 +55,7 @@ export type ReceiptStyleSettings = {
 
 /**
  * Default settings - professional Hebrew receipt style
+ * Aligned with Design Tokens from globals.css
  */
 export const DEFAULT_RECEIPT_STYLE: ReceiptStyleSettings = {
   typography: {
@@ -64,16 +65,16 @@ export const DEFAULT_RECEIPT_STYLE: ReceiptStyleSettings = {
     subtitleFontSize: 12,
   },
   colors: {
-    background: "#ffffff",
-    text: "#111827",
-    accent: "#111827",
-    headerBackground: "#f3f4f6",
-    headerText: "#111827",
-    tableHeaderBackground: "#f9fafb",
-    tableHeaderText: "#111827",
-    tableRowBorder: "#f3f4f6",
-    totalBoxBackground: "#f9fafb",
-    totalBoxBorder: "#111827",
+    background: "#F5FBF9",           // --bg
+    text: "#19183B",                 // --fg
+    accent: "#1D868F",               // --primary
+    headerBackground: "#E7F2EF",     // --card
+    headerText: "#19183B",           // --card-fg
+    tableHeaderBackground: "#19183B", // --table-header-bg
+    tableHeaderText: "#FFFFFF",      // --table-header-fg
+    tableRowBorder: "#A1C2BD",       // --border
+    totalBoxBackground: "#E7F2EF",   // --card
+    totalBoxBorder: "#1D868F",       // --primary
   },
   layout: {
     pagePaddingTop: 20,

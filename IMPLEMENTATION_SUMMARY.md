@@ -101,7 +101,7 @@ if (existing.document_status !== "draft") {
   - Redirects to `/dashboard/documents?error=cannot_edit_final`
   - User sees error message
 
-**File**: [app/dashboard/documents/receipts/ReceiptsListClient.tsx](app/dashboard/documents/receipts/ReceiptsListClient.tsx)
+**File**: (removed) `app/dashboard/documents/receipts/ReceiptsListClient.tsx`
 
 **Already implemented** (no changes needed):
 - Edit button only shows for `status === "draft"`

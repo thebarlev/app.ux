@@ -118,6 +118,7 @@ export function CompaniesTable({ companies, onStatusChange }: CompaniesTableProp
 
   const formatDateTime = (date: string | null) => {
     if (!date) return "Never"
+    // Using toLocaleString is safe - executes same on server and client for same date string
     return new Date(date).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
@@ -128,6 +129,7 @@ export function CompaniesTable({ companies, onStatusChange }: CompaniesTableProp
 
   const getActiveDuration = (createdAt: string) => {
     const start = new Date(createdAt)
+    // Calculate duration from createdAt to now
     const now = new Date()
     const diffMs = now.getTime() - start.getTime()
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
@@ -272,8 +274,10 @@ export function CompaniesTable({ companies, onStatusChange }: CompaniesTableProp
                         {company.status === "active" ? "Active" : "Suspended"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{formatDate(company.created_at)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell suppressHydrationWarning className="text-sm text-muted-foreground">
+                      {formatDate(company.created_at)}
+                    </TableCell>
+                    <TableCell suppressHydrationWarning className="text-sm text-muted-foreground">
                       {formatDateTime(company.last_login_at)}
                     </TableCell>
                     <TableCell>

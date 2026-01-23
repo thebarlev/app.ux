@@ -1,9 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Customer, createCustomerAction, updateCustomerAction } from "./actions";
+import { Button } from "@/components/ui/button";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/form-section";
+import { FormActions } from "@/components/ui/form-actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { Users, Save, ArrowLeft, FileText } from "lucide-react";
 
 type Props = {
   customer?: Customer;
@@ -50,7 +58,8 @@ export default function CustomerFormClient({ customer }: Props) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -106,511 +115,326 @@ export default function CustomerFormClient({ customer }: Props) {
   };
 
   return (
-    <div dir="rtl" style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <Link
-          href="/dashboard/customers"
-          style={{
-            display: "inline-block",
-            marginBottom: 16,
-            color: "#3b82f6",
-            textDecoration: "none",
-            fontSize: 14,
-          }}
-        >
-          ← חזרה ללקוחות
-        </Link>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>
-              פרטי הלקוח
-            </h1>
-            <p style={{ marginTop: 8, opacity: 0.75 }}>
-              {isEdit ? "עדכן את פרטי הלקוח" : "הוסף לקוח חדש למערכת"}
-            </p>
-          </div>
-          {isEdit && (
-            <Link
+    <main dir="rtl" className="min-h-screen bg-bg">
+      <div className="ui-container pt-10">
+        {/* Page Header - Title aligned right, 50px margin bottom */}
+        <h1 className="text-right">
+          {isEdit ? "עריכת לקוח" : "לקוח חדש"}
+        </h1>
+        <div className="h-[50px]" />
+        {isEdit && (
+          <div className="mb-[50px]">
+            <Link 
               href={`/dashboard/customers/${customer.id}/documents`}
               style={{
-                padding: "10px 20px",
-                background: "#3b82f6",
-                color: "white",
-                borderRadius: 10,
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: 14,
-                display: "inline-block",
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'transparent',
+                border: 'none',
+                color: '#19183B',
+                textDecoration: 'underline',
+                fontSize: '18px',
+                fontWeight: 500,
+                cursor: 'pointer',
               }}
             >
-              📄 צפה במסמכים
+              <FileText size={18} />
+              צפה במסמכים
             </Link>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
 
       {/* Message */}
       {message && (
-        <div
-          style={{
-            padding: 16,
-            marginBottom: 24,
-            borderRadius: 12,
-            border: `1px solid ${message.type === "success" ? "#10b981" : "#ef4444"}`,
-            background: message.type === "success" ? "#d1fae5" : "#fee2e2",
-            color: message.type === "success" ? "#065f46" : "#991b1b",
-          }}
-        >
-          {message.text}
-        </div>
+        <Card className={cn(
+          "mb-[50px]",
+          message.type === "success" 
+            ? "border-success bg-success/10" 
+            : "border-danger bg-danger/10"
+        )}>
+          <CardContent className="p-4">
+            <div className={cn(
+              "font-semibold text-right",
+              message.type === "success" ? "text-success" : "text-danger"
+            )}>
+              {message.text}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit}>
-        <div
-          style={{
-            padding: 24,
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 16,
-          }}
-        >
-          <div style={{ display: "grid", gap: 20 }}>
-            {/* Name */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                שם העסק / לקוח <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                placeholder="שם מלא או שם עסק"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="ui-section-gap">
+        {/* Basic Info Section */}
+        <FormSection title="פרטי לקוח בסיסיים">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FloatingInput
+                  label="שם העסק / לקוח"
+                  required
+                  id="name"
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Tax ID */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                מספר עוסק (ת.ז / ח.פ)
-              </label>
-              <input
-                type="text"
-                name="tax_id"
-                value={formData.tax_id}
-                onChange={handleInputChange}
-                placeholder="123456789"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="מספר עוסק (ת.ז / ח.פ)"
+                  id="tax_id"
+                  type="text"
+                  name="tax_id"
+                  value={formData.tax_id}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Profession */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                עיסוק ומקצוע
-              </label>
-              <input
-                type="text"
-                name="profession"
-                value={formData.profession}
-                onChange={handleInputChange}
-                placeholder="לדוגמה: עורך דין, רופא, יועץ עסקי"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="עיסוק ומקצוע"
+                  id="profession"
+                  type="text"
+                  name="profession"
+                  value={formData.profession}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
+          </div>
+          </div>
+        </FormSection>
 
-            {/* Section Separator */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "2px solid #e5e7eb" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, marginBottom: 16 }}>
-                פרטי התקשרות
-              </h3>
-            </div>
+        {/* Contact Section */}
+        <FormSection title="פרטי התקשרות">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FloatingInput
+                  label="איש קשר"
+                  id="contact_person"
+                  type="text"
+                  name="contact_person"
+                  value={formData.contact_person}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Contact Person */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>איש קשר</label>
-              <input
-                type="text"
-                name="contact_person"
-                value={formData.contact_person}
-                onChange={handleInputChange}
-                placeholder="שם איש הקשר"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="טלפון"
+                  id="phone"
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Phone */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                placeholder="03-1234567"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="טלפון נוסף"
+                  id="phone_secondary"
+                  type="tel"
+                  name="phone_secondary"
+                  value={formData.phone_secondary}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Phone Secondary */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                טלפון נוסף
-              </label>
-              <input
-                type="tel"
-                name="phone_secondary"
-                value={formData.phone_secondary}
-                onChange={handleInputChange}
-                placeholder="04-7654321"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="נייד"
+                  id="mobile"
+                  type="tel"
+                  name="mobile"
+                  value={formData.mobile}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* Mobile */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
-              <input
-                type="tel"
-                name="mobile"
-                value={formData.mobile}
-                onChange={handleInputChange}
-                placeholder="050-1234567"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+                <FloatingInput
+                  label="דוא״ל"
+                  id="email"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
+          </div>
+          </div>
+        </FormSection>
 
-            {/* Email */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אימייל</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="example@domain.com"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
-
-            {/* Section Separator */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "2px solid #e5e7eb" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, marginBottom: 16 }}>כתובת</h3>
-            </div>
-
-            {/* Address Street & Number Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>רחוב</label>
-                <input
+        {/* Address Section */}
+        <FormSection title="כתובת">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FloatingInput
+                  label="רחוב"
+                  id="address_street"
                   type="text"
                   name="address_street"
                   value={formData.address_street}
                   onChange={handleInputChange}
-                  placeholder="שם הרחוב"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מספר</label>
-                <input
+
+                <FloatingInput
+                  label="מספר"
+                  id="address_number"
                   type="text"
                   name="address_number"
                   value={formData.address_number}
                   onChange={handleInputChange}
-                  placeholder="123"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-            </div>
 
-            {/* City & Zip Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>ישוב</label>
-                <input
+                <FloatingInput
+                  label="יישוב"
+                  id="address_city"
                   type="text"
                   name="address_city"
                   value={formData.address_city}
                   onChange={handleInputChange}
-                  placeholder="תל אביב"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
-                <input
+
+                <FloatingInput
+                  label="מיקוד"
+                  id="address_zip"
                   type="text"
                   name="address_zip"
                   value={formData.address_zip}
                   onChange={handleInputChange}
-                  placeholder="1234567"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-            </div>
+            <FloatingInput
+              label="מדינה"
+              id="address_country"
+              type="text"
+              name="address_country"
+              value={formData.address_country}
+              onChange={handleInputChange}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
+          </div>
+          </div>
+        </FormSection>
 
-            {/* Country */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מדינה</label>
-              <input
-                type="text"
-                name="address_country"
-                value={formData.address_country}
-                onChange={handleInputChange}
-                placeholder="ישראל"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
+        {/* Accounting Section */}
+        <FormSection title="פרטים חשבונאיים">
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <div className="w-full min-w-0">
+                  <label htmlFor="payment_terms_text" className="block text-right text-[12px] text-fg mb-0 leading-none mt-[0px]">
+                    תנאי תשלום
+                  </label>
+                  <Select 
+                    value={formData.payment_terms_text} 
+                    onValueChange={(value) => setFormData(prev => ({...prev, payment_terms_text: value}))}
+                  >
+                    <SelectTrigger id="payment_terms_text" variant="underline" className="text-fg border-border focus:border-border">
+                      <SelectValue placeholder="בחר תנאי תשלום" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_TERMS_OPTIONS.map((option) => (
+                        <SelectItem 
+                          key={option.value} 
+                          value={option.value}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Section Separator */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "2px solid #e5e7eb" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, marginBottom: 16 }}>
-                פרטים חשבונאיים
-              </h3>
-            </div>
+                <FloatingInput
+                  label="מפתח לקוח"
+                  id="external_account_key"
+                  type="text"
+                  name="external_account_key"
+                  value={formData.external_account_key}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
+          </div>
+          </div>
+        </FormSection>
 
-            {/* Payment Terms */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                תנאי תשלום
-              </label>
-              <select
-                name="payment_terms_text"
-                value={formData.payment_terms_text}
-                onChange={handleInputChange}
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                  background: "white",
-                }}
-              >
-                <option value="">בחר תנאי תשלום</option>
-                {PAYMENT_TERMS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+        {/* Bank Details Section */}
+        <FormSection 
+          title="פרטי חשבון בנק"
+        >
+          <div className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+          <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                <FloatingInput
+                  label="שם הבנק"
+                  id="bank_name"
+                  type="text"
+                  name="bank_name"
+                  value={formData.bank_name}
+                  onChange={handleInputChange}
+                  className="border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
+                />
 
-            {/* External Account Key */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                מפתח לקוח
-              </label>
-              <input
-                type="text"
-                name="external_account_key"
-                value={formData.external_account_key}
-                onChange={handleInputChange}
-                placeholder="מפתח חשבון בתוכנה חיצונית (חשבשבת וכו')"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
-
-            {/* Section Separator */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "2px solid #e5e7eb" }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, marginBottom: 8 }}>
-                פרטי חשבון בנק
-              </h3>
-              <p style={{ fontSize: 13, opacity: 0.6, margin: 0, marginBottom: 16 }}>
-                פרטי החשבון יוצגו אוטומטית בקבלות
-              </p>
-            </div>
-
-            {/* Bank Name */}
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>שם הבנק</label>
-              <input
-                type="text"
-                name="bank_name"
-                value={formData.bank_name}
-                onChange={handleInputChange}
-                placeholder="לדוגמה: בנק הפועלים"
-                style={{
-                  width: "100%",
-                  padding: 12,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
-              />
-            </div>
-
-            {/* Bank Branch & Account Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                  מספר סניף
-                </label>
-                <input
+                <FloatingInput
+                  label="מספר סניף"
+                  id="bank_branch"
                   type="text"
                   name="bank_branch"
                   value={formData.bank_branch}
                   onChange={handleInputChange}
-                  placeholder="123"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-              <div>
-                <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                  מספר חשבון
-                </label>
-                <input
+
+                <FloatingInput
+                  label="מספר חשבון"
+                  id="bank_account"
                   type="text"
                   name="bank_account"
                   value={formData.bank_account}
                   onChange={handleInputChange}
-                  placeholder="1234567"
-                  style={{
-                    width: "100%",
-                    padding: 12,
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    fontSize: 14,
-                  }}
+                  dir="ltr"
+                  className="text-left border-border focus:border-border"
+                  containerClassName="w-full min-w-0"
                 />
-              </div>
-            </div>
           </div>
+          </div>
+        </FormSection>
 
-          {/* Actions */}
-          <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e5e7eb", display: "flex", gap: 12 }}>
-            <button
-              type="submit"
-              disabled={isSaving}
-              style={{
-                padding: "12px 32px",
-                borderRadius: 12,
-                border: "1px solid #111827",
-                background: "#111827",
-                color: "white",
-                cursor: isSaving ? "not-allowed" : "pointer",
-                fontWeight: 700,
-                fontSize: 16,
-                opacity: isSaving ? 0.5 : 1,
-              }}
-            >
-              {isSaving ? "שומר..." : isEdit ? "עדכן לקוח" : "צור לקוח"}
-            </button>
-            <Link
-              href="/dashboard/customers"
-              style={{
-                padding: "12px 32px",
-                borderRadius: 12,
-                border: "1px solid #d1d5db",
-                background: "white",
-                color: "#111827",
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: 16,
-                display: "inline-block",
-                textAlign: "center",
-              }}
-            >
-              ביטול
-            </Link>
-          </div>
+        {/* Actions */}
+        <div className="mt-10">
+          <FormActions
+            primaryLabel={isEdit ? "עדכן לקוח" : "צור לקוח"}
+            secondaryLabel="ביטול"
+            onSecondaryClick={() => router.push("/dashboard/customers")}
+            primaryLoading={isSaving}
+            primaryDisabled={isSaving}
+            primaryType="submit"
+          />
         </div>
       </form>
-    </div>
+      </div>
+    </main>
   );
 }

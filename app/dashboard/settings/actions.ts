@@ -1,39 +1,83 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { revalidatePath } from "next/cache";
 
-/**
- * מחזיר את ה-company_id של המשתמש המחובר (דרך טבלת company_members)
- */
-async function getMyCompanyId() {
+async function getCompanyIdForUser(userId: string): Promise<string> {
   const supabase = await createClient();
 
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth?.user?.id;
-  if (!userId) {
-    throw new Error("Not authenticated");
-  }
-
-  const { data, error } = await supabase
+  const { data: memberships, error: membershipError } = await supabase
     .from("company_members")
     .select("company_id")
     .eq("user_id", userId)
-    .single();
+    .order("company_id", { ascending: true });
 
-  if (error || !data) {
-    console.error("getMyCompanyId error:", error);
-    throw new Error("No company found for this user");
+  if (membershipError) throw membershipError;
+  const membershipCompanyIds = (memberships || []).map((m: any) => m.company_id).filter(Boolean) as string[];
+
+  const { data: ownerCompany, error: ownerCompanyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .order("id", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (ownerCompanyError) throw ownerCompanyError;
+
+  const candidateIds = Array.from(new Set([...(membershipCompanyIds || []), ...(ownerCompany?.id ? [ownerCompany.id] : [])]));
+
+  if (candidateIds.length > 0) {
+    // Prefer a company that actually has registration_number (business ID) since Settings requires it.
+    const { data: companies, error: companiesError } = await supabase
+      .from("companies")
+      .select("id, registration_number")
+      .in("id", candidateIds);
+
+    if (companiesError) throw companiesError;
+
+    const withReg = (companies || []).filter((c: any) => Boolean(c?.registration_number && String(c.registration_number).trim().length > 0));
+    const chosen = (withReg.length > 0 ? withReg : (companies || [])).sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)))[0];
+
+    if (chosen?.id) return String(chosen.id);
   }
 
-  return data.company_id;
+  const { data: company, error: companyError } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+
+  if (companyError) throw companyError;
+  if (company?.id) {
+    return company.id;
+  }
+
+  throw new Error("company_not_found");
+}
+
+/**
+ * מחזיר את ה-company_id של המשתמש המחובר
+ * משתמש ב-helper המרכזי שבודק גם company_members וגם companies.auth_user_id
+ */
+async function getMyCompanyId() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !user) throw new Error("not_authenticated");
+  return await getCompanyIdForUser(user.id);
 }
 
 export type BusinessDetailsPayload = {
   company_name: string;
+  company_name_en?: string;
+  english_address?: string;
   business_type: "osek_patur" | "osek_murshe" | "ltd" | "partnership" | "other";
-  company_number: string;
+  // Company identifier fields exist in DB but Settings does not update them via this action.
+  company_number?: string;
+  registration_number?: string;
   industry: string;
   custom_industry: string;
   street: string;
@@ -42,6 +86,8 @@ export type BusinessDetailsPayload = {
   address: string;
   phone: string;
   mobile_phone: string;
+  contact_first_name_en?: string;
+  books_region?: "IL" | "OTHER";
   email: string;
   website: string;
 };
@@ -52,28 +98,84 @@ export type BusinessDetailsPayload = {
 export async function updateBusinessDetailsAction(payload: BusinessDetailsPayload) {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
-    const { error } = await supabase
+    const englishAddress =
+      typeof payload.english_address === "string" && payload.english_address.trim().length > 0
+        ? payload.english_address.trim()
+        : null;
+
+    const updatePayloadWithEnglish = {
+      company_name: payload.company_name,
+      company_name_en: payload.company_name_en || null,
+      english_address: englishAddress,
+      business_type: payload.business_type,
+      industry: payload.industry,
+      custom_industry: payload.custom_industry,
+      street: payload.street,
+      city: payload.city,
+      postal_code: payload.postal_code,
+      address: payload.address,
+      phone: payload.phone,
+      mobile_phone: payload.mobile_phone,
+      contact_first_name_en: payload.contact_first_name_en || null,
+      books_region: payload.books_region || null,
+      // notified_tax_officer fields removed
+      email: payload.email,
+      website: payload.website,
+    };
+
+    const updatePayloadWithoutEnglish = {
+      company_name: payload.company_name,
+      business_type: payload.business_type,
+      industry: payload.industry,
+      custom_industry: payload.custom_industry,
+      street: payload.street,
+      city: payload.city,
+      postal_code: payload.postal_code,
+      address: payload.address,
+      phone: payload.phone,
+      mobile_phone: payload.mobile_phone,
+      books_region: payload.books_region || null,
+      // notified_tax_officer fields removed
+      email: payload.email,
+      website: payload.website,
+    };
+
+    const r1 = await supabase
       .from("companies")
-      .update({
-        company_name: payload.company_name,
-        business_type: payload.business_type,
-        industry: payload.industry,
-        custom_industry: payload.custom_industry,
-        street: payload.street,
-        city: payload.city,
-        postal_code: payload.postal_code,
-        address: payload.address,
-        phone: payload.phone,
-        mobile_phone: payload.mobile_phone,
-        email: payload.email,
-        website: payload.website,
-      })
-      .eq("id", companyId);
+      .update(updatePayloadWithEnglish)
+      .eq("id", companyId)
+      .select("id")
+      .single();
+
+    let data = r1.data;
+    let error = r1.error;
+
+    const msg = (error?.message || "") as string;
+    const code = (error?.code || "") as string;
+    const missingEnglishCols =
+      msg.includes("company_name_en") || msg.includes("contact_first_name_en") || msg.includes("english_address");
+    if (error && code === "PGRST204" && missingEnglishCols) {
+      const r2 = await supabase
+        .from("companies")
+        .update(updatePayloadWithoutEnglish)
+        .eq("id", companyId)
+        .select("id")
+        .single();
+      data = r2.data;
+      error = r2.error;
+    }
 
     if (error) {
+      if (error.code === "PGRST116" || error.message.includes("0 rows")) {
+        return { ok: false as const, message: "no_company_updated" };
+      }
       return { ok: false as const, message: error.message };
+    }
+
+    if (!data?.id) {
+      return { ok: false as const, message: "no_company_updated" };
     }
 
     revalidatePath("/dashboard/settings");
@@ -91,7 +193,7 @@ export async function updateBusinessDetailsAction(payload: BusinessDetailsPayloa
 export async function uploadLogoAction(formData: FormData) {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     const file = formData.get("logo") as File;
     if (!file) {
@@ -174,7 +276,7 @@ export async function uploadLogoAction(formData: FormData) {
 export async function deleteLogoAction() {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     const { data: company } = await supabase
       .from("companies")
@@ -233,7 +335,7 @@ export async function uploadCompanySignatureAction(formData: FormData) {
     // 3. העלאה ל-Storage
     const fileExt = file.name.split(".").pop() ?? "png";
     const fileName = `signature.${fileExt}`;
-    const filePath = `signatures/${companyId}/${fileName}`;
+    const filePath = `business-signatures/${companyId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("business-assets")
@@ -316,7 +418,7 @@ export const uploadSignatureAction = uploadCompanySignatureAction;
 export async function deleteSignatureAction() {
   try {
     const supabase = await createClient();
-    const companyId = await getCompanyIdForUser();
+    const companyId = await getMyCompanyId();
 
     // בודקים שיש בכלל חתימה
     let company: { signature_url: string | null } | null = null;
@@ -345,8 +447,8 @@ export async function deleteSignatureAction() {
       return { ok: false as const, message: "no_signature_to_delete" };
     }
 
-    // מוחקים מה-Storage (אותו path כמו למעלה, בהתאם למה שהעלית)
-    const filePath = `signatures/${companyId}/signature.png`;
+    // מוחקים מה-Storage
+    const filePath = `business-signatures/${companyId}/signature.png`;
     await supabase.storage.from("business-assets").remove([filePath]);
 
     // מעדכנים את הרשומה

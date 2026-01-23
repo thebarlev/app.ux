@@ -4,12 +4,12 @@ import type React from "react"
 import { useState, useEffect, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { NeumorphicCard } from "@/components/registration/neumorphic-card"
-import { NeumorphicInput } from "@/components/registration/neumorphic-input"
-import { NeumorphicButton } from "@/components/registration/neumorphic-button"
 import { RegistrationLogo } from "@/components/registration/registration-logo"
+import { FloatingInput } from "@/components/ui/floating-input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 function LoginForm() {
   const router = useRouter()
@@ -24,6 +24,8 @@ function LoginForm() {
     const errorParam = searchParams.get("error")
     if (errorParam === "unauthorized") {
       setError("נא להתחבר כדי לגשת לחשבון שלך")
+    } else if (errorParam === "no_company") {
+      setError("לא נמצא חשבון עסקי קשור למשתמש זה")
     }
   }, [searchParams])
 
@@ -31,17 +33,31 @@ function LoginForm() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
-
     try {
       const supabase = createClient()
-
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-
       if (authError) {
-        setError("אימייל או סיסמה שגויים")
+        console.error("🔴 Auth login error:", {
+          message: authError.message || "Unknown error",
+          name: authError.name || "Unknown",
+          status: authError.status || "Unknown",
+        })
+        
+        // User-friendly error messages
+        let errorMsg = "שגיאת התחברות"
+        if (authError.message?.toLowerCase().includes("invalid login") || 
+            authError.message?.toLowerCase().includes("invalid email or password")) {
+          errorMsg = "אימייל או סיסמה שגויים"
+        } else if (authError.message?.toLowerCase().includes("email not confirmed")) {
+          errorMsg = "נא לאמת את כתובת האימייל שלך"
+        } else if (authError.message) {
+          errorMsg = `שגיאת התחברות: ${authError.message}`
+        }
+        
+        setError(errorMsg)
         setIsLoading(false)
         return
       }
@@ -79,65 +95,116 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center bg-background px-4 py-8">
+    <div className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
       <div className="w-full max-w-[420px]">
         {/* Logo */}
-        <div className="mb-8 flex justify-center">
-          <RegistrationLogo />
+        <div className="mb-10 flex justify-center">
+          <RegistrationLogo titleSize="small" />
         </div>
 
-        <NeumorphicCard>
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-foreground">התחברות</h2>
-            <p className="mt-1 text-sm text-muted-foreground">הזן את פרטי ההתחברות שלך</p>
-          </div>
+        {/* Login Card */}
+        <Card className="shadow-ui-lg">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-right">
+              התחברות לחשבון
+            </CardTitle>
+            <CardDescription className="text-muted-fg text-right">
+              הזן את פרטי ההתחברות שלך כדי להמשיך
+            </CardDescription>
+          </CardHeader>
 
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <NeumorphicInput
-              id="email"
-              type="email"
-              label="אימייל"
-              placeholder="israel@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              dir="ltr"
-              className="text-left"
-            />
-
-            <div className="relative">
-              <NeumorphicInput
-                id="password"
-                type={showPassword ? "text" : "password"}
-                label="סיסמה"
+          <CardContent>
+          <form onSubmit={handleLogin} className="space-y-5">
+              <FloatingInput
+                label="כתובת אימייל"
+                id="email"
+                type="email"
                 required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 dir="ltr"
-                className="text-left pl-10"
+                className="text-left"
+                aria-required="true"
+                aria-invalid={!!error}
+                aria-describedby={error ? "login-error" : undefined}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
+
+              {/* Password Field */}
+              <div className="relative">
+                <FloatingInput
+                  label="סיסמה"
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  dir="ltr"
+                  className="text-left pr-12"
+                  aria-required="true"
+                  aria-invalid={!!error}
+                  aria-describedby={error ? "login-error" : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-fg hover:text-fg transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
+                  aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Forgot Password Link - below password input, above submit, RTL right-aligned */}
+              <div className="flex justify-end mt-0 mb-1" dir="rtl">
+                <Link
+                  href="/forgot-password"
+                  className="text-[16px] text-muted-foreground hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui font-normal"
+                  tabIndex={0}
+                >
+                  שכחתי סיסמה
+                </Link>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div 
+                  id="login-error"
+                  className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right" 
+                  role="alert"
+                >
+                  {error}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full"
+                variant="primary"
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-
-            {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</p>}
-
-            <NeumorphicButton type="submit" isLoading={isLoading} className="mt-2">
-              התחבר
-            </NeumorphicButton>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    מתחבר...
+                  </>
+                ) : (
+                  "התחבר לחשבון"
+                )}
+              </Button>
           </form>
-        </NeumorphicCard>
+          </CardContent>
+        </Card>
 
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        {/* Sign Up Link */}
+        <p className="mt-6 text-center">
           אין לך חשבון?{" "}
-          <Link href="/register" className="font-medium text-primary hover:text-primary/80 transition-colors">
-            הרשמה
+          <Link 
+            href="/register" 
+            className="text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+          >
+            הרשמה לחשבון חדש
           </Link>
         </p>
       </div>

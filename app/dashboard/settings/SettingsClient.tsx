@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import TemplateSelector from "@/components/dashboard/TemplateSelector";
+import SimpleTemplateSelector from "@/components/dashboard/SimpleTemplateSelector";
 import {
   updateBusinessDetailsAction,
   uploadLogoAction,
@@ -10,10 +12,21 @@ import {
   deleteSignatureAction,
   type BusinessDetailsPayload,
 } from "./actions";
+import { Button } from "@/components/ui/button";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FormSection } from "@/components/ui/form-section";
+import { FormActions } from "@/components/ui/form-actions";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 type Company = {
   id: string;
   company_name: string;
+  company_name_en?: string | null;
+  english_address?: string | null;
   business_type: string | null;
   company_number: string | null;
   industry: string | null;
@@ -25,14 +38,29 @@ type Company = {
   address: string | null;
   phone: string | null;
   mobile_phone: string | null;
+  contact_first_name?: string | null;
+  contact_first_name_en?: string | null;
+  books_region?: "IL" | "OTHER" | null;
+  notified_tax_officer_at?: string | null;
+  notified_tax_officer_notes?: string | null;
   email: string;
   website: string | null;
   logo_url: string | null;
   signature_url: string | null;
 };
 
+type Template = {
+  id: string;
+  name: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  is_default: boolean;
+  company_id: string | null;
+};
+
 type Props = {
   company: Company;
+  initialTemplates: Template[];
 };
 
 const BUSINESS_TYPES = [
@@ -43,27 +71,44 @@ const BUSINESS_TYPES = [
   { value: "other", label: "אחר" },
 ];
 
+// Keep this list aligned with Registration Step 2 (which stores Hebrew labels in DB).
 const INDUSTRIES = [
-  { value: "retail", label: "קמעונאות" },
-  { value: "services", label: "שירותים" },
-  { value: "tech", label: "הייטק" },
-  { value: "construction", label: "בנייה" },
-  { value: "food", label: "מזון ומסעדנות" },
-  { value: "health", label: "בריאות" },
-  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
-  { value: "education", label: "חינוך" },
-  { value: "other", label: "אחר" },
+  "קמעונאות",
+  "מסעדנות",
+  "הייטק",
+  "שירותים מקצועיים",
+  "חינוך",
+  "בריאות",
+  "נדל״ן",
+  "בנייה",
+  "תחבורה",
+  "ייעוץ",
+  "שיווק דיגיטלי",
+  "שירותי פרסום",
+  "עיצוב",
+  "פיתוח תוכנה",
+  "חשבונאות",
+  "משפטים",
+  "רפואה אלטרנטיבית",
+  "כושר וספורט",
+  "יופי וטיפוח",
+  "אירועים",
 ];
 
-export default function SettingsClient({ company }: Props) {
+export default function SettingsClient({ company, initialTemplates }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
+  const logoObjectUrlRef = useRef<string | null>(null);
+  const signatureObjectUrlRef = useRef<string | null>(null);
+  const booksRegionLabelRef = useRef<HTMLLabelElement | null>(null);
 
   const [formData, setFormData] = useState({
     company_name: company.company_name || "",
+    company_name_en: company.company_name_en || "",
+    english_address: company.english_address || "",
     business_type: (company.business_type as any) || "osek_patur",
-    company_number: company.company_number || "",
+    registration_number: company.registration_number || company.company_number || "",
     industry: company.industry || "",
     custom_industry: company.custom_industry || "",
     street: company.street || "",
@@ -72,6 +117,8 @@ export default function SettingsClient({ company }: Props) {
     address: "", // Auto-generated from street + city, not displayed in UI
     phone: company.phone || "",
     mobile_phone: company.mobile_phone || "",
+    contact_first_name_en: company.contact_first_name_en || "",
+    books_region: (company.books_region as any) || "IL",
     email: company.email || "",
     website: company.website || "",
   });
@@ -82,6 +129,59 @@ export default function SettingsClient({ company }: Props) {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isUploadingSignature, setIsUploadingSignature] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Keep local state in sync with refreshed server props (e.g., signed URLs).
+  useEffect(() => {
+    if (company.logo_url && company.logo_url !== logoUrl) {
+      // Revoke any previous local object URL when server URL arrives
+      if (logoObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(logoObjectUrlRef.current);
+        } catch {}
+        logoObjectUrlRef.current = null;
+      }
+      setLogoUrl(company.logo_url);
+    }
+  }, [company.logo_url]);
+
+  useEffect(() => {
+    if (company.signature_url && company.signature_url !== signatureUrl) {
+      if (signatureObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(signatureObjectUrlRef.current);
+        } catch {}
+        signatureObjectUrlRef.current = null;
+      }
+      setSignatureUrl(company.signature_url);
+    }
+  }, [company.signature_url]);
+
+  useEffect(() => {
+    return () => {
+      if (logoObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(logoObjectUrlRef.current);
+        } catch {}
+        logoObjectUrlRef.current = null;
+      }
+      if (signatureObjectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(signatureObjectUrlRef.current);
+        } catch {}
+        signatureObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const blocks = Array.from(document.querySelectorAll(".ui-field-block"));
+    if (blocks.length === 0) return;
+    const rootStyles = getComputedStyle(document.documentElement);
+    const offsetVar = rootStyles.getPropertyValue("--field-block-offset-y").trim();
+    if (!offsetVar || offsetVar === "0px") {
+      document.documentElement.style.setProperty("--field-block-offset-y", "-14px");
+    }
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -95,18 +195,21 @@ export default function SettingsClient({ company }: Props) {
     // Validation
     if (!formData.company_name.trim()) {
       setMessage({ type: "error", text: "שם העסק הוא שדה חובה" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.email.trim() || !formData.email.includes("@")) {
       setMessage({ type: "error", text: "נא להזין כתובת אימייל תקינה" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
       return;
     }
 
     if (!formData.industry) {
       setMessage({ type: "error", text: "תחום פעילות הוא שדה חובה" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setIsSaving(false);
       return;
     }
@@ -137,7 +240,14 @@ export default function SettingsClient({ company }: Props) {
       address: autoAddress, // Auto-generated full address
     };
 
-    const result = await updateBusinessDetailsAction(payload as BusinessDetailsPayload);
+    let result: any;
+    try {
+      result = await updateBusinessDetailsAction(payload as BusinessDetailsPayload);
+    } catch {
+      setMessage({ type: "error", text: "שגיאה בשמירה" });
+      setIsSaving(false);
+      return;
+    }
 
     if (result.ok) {
       setMessage({ type: "success", text: "הפרטים נשמרו בהצלחה!" });
@@ -155,6 +265,17 @@ export default function SettingsClient({ company }: Props) {
 
     setIsUploadingLogo(true);
     setMessage(null);
+
+    // Immediate local preview (doesn't depend on storage permissions)
+    if (logoObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(logoObjectUrlRef.current);
+      } catch {}
+      logoObjectUrlRef.current = null;
+    }
+    const localPreview = URL.createObjectURL(file);
+    logoObjectUrlRef.current = localPreview;
+    setLogoUrl(localPreview);
 
     const formData = new FormData();
     formData.append("logo", file);
@@ -208,6 +329,16 @@ export default function SettingsClient({ company }: Props) {
 
     setIsUploadingSignature(true);
     setMessage(null);
+
+    if (signatureObjectUrlRef.current) {
+      try {
+        URL.revokeObjectURL(signatureObjectUrlRef.current);
+      } catch {}
+      signatureObjectUrlRef.current = null;
+    }
+    const localPreview = URL.createObjectURL(file);
+    signatureObjectUrlRef.current = localPreview;
+    setSignatureUrl(localPreview);
 
     const formData = new FormData();
     formData.append("signature", file);
@@ -281,606 +412,488 @@ export default function SettingsClient({ company }: Props) {
   };
 
   return (
-    <div dir="rtl" style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, margin: 0 }}>הגדרות</h1>
-        <p style={{ marginTop: 8, opacity: 0.75 }}>ניהול פרטי העסק והלוגו</p>
-      </div>
+    <main dir="rtl" className="min-h-screen bg-bg">
+      <div className="ui-container pt-10">
+        {/* Page Header */}
+        <div className="mb-[50px]">
+          <h1 className="text-right mb-4">
+            הגדרות
+          </h1>
+          <p className="text-right">
+            ניהול פרטי העסק והלוגו
+          </p>
+        </div>
 
-      {/* Message */}
-      {message && (
-        <div
+        {/* Message */}
+        {message && (
+          <Card className={cn(
+            "mb-[50px]",
+            message.type === "success" 
+              ? "border-success bg-success/10" 
+              : "border-danger bg-danger/10"
+          )}
+          role="alert"
+          aria-live="polite"
           style={{
-            padding: 16,
-            marginBottom: 24,
-            borderRadius: 12,
-            border: `1px solid ${message.type === "success" ? "#10b981" : "#ef4444"}`,
-            background: message.type === "success" ? "#d1fae5" : "#fee2e2",
-            color: message.type === "success" ? "#065f46" : "#991b1b",
+            borderWidth: 1,
+            borderStyle: "solid",
+            borderColor: message.type === "success" ? "#0F5132" : "#9B0003",
+            backgroundColor: message.type === "success" ? "#E7F6EE" : "#FDECEC",
           }}
-        >
-          {message.text}
-        </div>
-      )}
-
-      {/* Logo Section */}
-      <div
-        style={{
-          padding: 24,
-          background: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>לוגו העסק</h2>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Logo Preview */}
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div
-              style={{
-                maxWidth: 400,
-                width: "100%",
-                minHeight: 200,
-                border: "2px dashed #d1d5db",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#f9fafb",
-                padding: 20,
-              }}
-            >
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Company Logo"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "400px",
-                    width: "auto",
-                    height: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <div style={{ textAlign: "center", opacity: 0.5 }}>
-                  <div style={{ fontSize: 48 }}>🏢</div>
-                  <div style={{ fontSize: 14, marginTop: 8 }}>אין לוגו</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Logo Actions */}
-          <div style={{ maxWidth: 600 }}>
-            <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
-              העלה לוגו לעסק שלך. הלוגו יופיע על כל הקבלות והמסמכים.
-            </p>
-            <p style={{ marginBottom: 16, fontSize: 13, opacity: 0.6 }}>
-              פורמטים נתמכים: PNG, JPG, SVG. גודל מקסימלי: 5MB
-            </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-              onChange={handleLogoUpload}
-              style={{ display: "none" }}
-            />
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingLogo}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "1px solid #111827",
-                  background: "#111827",
-                  color: "white",
-                  cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  opacity: isUploadingLogo ? 0.5 : 1,
-                }}
-              >
-                {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף לוגו" : "העלה לוגו"}
-              </button>
-
-              {logoUrl && (
-                <button
-                  onClick={handleDeleteLogo}
-                  disabled={isUploadingLogo}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "1px solid #ef4444",
-                    background: "white",
-                    color: "#ef4444",
-                    cursor: isUploadingLogo ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    opacity: isUploadingLogo ? 0.5 : 1,
-                  }}
-                >
-                  מחק לוגו
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Signature Section */}
-      <div
-        style={{
-          padding: 24,
-          background: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          marginBottom: 24,
-        }}
-      >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>חתימת העסק</h2>
-
-        {/* Show installation notice if signature_url field doesn't exist in company object */}
-        {company.signature_url === undefined && (
-          <div
-            style={{
-              padding: 16,
-              marginBottom: 16,
-              borderRadius: 12,
-              border: "1px solid #fbbf24",
-              background: "#fef3c7",
-              color: "#92400e",
-            }}
           >
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>📋 נדרשת התקנה</div>
-            <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6 }}>
-              כדי להשתמש בתכונת החתימה, יש להריץ את הסקריפט SQL הבא במסד הנתונים:
-            </div>
-            <code
+            <CardContent className="p-4" style={{ padding: 16 }}>
+              <p className={cn(
+                message.type === "success" ? "text-success-fg" : "text-danger-fg"
+              )}
               style={{
-                display: "block",
-                padding: 12,
-                background: "#fff",
-                borderRadius: 8,
-                fontSize: 13,
-                fontFamily: "monospace",
-                marginBottom: 12,
-                border: "1px solid #fde68a",
+                margin: 0,
+                fontWeight: 700,
+                color: message.type === "success" ? "#0F5132" : "#9B0003",
               }}
-            >
-              scripts/016-add-signature-field.sql
-            </code>
-            <div style={{ fontSize: 13, opacity: 0.9 }}>
-              ראה את הקובץ <strong>SIGNATURE_INSTALLATION_GUIDE.md</strong> להוראות מפורטות.
-            </div>
-          </div>
+              >
+                {message.text}
+              </p>
+            </CardContent>
+          </Card>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          {/* Signature Preview */}
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div
-              style={{
-                maxWidth: 400,
-                width: "100%",
-                minHeight: 200,
-                border: "2px dashed #d1d5db",
-                borderRadius: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#f9fafb",
-                padding: 20,
-              }}
-            >
-              {signatureUrl ? (
-                <img
-                  src={signatureUrl}
-                  alt="Business Signature"
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "400px",
-                    width: "auto",
-                    height: "auto",
-                    objectFit: "contain",
-                    display: "block",
-                  }}
-                />
-              ) : (
-                <div style={{ textAlign: "center", opacity: 0.5 }}>
-                  <div style={{ fontSize: 48 }}>✍️</div>
-                  <div style={{ fontSize: 14, marginTop: 8 }}>אין חתימה</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 50 }}>
+          {/* Logo & Signature Section - Combined */}
+          <FormSection title="לוגו וחתימת העסק">
+            {/* Show installation notice if signature_url field doesn't exist */}
+            {company.signature_url === undefined && (
+              <Card className="mb-6 border-warning bg-warning/10">
+                <CardContent className="p-4">
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>📋 נדרשת התקנה לחתימה</div>
+                  <div style={{ fontSize: 14, marginBottom: 12, lineHeight: 1.6, color: '#19183B' }}>
+                    כדי להשתמש בתכונת החתימה, יש להריץ: <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>scripts/016-add-signature-field.sql</code>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Combined Grid: Logo on Right, Signature on Left */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 px-4">
+              
+              {/* Logo Section */}
+              <div className="rounded-[14px] border border-border/60 bg-white/80 p-4">
+                <h3 className="text-sm font-semibold text-fg mb-2">לוגו העסק</h3>
+              
+                {/* Logo Preview */}
+                <div className="w-full h-[160px] rounded-[12px] border border-dashed border-border/60 bg-muted/60 flex items-center justify-center p-4 mb-3">
+                  {logoUrl ? (
+                    <img
+                      src={logoUrl}
+                      alt="Company Logo"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "140px",
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div className="text-center text-muted-fg/70">
+                      <div className="text-2xl mb-2">📄</div>
+                      <div className="text-xs">לא הועלה</div>
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <p className="text-xs text-muted-fg leading-5 mb-3">
+                  הלוגו יופיע על כל הקבלות והמסמכים. פורמטים: PNG, JPG, SVG (עד 5MB)
+                </p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onChange={handleLogoUpload}
+                  style={{ display: "none" }}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingLogo}
+                    className="h-9 px-4 text-sm"
+                  >
+                    {isUploadingLogo ? "מעלה..." : logoUrl ? "החלף" : "העלה לוגו"}
+                  </Button>
+
+                  {logoUrl && (
+                    <Button
+                      onClick={handleDeleteLogo}
+                      disabled={isUploadingLogo}
+                      variant="danger"
+                      className="h-9 px-4 text-sm"
+                    >
+                      מחק
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Signature Section */}
+              <div className="rounded-[14px] border border-border/60 bg-white/80 p-4">
+                <h3 className="text-sm font-semibold text-fg mb-2">חתימת העסק</h3>
+                
+                {/* Signature Preview */}
+                <div className="w-full h-[160px] rounded-[12px] border border-dashed border-border/60 bg-muted/60 flex items-center justify-center p-4 mb-3">
+                  {signatureUrl ? (
+                    <img
+                      src={signatureUrl}
+                      alt="Business Signature"
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "140px",
+                        width: "auto",
+                        height: "auto",
+                        objectFit: "contain",
+                        display: "block",
+                      }}
+                    />
+                  ) : (
+                    <div className="text-center text-muted-fg/70">
+                      <div className="text-2xl mb-2">📄</div>
+                      <div className="text-xs">לא הועלה</div>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-fg leading-5 mb-3">
+                  החתימה תופיע על המסמכים. פורמטים: PNG, JPG, SVG (עד 5MB). מומלץ רקע שקוף
+                </p>
+
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/svg+xml"
+                  onChange={handleSignatureUpload}
+                  style={{ display: "none" }}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => signatureInputRef.current?.click()}
+                    disabled={isUploadingSignature}
+                    className="h-9 px-4 text-sm"
+                  >
+                    {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף" : "העלה חתימה"}
+                  </Button>
+
+                  {signatureUrl && (
+                    <Button
+                      onClick={handleDeleteSignature}
+                      disabled={isUploadingSignature}
+                      variant="danger"
+                      className="h-9 px-4 text-sm"
+                    >
+                      מחק
+                    </Button>
+                  )}
+                </div>
+              </div>
+
             </div>
-          </div>
+          </FormSection>
 
-          {/* Signature Actions */}
-          <div style={{ maxWidth: 600 }}>
-            <p style={{ marginBottom: 12, fontSize: 14, opacity: 0.8 }}>
-              העלה חתימה דיגיטלית שתופיע על המסמכים שלך (קבלות, חשבוניות וכו').
-            </p>
-            <p style={{ marginBottom: 16, fontSize: 13, opacity: 0.6 }}>
-              פורמטים נתמכים: PNG, JPG, SVG. גודל מקסימלי: 5MB. מומלץ רקע שקוף (PNG).
-            </p>
-
-            <input
-              ref={signatureInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/svg+xml"
-              onChange={handleSignatureUpload}
-              style={{ display: "none" }}
-            />
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <button
-                onClick={() => signatureInputRef.current?.click()}
-                disabled={isUploadingSignature}
-                style={{
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  border: "1px solid #111827",
-                  background: "#111827",
-                  color: "white",
-                  cursor: isUploadingSignature ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  opacity: isUploadingSignature ? 0.5 : 1,
-                }}
-              >
-                {isUploadingSignature ? "מעלה..." : signatureUrl ? "החלף חתימה" : "העלה חתימה"}
-              </button>
-
-              {signatureUrl && (
-                <button
-                  onClick={handleDeleteSignature}
-                  disabled={isUploadingSignature}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "1px solid #ef4444",
-                    background: "white",
-                    color: "#ef4444",
-                    cursor: isUploadingSignature ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    opacity: isUploadingSignature ? 0.5 : 1,
-                  }}
-                >
-                  מחק חתימה
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Business Details Section */}
-      <div
-        style={{
-          padding: 24,
-          background: "white",
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-        }}
-      >
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>פרטי העסק</h2>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
-          {/* Company Name */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              שם העסק <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              type="text"
+          {/* Business Details Section */}
+          <FormSection title="פרטי העסק">
+            {/* If DB schema doesn't have english columns, show an actionable notice */}
+            {(company.company_name_en === undefined || company.english_address === undefined) && (
+              <Card className="mb-6 border-warning bg-warning/10">
+                <CardContent className="p-4">
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: '#19183B' }}>
+                    ⚠️ חסרות עמודות באנגלית ב־DB
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.6, color: '#19183B' }}>
+                    כדי לשמור ולהציג <b>שם עסק באנגלית</b> ו־<b>כתובת באנגלית</b>, יש להריץ בסופאבייס:
+                    <div style={{ marginTop: 8 }}>
+                      <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>
+                        scripts/020-companies-english-fields.sql
+                      </code>
+                      {" "}וגם{" "}
+                      <code style={{ padding: "2px 6px", borderRadius: 4, backgroundColor: '#EDF1F5', color: '#19183B' }}>
+                        scripts/026-companies-english-address-field.sql
+                      </code>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            <div className="relative w-full max-w-full px-6 sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
+            <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+            {/* Company Name */}
+            <FloatingInput
+              label="שם העסק"
               name="company_name"
+              id="company_name"
               value={formData.company_name}
               onChange={handleInputChange}
               required
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Business Type - READ ONLY */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              סוג עסק <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <select
-              name="business_type"
-              value={formData.business_type}
-              onChange={handleInputChange}
-              disabled
-              required
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "#f3f4f6",
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            >
-              {BUSINESS_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Company Number - READ ONLY */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר חברה / תעודת זהות <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
+            {/* Company Name (English) */}
+            <FloatingInput
+              label="שם העסק (English)"
               type="text"
-              name="company_number"
-              value={formData.company_number}
+              name="company_name_en"
+              id="company_name_en"
+              value={(formData as any).company_name_en}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
+
+            {/* English Address */}
+            <FloatingInput
+              label="כתובת (English)"
+              type="text"
+              name="english_address"
+              id="english_address"
+              value={(formData as any).english_address}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              helperText="English address (optional)"
+              containerClassName="w-full min-w-0"
+            />
+
+            {/* Issuer first name (English) */}
+            <FloatingInput
+              label="שם פרטי לחתימה (English)"
+              type="text"
+              name="contact_first_name_en"
+              id="contact_first_name_en"
+              value={(formData as any).contact_first_name_en}
+              onChange={handleInputChange}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
+            />
+
+            {/* Books region (metadata) */}
+            <div className="w-full min-w-0 ui-field-block">
+              <label
+                ref={booksRegionLabelRef}
+                htmlFor="books_region"
+                className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+              >
+                אזור שמירת ספרים
+              </label>
+              <Select
+                value={(formData as any).books_region}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, books_region: value as any }))}
+              >
+                <SelectTrigger
+                  variant="underline"
+                  id="books_region"
+                  className="text-fg border-border focus:border-border"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IL">ישראל</SelectItem>
+                  <SelectItem value="OTHER">אחר</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+
+            {/* Business Type - READ ONLY */}
+            <div className="w-full min-w-0 ui-field-block">
+              <label htmlFor="business_type" className="block text-right text-[length:var(--field-label-size)] text-muted-fg mb-0 leading-none mt-[7px]">
+                סוג עסק<span className="ms-1">*</span>
+              </label>
+              <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
+                <SelectTrigger
+                  variant="underline"
+                  id="business_type"
+                  className="text-[#708993] border-[#708993]"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BUSINESS_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Registration Number (Company ID) - READ ONLY */}
+            <FloatingInput
+              label="מספר חברה / תעודת זהות"
+              type="text"
+              name="registration_number"
+              id="registration_number"
+              value={formData.registration_number}
               onChange={handleInputChange}
               disabled
               required
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "#f3f4f6",
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
+              dir="ltr"
+              className="text-left border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Industry */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <select
-              name="industry"
-              value={formData.industry}
-              onChange={handleInputChange}
-              required
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
-            >
-              <option value="">בחר תחום</option>
-              {INDUSTRIES.map((ind) => (
-                <option key={ind.value} value={ind.value}>
-                  {ind.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Custom Industry - shows if "other" selected */}
-          {formData.industry === "other" && (
-            <div>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-                פרט תחום פעילות <span style={{ color: "#ef4444" }}>*</span>
+            {/* Industry */}
+            <div className="w-full min-w-0">
+              <label htmlFor="industry" className="block text-right text-[12px] text-fg mb-0 leading-none mt-[7px]">
+                תחום פעילות<span className="ms-1">*</span>
               </label>
-              <input
+              <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>
+                <SelectTrigger
+                  variant="underline"
+                  id="industry"
+                  className="text-fg border-border focus:border-border"
+                >
+                  <SelectValue placeholder="בחר תחום" />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* If the stored value isn't in our list (legacy code values), still show it */}
+                  {formData.industry && !INDUSTRIES.includes(formData.industry) && (
+                    <SelectItem value={formData.industry}>{formData.industry}</SelectItem>
+                  )}
+                  {INDUSTRIES.map((label) => (
+                    <SelectItem key={label} value={label}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Custom Industry:
+                - Legacy: if industry === "other" we must collect custom_industry (existing behavior)
+                - Also show if there's already a value stored */}
+            {(formData.industry === "other" || Boolean(formData.custom_industry)) && (
+              <FloatingInput
+                label="פרט תחום פעילות"
                 type="text"
                 name="custom_industry"
+                id="custom_industry"
                 value={formData.custom_industry}
                 onChange={handleInputChange}
-                required
-                placeholder="הזן את תחום הפעילות שלך"
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  fontSize: 14,
-                }}
+                required={formData.industry === "other"}
+                helperText={
+                  formData.industry === "other"
+                    ? "הזן את תחום הפעילות שלך"
+                    : "הזן את תחום הפעילות שלך (אופציונלי)"
+                }
+                className="border-border focus:border-border"
+                containerClassName="w-full min-w-0"
               />
-            </div>
-          )}
+            )}
 
-          {/* Street */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              רחוב ומספר <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
+            {/* Street */}
+            <FloatingInput
+              label="רחוב ומספר"
               type="text"
               name="street"
+              id="street"
               value={formData.street}
               onChange={handleInputChange}
               required
-              placeholder="רחוב הרצל 1"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* City */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              עיר <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
+            {/* City */}
+            <FloatingInput
+              label="עיר"
               type="text"
               name="city"
+              id="city"
               value={formData.city}
               onChange={handleInputChange}
               required
-              placeholder="תל אביב-יפו"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Postal Code */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>מיקוד</label>
-            <input
+            {/* Postal Code */}
+            <FloatingInput
+              label="מיקוד"
               type="text"
               name="postal_code"
+              id="postal_code"
               value={formData.postal_code}
               onChange={handleInputChange}
-              placeholder="1234567"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Registration Number - Shows company_number from registration, READ ONLY */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              מספר רישום (ת.ז / ח"פ) <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
-              type="text"
-              name="company_number"
-              value={formData.company_number}
-              disabled
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "#f3f4f6",
-                cursor: "not-allowed",
-                opacity: 0.7,
-              }}
-            />
-          </div>
 
-          {/* Email */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>
-              אימייל <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            <input
+            {/* Email */}
+            <FloatingInput
+              label="אימייל"
               type="email"
               name="email"
+              id="email"
               value={formData.email}
               onChange={handleInputChange}
               required
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Mobile Phone */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>נייד</label>
-            <input
+            {/* Mobile Phone */}
+            <FloatingInput
+              label="נייד"
               type="tel"
               name="mobile_phone"
+              id="mobile_phone"
               value={formData.mobile_phone}
               onChange={handleInputChange}
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Phone */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>טלפון</label>
-            <input
+            {/* Phone */}
+            <FloatingInput
+              label="טלפון"
               type="tel"
               name="phone"
+              id="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
 
-          {/* Website */}
-          <div>
-            <label style={{ display: "block", fontWeight: 600, marginBottom: 6 }}>אתר אינטרנט</label>
-            <input
+            {/* Website */}
+            <FloatingInput
+              label="אתר אינטרנט"
               type="url"
               name="website"
+              id="website"
               value={formData.website}
               onChange={handleInputChange}
-              placeholder="https://example.com"
-              style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-              }}
+              className="border-border focus:border-border"
+              containerClassName="w-full min-w-0"
             />
-          </div>
-        </div>
+            </div>
+            </div>
+          </FormSection>
 
-        {/* Save Button */}
-        <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e5e7eb" }}>
-          <button
-            onClick={handleSaveDetails}
-            disabled={isSaving}
-            style={{
-              padding: "12px 32px",
-              borderRadius: 12,
-              border: "1px solid #111827",
-              background: "#111827",
-              color: "white",
-              cursor: isSaving ? "not-allowed" : "pointer",
-              fontWeight: 700,
-              fontSize: 16,
-              opacity: isSaving ? 0.5 : 1,
-            }}
-          >
-            {isSaving ? "שומר..." : "שמור שינויים"}
-          </button>
+          {/* Template Selection Section - Simple List */}
+          <FormSection title="בחירת תבניות מסמכים" description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.">
+            <SimpleTemplateSelector />
+          </FormSection>
+
+          {/* Action Buttons */}
+          <FormActions
+            primaryLabel={isSaving ? "שומר..." : "שמור שינויים"}
+            onPrimaryClick={handleSaveDetails}
+            primaryLoading={isSaving}
+            primaryDisabled={isSaving}
+          />
         </div>
       </div>
-    </div>
+    </main>
   );
 }

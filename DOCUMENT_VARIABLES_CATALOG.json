@@ -1,0 +1,606 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-01-01",
+  "description": "Complete catalog of all document variables and select options",
+  
+  "documentTypes": {
+    "receipt": {
+      "value": "receipt",
+      "label": "קבלה",
+      "labelEn": "Receipt",
+      "prefix": "RCP"
+    },
+    "invoice": {
+      "value": "invoice",
+      "label": "חשבונית",
+      "labelEn": "Invoice",
+      "prefix": "INV"
+    },
+    "tax_invoice": {
+      "value": "tax_invoice",
+      "label": "חשבונית מס",
+      "labelEn": "Tax Invoice",
+      "prefix": "TXI"
+    },
+    "quote": {
+      "value": "quote",
+      "label": "הצעת מחיר",
+      "labelEn": "Quote",
+      "prefix": "QUO"
+    },
+    "delivery_note": {
+      "value": "delivery_note",
+      "label": "תעודת משלוח",
+      "labelEn": "Delivery Note",
+      "prefix": "DEL"
+    },
+    "credit_invoice": {
+      "value": "credit_invoice",
+      "label": "חשבונית זכות",
+      "labelEn": "Credit Invoice",
+      "prefix": "CRD"
+    },
+    "proforma": {
+      "value": "proforma",
+      "label": "חשבונית פרופורמה",
+      "labelEn": "Proforma Invoice",
+      "prefix": "PRO"
+    }
+  },
+  
+  "paymentMethods": [
+    {
+      "value": "bank_transfer",
+      "label": "העברה בנקאית",
+      "labelEn": "Bank Transfer",
+      "requiresDetails": ["bank_name", "account_number"],
+      "icon": "building-columns"
+    },
+    {
+      "value": "bit",
+      "label": "Bit",
+      "labelEn": "Bit",
+      "requiresDetails": ["phone_number"],
+      "icon": "smartphone"
+    },
+    {
+      "value": "paybox",
+      "label": "PayBox",
+      "labelEn": "PayBox",
+      "requiresDetails": ["phone_number"],
+      "icon": "smartphone"
+    },
+    {
+      "value": "credit_card",
+      "label": "כרטיס אשראי",
+      "labelEn": "Credit Card",
+      "requiresDetails": ["card_type", "card_last_digits", "card_installments"],
+      "icon": "credit-card"
+    },
+    {
+      "value": "cash",
+      "label": "מזומן",
+      "labelEn": "Cash",
+      "requiresDetails": [],
+      "icon": "banknote"
+    },
+    {
+      "value": "check",
+      "label": "צ'ק",
+      "labelEn": "Check",
+      "requiresDetails": ["check_number", "check_date", "check_bank"],
+      "icon": "file-text"
+    },
+    {
+      "value": "direct_debit",
+      "label": "הוראת קבע",
+      "labelEn": "Direct Debit",
+      "requiresDetails": ["account_number"],
+      "icon": "repeat"
+    },
+    {
+      "value": "paypal",
+      "label": "PayPal",
+      "labelEn": "PayPal",
+      "requiresDetails": ["email"],
+      "icon": "paypal"
+    },
+    {
+      "value": "stripe",
+      "label": "Stripe",
+      "labelEn": "Stripe",
+      "requiresDetails": ["transaction_id"],
+      "icon": "stripe"
+    },
+    {
+      "value": "square",
+      "label": "Square",
+      "labelEn": "Square",
+      "requiresDetails": ["transaction_id"],
+      "icon": "square"
+    },
+    {
+      "value": "apple_pay",
+      "label": "Apple Pay",
+      "labelEn": "Apple Pay",
+      "requiresDetails": [],
+      "icon": "apple"
+    },
+    {
+      "value": "google_pay",
+      "label": "Google Pay",
+      "labelEn": "Google Pay",
+      "requiresDetails": [],
+      "icon": "google"
+    },
+    {
+      "value": "venmo",
+      "label": "Venmo",
+      "labelEn": "Venmo",
+      "requiresDetails": ["username"],
+      "icon": "venmo"
+    },
+    {
+      "value": "zelle",
+      "label": "Zelle",
+      "labelEn": "Zelle",
+      "requiresDetails": ["email"],
+      "icon": "zelle"
+    },
+    {
+      "value": "wire_transfer",
+      "label": "העברה בנקאית בינלאומית",
+      "labelEn": "International Wire Transfer",
+      "requiresDetails": ["swift", "iban"],
+      "icon": "globe"
+    },
+    {
+      "value": "cibus",
+      "label": "Cibus",
+      "labelEn": "Cibus",
+      "requiresDetails": [],
+      "icon": "utensils"
+    },
+    {
+      "value": "ten_bis",
+      "label": "TenBis",
+      "labelEn": "TenBis",
+      "requiresDetails": [],
+      "icon": "utensils"
+    },
+    {
+      "value": "klika",
+      "label": "קליקה",
+      "labelEn": "Klika",
+      "requiresDetails": [],
+      "icon": "ticket"
+    },
+    {
+      "value": "other_voucher",
+      "label": "שובר אחר",
+      "labelEn": "Other Voucher",
+      "requiresDetails": ["voucher_number"],
+      "icon": "ticket"
+    },
+    {
+      "value": "crypto",
+      "label": "קריפטו",
+      "labelEn": "Cryptocurrency",
+      "requiresDetails": ["wallet_address", "currency"],
+      "icon": "bitcoin"
+    },
+    {
+      "value": "other",
+      "label": "אחר",
+      "labelEn": "Other",
+      "requiresDetails": ["notes"],
+      "icon": "more-horizontal"
+    }
+  ],
+  
+  "cardTypes": [
+    {
+      "value": "visa",
+      "label": "Visa",
+      "labelEn": "Visa"
+    },
+    {
+      "value": "mastercard",
+      "label": "Mastercard",
+      "labelEn": "Mastercard"
+    },
+    {
+      "value": "american_express",
+      "label": "American Express",
+      "labelEn": "American Express"
+    },
+    {
+      "value": "diners",
+      "label": "Diners Club",
+      "labelEn": "Diners Club"
+    },
+    {
+      "value": "isracard",
+      "label": "ישראכרט",
+      "labelEn": "Isracard"
+    },
+    {
+      "value": "other",
+      "label": "אחר",
+      "labelEn": "Other"
+    }
+  ],
+  
+  "cardDealTypes": [
+    {
+      "value": "regular",
+      "label": "רגיל",
+      "labelEn": "Regular",
+      "installments": 1
+    },
+    {
+      "value": "installments",
+      "label": "תשלומים",
+      "labelEn": "Installments",
+      "installments": "variable"
+    },
+    {
+      "value": "credit",
+      "label": "קרדיט",
+      "labelEn": "Credit",
+      "installments": 1
+    },
+    {
+      "value": "deferred",
+      "label": "עסקה דחוייה",
+      "labelEn": "Deferred Payment",
+      "installments": 1
+    }
+  ],
+  
+  "checkTypes": [
+    {
+      "value": "regular",
+      "label": "רגיל",
+      "labelEn": "Regular"
+    },
+    {
+      "value": "deferred",
+      "label": "דחוי",
+      "labelEn": "Deferred"
+    }
+  ],
+  
+  "currencies": [
+    {
+      "value": "ILS",
+      "label": "₪ שקל",
+      "labelEn": "₪ Israeli Shekel",
+      "symbol": "₪",
+      "code": "ILS"
+    },
+    {
+      "value": "USD",
+      "label": "$ דולר",
+      "labelEn": "$ US Dollar",
+      "symbol": "$",
+      "code": "USD"
+    },
+    {
+      "value": "EUR",
+      "label": "€ יורו",
+      "labelEn": "€ Euro",
+      "symbol": "€",
+      "code": "EUR"
+    },
+    {
+      "value": "GBP",
+      "label": "£ ליש\"ט",
+      "labelEn": "£ British Pound",
+      "symbol": "£",
+      "code": "GBP"
+    }
+  ],
+  
+  "languages": [
+    {
+      "value": "he",
+      "label": "עברית",
+      "labelEn": "Hebrew",
+      "dir": "rtl",
+      "locale": "he-IL"
+    },
+    {
+      "value": "en",
+      "label": "English",
+      "labelEn": "English",
+      "dir": "ltr",
+      "locale": "en-US"
+    },
+    {
+      "value": "ar",
+      "label": "العربية",
+      "labelEn": "Arabic",
+      "dir": "rtl",
+      "locale": "ar-SA"
+    }
+  ],
+  
+  "documentStatuses": [
+    {
+      "value": "draft",
+      "label": "טיוטה",
+      "labelEn": "Draft",
+      "color": "gray",
+      "icon": "file-edit"
+    },
+    {
+      "value": "issued",
+      "label": "הונפק",
+      "labelEn": "Issued",
+      "color": "blue",
+      "icon": "file-check"
+    },
+    {
+      "value": "sent",
+      "label": "נשלח",
+      "labelEn": "Sent",
+      "color": "purple",
+      "icon": "send"
+    },
+    {
+      "value": "paid",
+      "label": "שולם",
+      "labelEn": "Paid",
+      "color": "green",
+      "icon": "check-circle"
+    },
+    {
+      "value": "cancelled",
+      "label": "בוטל",
+      "labelEn": "Cancelled",
+      "color": "red",
+      "icon": "x-circle"
+    },
+    {
+      "value": "final",
+      "label": "סופי",
+      "labelEn": "Final",
+      "color": "green",
+      "icon": "lock"
+    }
+  ],
+  
+  "vatTypes": [
+    {
+      "value": "included",
+      "label": "כולל מע\"מ",
+      "labelEn": "VAT Included"
+    },
+    {
+      "value": "excluded",
+      "label": "לא כולל מע\"מ",
+      "labelEn": "VAT Excluded"
+    },
+    {
+      "value": "exempt",
+      "label": "פטור ממע\"מ",
+      "labelEn": "VAT Exempt"
+    }
+  ],
+  
+  "taxRates": [
+    {
+      "value": "0",
+      "label": "0%",
+      "labelEn": "0%",
+      "decimal": 0
+    },
+    {
+      "value": "17",
+      "label": "17%",
+      "labelEn": "17%",
+      "decimal": 0.17
+    },
+    {
+      "value": "18",
+      "label": "18%",
+      "labelEn": "18%",
+      "decimal": 0.18
+    }
+  ],
+  
+  "businessTypes": [
+    {
+      "value": "exempt_dealer",
+      "label": "עוסק פטור",
+      "labelEn": "Exempt Dealer"
+    },
+    {
+      "value": "licensed_dealer",
+      "label": "עוסק מורשה",
+      "labelEn": "Licensed Dealer"
+    },
+    {
+      "value": "company",
+      "label": "חברה בע\"מ",
+      "labelEn": "Limited Company"
+    },
+    {
+      "value": "nonprofit",
+      "label": "עמותה",
+      "labelEn": "Non-Profit"
+    },
+    {
+      "value": "sole_proprietor",
+      "label": "עצמאי",
+      "labelEn": "Sole Proprietor"
+    },
+    {
+      "value": "other",
+      "label": "אחר",
+      "labelEn": "Other"
+    }
+  ],
+  
+  "templatePlaceholders": {
+    "company": {
+      "company_name": "שם החברה",
+      "company_email": "אימייל החברה",
+      "company_phone": "טלפון החברה",
+      "company_address": "כתובת החברה",
+      "company_city": "עיר",
+      "company_postal_code": "מיקוד",
+      "company_country": "מדינה",
+      "company_business_number": "ח.פ / ע.מ",
+      "company_tax_id": "מס' זהות מס",
+      "company_logo_url": "לוגו (URL)",
+      "company_signature_url": "חתימה (URL)",
+      "company_website": "אתר אינטרנט",
+      "company_bank_account": "חשבון בנק"
+    },
+    "customer": {
+      "customer_name": "שם הלקוח",
+      "customer_id_number": "ת.ז / ח.פ",
+      "customer_phone": "טלפון",
+      "customer_mobile": "נייד",
+      "customer_email": "אימייל",
+      "customer_address": "כתובת",
+      "customer_city": "עיר",
+      "customer_postal_code": "מיקוד",
+      "customer_country": "מדינה",
+      "customer_business_number": "ח.פ"
+    },
+    "document": {
+      "document_number": "מספר מסמך",
+      "document_date": "תאריך המסמך",
+      "document_status": "סטטוס (value)",
+      "document_status_label": "סטטוס (תווית)",
+      "document_type": "סוג מסמך (value)",
+      "document_type_label": "סוג מסמך (תווית)",
+      "finalized_at": "תאריך סגירה",
+      "description": "תיאור",
+      "notes": "הערות"
+    },
+    "totals": {
+      "subtotal": "סכום ביניים",
+      "vat_amount": "סכום מע\"מ",
+      "total_amount": "סה\"כ לתשלום",
+      "total_in_words": "סכום במילים"
+    },
+    "payment": {
+      "payment_method": "אמצעי תשלום (value)",
+      "payment_method_label": "אמצעי תשלום (תווית)",
+      "payment_date": "תאריך תשלום",
+      "payment_amount": "סכום תשלום",
+      "card_type": "סוג כרטיס",
+      "card_last_digits": "4 ספרות אחרונות",
+      "card_installments": "מספר תשלומים",
+      "card_deal_type": "סוג עסקה",
+      "check_number": "מספר צ'ק",
+      "check_date": "תאריך פירעון",
+      "check_bank": "בנק",
+      "check_branch": "סניף",
+      "check_account": "חשבון"
+    },
+    "items": {
+      "description": "תיאור פריט",
+      "quantity": "כמות",
+      "price": "מחיר יחידה",
+      "vat_rate": "אחוז מע\"מ",
+      "total": "סה\"כ"
+    },
+    "payments_list": {
+      "method": "אמצעי תשלום",
+      "amount": "סכום",
+      "date": "תאריך"
+    },
+    "helpers": {
+      "formatCurrency": "עיצוב מטבע",
+      "formatDate": "עיצוב תאריך",
+      "isPaymentMethod": "בדיקת אמצעי תשלום",
+      "multiply": "כפל"
+    }
+  },
+  
+  "selectCategories": [
+    {
+      "id": "document_type",
+      "label": "סוג מסמך",
+      "group": "מסמך",
+      "count": 7
+    },
+    {
+      "id": "payment_method",
+      "label": "אמצעי תשלום",
+      "group": "תשלום",
+      "count": 21
+    },
+    {
+      "id": "card_type",
+      "label": "סוג כרטיס אשראי",
+      "group": "תשלום",
+      "dependsOn": "payment_method",
+      "count": 6
+    },
+    {
+      "id": "card_deal_type",
+      "label": "סוג עסקה",
+      "group": "תשלום",
+      "dependsOn": "payment_method",
+      "count": 4
+    },
+    {
+      "id": "check_type",
+      "label": "סוג צ'ק",
+      "group": "תשלום",
+      "dependsOn": "payment_method",
+      "count": 2
+    },
+    {
+      "id": "currency",
+      "label": "מטבע",
+      "group": "מסמך",
+      "count": 4
+    },
+    {
+      "id": "language",
+      "label": "שפה",
+      "group": "מערכת",
+      "count": 3
+    },
+    {
+      "id": "document_status",
+      "label": "סטטוס מסמך",
+      "group": "מסמך",
+      "count": 6
+    },
+    {
+      "id": "vat_type",
+      "label": "סוג מע\"מ",
+      "group": "מס",
+      "count": 3
+    },
+    {
+      "id": "tax_rate",
+      "label": "שיעור מס",
+      "group": "מס",
+      "count": 3
+    },
+    {
+      "id": "business_type",
+      "label": "סוג עסק",
+      "group": "מערכת",
+      "count": 6
+    }
+  ],
+  
+  "metadata": {
+    "totalSelectCategories": 11,
+    "totalPaymentMethods": 21,
+    "totalDocumentTypes": 7,
+    "totalPlaceholders": 63,
+    "supportedLanguages": ["he", "en", "ar"],
+    "supportedCurrencies": ["ILS", "USD", "EUR", "GBP"]
+  }
+}

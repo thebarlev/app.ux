@@ -15,29 +15,34 @@ interface NeumorphicSelectProps {
 export function NeumorphicSelect({ label, placeholder, value, onValueChange, options, error }: NeumorphicSelectProps) {
   return (
     <div className="flex flex-col gap-2">
-      {label && <label className="text-sm font-medium text-foreground">{label}</label>}
+      {label && <label className="text-sm font-medium text-slate-900">{label}</label>}
       <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger
           className={cn(
-            "h-11 w-full rounded-xl px-4 text-sm",
-            "bg-muted/50 border border-border/50",
-            "shadow-[inset_2px_2px_6px_rgba(0,0,0,0.04),inset_-2px_-2px_6px_rgba(255,255,255,0.7)]",
-            "focus:ring-2 focus:ring-primary/20 focus:border-primary/40",
+            "h-[50px] w-full rounded-xl px-4 text-[14px]",
+            "bg-white text-slate-900 border border-slate-300",
+            "shadow-sm",
+            "focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500",
             "transition-all duration-200",
-            error && "border-destructive/50",
+            "data-[placeholder]:text-slate-400",
+            error && "border-red-500",
           )}
         >
-          <SelectValue placeholder={placeholder} />
+          <SelectValue placeholder={placeholder} className="text-slate-900" />
         </SelectTrigger>
-        <SelectContent className="rounded-xl border-border/50">
+        <SelectContent className="bg-white border border-slate-300 rounded-xl shadow-xl z-50">
           {options.map((option) => (
-            <SelectItem key={option.value} value={option.value} className="rounded-lg">
+            <SelectItem 
+              key={option.value} 
+              value={option.value} 
+              className="text-slate-900 hover:bg-slate-100 focus:bg-slate-100 rounded-lg cursor-pointer"
+            >
               {option.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-xs text-red-600 font-medium">{error}</p>}
     </div>
   )
 }

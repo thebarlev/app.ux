@@ -1,14 +1,16 @@
-import { IconSidebar } from "@/components/dashboard/IconSidebar";
+import React from "react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import DashboardShell from "./DashboardShell";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="dashboard-layout" dir="rtl">
-      <IconSidebar />
-      
-      <main className="dashboard-main">
-        <div className="dashboard-container">{children}</div>
-      </main>
-    </div>
-  );
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  
+  // Check authentication
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  return <DashboardShell>{children}</DashboardShell>;
 }
-

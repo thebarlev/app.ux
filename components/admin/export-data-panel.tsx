@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -18,8 +18,13 @@ export function ExportDataPanel({ totalCompanies }: ExportDataPanelProps) {
   const [dateTo, setDateTo] = useState("")
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("")
+  const [currentYear, setCurrentYear] = useState(2026)
 
-  const currentYear = new Date().getFullYear()
+  // Fix hydration mismatch - calculate year only on client
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear())
+  }, [])
+
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
   const months = [
     { value: "1", label: "January" },

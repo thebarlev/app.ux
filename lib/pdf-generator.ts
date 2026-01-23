@@ -232,21 +232,16 @@ export async function generateReceiptPDF(data: ReceiptPDFData): Promise<jsPDF> {
   let companyY = yPos;
   const companyX = rightEdge; // Start from right edge
   
-  // Logo placeholder - TOP RIGHT
-  if (data.companyDetails?.logoUrl) {
+  // Logo - TOP RIGHT (only if logo exists)
+  if (data.companyDetails?.logoUrl && data.companyDetails.logoUrl.trim()) {
     try {
-      // Reserve space for logo: 25x25mm box at top right
-      doc.setDrawColor(200, 200, 200);
-      doc.setLineWidth(0.3);
-      doc.rect(companyX - 25, companyY, 25, 25);
-      doc.setFontSize(7);
-      doc.setTextColor(150, 150, 150);
-      doc.text("LOGO", companyX - 12.5, companyY + 13, { align: "center" });
+      // TODO: Add actual logo image rendering here when needed
+      // For now, just reserve space if logo exists
+      companyY += 28;
     } catch (e) {
       console.error("Failed to add logo to PDF:", e);
     }
   }
-  companyY += data.companyDetails?.logoUrl ? 28 : 0;
   
   // Company name - RIGHT ALIGNED
   doc.setFontSize(12);
@@ -260,43 +255,39 @@ export async function generateReceiptPDF(data: ReceiptPDFData): Promise<jsPDF> {
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
     
-    if (data.companyDetails.businessType && data.companyDetails.registrationNumber) {
-      const typeLabel = await getBusinessTypeLabel(data.companyDetails.businessType);
-      // RTL format: label on right, number on left
-      doc.text(reverseText(typeLabel), companyX, companyY, { align: "right" });
-      doc.text(keepLTR(data.companyDetails.registrationNumber), companyX - 35, companyY);
+    // Registration number (no label)
+    if (data.companyDetails.registrationNumber) {
+      doc.text(keepLTR(data.companyDetails.registrationNumber), companyX, companyY, { align: "right" });
       companyY += 5;
     }
     
+    // Address (no label)
     if (data.companyDetails.address) {
       doc.text(reverseText(data.companyDetails.address), companyX, companyY, { align: "right" });
       companyY += 5;
     }
     
-    // Mobile - RTL: "נייד: 054-5215193" (with proper spacing)
+    // Mobile (no label)
     if (data.companyDetails.mobile) {
-      const mobileLabel = await getSystemText("receipt_mobile_label", "נייד");
       const formattedMobile = formatMobile(data.companyDetails.mobile);
-      doc.text(reverseText(mobileLabel), companyX, companyY, { align: "right" });
-      doc.text(keepLTR(formattedMobile), companyX - 30, companyY); // Increased spacing
+      doc.text(keepLTR(formattedMobile), companyX, companyY, { align: "right" });
       companyY += 5;
     }
     
-    // Phone - RTL: "טלפון: 03-1234567" (with proper spacing)
+    // Phone (no label)
     if (data.companyDetails.phone) {
-      const phoneLabel = await getSystemText("receipt_phone_label", "טלפון");
       const formattedPhone = formatPhone(data.companyDetails.phone);
-      doc.text(reverseText(phoneLabel), companyX, companyY, { align: "right" });
-      doc.text(keepLTR(formattedPhone), companyX - 35, companyY); // Increased spacing
+      doc.text(keepLTR(formattedPhone), companyX, companyY, { align: "right" });
       companyY += 5;
     }
     
+    // Email (no label)
     if (data.companyDetails.email) {
       doc.text(keepLTR(data.companyDetails.email), companyX, companyY, { align: "right" });
       companyY += 5;
     }
     
-    // Website
+    // Website (no label)
     if (data.companyDetails.website) {
       doc.text(keepLTR(data.companyDetails.website), companyX, companyY, { align: "right" });
       companyY += 5;
@@ -340,35 +331,25 @@ export async function generateReceiptPDF(data: ReceiptPDFData): Promise<jsPDF> {
   doc.setTextColor(80, 80, 80);
   
   if (data.customerDetails) {
-    // Issue date
-    const issueDateLabel = await getSystemText("receipt_issue_date_label", "תאריך הפקה:");
-    doc.text(reverseText(issueDateLabel), customerX, customerY, { align: "right" });
-    customerY += 4;
+    // Issue date (no label)
     doc.text(keepLTR(data.issueDate), customerX, customerY, { align: "right" });
     customerY += 6;
     
-    // Mobile
+    // Mobile (no label)
     if (data.customerDetails.mobile) {
-      const mobileLabel = await getSystemText("receipt_mobile_label", "נייד:");
       const formattedMobile = formatMobile(data.customerDetails.mobile);
-      doc.text(reverseText(mobileLabel), customerX, customerY, { align: "right" });
-      customerY += 4;
       doc.text(keepLTR(formattedMobile), customerX, customerY, { align: "right" });
       customerY += 6;
     }
     
-    // Email
+    // Email (no label)
     if (data.customerDetails.email) {
-      doc.text(reverseText("דוא״ל:"), customerX, customerY, { align: "right" });
-      customerY += 4;
       doc.text(keepLTR(data.customerDetails.email), customerX, customerY, { align: "right" });
       customerY += 6;
     }
     
-    // Address
+    // Address (no label)
     if (data.customerDetails.address) {
-      doc.text(reverseText("כתובת:"), customerX, customerY, { align: "right" });
-      customerY += 4;
       doc.text(reverseText(data.customerDetails.address), customerX, customerY, { align: "right" });
     }
   }

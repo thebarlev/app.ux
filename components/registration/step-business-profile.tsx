@@ -1,13 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicSelect } from "./neumorphic-select"
-import { NeumorphicButton } from "./neumorphic-button"
+import { createClient } from "@/lib/supabase/client"
+import { FloatingInput } from "@/components/ui/floating-input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
@@ -17,19 +19,31 @@ const BUSINESS_TYPES = [
 ]
 
 const INDUSTRIES = [
-  { value: "retail", label: "קמעונאות" },
-  { value: "services", label: "שירותים" },
-  { value: "tech", label: "הייטק" },
-  { value: "construction", label: "בנייה" },
-  { value: "food", label: "מזון ומסעדנות" },
-  { value: "health", label: "בריאות" },
-  { value: "alternative_medicine", label: "רפואה אלטרנטיבית" },
-  { value: "education", label: "חינוך" },
-  { value: "other", label: "אחר" },
+  "קמעונאות",
+  "מסעדנות",
+  "הייטק",
+  "שירותים מקצועיים",
+  "חינוך",
+  "בריאות",
+  "נדל״ן",
+  "בנייה",
+  "תחבורה",
+  "ייעוץ",
+  "שיווק דיגיטלי",
+  "שירותי פרסום",
+  "עיצוב",
+  "פיתוח תוכנה",
+  "חשבונאות",
+  "משפטים",
+  "רפואה אלטרנטיבית",
+  "כושר וספורט",
+  "יופי וטיפוח",
+  "אירועים",
 ]
 
 export function StepBusinessProfile() {
-  const { data, updateData, nextStep } = useRegistration()
+  const router = useRouter()
+  const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = () => {
@@ -38,85 +52,275 @@ export function StepBusinessProfile() {
     if (!data.businessName.trim()) newErrors.businessName = "שדה חובה"
     if (!data.businessType) newErrors.businessType = "שדה חובה"
     if (!data.companyNumber.trim()) newErrors.companyNumber = "שדה חובה"
-    if (!data.industry) newErrors.industry = "שדה חובה"
-    
-    // אם בחר "אחר" - חובה למלא תחום פעילות מותאם אישית
-    if (data.industry === "other" && !data.customIndustry.trim()) {
-      newErrors.customIndustry = "שדה חובה כאשר בוחרים 'אחר'"
-    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (validate()) {
-      nextStep()
+  const submitRegistrationFromStep2 = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+
+      // 1) Create auth user (moved from Step 3)
+      let authUserId: string | null = null
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/app`,
+          data: { first_name: data.firstName, last_name: data.lastName },
+        },
+      })
+
+      if (signUpError) {
+        const code = (signUpError as any)?.code ?? null
+        if (code === "user_already_exists" || signUpError.message?.toLowerCase().includes("already")) {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: data.email,
+            password: data.password,
+          })
+          if (signInError || !signInData?.user?.id) {
+            setError("כתובת האימייל כבר רשומה במערכת. נסה להתחבר.")
+            setIsLoading(false)
+            return
+          }
+          authUserId = signInData.user.id
+        } else {
+          const errorMsg = signUpError.message?.includes("already registered")
+            ? "כתובת האימייל כבר רשומה במערכת. נסה להתחבר."
+            : `שגיאת הרשמה: ${signUpError.message || "Unknown error"}`
+          setError(errorMsg)
+          setIsLoading(false)
+          return
+        }
+      } else {
+        authUserId = signUpData?.user?.id ?? null
+      }
+
+      if (!authUserId) {
+        setError("ההרשמה נכשלה. נסה שוב.")
+        setIsLoading(false)
+        return
+      }
+
+      // 2) Create company + membership (keep schema-cache retry behavior)
+      const baseCompanyPayload: Record<string, any> = {
+        company_name: data.businessName,
+        business_type: data.businessType,
+        company_number: data.companyNumber || null,
+        registration_number: data.companyNumber || null,
+        industry: data.industry || null, // Hebrew text is source of truth
+        custom_industry: data.customIndustry || null,
+        contact_first_name: data.firstName,
+        contact_full_name: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        mobile_phone: data.phone || null,
+        auth_user_id: authUserId,
+        status: "active",
+        accepted_legal_terms: data.acceptedLegalTerms,
+        accepted_legal_terms_at: data.acceptedLegalTerms ? new Date().toISOString() : null,
+        accepted_marketing: data.acceptedMarketing,
+      }
+
+      const removedCompanyCols: string[] = []
+      let companyPayload: Record<string, any> = { ...baseCompanyPayload }
+      let companyData: any = null
+      let companyError: any = null
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const r = await supabase.from("companies").insert(companyPayload).select("id").single()
+        companyData = r.data
+        companyError = r.error
+        if (!companyError) break
+
+        const code = (companyError as any)?.code ?? null
+        const msg = typeof companyError.message === "string" ? companyError.message : ""
+        if (code === "PGRST204") {
+          const m = msg.match(/Could not find the '([^']+)' column/i)
+          const missingCol = m?.[1]
+          if (missingCol && Object.prototype.hasOwnProperty.call(companyPayload, missingCol)) {
+            removedCompanyCols.push(missingCol)
+            delete companyPayload[missingCol]
+            continue
+          }
+        }
+        break
+      }
+
+      if (companyError || !companyData?.id) {
+        if ((companyError as any)?.code === "PGRST204" && typeof companyError?.message === "string") {
+          setError(
+            `שגיאה זמנית בשרת (Schema Cache). יש להריץ בסופאבייס: select pg_notify('pgrst','reload schema'); ואז לנסות שוב.\n` +
+              `(${companyError.message})`
+          )
+        } else {
+          setError(`שגיאה ביצירת חברה: ${companyError?.message || "Unknown error"}`)
+        }
+        setIsLoading(false)
+        return
+      }
+
+      const insertMemberWithStatus = () =>
+        supabase.from("company_members").insert({ company_id: companyData.id, user_id: authUserId, role: "owner", status: "active" })
+
+      const insertMemberNoStatus = () =>
+        supabase.from("company_members").insert({ company_id: companyData.id, user_id: authUserId, role: "owner" })
+
+      let { error: memberError } = await insertMemberWithStatus()
+      if (
+        memberError &&
+        (memberError as any)?.code === "PGRST204" &&
+        typeof memberError.message === "string" &&
+        memberError.message.includes("status")
+      ) {
+        ;({ error: memberError } = await insertMemberNoStatus())
+      }
+
+      if (memberError) {
+        setError(`שגיאה ביצירת קישור לחברה: ${memberError.message || "Unknown error"}`)
+        setIsLoading(false)
+        return
+      }
+
+      // 3) Requirement: after Step 2 approval go to login.
+      try {
+        await supabase.auth.signOut()
+      } catch {}
+
+      router.replace("/login")
+    } catch (e: any) {
+      setError(e?.message ? `שגיאה: ${e.message}` : "שגיאה לא צפויה")
+      setIsLoading(false)
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setError(null)
+    await submitRegistrationFromStep2()
+  }
+
   return (
-    <NeumorphicCard>
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">פרופיל עסקי</h2>
-        <p className="mt-1 text-sm text-muted-foreground">ספר לנו על העסק שלך</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <NeumorphicInput
-          id="businessName"
-          label="שם העסק"
-          placeholder="שם העסק המלא"
-          value={data.businessName}
-          onChange={(e) => updateData({ businessName: e.target.value })}
-          error={errors.businessName}
-        />
-
-        <NeumorphicSelect
-          label="סוג העסק"
-          placeholder="בחר סוג עסק"
-          value={data.businessType}
-          onValueChange={(value) => updateData({ businessType: value as typeof data.businessType })}
-          options={BUSINESS_TYPES}
-          error={errors.businessType}
-        />
-
-        <NeumorphicInput
-          id="companyNumber"
-          label="מספר חברה / תעודת זהות"
-          placeholder="123456789"
-          value={data.companyNumber}
-          onChange={(e) => updateData({ companyNumber: e.target.value })}
-          error={errors.companyNumber}
-          dir="ltr"
-          className="text-left"
-        />
-
-        <NeumorphicSelect
-          label="תחום פעילות"
-          placeholder="בחר תחום"
-          value={data.industry}
-          onValueChange={(value) => updateData({ industry: value })}
-          options={INDUSTRIES}
-          error={errors.industry}
-        />
-
-        {data.industry === "other" && (
-          <NeumorphicInput
-            id="customIndustry"
-            label="פרט תחום פעילות"
-            placeholder="הזן את תחום הפעילות שלך"
-            value={data.customIndustry}
-            onChange={(e) => updateData({ customIndustry: e.target.value })}
-            error={errors.customIndustry}
-          />
-        )}
-
-        <div className="flex gap-3 mt-2">
-          <NeumorphicButton type="submit">המשך</NeumorphicButton>
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">פרופיל עסקי</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>ספר לנו על העסק שלך</p>
         </div>
-      </form>
-    </NeumorphicCard>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div
+              className="p-4 rounded-[5px]"
+              role="alert"
+              aria-live="assertive"
+              style={{ backgroundColor: "rgba(155, 0, 3, 0.1)", border: "1px solid var(--danger)", color: "var(--danger)" }}
+            >
+              {error}
+            </div>
+          )}
+          <FloatingInput
+            label="שם העסק"
+            id="businessName"
+            required
+            value={data.businessName}
+            onChange={(e) => updateData({ businessName: e.target.value })}
+            error={errors.businessName}
+            containerClassName="w-full min-w-0"
+          />
+
+          <div className="space-y-2">
+            <Label htmlFor="businessType" className="text-right">
+              סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
+            </Label>
+            <Select
+              value={data.businessType}
+              onValueChange={(value) => updateData({ businessType: value as typeof data.businessType })}
+            >
+              <SelectTrigger 
+                id="businessType"
+                variant="underline"
+                className={errors.businessType ? "border-danger focus:border-danger" : ""}
+              >
+                <SelectValue placeholder="בחר סוג עסק" />
+              </SelectTrigger>
+              <SelectContent>
+                {BUSINESS_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.businessType && (
+              <p className="text-sm mt-1" style={{ color: 'var(--danger)' }} role="alert">
+                {errors.businessType}
+              </p>
+            )}
+          </div>
+
+          <FloatingInput
+            label="מספר חברה / תעודת זהות"
+            id="companyNumber"
+            required
+            value={data.companyNumber}
+            onChange={(e) => updateData({ companyNumber: e.target.value })}
+            dir="ltr"
+            className="text-left"
+            error={errors.companyNumber}
+            containerClassName="w-full min-w-0"
+          />
+
+          <div className="space-y-2">
+            <Label htmlFor="industry" className="text-right">
+              תחום פעילות
+            </Label>
+            <Select
+              value={data.industry ? data.industry : undefined}
+              onValueChange={(value) => updateData({ industry: value, customIndustry: "" })}
+            >
+              <SelectTrigger id="industry" variant="underline">
+                <SelectValue placeholder="בחר תחום פעילות (אופציונלי)" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRIES.map((label) => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs" style={{ color: "var(--muted-fg)" }}>
+              אופציונלי — ניתן להמשיך גם ללא בחירה
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <Button 
+              type="button" 
+              onClick={prevStep} 
+              variant="secondary"
+              className="flex-1"
+              disabled={isLoading}
+            >
+              חזור
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary"
+              className="flex-1"
+              disabled={isLoading}
+              loading={isLoading}
+            >
+              אישור
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

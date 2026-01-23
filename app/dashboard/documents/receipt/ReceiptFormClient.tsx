@@ -1,12 +1,38 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
-import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "./actions";
-import { issueReceiptAction, saveReceiptDraftAction, updateReceiptDraftAction } from "./actions";
+import { useMemo, useState, useEffect, useRef } from "react";
+import type { InitialReceiptCreateData } from "./actions";
+import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
+import {
+  issueReceiptAction,
+  saveReceiptDraftAction,
+  updateReceiptDraftAction,
+  getRecipientConsentStatusAction,
+  giveRecipientConsentAction,
+  revokeRecipientConsentAction,
+} from "./actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
+import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
+import ReceiptConfirmationModal from "@/components/documents/ReceiptConfirmationModal";
+import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
 import PaymentDetailsSection from "./PaymentDetailsSection";
+import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { FloatingTextarea } from "@/components/ui/floating-textarea";
+import { FloatingDateInput } from "@/components/ui/floating-date-input";
+import { MoneyInput } from "@/components/ui/money-input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyAmountGroup } from "@/components/ui/currency-amount-group";
+import { Card, CardContent } from "@/components/ui/card";
+import { FormSection } from "@/components/ui/form-section";
+import { cn } from "@/lib/utils";
+import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
+import { Trash2, Save, CheckCircle, Eye } from "lucide-react";
+import { toast } from "sonner";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -45,12 +71,12 @@ function formatMoney(amount: number, currency: string) {
   return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
 }
 
-export default function ReceiptFormClient({ 
+export default function ReceiptFormClient({
   initial,
   footerText,
   editData,
   draftId,
-}: { 
+}: {
   initial: InitialReceiptCreateData;
   footerText?: string;
   editData?: {
@@ -60,14 +86,16 @@ export default function ReceiptFormClient({
     total: number;
     currency: string;
     notes: string;
-    footerNotes: string;
   } | null;
   draftId?: string;
 }) {
+  const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
   const [showStartingNumberModal, setShowStartingNumberModal] = useState(false);
+
+  const minAllowedDate = initial.ok ? initial.minAllowedDate : null;
 
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
@@ -81,45 +109,60 @@ export default function ReceiptFormClient({
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
+  const [descriptionError, setDescriptionError] = useState<string | null>(null);
+  const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
 
   const [notes, setNotes] = useState("");
-  const [footerNotes, setFooterNotes] = useState("");
+  const [emailNotes, setEmailNotes] = useState("");
 
-  const [payments, setPayments] = useState<PaymentRow[]>([
-    { method: "", date: todayYmd(), amount: 0, currency },
-  ]);
+  const descriptionInputRef = useRef<HTMLInputElement>(null);
+  const customerNameRef = useRef<HTMLDivElement>(null);
+  const paymentsTableRef = useRef<HTMLDivElement>(null);
 
-  const [busy, setBusy] = useState<null | "draft" | "issue">(null);
+  const [payments, setPayments] = useState<PaymentRow[]>([{ method: "", date: todayYmd(), amount: 0, currency }]);
+
+  const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [successModal, setSuccessModal] = useState<{
-    receiptId: string;
+
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+
+  const [recipientConsent, setRecipientConsent] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    hasConsent: boolean;
+    recipientIdentifier: string | null;
+    message?: string;
+  }>({ status: "idle", hasConsent: false, recipientIdentifier: null });
+  const [consentChecked, setConsentChecked] = useState(false);
+
+  const [successModalData, setSuccessModalData] = useState<{
+    documentId: string;
     documentNumber: string;
     companyName: string;
-    payload: ReceiptDraftPayload;
+    language: "he" | "en";
   } | null>(null);
 
-  // Check if sequence is locked, and show modal if not
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
   useEffect(() => {
     if (initial.ok && !initial.sequenceLocked && !draftId) {
-      // First time creating receipt, need to set starting number
       setShowStartingNumberModal(true);
     }
   }, [initial, draftId]);
 
-  // Load edit data if editing a draft
   useEffect(() => {
     if (editData) {
       setCustomerName(editData.customerName);
       setDocumentDate(editData.documentDate);
       setCurrency(editData.currency);
       setNotes(editData.notes);
-      setFooterNotes(editData.footerNotes);
-      // Note: We don't have payment rows in the draft data structure yet
-      // You may need to extend getDraftReceiptForEditAction to include them
     }
   }, [editData]);
 
-  // Preview number comes from server (NOT allocated yet)
   const previewNumber = initial.ok ? initial.previewNumber : null;
 
   const total = useMemo(() => {
@@ -137,33 +180,32 @@ export default function ReceiptFormClient({
       description,
       payments,
       notes,
-      footerNotes,
       currency,
       total,
       roundTotals,
       language,
     };
-  }, [customerName, customerId, documentDate, description, payments, notes, footerNotes, currency, total, roundTotals, language]);
+  }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language]);
+
+  useEffect(() => {
+    if (currency !== "₪") {
+      setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+    }
+  }, [currency]);
+
+
 
   if (!initial.ok) {
     return (
-      <div style={{ padding: 16, border: "1px solid #fca5a5", borderRadius: 12, background: "#fff1f2" }}>
-        <div style={{ fontWeight: 800 }}>שגיאה בטעינת הנתונים</div>
-        <div style={{ marginTop: 8, opacity: 0.9 }}>{initial.message}</div>
+      <div className="p-4 border-2 border-red-200 rounded-xl bg-red-50">
+        <div className="font-bold text-red-900 mb-2">שגיאה בטעינת הנתונים</div>
+        <div className="text-red-700">{initial.message}</div>
       </div>
     );
   }
 
-  // Display preview number in header
-  const headerNumberText = previewNumber 
-    ? `| ${previewNumber}` 
-    : "| מספר יוקצה בעת הפקה";
-
   function addPaymentRow() {
-    setPayments((prev) => [
-      ...prev,
-      { method: "", date: todayYmd(), amount: 0, currency },
-    ]);
+    setPayments((prev) => [...prev, { method: "", date: todayYmd(), amount: 0, currency }]);
   }
 
   function updatePaymentRow(i: number, patch: Partial<PaymentRow>) {
@@ -174,590 +216,891 @@ export default function ReceiptFormClient({
     setPayments((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  async function onSaveDraft() {
+  function focusFieldWithError(fieldRef: React.RefObject<HTMLElement | null>) {
+    if (!fieldRef?.current) return;
+    fieldRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    fieldRef.current.classList.add("error-field");
+    setTimeout(() => fieldRef.current?.classList.remove("error-field"), 3000);
+  }
+
+  async function handlePreview() {
+    if (!customerName || customerName.trim().length === 0) {
+      toast.error("חובה למלא שם לקוח");
+      setCustomerNameError("שם הלקוח הוא שדה חובה");
+      focusFieldWithError(customerNameRef);
+      return;
+    }
+
+    if (!documentDate) {
+      toast.error("חובה לבחור תאריך");
+      return;
+    }
+
+    if (!payments || payments.length === 0) {
+      toast.error("חובה להוסיף לפחות תקבול אחד");
+      return;
+    }
+
+    setPreviewModalOpen(true);
+    setBusy("preview");
+    setPreviewError(null);
+    setPreviewPdfUrl(null);
+
+    try {
+      const paymentsForPreview = payments.map((p) => {
+        const payment: any = {
+          method: p.method || "תשלום",
+          date: p.date || documentDate,
+          amount: p.amount || 0,
+          currency: p.currency || currency,
+        };
+
+        if (p.bankName) payment.bankName = p.bankName;
+        if (p.bankBranch || p.branch) payment.branch = p.bankBranch || p.branch;
+        if (p.bankAccount || p.accountNumber) payment.accountNumber = p.bankAccount || p.accountNumber;
+
+        if (p.cardLastDigits) payment.cardLastDigits = p.cardLastDigits;
+        if (p.cardType) payment.cardType = p.cardType;
+        if (p.cardDealType) payment.cardDealType = p.cardDealType;
+        if (p.cardInstallments) payment.cardInstallments = p.cardInstallments;
+
+        if (p.checkBank) payment.checkBank = p.checkBank;
+        if (p.checkBranch) payment.checkBranch = p.checkBranch;
+        if (p.checkAccount) payment.checkAccount = p.checkAccount;
+        if (p.checkNumber) payment.checkNumber = p.checkNumber;
+
+        if (p.payerAccount) payment.payerAccount = p.payerAccount;
+        if (p.transactionReference) payment.transactionReference = p.transactionReference;
+
+        if (p.description) payment.description = p.description;
+
+        return payment;
+      });
+
+      const params = new URLSearchParams({
+        previewNumber: previewNumber || "",
+        customerName: customerName || "",
+        customerId: customerId || "",
+        documentDate: documentDate || todayYmd(),
+        description: description || "",
+        notes: notes || "",
+        footerNotes: footerText || "",
+        total: total.toString() || "0",
+        currency: currency || "₪",
+        payments: JSON.stringify(paymentsForPreview),
+      });
+
+      const docIdForPreview = draftId || (editData as any)?.id || null;
+      if (docIdForPreview) params.set("documentId", String(docIdForPreview));
+
+      setPreviewPdfUrl(`/dashboard/documents/receipt/preview?${params.toString()}`);
+      setBusy(null);
+    } catch (error: any) {
+      setBusy(null);
+      const errorMessage = error?.message || "שגיאה ביצירת תצוגה מקדימה";
+      setPreviewError(errorMessage);
+      toast.error(errorMessage);
+    }
+  }
+
+  async function handleSaveDraft() {
     setMessage(null);
+    setDescriptionError(null);
+    setCustomerNameError(null);
+    setPaymentErrors({});
+
     setBusy("draft");
     try {
       let result;
-      if (draftId && editData) {
-        // Update existing draft
-        result = await updateReceiptDraftAction(draftId, payload);
-      } else {
-        // Create new draft
-        result = await saveReceiptDraftAction(payload);
-      }
-      
+      if (draftId && editData) result = await updateReceiptDraftAction(draftId, payload);
+      else result = await saveReceiptDraftAction(payload);
+
       if (!result.ok) {
-        setMessage(result.message || "שגיאה בשמירת הטיוטה");
+        toast.error(result.message || "שמירת טיוטה נכשלה");
         setBusy(null);
         return;
       }
-      
-      // Success! Redirect to documents list
+
+      toast.success("הטיוטה נשמרה");
+      setBusy(null);
       window.location.href = "/dashboard/documents";
     } catch (error: any) {
-      setMessage(error.message || "שגיאה בשמירת הטיוטה");
+      toast.error(error.message || "שמירת טיוטה נכשלה");
       setBusy(null);
     }
   }
 
-  async function onIssue() {
+  function handleIssueConfirmation() {
+    setConfirmationModalOpen(true);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadConsent() {
+      if (!confirmationModalOpen) return;
+
+      if (!isDigitalSignaturesEnabledClient()) {
+        setRecipientConsent({ status: "idle", hasConsent: true, recipientIdentifier: null });
+        setConsentChecked(true);
+        return;
+      }
+
+      setRecipientConsent((prev) => ({ ...prev, status: "loading", message: undefined }));
+
+      try {
+        const res = await getRecipientConsentStatusAction(customerId, customerName);
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setRecipientConsent({
+            status: "error",
+            hasConsent: false,
+            recipientIdentifier: null,
+            message: res.message,
+          });
+          setConsentChecked(false);
+          return;
+        }
+
+        setRecipientConsent({
+          status: "ready",
+          hasConsent: res.hasConsent,
+          recipientIdentifier: res.recipientIdentifier,
+        });
+        setConsentChecked(res.hasConsent);
+      } catch (e: any) {
+        if (cancelled) return;
+        setRecipientConsent({
+          status: "error",
+          hasConsent: false,
+          recipientIdentifier: null,
+          message: e?.message || "שגיאה בטעינת סטטוס הסכמה",
+        });
+        setConsentChecked(false);
+      }
+    }
+
+    loadConsent();
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmationModalOpen, customerId, customerName]);
+
+  async function handleIssueConfirm() {
+    setIsFinalizing(true);
     setMessage(null);
-    
-    // Prevent issue if sequence not locked
+    setDescriptionError(null);
+    setCustomerNameError(null);
+    setPaymentErrors({});
+
     if (!sequenceLocked) {
-      setMessage("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
+      toast.error("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
       setShowStartingNumberModal(true);
       return;
     }
-    
+
+    if (!customerName || customerName.trim().length === 0) {
+      setCustomerNameError("שם הלקוח הוא שדה חובה");
+      focusFieldWithError(customerNameRef);
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+      return;
+    }
+
+    if (!description || description.trim().length < 5) {
+      setDescriptionError("התיאור חובה, לפחות 5 תווים");
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el =
+            (descriptionInputRef.current as any) ||
+            (typeof document !== "undefined" ? document.getElementById("description") : null);
+          if (el?.scrollIntoView) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.focus?.();
+            el.classList?.add?.("error-field");
+            setTimeout(() => el.classList?.remove?.("error-field"), 3000);
+          }
+        });
+      });
+      return;
+    }
+
+    const errors: { [key: number]: { method?: string; amount?: string } } = {};
+    payments.forEach((payment, i) => {
+      const rowErrors: { method?: string; amount?: string } = {};
+      if (!payment.method) rowErrors.method = "יש לבחור אמצעי תשלום";
+      else if (!payment.amount || payment.amount <= 0) rowErrors.amount = "סכום חייב להיות גדול מ-0";
+      if (Object.keys(rowErrors).length > 0) errors[i] = rowErrors;
+    });
+
+    if (Object.keys(errors).length > 0) {
+      setPaymentErrors(errors);
+      focusFieldWithError(paymentsTableRef);
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+      return;
+    }
+
+    if (isDigitalSignaturesEnabledClient()) {
+      if (recipientConsent.status === "loading") {
+        toast.error("טוען סטטוס הסכמה... נסה שוב בעוד רגע");
+        setIsFinalizing(false);
+        return;
+      }
+      if (recipientConsent.status === "error") {
+        toast.error(recipientConsent.message || "שגיאה בבדיקת הסכמה");
+        setIsFinalizing(false);
+        return;
+      }
+      if (recipientConsent.status === "ready" && !recipientConsent.hasConsent) {
+        if (!consentChecked) {
+          toast.error("נדרש לסמן הסכמת מקבל למסמך ממוחשב לפני הפקה");
+          setIsFinalizing(false);
+          return;
+        }
+        const consentResult = await giveRecipientConsentAction(customerId, customerName);
+        if (!consentResult.ok) {
+          toast.error(consentResult.message || "שגיאה בשמירת הסכמה");
+          setIsFinalizing(false);
+          return;
+        }
+        setRecipientConsent((prev) => ({
+          ...prev,
+          hasConsent: true,
+          recipientIdentifier: consentResult.recipientIdentifier,
+        }));
+      }
+    }
+
     setBusy("issue");
     try {
-      if (draftId && editData) {
-        // Cannot issue from edit mode - must save first
-        setMessage("יש לשמור את הטיוטה ולהפיק מהרשימה");
-        setBusy(null);
-        return;
-      }
-      
-      console.log("Issuing receipt with payload:", payload);
-      
-      // Issue the receipt
       const result = await issueReceiptAction(payload);
-      
-      console.log("Issue result:", result);
-      
-      if (!result.ok) {
-        setMessage(result.message || "שגיאה בהפקת המסמך");
+
+      if (!result || !result.ok) {
+        toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
         setBusy(null);
+        setIsFinalizing(false);
         return;
       }
-      
-      // Success! Show modal with options
-      if (result.receiptId && result.documentNumber && result.companyName && result.payload) {
-        setBusy(null);
-        setSuccessModal({
-          receiptId: result.receiptId,
-          documentNumber: result.documentNumber,
-          companyName: result.companyName,
-          payload: result.payload,
-        });
-      }
-    } catch (error: any) {
-      console.error("Issue error:", error);
-      setMessage(error.message || "שגיאה בהפקת המסמך");
+
+      setConfirmationModalOpen(false);
       setBusy(null);
+
+      setSuccessModalData({
+        documentId: result.receiptId,
+        documentNumber: result.documentNumber || "",
+        companyName: result.companyName || "העסק שלי",
+        language,
+      });
+      setSuccessModalOpen(true);
+    } catch (error: any) {
+      toast.error(`שגיאה בהפקת המסמך: ${error?.message || String(error) || "שגיאה לא ידועה"}`);
+      setBusy(null);
+      setIsFinalizing(false);
+      return;
+    } finally {
+      setIsFinalizing(false);
     }
   }
 
   return (
-    <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          gap: 16,
-          padding: 16,
-          border: "1px solid #e5e7eb",
-          borderRadius: 16,
-          background: "white",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.1 }}>
-            קבלה {previewNumber && <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.75 }}>| {previewNumber}</span>}
-          </div>
-        </div>
+    <main dir="rtl" className="min-h-screen">
+      <style>{`
+        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
+        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
+        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
+        main[dir="rtl"] .ui-container button:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container input:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container select:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*="font-size"]),
+        main[dir="rtl"] .ui-container span:not([style*="font-size"]),
+        main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
+        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
+        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
+        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
+      `}</style>
 
-        <div style={{ textAlign: "left" }}>
-          <div style={{ fontWeight: 800 }}>{initial.companyName ?? "העסק שלי"}</div>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen((v) => !v)}
-            style={{
-              marginTop: 8,
-              padding: "8px 10px",
-              borderRadius: 10,
-              border: "1px solid #e5e7eb",
-              background: "#f9fafb",
-              cursor: "pointer",
-            }}
-          >
-            הגדרות
-          </button>
-        </div>
-      </div>
-
-      {/* Settings Panel */}
-      {settingsOpen && (
-        <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-          <div style={{ fontSize: 18, fontWeight: 900 }}>הגדרות</div>
-
-          <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-            <div>
-              <div style={{ fontWeight: 800 }}>שפה</div>
-              <select value={language} onChange={(e) => setLanguage(e.target.value as any)} style={{ marginTop: 6, width: "100%", padding: 10 }}>
-                <option value="he">עברית</option>
-                <option value="en">אנגלית</option>
-              </select>
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 800 }}>מטבע ברירת מחדל</div>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }}>
-                {allowedCurrencies.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-              <div style={{ marginTop: 6, opacity: 0.7, fontSize: 13 }}>
-                מותרים: {allowedCurrencies.join(", ")}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 800 }}>עיגול סכומים</div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                <input type="checkbox" checked={roundTotals} onChange={(e) => setRoundTotals(e.target.checked)} />
-                לעגל את הסכום הסופי למטבע שלם (ללא אגורות)
-              </label>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12, opacity: 0.7, fontSize: 13 }}>
-            הערה: כרגע אלו ברירות מחדל מקומיות למסך (כמו שביקשת). בהמשך נחבר להגדרות חברה ב־DB.
-          </div>
-        </div>
-      )}
-
-      {/* Document details */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>פרטי המסמך</div>
-
-        <div style={{ display: "grid", gap: 12, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-          <div>
-            <div style={{ fontWeight: 800 }}>שם לקוח <span style={{ color: "#ef4444" }}>*</span></div>
-            <div style={{ marginTop: 6 }}>
-              <CustomerAutocomplete
-                value={customerName}
-                onChange={setCustomerName}
-                onSelectCustomer={(customer) => {
-                  if (customer) {
-                    setCustomerId(customer.id);
-                  }
-                }}
-                onAddNewCustomer={() => {
-                  // Only open modal when user explicitly clicks "+ Add customer"
-                  setShowQuickAddModal(true);
-                }}
-                placeholder="התחל להקליד שם לקוח..."
-              />
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontWeight: 800 }}>תאריך מסמך</div>
-            <input type="date" value={documentDate} onChange={(e) => setDocumentDate(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }} />
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>תיאור</div>
-          <input value={description} onChange={(e) => setDescription(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10 }} placeholder="לדוגמה: שירותי עיצוב" />
-        </div>
-      </div>
-
-      {/* Payments */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>פירוט תקבולים</div>
-        <div style={{ marginTop: 6, opacity: 0.75 }}>
-          איך שילמו לך? אם שילמו לך בכמה צורות תשלום, אפשר לבחור כמה סוגי תקבולים.
-        </div>
-
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-            <thead>
-              <tr style={{ textAlign: "right", opacity: 0.85 }}>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>אמצעי</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>תאריך</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>סכום</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>מטבע</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}>פרטים (אופציונלי)</th>
-                <th style={{ padding: 10, borderBottom: "1px solid #e5e7eb" }}></th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {payments.map((row, i) => (
-                <tr key={i}>
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <select
-                      value={row.method}
-                      onChange={(e) => updatePaymentRow(i, { method: e.target.value as any })}
-                      style={{ width: 200, padding: 8 }}
-                    >
-                      <option value="">בחר…</option>
-                      {PAYMENT_METHODS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <input
-                      type="date"
-                      value={row.date}
-                      onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
-                      style={{ padding: 8 }}
-                    />
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={row.amount}
-                      onChange={(e) => updatePaymentRow(i, { amount: Number(e.target.value) })}
-                      style={{ width: 140, padding: 8 }}
-                    />
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <select
-                      value={row.currency}
-                      onChange={(e) => updatePaymentRow(i, { currency: e.target.value })}
-                      style={{ width: 90, padding: 8 }}
-                    >
-                      {allowedCurrencies.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <PaymentDetailsSection
-                      payment={row}
-                      onUpdate={(updates) => updatePaymentRow(i, updates)}
-                    />
-                  </td>
-
-                  <td style={{ padding: 10, borderBottom: "1px solid #f3f4f6" }}>
-                    <button
-                      type="button"
-                      onClick={() => removePaymentRow(i)}
-                      disabled={payments.length === 1}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                        background: "white",
-                        cursor: payments.length === 1 ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      מחק
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <button
-          type="button"
-          onClick={addPaymentRow}
-          style={{
-            marginTop: 12,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #e5e7eb",
-            background: "#f9fafb",
-            cursor: "pointer",
-          }}
-        >
-          הוספת תקבול +
-        </button>
-
-        <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #e5e7eb", display: "flex", justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 900 }}>סה״כ שולם</div>
-          <div style={{ fontWeight: 900 }}>{formatMoney(total, currency)}</div>
-        </div>
-
-        {roundTotals && (
-          <div style={{ marginTop: 6, opacity: 0.75, fontSize: 13 }}>
-            כולל עיגול לסכום סופי (ללא אגורות).
-          </div>
-        )}
-      </div>
-
-      {/* Notes */}
-      <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 16, background: "white" }}>
-        <div style={{ fontSize: 18, fontWeight: 900 }}>הערות</div>
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>הערות שיופיעו במסמך</div>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10, minHeight: 90 }} />
-        </div>
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 800 }}>הערות בתחתית המסמך</div>
-          <textarea value={footerNotes} onChange={(e) => setFooterNotes(e.target.value)} style={{ marginTop: 6, width: "100%", padding: 10, minHeight: 70 }} />
-        </div>
-      </div>
-
-      {/* Buttons */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={onSaveDraft}
-          disabled={busy != null}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 12,
-            border: "1px solid #d1d5db",
-            background: busy === "draft" ? "#f3f4f6" : "white",
-            cursor: busy != null ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            fontSize: 15,
-          }}
-        >
-          {busy === "draft" ? "שומר בטיוטות..." : "💾 שמירה בטיוטות"}
-        </button>
-
-        <button
-          type="button"
-          onClick={onIssue}
-          disabled={busy != null || !sequenceLocked}
-          style={{
-            padding: "12px 20px",
-            borderRadius: 12,
-            border: "1px solid #111827",
-            background: (busy != null || !sequenceLocked) ? "#9ca3af" : "#111827",
-            color: "white",
-            cursor: (busy != null || !sequenceLocked) ? "not-allowed" : "pointer",
-            opacity: (busy != null || !sequenceLocked) ? 0.6 : 1,
-            fontWeight: 700,
-            fontSize: 15,
-          }}
-          title={!sequenceLocked ? "נדרש לבחור מספר התחלתי" : ""}
-        >
-          {busy === "issue" ? "יוצר קבלה..." : "✅ יצירת קבלה"}
-        </button>
-      </div>
-
-      {message && (
-        <div style={{ 
-          padding: 12, 
-          borderRadius: 12, 
-          border: message.includes("שגיאה") ? "1px solid #fca5a5" : "1px solid #bfdbfe",
-          background: message.includes("שגיאה") ? "#fef2f2" : "#eff6ff",
-          color: message.includes("שגיאה") ? "#991b1b" : "#1e40af",
-        }}>
-          {message.includes("שגיאה") && "⚠️ "}{message}
-        </div>
-      )}
-
-      {/* Footer Text from Admin Settings */}
-      {footerText && footerText.trim() && (
-        <div style={{
-          marginTop: 24,
-          padding: 16,
-          border: "1px solid #dbeafe",
-          borderRadius: 12,
-          background: "#eff6ff",
-        }}>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8, color: "#1e40af" }}>
-            📌 הערות מערכת
-          </div>
-          <div style={{
-            fontSize: 14,
-            lineHeight: 1.6,
-            color: "#1e3a8a",
-            whiteSpace: "pre-wrap",
-          }}>
-            {footerText}
-          </div>
-        </div>
-      )}
-
-      {/* Quick Add Customer Modal */}
-      <QuickAddCustomerModal
-        isOpen={showQuickAddModal}
-        onClose={() => setShowQuickAddModal(false)}
-        onCustomerCreated={(customer) => {
-          setCustomerName(customer.name);
-          setCustomerId(customer.id);
-          setMessage(`הלקוח "${customer.name}" נוסף בהצלחה ללקוחות שמורים`);
-          setTimeout(() => setMessage(null), 3000);
-        }}
-        onSaveNameOnly={(name) => {
-          setCustomerName(name);
-          setCustomerId(null);
-          setMessage("שם הלקוח נשמר למסמך זה בלבד (לא נוסף ללקוחות)");
-          setTimeout(() => setMessage(null), 3000);
-        }}
-        prefillName={customerName}
-      />
-
-      {/* Starting Number Modal - Opens on first receipt creation */}
-      {showStartingNumberModal && (
-        <StartingNumberModal
-          documentType="receipt"
-          onClose={() => {
-            // User cancelled - redirect back to documents list
-            window.location.href = "/dashboard/documents";
-          }}
-          onSuccess={() => {
-            // Sequence is now locked, refresh page to get new sequence info
-            setShowStartingNumberModal(false);
-            setSequenceLocked(true);
-            window.location.reload();
-          }}
-        />
-      )}
-
-      {/* Success Modal - Receipt Created Successfully */}
-      {successModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}
-          onClick={() => {
-            setSuccessModal(null);
-            window.location.href = "/dashboard/documents";
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: 20,
-              padding: 40,
-              maxWidth: 500,
-              width: "90%",
-              boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
-              textAlign: "center",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Success Icon */}
-            <div
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: "50%",
-                background: "#10b981",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                margin: "0 auto 24px",
-              }}
+      <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
+        <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
+          {message && (
+            <Card
+              className={cn(
+                "mb-[50px]",
+                message.includes("שגיאה") ? "border-danger bg-danger/10" : "border-success bg-success/10"
+              )}
             >
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
+              <CardContent className="p-4">
+                <div
+                  className={cn(
+                    "flex items-center gap-3 font-medium",
+                    message.includes("שגיאה") ? "text-danger" : "text-success"
+                  )}
+                >
+                  {message.includes("שגיאה") && "⚠️"}
+                  {!message.includes("שגיאה") && "✓"}
+                  <span>{message}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <ReceiptSettingsSummary
+            settings={{
+              currency,
+              language,
+              vatType: "",
+              roundTotals,
+              allowedCurrencies,
+              allowedLanguages: [
+                { value: "he", label: "עברית" },
+                { value: "en", label: "English" },
+              ],
+              canEdit: {
+                currency: true,
+                language: true,
+                roundTotals: true,
+              },
+            }}
+            onChange={(patch) => {
+              if (patch.currency !== undefined) setCurrency(patch.currency);
+              if (patch.language !== undefined) setLanguage(patch.language as "he" | "en");
+              if (patch.roundTotals !== undefined) setRoundTotals(patch.roundTotals);
+            }}
+          />
+
+          <div className="mb-[50px]">
+            <div className="flex justify-between items-center">
+              <h1 className="text-right">קבלה {previewNumber || "---"}</h1>
             </div>
-
-            {/* Title */}
-            <h2 style={{ fontSize: 28, fontWeight: 900, marginBottom: 12, color: "#111827" }}>
-              יצרת בהצלחה קבלה!
-            </h2>
-
-            {/* Receipt Number */}
-            <div style={{ fontSize: 18, color: "#6b7280", marginBottom: 32 }}>
-              מספר קבלה: <strong style={{ color: "#111827" }}>{successModal.documentNumber}</strong>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button
-                onClick={() => {
-                  // Open preview page with auto-download enabled
-                  const previewData = {
-                    previewNumber: successModal.documentNumber,
-                    companyName: successModal.companyName,
-                    customerName: successModal.payload.customerName,
-                    customerId: successModal.payload.customerId || "",
-                    documentDate: successModal.payload.documentDate,
-                    description: successModal.payload.description || "",
-                    notes: successModal.payload.notes,
-                    footerNotes: successModal.payload.footerNotes,
-                    total: String(successModal.payload.total),
-                    currency: successModal.payload.currency,
-                    payments: JSON.stringify(successModal.payload.payments),
-                    autoDownload: "true", // Trigger auto-download
-                  };
-                  
-                  const params = new URLSearchParams(previewData as any);
-                  window.open(`/dashboard/documents/receipt/preview?${params.toString()}`, "_blank");
-                  
-                  // Close modal and redirect after short delay
-                  setTimeout(() => {
-                    setSuccessModal(null);
-                    window.location.href = "/dashboard/documents";
-                  }, 1000);
-                }}
-                style={{
-                  padding: "16px 32px",
-                  borderRadius: 12,
-                  border: "none",
-                  background: "#111827",
-                  color: "white",
-                  fontSize: 16,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                הורדת קבלה (PDF)
-              </button>
-
-              <button
-                onClick={() => {
-                  setSuccessModal(null);
-                  window.location.href = "/dashboard/documents";
-                }}
-                style={{
-                  padding: "16px 32px",
-                  borderRadius: 12,
-                  border: "1px solid #d1d5db",
-                  background: "white",
-                  color: "#374151",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                סגירה
-              </button>
-            </div>
+            {initial.companyName && <h2 className="text-right mt-[10px] mb-[40px]">{initial.companyName}</h2>}
           </div>
+
+          <form className="ui-section-gap">
+            <FormSection title="פרטי לקוח" description="">
+              <div
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+              >
+                          <div
+                            className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
+                            data-payment-primary-grid="true"
+                          >
+                  <div ref={customerNameRef}>
+                    <CustomerAutocomplete
+                      id="customerName"
+                      label="שם לקוח"
+                      required
+                      error={customerNameError}
+                      value={customerName}
+                      onChange={(value) => {
+                        setCustomerName(value);
+                        if (customerNameError && value.trim().length > 0) setCustomerNameError(null);
+                      }}
+                      onSelectCustomer={(customer) => {
+                        if (customer) {
+                          setCustomerId(customer.id);
+                          setCustomerNameError(null);
+                        }
+                      }}
+                      onAddNewCustomer={() => setShowQuickAddModal(true)}
+                      placeholder="התחל להקליד שם לקוח..."
+                      containerClassName="w-full min-w-0"
+                    />
+                  </div>
+
+                  <FloatingDateInput
+                    label="תאריך מסמך"
+                    required
+                    id="documentDate"
+                    value={documentDate}
+                    onChange={(value) => {
+                      if (minAllowedDate && value < minAllowedDate) setDocumentDate(minAllowedDate);
+                      else setDocumentDate(value);
+                    }}
+                    min={minAllowedDate || undefined}
+                    containerClassName="w-full min-w-0 ui-document-date-offset"
+                  />
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection title="פרטי המסמך" description="">
+              <div
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+              >
+                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <div className="ui-field-wide w-full min-w-0">
+                    <div className="w-1/2">
+                      <FloatingInput
+                        label="תיאור"
+                        required
+                        error={descriptionError}
+                        id="description"
+                        value={description}
+                        onChange={(e) => {
+                          setDescription(e.target.value);
+                          if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
+                        }}
+                        helperText="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
+                        containerClassName="w-full min-w-0"
+                        {...({ ref: descriptionInputRef } as any)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </FormSection>
+
+            {/* Payments Section (UPDATED LAYOUT) */}
+            <FormSection title="פירוט תקבולים" description="">
+              <div ref={paymentsTableRef} className="space-y-[10px]">
+                {Object.keys(paymentErrors).length > 0 && (
+                  <div
+                    style={{
+                      backgroundColor: "#FEF2F2",
+                      border: "1px solid #9B0003",
+                      borderRadius: "8px",
+                      padding: "16px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <span style={{ fontSize: "20px" }}>⚠️</span>
+                      <span style={{ fontSize: "16px", fontWeight: 600, color: "#9B0003" }}>
+                        יש לתקן את השדות המסומנים באדום
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-[20px]">
+                  {payments.map((row, i) => (
+                    <div key={i}>
+                      <div
+                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
+                        style={{
+                          backgroundColor: "white",
+                          border: "none",
+                        }}
+                        data-payment-card="true"
+                      >
+                      {payments.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removePaymentRow(i)}
+                          aria-label="מחיקה"
+                          className="absolute top-3 left-3 text-danger hover:text-danger hover:bg-danger/10"
+                          title="מחק"
+                          style={{ color: "#9B0003" }}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      )}
+
+                      <div className="min-w-0">
+                        {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
+                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
+                          <div className="w-full min-w-0">
+                            <label
+                              htmlFor={`payment-method-${i}`}
+                              className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+                            >
+                              אמצעי תשלום<span className="ms-1">*</span>
+                            </label>
+                            <Select
+                              value={row.method}
+                              onValueChange={(v) => {
+                                updatePaymentRow(i, { method: v as any });
+                                if (paymentErrors[i]?.method) {
+                                  const newErrors = { ...paymentErrors };
+                                  if (newErrors[i]) {
+                                    delete newErrors[i].method;
+                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                  }
+                                  setPaymentErrors(newErrors);
+                                }
+                              }}
+                            >
+                              <SelectTrigger
+                                id={`payment-method-${i}`}
+                                variant="underline"
+                                className={cn(
+                                  "w-full min-w-0",
+                                  paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
+                                )}
+                                aria-required="true"
+                                aria-invalid={!!paymentErrors[i]?.method}
+                                aria-describedby={paymentErrors[i]?.method ? `payment-method-${i}-error` : undefined}
+                              >
+                                <SelectValue placeholder="בחר אמצעי תשלום..." />
+                              </SelectTrigger>
+
+                              <SelectContent>
+                                {PAYMENT_METHODS.map((m) => (
+                                  <SelectItem key={m} value={m}>
+                                    {m}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <FloatingDateInput
+                            label="תאריך תשלום"
+                            required
+                            id={`payment-date-${i}`}
+                            value={row.date}
+                            onChange={(value) => updatePaymentRow(i, { date: value })}
+                            containerClassName="w-full min-w-0"
+                          />
+
+                          <FieldWrapper
+                            label="סכום"
+                            required
+                            error={paymentErrors[i]?.amount}
+                            id={`payment-amount-${i}`}
+                            className="w-full min-w-0 ui-money-block"
+                            labelClassName="ui-money-label"
+                          >
+                            {/* עטיפה כדי להבטיח min-w-0 + w-full */}
+                            <div className="min-w-0 w-full">
+                              <CurrencyAmountGroup
+                                currencyControl={
+                                  <div className="shrink-0">
+                                    <Select
+                                      value={row.currency || currency}
+                                      disabled={currency !== "₪"}
+                                      onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                                    >
+                                      <SelectTrigger
+                                        variant="underline"
+                                        className="w-[72px] shrink-0"
+                                        style={{ fontSize: "18px", fontWeight: 600 }}
+                                        aria-label="מטבע"
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {allowedCurrencies.map((c) => (
+                                          <SelectItem key={c} value={c}>
+                                            {c}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                }
+                                amountControl={
+                                  <div className="min-w-0 w-full">
+                                    <MoneyInput  className="w-full min-w-0"
+                                      id={`payment-amount-${i}`}
+                                      value={row.amount}
+                                      onChange={(v) => {
+                                        updatePaymentRow(i, { amount: v });
+                                        if (paymentErrors[i]?.amount && v > 0) {
+                                          const newErrors = { ...paymentErrors };
+                                          if (newErrors[i]) {
+                                            delete newErrors[i].amount;
+                                            if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                          }
+                                          setPaymentErrors(newErrors);
+                                        }
+                                      }}
+                                      currency={currency}
+                                      error={!!paymentErrors[i]?.amount}
+                                      style={{ fontSize: "18px", fontWeight: 600 }}
+                                      aria-required={true}
+                                      aria-invalid={!!paymentErrors[i]?.amount}
+                                      aria-describedby={paymentErrors[i]?.amount ? `payment-amount-${i}-error` : undefined}
+                                    />
+                                  </div>
+                                }
+                              />
+                            </div>
+                          </FieldWrapper>
+                        </div>
+
+                        <div className="mt-[50px] min-w-0">
+                          <PaymentDetailsSection payment={row} onUpdate={(updates) => updatePaymentRow(i, updates)} />
+                        </div>
+                      </div>
+                      </div>
+                      {i < payments.length - 1 ? (
+                        <div className="h-px bg-[var(--muted-fg)] opacity-50 mx-[20px] sm:mx-6 lg:mx-8 mt-[15px]" />
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pr-[25px]">
+  <Button
+    type="button"
+    onClick={addPaymentRow}
+    variant="secondary"
+  >
+    הוספת תקבול
+  </Button>
+</div>
+
+                <div className="pt-[50px] mt-[50px]">
+                  <div className="flex justify-between items-center">
+                    <div className="text-lg font-bold" style={{ color: "#19183B" }}>
+                      
+                    </div>
+                    <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
+                    סה״כ   {formatMoney(total, currency)}
+                    </div>
+                  </div>
+                  {roundTotals && (
+                    <p className="text-xs mt-2 text-right" style={{ color: "#19183B", opacity: 0.8 }}>
+                      כולל עיגול לסכום סופי
+                    </p>
+                  )}
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection title="הערות">
+              <div
+                className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
+              >
+                <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
+                  <FloatingTextarea
+                    label="הערות שיופיעו במסמך"
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    containerClassName="w-full min-w-0"
+                    className="min-h-[100px] resize-y"
+                  />
+
+                  <FloatingTextarea
+                    label="הערות שיופיעו בגוף המייל"
+                    id="emailNotes"
+                    value={emailNotes}
+                    onChange={(e) => setEmailNotes(e.target.value)}
+                    containerClassName="w-full min-w-0"
+                    className="min-h-[100px] resize-y"
+                  />
+                </div>
+              </div>
+            </FormSection>
+
+            <div className="mt-10 flex gap-4 justify-end">
+              <Button
+                variant="ghost"
+                onClick={handlePreview}
+                disabled={busy != null || !sequenceLocked}
+                loading={busy === "preview"}
+                className="flex items-center gap-2"
+              >
+                <Eye className="h-4 w-4" />
+                תצוגה מקדימה
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={handleSaveDraft}
+                disabled={busy != null}
+                loading={busy === "draft"}
+                className="flex items-center gap-2"
+              >
+                <Save className="h-4 w-4" />
+                שמירת טיוטה
+              </Button>
+
+              <Button
+                variant="primary"
+                onClick={handleIssueConfirmation}
+                disabled={busy != null || !sequenceLocked}
+                loading={busy === "issue"}
+                className="flex items-center gap-2"
+              >
+                <CheckCircle className="h-4 w-4" />
+                הפקת מסמך
+              </Button>
+            </div>
+          </form>
+
+          {message && (
+            <Card
+              className={cn(
+                "mt-[50px]",
+                message.includes("שגיאה") ? "border-danger bg-danger/10" : "border-success bg-success/10"
+              )}
+            >
+              <CardContent className="p-4">
+                <div
+                  className={cn(
+                    "flex items-center gap-3 font-medium",
+                    message.includes("שגיאה") ? "text-danger" : "text-success"
+                  )}
+                >
+                  {message.includes("שגיאה") && "⚠️"}
+                  {!message.includes("שגיאה") && "✓"}
+                  <span>{message}</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <QuickAddCustomerModal
+            isOpen={showQuickAddModal}
+            onClose={() => setShowQuickAddModal(false)}
+            onCustomerCreated={(customer) => {
+              setCustomerName(customer.name);
+              setCustomerId(customer.id);
+              setMessage(`הלקוח "${customer.name}" נוסף בהצלחה ללקוחות שמורים`);
+              setTimeout(() => setMessage(null), 3000);
+            }}
+            onSaveNameOnly={(name) => {
+              setCustomerName(name);
+              setCustomerId(null);
+              setMessage("שם הלקוח נשמר למסמך זה בלבד (לא נוסף ללקוחות)");
+              setTimeout(() => setMessage(null), 3000);
+            }}
+            prefillName={customerName}
+          />
+
+          {showStartingNumberModal && (
+            <StartingNumberModal
+              documentType="receipt"
+              onClose={() => {
+                window.location.href = "/dashboard/documents";
+              }}
+              onSuccess={() => {
+                setShowStartingNumberModal(false);
+                setSequenceLocked(true);
+                window.location.reload();
+              }}
+            />
+          )}
+
+          <ReceiptPreviewModal
+            isOpen={previewModalOpen}
+            onClose={() => setPreviewModalOpen(false)}
+            pdfUrl={previewPdfUrl || undefined}
+            isLoading={busy === "preview"}
+            error={previewError}
+          />
+
+          <ReceiptConfirmationModal
+            isOpen={confirmationModalOpen}
+            onClose={() => {
+              if (isFinalizing) return;
+              setConfirmationModalOpen(false);
+            }}
+            onConfirm={handleIssueConfirm}
+            documentDate={documentDate}
+            customerName={customerName}
+            total={total}
+            currency={currency}
+            isLoading={busy === "issue" || isFinalizing}
+            hasEmail={false}
+            isFinalizing={isFinalizing}
+            consentState={digitalSignaturesEnabled ? recipientConsent : undefined}
+            consentChecked={digitalSignaturesEnabled ? consentChecked : undefined}
+            onConsentCheckedChange={digitalSignaturesEnabled ? setConsentChecked : undefined}
+            onRevokeConsent={
+              digitalSignaturesEnabled
+                ? async () => {
+                    const res = await revokeRecipientConsentAction(customerId, customerName);
+                    if (!res.ok) {
+                      toast.error(res.message || "שגיאה בביטול הסכמה");
+                      return;
+                    }
+                    setRecipientConsent((prev) => ({ ...prev, hasConsent: false }));
+                    setConsentChecked(false);
+                    toast.success("ההסכמה בוטלה");
+                  }
+                : undefined
+            }
+          />
+
+          {successModalData && (
+            <ReceiptSuccessModal
+              isOpen={successModalOpen}
+              onClose={() => {
+                window.location.href = "/dashboard";
+              }}
+              documentNumber={successModalData.documentNumber}
+              companyName={successModalData.companyName}
+              documentId={successModalData.documentId}
+              baseLanguage={successModalData.language}
+              onViewDocument={async () => {
+                window.location.href = `/dashboard/documents/receipt/${successModalData.documentId}/summary`;
+              }}
+              onDownloadHebrew={async (opts) => {
+                try {
+                  const issue = opts?.issue || "copy";
+                  const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=he&issue=${issue}`;
+                  const response = await fetch(pdfUrl);
+
+                  if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage = errorData.details || errorData.error || response.statusText;
+                    throw new Error(`PDF download failed: ${errorMessage}`);
+                  }
+
+                  const blob = await response.blob();
+                  if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+
+                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                  const link = document.createElement("a");
+                  link.href = downloadUrl;
+                  const baseName = successModalData.documentNumber || successModalData.documentId;
+                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-he.pdf`;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(downloadUrl);
+                } catch (error: any) {
+                  toast.error(`שגיאה בהורדת PDF: ${error.message}`);
+                }
+              }}
+              onDownloadEnglish={async (opts) => {
+                try {
+                  const issue = opts?.issue || "copy";
+                  const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=en&issue=${issue}`;
+                  const response = await fetch(pdfUrl);
+
+                  if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage = errorData.details || errorData.error || response.statusText;
+                    throw new Error(`PDF download failed: ${errorMessage}`);
+                  }
+
+                  const blob = await response.blob();
+                  if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+
+                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
+                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
+                  const link = document.createElement("a");
+                  link.href = downloadUrl;
+                  const baseName = successModalData.documentNumber || successModalData.documentId;
+                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-en.pdf`;
+                  link.download = fileName;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  window.URL.revokeObjectURL(downloadUrl);
+                } catch (error: any) {
+                  toast.error(`שגיאה בהורדת PDF: ${error.message}`);
+                }
+              }}
+            />
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </main>
   );
 }

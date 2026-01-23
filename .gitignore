@@ -7,6 +7,26 @@ node_modules
 .next
 
 
+
 # Local backups (DO NOT COMMIT)
 backups/
 *.zip
+
+# local backups
+backups/
+*.zip
+
+# local backups
+backups/
+# local backups
+backups/
+*.zip
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# pnpm
+.pnpm-store/
+**/.pnpm-store/
+node_modules/
+

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { Loader2, Save, Percent, FileText, Receipt } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Loader2, Save, Percent, FileText, Receipt, Shield } from "lucide-react"
 import type { GlobalSetting } from "@/lib/types/admin"
 
 interface SettingsPanelProps {
@@ -34,6 +35,12 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
   const [receiptFooterText, setReceiptFooterText] = useState(
     settings.find((s) => s.setting_key === "receipt_footer_text")?.setting_value || "",
   )
+  const [requireLegalTerms, setRequireLegalTerms] = useState(
+    settings.find((s) => s.setting_key === "require_legal_terms_acceptance_on_signup")?.setting_value === "true",
+  )
+  const [requireMarketing, setRequireMarketing] = useState(
+    settings.find((s) => s.setting_key === "require_marketing_acceptance_on_signup")?.setting_value === "true",
+  )
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -46,13 +53,23 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
         { setting_key: "document_footer_line_2", setting_value: footerLine2 },
         { setting_key: "document_footer_line_3", setting_value: footerLine3 },
         { setting_key: "receipt_footer_text", setting_value: receiptFooterText },
+        { setting_key: "require_legal_terms_acceptance_on_signup", setting_value: requireLegalTerms ? "true" : "false" },
+        { setting_key: "require_marketing_acceptance_on_signup", setting_value: requireMarketing ? "true" : "false" },
       ]
 
-      for (const update of updates) {
-        await supabase
-          .from("global_settings")
-          .update({ setting_value: update.setting_value, updated_at: new Date().toISOString() })
-          .eq("setting_key", update.setting_key)
+      // Use upsert so missing rows are created (previous update-only could silently no-op)
+      const { error } = await supabase.from("global_settings").upsert(
+        updates.map((u) => ({
+          setting_key: u.setting_key,
+          setting_value: u.setting_value,
+          updated_at: new Date().toISOString(),
+        })),
+        { onConflict: "setting_key" },
+      )
+
+      if (error) {
+        console.error("Failed to save settings:", error)
+        return
       }
 
       onOpenChange(false)
@@ -65,7 +82,7 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg bg-white">
         <SheetHeader className="pb-6">
           <SheetTitle className="text-xl">Global Settings</SheetTitle>
           <SheetDescription>Configure system-wide defaults for all companies</SheetDescription>
@@ -155,6 +172,47 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Shield className="h-4 w-4 text-primary" />
+              </div>
+              <h3 className="font-semibold">הגדרות הרשמה</h3>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="require-legal-terms" className="text-base font-medium cursor-pointer">
+                  Require legal terms acceptance on signup
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  כאשר מופעל, משתמשים חייבים לאשר את התנאים המשפטיים כדי להשלים הרשמה
+                </p>
+              </div>
+              <Switch
+                id="require-legal-terms"
+                checked={requireLegalTerms}
+                onCheckedChange={setRequireLegalTerms}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="require-marketing" className="text-base font-medium cursor-pointer">
+                  Require marketing acceptance on signup
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  כאשר מופעל, משתמשים חייבים לאשר את קבלת המידע השיווקי כדי להשלים הרשמה
+                </p>
+              </div>
+              <Switch
+                id="require-marketing"
+                checked={requireMarketing}
+                onCheckedChange={setRequireMarketing}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                 <Receipt className="h-4 w-4 text-primary" />
               </div>
               <h3 className="font-semibold">טקסט פוטר לקובץ קבלה</h3>
@@ -182,7 +240,7 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
         </div>
 
         <div className="mt-8 flex justify-end gap-3">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>

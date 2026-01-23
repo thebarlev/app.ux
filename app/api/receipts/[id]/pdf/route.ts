@@ -180,11 +180,11 @@ export async function GET(
     console.log(`[PDF] Generated PDF size: ${pdfBuffer.length} bytes`);
 
     // Return PDF as downloadable file with proper headers
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="receipt-${receipt.document_number}.pdf"`,
+        "Content-Disposition": `attachment; filename="${receipt.document_number}-he.pdf"`,
         "Content-Length": pdfBuffer.length.toString(),
         "Cache-Control": "no-store, must-revalidate",
         "Pragma": "no-cache",

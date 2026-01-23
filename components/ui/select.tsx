@@ -5,6 +5,7 @@ import * as SelectPrimitive from '@radix-ui/react-select'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { selectBase, selectSizes, selectUnderline, fieldStateBorders } from '@/components/ui/field-styles'
 
 function Select({
   ...props
@@ -19,32 +20,56 @@ function SelectGroup({
 }
 
 function SelectValue({
+  className,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
-  return <SelectPrimitive.Value data-slot="select-value" {...props} />
+  const valueRef = React.useRef<HTMLSpanElement | null>(null)
+
+  return (
+    <SelectPrimitive.Value 
+      ref={valueRef}
+      data-slot="select-value" 
+      className={cn("text-right", className)}
+      {...props} 
+    />
+  )
 }
 
 function SelectTrigger({
   className,
   size = 'default',
+  variant = 'default',
+  iconClassName,
+  iconStyle,
   children,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: 'sm' | 'default'
+  variant?: 'default' | 'underline'
+  iconClassName?: string
+  iconStyle?: React.CSSProperties
 }) {
+  // Standard trigger height: exactly 50px for default, 40px for sm
+  const heightClass = size === 'sm' ? selectSizes.sm : selectSizes.default;
+  const variantClass =
+    variant === 'underline'
+      ? cn(selectUnderline, fieldStateBorders.default, "disabled:border-muted-fg")
+      : "rounded-[5px] px-[15px] border border-transparent bg-input focus:ring-2 focus:ring-ring focus:ring-offset-0";
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
+  
   return (
     <SelectPrimitive.Trigger
+      ref={triggerRef}
       data-slot="select-trigger"
       data-size={size}
-      className={cn(
-        "border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className,
-      )}
+      className={cn(selectBase, heightClass, variantClass, className)}
+      dir="rtl"
+      style={{ fontSize: "18px" }}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="size-4 opacity-50" />
+        <ChevronDownIcon className={cn("size-4 text-current", iconClassName)} style={iconStyle} />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   )
@@ -54,27 +79,38 @@ function SelectContent({
   className,
   children,
   position = 'popper',
+  side = 'bottom',
+  sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
+        ref={contentRef}
         data-slot="select-content"
         className={cn(
-          'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md',
+          'border data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-[var(--radix-select-content-available-height)] min-w-[8rem] origin-[var(--radix-select-content-transform-origin)] overflow-hidden rounded-[5px] shadow-ui-lg',
           position === 'popper' &&
             'data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1',
           className,
         )}
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderColor: '#EDF1F5'
+        }}
         position={position}
+        side={side}
+        sideOffset={sideOffset}
         {...props}
       >
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            'p-1',
+            'p-1 max-h-[var(--field-select-max-height)] overflow-y-auto',
             position === 'popper' &&
-              'h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1',
+              'w-full min-w-[var(--radix-select-trigger-width)]',
           )}
         >
           {children}
@@ -92,7 +128,7 @@ function SelectLabel({
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn('text-muted-foreground px-2 py-1.5 text-xs', className)}
+      className={cn('text-muted-fg px-2 py-1.5 text-xs', className)}
       {...props}
     />
   )
@@ -107,14 +143,38 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "relative flex w-full cursor-pointer items-center gap-2 pr-8 pl-3 outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transition-colors text-right",
         className,
       )}
+      dir="rtl"
+      style={{
+        height: "50px",
+        minHeight: "50px",
+        maxHeight: "50px",
+        fontSize: "18px",
+        color: "#19183B",
+        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+        backgroundColor: "transparent",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = "#1D868F";
+        e.currentTarget.style.color = "#FFFFFF"; // 👈 זו השורה שהוספנו
+        e.currentTarget.style.height = "50px";
+        e.currentTarget.style.minHeight = "50px";
+        e.currentTarget.style.maxHeight = "50px";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+        e.currentTarget.style.color = "#19183B"; // 👈 חזרה לצבע המקורי
+        e.currentTarget.style.height = "50px";
+        e.currentTarget.style.minHeight = "50px";
+        e.currentTarget.style.maxHeight = "50px";
+      }}
       {...props}
     >
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <CheckIcon className="size-4" style={{ color: '#FFFFFF' }} />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
@@ -148,7 +208,7 @@ function SelectScrollUpButton({
       )}
       {...props}
     >
-      <ChevronUpIcon className="size-4" />
+      <ChevronUpIcon className="size-4 text-current" />
     </SelectPrimitive.ScrollUpButton>
   )
 }
@@ -166,7 +226,7 @@ function SelectScrollDownButton({
       )}
       {...props}
     >
-      <ChevronDownIcon className="size-4" />
+      <ChevronDownIcon className="size-4 text-current" />
     </SelectPrimitive.ScrollDownButton>
   )
 }

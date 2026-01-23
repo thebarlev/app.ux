@@ -1,48 +1,32 @@
-import type React from "react"
-import type { Metadata, Viewport } from "next"
-import { Inter, Geist_Mono } from "next/font/google"
-import "./globals.css"
-
-const _inter = Inter({ subsets: ["latin", "hebrew"], variable: "--font-inter" })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
+import "./globals.css";
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Barlev Accounting",
-  description: "Professional accounting services for your business",
-  generator: "v0.app",
-  icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
+  title: {
+    default: "מערכת ניהול עסקי - Business Management System",
+    template: "%s | מערכת ניהול עסקי",
   },
-}
+  description: "מערכת ניהול מסמכים, קבלות וחשבוניות לעסקים - Business document and invoice management system",
+};
 
-export const viewport: Viewport = {
-  themeColor: "#f5f6f8",
-  width: "device-width",
-  initialScale: 1,
-}
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="he" dir="rtl">
-      <body className="font-sans antialiased">{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+      </head>
+      <body>
+        {/* Skip to main content link - WCAG 2.1 AA requirement */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:right-4 focus:z-[9999] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+        >
+          דלג לתוכן הראשי
+        </a>
+        {children}
+      </body>
     </html>
-  )
+  );
 }

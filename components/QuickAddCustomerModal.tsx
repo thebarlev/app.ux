@@ -49,6 +49,14 @@ export default function QuickAddCustomerModal({
     }
   });
 
+  // Add style for placeholder color
+  const inputPlaceholderStyle = `
+    .custom-input::placeholder {
+      color: #999;
+      opacity: 1;
+    }
+  `;
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -151,28 +159,30 @@ export default function QuickAddCustomerModal({
   if (!isOpen) return null;
 
   return (
-    <div
-      onClick={handleBackdropClick}
-      onKeyDown={handleKeyDown}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
+    <>
+      <style>{inputPlaceholderStyle}</style>
+      <div
+        onClick={handleBackdropClick}
+        onKeyDown={handleKeyDown}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.5)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
         padding: 16,
+        backgroundColor: 'rgba(25, 24, 59, 0.9)',
       }}
     >
       {/* Modal Content */}
       <div
         dir="rtl"
+        className="bg-modal text-modal-fg"
         style={{
-          background: "white",
           borderRadius: 16,
           maxWidth: 500,
           width: "100%",
@@ -184,30 +194,31 @@ export default function QuickAddCustomerModal({
       >
         {/* Header */}
         <div
+          className="border-border text-muted-fg"
           style={{
             padding: "20px 24px",
-            borderBottom: "1px solid #e5e7eb",
+            borderBottomWidth: 1,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 500, margin: 0 }}>
               הוספת לקוח חדש
             </h2>
-            <p style={{ fontSize: 14, opacity: 0.6, margin: "4px 0 0 0" }}>
+            <p style={{ fontSize: 20, margin: "4px 0 0 0" }}>
               מילוי מהיר של פרטים בסיסיים
             </p>
           </div>
           <button
             onClick={handleClose}
+            className="text-muted-fg hover:text-fg"
             style={{
               background: "none",
               border: "none",
               fontSize: 24,
               cursor: "pointer",
-              color: "#6b7280",
               lineHeight: 1,
               padding: 4,
             }}
@@ -219,12 +230,12 @@ export default function QuickAddCustomerModal({
 
         {/* Info Banner */}
         <div
+          className="bg-primary/10 border-primary/30"
           style={{
             padding: 12,
-            background: "#dbeafe",
-            borderBottom: "1px solid #bfdbfe",
-            fontSize: 13,
-            color: "#1e40af",
+            borderBottomWidth: 1,
+            fontSize: 18,
+            color: 'black',
           }}
         >
           ℹ️ מדובר בפרטים ראשוניים בלבד. את שאר הפרטים ניתן לעדכן בהמשך בכרטיס
@@ -246,12 +257,11 @@ export default function QuickAddCustomerModal({
           {/* Global Error */}
           {errors.submit && (
             <div
+              className="bg-danger/10 border-danger text-danger-fg"
               style={{
                 padding: 12,
-                background: "#fee2e2",
-                border: "1px solid #fecaca",
+                borderWidth: 1,
                 borderRadius: 8,
-                color: "#991b1b",
                 fontSize: 14,
               }}
             >
@@ -262,14 +272,15 @@ export default function QuickAddCustomerModal({
           {/* Customer Name */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
-              שם הלקוח <span style={{ color: "#ef4444" }}>*</span>
+              שם הלקוח <span style={{ color: 'red' }}>*</span>
             </label>
             <input
               type="text"
@@ -278,17 +289,19 @@ export default function QuickAddCustomerModal({
               onChange={handleInputChange}
               required
               autoFocus
-              placeholder="שם מלא או שם עסק"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.name ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 14,
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
               }}
             />
             {errors.name && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, color: 'red' }}>
                 {errors.name}
               </div>
             )}
@@ -297,11 +310,12 @@ export default function QuickAddCustomerModal({
           {/* Tax ID */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
               ת.ז / ח.פ
@@ -311,21 +325,23 @@ export default function QuickAddCustomerModal({
               name="tax_id"
               value={formData.tax_id}
               onChange={handleInputChange}
-              placeholder="123456789"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.tax_id ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 14,
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
               }}
             />
             {errors.tax_id ? (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, color: 'red' }}>
                 {errors.tax_id}
               </div>
             ) : (
-              <div style={{ color: "#6b7280", fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, color: '#666' }}>
                 מאפשר קבלת מספר הקצאה עבור מסמכי הלקוח
               </div>
             )}
@@ -334,11 +350,12 @@ export default function QuickAddCustomerModal({
           {/* Phone */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
               טלפון
@@ -348,17 +365,19 @@ export default function QuickAddCustomerModal({
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              placeholder="03-1234567"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.phone ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 14,
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
               }}
             />
             {errors.phone && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, color: 'red' }}>
                 {errors.phone}
               </div>
             )}
@@ -367,11 +386,12 @@ export default function QuickAddCustomerModal({
           {/* Email */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
               מייל
@@ -381,17 +401,19 @@ export default function QuickAddCustomerModal({
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              placeholder="example@domain.com"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: `1px solid ${errors.email ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 14,
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
               }}
             />
             {errors.email && (
-              <div style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>
+              <div style={{ fontSize: 12, marginTop: 4, color: 'red' }}>
                 {errors.email}
               </div>
             )}
@@ -400,14 +422,15 @@ export default function QuickAddCustomerModal({
           {/* Country */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
-              מדינה <span style={{ color: "#ef4444" }}>*</span>
+              מדינה <span style={{ color: 'red' }}>*</span>
             </label>
             <select
               name="address_country"
@@ -415,12 +438,14 @@ export default function QuickAddCustomerModal({
               onChange={handleInputChange}
               required
               style={{
-                width: "100%",
+                width: '100%',
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "white",
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
+                color: '#19183B',
               }}
             >
               {COUNTRIES.map((country) => (
@@ -434,11 +459,12 @@ export default function QuickAddCustomerModal({
           {/* Payment Terms */}
           <div>
             <label
+              className="text-modal-fg"
               style={{
-                display: "block",
-                fontWeight: 600,
+                display: 'block',
+                fontWeight: 'normal',
+                fontSize: 18,
                 marginBottom: 6,
-                fontSize: 14,
               }}
             >
               תנאי תשלום
@@ -448,12 +474,14 @@ export default function QuickAddCustomerModal({
               value={formData.payment_terms_text}
               onChange={handleInputChange}
               style={{
-                width: "100%",
+                width: '100%',
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                background: "white",
+                border: 'none',
+                fontSize: 18,
+                backgroundColor: '#EDF1F5',
+                height: '50px',
+                color: '#19183B',
               }}
             >
               {PAYMENT_TERMS.map((term) => (
@@ -467,9 +495,10 @@ export default function QuickAddCustomerModal({
 
         {/* Footer Actions */}
         <div
+          className="border-border"
           style={{
             padding: "16px 24px",
-            borderTop: "1px solid #e5e7eb",
+            borderTopWidth: 1,
             display: "flex",
             gap: 12,
             flexDirection: "column",
@@ -481,17 +510,18 @@ export default function QuickAddCustomerModal({
             disabled={isSaving}
             style={{
               padding: "12px 20px",
-              background: "#111827",
-              color: "white",
               border: "none",
               borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 15,
+              fontWeight: 'normal',
+              fontSize: 18,
               cursor: isSaving ? "not-allowed" : "pointer",
               opacity: isSaving ? 0.6 : 1,
+              height: '50px',
+              backgroundColor: '#1D868F',
+              color: 'white',
             }}
           >
-            {isSaving ? "שומר..." : "💾 הוספה ללקוחות שמורים"}
+            {isSaving ? "שומר..." : "הוספה ללקוחות שמורים"}
           </button>
 
           {/* Secondary Action */}
@@ -501,17 +531,19 @@ export default function QuickAddCustomerModal({
             disabled={isSaving}
             style={{
               padding: "12px 20px",
-              background: "white",
-              color: "#111827",
-              border: "1px solid #d1d5db",
+              borderWidth: 1,
               borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 15,
+              fontWeight: 'normal',
+              fontSize: 18,
               cursor: isSaving ? "not-allowed" : "pointer",
               opacity: isSaving ? 0.6 : 1,
+              height: '50px',
+              borderColor: '#1A8299',
+              color: '#1A8299',
+              backgroundColor: 'white',
             }}
           >
-            📝 שמירה למסמך זה בלבד
+            שמירה למסמך זה בלבד
           </button>
 
           {/* Cancel */}
@@ -522,18 +554,20 @@ export default function QuickAddCustomerModal({
             style={{
               padding: "10px 20px",
               background: "transparent",
-              color: "#6b7280",
               border: "none",
               borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 14,
+              fontWeight: 'normal',
+              fontSize: 18,
               cursor: isSaving ? "not-allowed" : "pointer",
+              height: '50px',
             }}
+            className="text-modal-fg"
           >
             ביטול
           </button>
         </div>
       </div>
     </div>
+    </>
   );
 }

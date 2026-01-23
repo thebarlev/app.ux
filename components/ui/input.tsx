@@ -1,21 +1,41 @@
-import * as React from 'react'
+import React from "react";
+import { cn } from "@/lib/utils";
 
-import { cn } from '@/lib/utils'
+// Standard field height: exactly 50px
+export const FIELD_HEIGHT_CLASS = "h-[50px]";
+export const FIELD_BASE_CLASS = "w-full  h-[50px] rounded-[0px] px-[15px] text-[14px] text-[#19183B] outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50 text-right";
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
+  {
+    className = "",
+    type = "text",
+    style,
+    ...props
+  },
+  ref
+) {
+  const id = props.id;
+  const usesUnderline = className.includes("border-b");
+
   return (
     <input
       type={type}
-      data-slot="input"
-      className={cn(
-        'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
-        'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-        'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-        className,
-      )}
+      ref={ref}
+      className={cn(FIELD_BASE_CLASS, className)}
+      style={{
+        fontSize: "var(--field-input-text-size)",
+        /* אין "קונטור צבע" - border שקוף כדי לא לקפוץ בגובה */
+        ...(usesUnderline
+          ? null
+          : {
+              border: "1px solid transparent",
+              backgroundColor: "#EDF1F5",
+            }),
+        ...style,
+      }}
       {...props}
     />
-  )
-}
-
-export { Input }
+  );
+});

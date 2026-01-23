@@ -259,7 +259,9 @@ begin
     where id = v_sequence.id;
   end if;
 
-  v_document_number := coalesce(v_sequence.prefix, '') || lpad(v_next_number::text, 6, '0');
+  -- Return pure number without zero-padding
+  -- Examples: 1, 99, 100, 1543 (no leading zeros)
+  v_document_number := coalesce(v_sequence.prefix, '') || v_next_number::text;
   return v_document_number;
 end;
 $$;

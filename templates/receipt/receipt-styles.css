@@ -1,0 +1,323 @@
+/* A4 Page Setup */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none;
+  }
+}
+
+/* Variables */
+:root {
+  --primary-color: #000000;
+  --accent-orange: #ff8a00;
+  --background: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --grey-block: #4d4d4d;
+}
+
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Assistant', 'Segoe UI', Arial, 'Heebo', sans-serif;
+  background: var(--background);
+  color: var(--text);
+  direction: rtl;
+}
+
+/* Page */
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 20mm;
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(0,0,0,0.12);
+  position: relative;
+}
+
+@media print {
+  .page {
+    box-shadow: none;
+    margin: 0;
+  }
+}
+
+/* ===== HEADER ===== */
+
+.receipt-header {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  column-gap: 0;
+  margin-bottom: 32px;
+}
+
+/* LEFT block – logo + business info */
+
+.header-left {
+  padding-top: 40px;
+}
+
+.company-logo-main {
+  max-width: 140px;
+  height: auto;
+  display: block;
+  margin-bottom: 24px;
+}
+
+.header-business {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #000;
+}
+
+.business-name {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.business-line {
+  margin-bottom: 2px;
+}
+
+/* RIGHT block – big grey rectangle */
+
+.header-right {
+  background: var(--grey-block);
+  color: #ffffff;
+  padding: 40px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.doc-date {
+  align-self: flex-end;
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+
+.doc-title-block {
+  border: 2px solid #f2a900;
+  padding: 12px 24px;
+  margin-bottom: 16px;
+}
+
+.doc-title {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.doc-number {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.doc-subtitle {
+  font-size: 12px;
+  margin-bottom: 24px;
+}
+
+.doc-client-block {
+  font-size: 13px;
+}
+
+.doc-client-label {
+  margin-bottom: 8px;
+}
+
+.doc-client-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.doc-client-meta {
+  font-size: 12px;
+}
+
+.doc-client-meta span + span::before {
+  content: "  |  ";
+  white-space: pre;
+}
+
+/* ===== DESCRIPTION ===== */
+
+.description-section {
+  margin: 32px 0 24px;
+}
+
+.description-text {
+  font-size: 14px;
+  color: #000;
+}
+
+/* ===== PAYMENTS TABLE ===== */
+
+.payments-section {
+  margin-bottom: 24px;
+}
+
+.payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.payments-table thead {
+  border-bottom: 1px solid #000;
+}
+
+.payments-table th {
+  padding: 10px 8px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.col-method {
+  width: 20%;
+}
+
+.col-desc {
+  width: 45%;
+}
+
+.col-date {
+  width: 20%;
+}
+
+.col-amount {
+  width: 15%;
+  text-align: left;
+}
+
+.payments-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #f1f1f1;
+  vertical-align: top;
+}
+
+.payment-details {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.payment-details-item {
+  display: inline-block;
+  margin-left: 6px;
+}
+
+/* amount cells */
+.amount-cell {
+  text-align: left;
+}
+
+/* ===== TOTAL BAR ===== */
+
+.total-section {
+  margin-top: 8px;
+  margin-bottom: 40px;
+}
+
+.total-box {
+  background: #666666;
+  color: #ffffff;
+  padding: 10px 24px;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  min-width: 220px;
+}
+
+.total-label {
+  font-size: 14px;
+  margin-left: 40px;
+}
+
+.total-amount {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ===== LOWER SECTION – SIGNATURE & NOTE ===== */
+
+.lower-section {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  column-gap: 40px;
+  align-items: flex-start;
+  margin-bottom: 40px;
+}
+
+/* signature on the left */
+.signature-box {
+  justify-self: start;
+  text-align: left;
+}
+
+.signature-image {
+  max-width: 220px;
+  max-height: 80px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.signature-line {
+  width: 220px;
+  border-top: 1px solid #000000;
+  margin-bottom: 4px;
+}
+
+.signature-label {
+  font-size: 11px;
+}
+
+/* note on the right */
+.notes-box {
+  justify-self: end;
+  font-size: 11px;
+  text-align: right;
+}
+
+.notes-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.notes-content {
+  line-height: 1.6;
+}
+
+/* ===== PAGE FOOTER ===== */
+
+.page-footer {
+  position: absolute;
+  bottom: 18mm;
+  left: 20mm;
+  right: 20mm;
+  text-align: center;
+  font-size: 10px;
+  color: #555;
+  line-height: 1.6;
+}
+
+/* utilities */
+.text-bold {
+  font-weight: 600;
+}

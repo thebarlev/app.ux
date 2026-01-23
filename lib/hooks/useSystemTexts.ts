@@ -14,7 +14,7 @@ interface UseSystemTextsReturn {
   error: Error | null;
 }
 
-export function useSystemTexts(): UseSystemTextsReturn {
+export function useSystemTexts(options?: { lang?: "he" | "en"; page?: string }): UseSystemTextsReturn {
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -24,7 +24,13 @@ export function useSystemTexts(): UseSystemTextsReturn {
 
     async function fetchTexts() {
       try {
-        const response = await fetch("/api/system-texts", {
+        const lang = options?.lang || "he";
+        const page = options?.page;
+        const qs = new URLSearchParams();
+        if (lang) qs.set("lang", lang);
+        if (page) qs.set("page", page);
+
+        const response = await fetch(`/api/system-texts?${qs.toString()}`, {
           cache: "no-store",
         });
 
@@ -51,7 +57,7 @@ export function useSystemTexts(): UseSystemTextsReturn {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [options?.lang, options?.page]);
 
   const getText = (key: string, fallback: string): string => {
     return texts[key] || fallback;

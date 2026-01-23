@@ -1,15 +1,17 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicButton } from "./neumorphic-button"
+import { FloatingInput } from "@/components/ui/floating-input"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { createClient } from "@/lib/supabase/client"
 
 export function StepAddress() {
-  const { data, updateData, nextStep, prevStep } = useRegistration()
+  const router = useRouter()
+  const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = () => {
@@ -22,58 +24,185 @@ export function StepAddress() {
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (validate()) {
-      nextStep()
+    if (!validate()) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const supabase = createClient()
+
+      // Step 1: Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/app`,
+          data: {
+            first_name: data.firstName,
+            last_name: data.lastName,
+          },
+        },
+      })
+
+      if (authError) {
+        console.error("Auth signup error:", authError)
+        
+        // Handle specific error cases
+        if (authError.message?.includes("already registered") || authError.message?.includes("User already registered")) {
+          setError("כתובת האימייל כבר רשומה במערכת. אנא התחבר או השתמש באימייל אחר.")
+        } else if (authError.message?.includes("email") && authError.message?.includes("invalid")) {
+          setError("כתובת האימייל אינה תקינה")
+        } else {
+          setError(`שגיאה ביצירת חשבון: ${authError.message}`)
+        }
+        
+        setIsLoading(false)
+        return
+      }
+
+      if (!authData.user) {
+        setError("שגיאה ביצירת משתמש")
+        setIsLoading(false)
+        return
+      }
+
+      console.log("✅ Auth user created:", authData.user.id)
+
+      // Step 2: Create company record with required contact fields
+      const { data: companyData, error: companyError } = await supabase
+        .from("companies")
+        .insert({
+          auth_user_id: authData.user.id,
+          company_name: data.businessName,
+          business_type: data.businessType,
+          registration_number: data.companyNumber,
+          address: `${data.street}, ${data.city}${data.postalCode ? ' ' + data.postalCode : ''}`,
+          industry: data.industry || data.customIndustry,
+          contact_first_name: data.firstName,
+          contact_full_name: `${data.firstName} ${data.lastName}`,
+          email: data.email,
+          mobile_phone: data.phone,
+        })
+        .select()
+        .single()
+
+      if (companyError) {
+        console.error("Company creation error:", companyError)
+        setError(`שגיאה ביצירת חברה: ${companyError.message}`)
+        setIsLoading(false)
+        return
+      }
+
+      console.log("✅ Company created:", companyData.id)
+
+      // Step 3: Create company member (owner role) - without status column
+      const { data: memberData, error: memberError } = await supabase
+        .from("company_members")
+        .insert({
+          company_id: companyData.id,
+          user_id: authData.user.id,
+          role: "owner",
+        })
+        .select()
+
+      if (memberError) {
+        console.error("Company member creation error:", memberError)
+        setError(`שגיאה ביצירת קישור לחברה: ${memberError.message}`)
+        setIsLoading(false)
+        return
+      }
+
+      console.log("✅ Company member created successfully:", memberData)
+
+      // Redirect to success page
+      router.push("/register/success")
+    } catch (err) {
+      console.error("Unexpected registration error:", err)
+      setError("אירעה שגיאה לא צפויה. נסה שוב.")
+      setIsLoading(false)
     }
   }
 
   return (
-    <NeumorphicCard>
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">כתובת העסק</h2>
-        <p className="mt-1 text-sm text-muted-foreground">היכן ממוקם העסק שלך</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <NeumorphicInput
-          id="street"
-          label="רחוב ומספר"
-          placeholder="רחוב הרצל 1"
-          value={data.street}
-          onChange={(e) => updateData({ street: e.target.value })}
-          error={errors.street}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <NeumorphicInput
-            id="city"
-            label="עיר"
-            placeholder="תל אביב-יפו"
-            value={data.city}
-            onChange={(e) => updateData({ city: e.target.value })}
-            error={errors.city}
-          />
-
-          <NeumorphicInput
-            id="postalCode"
-            label="מיקוד"
-            placeholder="1234567"
-            value={data.postalCode}
-            onChange={(e) => updateData({ postalCode: e.target.value })}
-            dir="ltr"
-            className="text-left"
-          />
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">כתובת העסק</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>היכן ממוקם העסק שלך</p>
         </div>
 
-        <div className="flex gap-3 mt-2">
-          <NeumorphicButton type="button" variant="secondary" onClick={prevStep}>
-            חזור
-          </NeumorphicButton>
-          <NeumorphicButton type="submit">המשך</NeumorphicButton>
-        </div>
-      </form>
-    </NeumorphicCard>
+        {error && (
+          <div 
+            className="mb-6 p-4 rounded-[5px]" 
+            role="alert" 
+            aria-live="assertive"
+            style={{ backgroundColor: 'rgba(155, 0, 3, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+          >
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <FloatingInput
+            label="רחוב ומספר"
+            id="street"
+            required
+            value={data.street}
+            onChange={(e) => updateData({ street: e.target.value })}
+            error={errors.street}
+            disabled={isLoading}
+            containerClassName="w-full min-w-0"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <FloatingInput
+              label="עיר"
+              id="city"
+              required
+              value={data.city}
+              onChange={(e) => updateData({ city: e.target.value })}
+              error={errors.city}
+              disabled={isLoading}
+              containerClassName="w-full min-w-0"
+            />
+
+            <FloatingInput
+              label="מיקוד"
+              id="postalCode"
+              value={data.postalCode}
+              onChange={(e) => updateData({ postalCode: e.target.value })}
+              dir="ltr"
+              className="text-left"
+              disabled={isLoading}
+              containerClassName="w-full min-w-0"
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <Button 
+              type="button" 
+              onClick={prevStep} 
+              variant="secondary"
+              className="flex-1"
+              disabled={isLoading}
+            >
+              חזור
+            </Button>
+            <Button 
+              type="submit" 
+              variant="primary"
+              className="flex-1"
+              loading={isLoading}
+              disabled={isLoading}
+            >
+              {isLoading ? "יוצר חשבון..." : "השלם הרשמה"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

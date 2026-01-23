@@ -6,11 +6,36 @@
  */
 
 import type { PaymentMethod, PaymentRow } from "./actions";
+import type { ReactNode } from "react";
+import { useRef } from "react";
+import { FloatingInput } from "@/components/ui/floating-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type PaymentDetailsSectionProps = {
   payment: PaymentRow;
   onUpdate: (updates: Partial<PaymentRow>) => void;
 };
+
+function PaymentGrid({
+  children,
+  gridRef,
+}: {
+  children: ReactNode;
+  gridRef?: React.RefObject<HTMLDivElement | null>;
+}) {
+  // Responsive behavior tuned for narrow content areas (e.g. sidebar):
+  // - 1 col on mobile
+  // - 2 cols only when there's actual space (sm+)
+  // - 3 cols only on very wide screens (xl+)
+  return (
+    <div
+      ref={gridRef}
+      className="grid w-full grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
+    >
+      {children}
+    </div>
+  );
+}
 
 /**
  * Renders additional detail fields based on the selected payment type.
@@ -21,174 +46,147 @@ export default function PaymentDetailsSection({
   onUpdate,
 }: PaymentDetailsSectionProps) {
   const { method } = payment;
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
-  // Common input style
-  const inputStyle: React.CSSProperties = {
-    padding: 8,
-    borderRadius: 8,
-    border: "1px solid #d1d5db",
-    width: "100%",
-    fontSize: 14,
-  };
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 13,
-    fontWeight: 600,
-    marginBottom: 4,
-    display: "block",
-  };
 
   // Credit card layout: 4 fields RTL - card number, card type, deal type, installments
   if (method === "כרטיס אשראי") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(4, 1fr)" }}>
-        {/* Field 1 (rightmost): Card number */}
-        <div>
-          <input
-            type="text"
-            maxLength={4}
-            placeholder="מס' הכרטיס"
-            value={payment.cardLastDigits ?? ""}
-            onChange={(e) => onUpdate({ cardLastDigits: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+      <PaymentGrid gridRef={gridRef}>
+        <FloatingInput
+          label="מספר כרטיס"
+          id="cardLastDigits"
+          helperText="4 ספרות אחרונות"
+          value={payment.cardLastDigits ?? ""}
+          onChange={(e) => onUpdate({ cardLastDigits: e.target.value })}
+          maxLength={4}
+          containerClassName="w-full min-w-0"
+        />
 
-        {/* Field 2: Card type */}
-        <div>
-          <select
+        <div className="w-full min-w-0">
+          <label htmlFor="cardType" className="block text-right text-[12px] text-fg mb-0 leading-none">
+            סוג כרטיס
+          </label>
+          <Select
             value={payment.cardType ?? ""}
-            onChange={(e) => onUpdate({ cardType: e.target.value })}
-            style={inputStyle}
+            onValueChange={(v) => onUpdate({ cardType: v })}
           >
-            <option value="">סוג הכרטיס</option>
-            <option value="visa">Visa</option>
-            <option value="mastercard">Mastercard</option>
-            <option value="isracard">ישראכרט</option>
-            <option value="amex">American Express</option>
-            <option value="diners">Diners</option>
-            <option value="other">אחר</option>
-          </select>
+            <SelectTrigger id="cardType" variant="underline">
+              <SelectValue placeholder="בחר..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="visa">Visa</SelectItem>
+              <SelectItem value="mastercard">Mastercard</SelectItem>
+              <SelectItem value="isracard">ישראכרט</SelectItem>
+              <SelectItem value="amex">American Express</SelectItem>
+              <SelectItem value="diners">Diners</SelectItem>
+              <SelectItem value="other">אחר</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Field 3: Deal type */}
-        <div>
-          <select
+        <div className="w-full min-w-0">
+          <label htmlFor="cardDealType" className="block text-right text-[12px] text-fg mb-0 leading-none">
+            סוג עסקה
+          </label>
+          <Select
             value={payment.cardDealType ?? "regular"}
-            onChange={(e) => onUpdate({ cardDealType: e.target.value })}
-            style={inputStyle}
+            onValueChange={(v) => onUpdate({ cardDealType: v })}
           >
-            <option value="regular">סוג העסקה</option>
-            <option value="payments">תשלומים</option>
-            <option value="credit">קרדיט</option>
-            <option value="deferred">דחוי</option>
-          </select>
+            <SelectTrigger id="cardDealType" variant="underline">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="regular">רגיל</SelectItem>
+              <SelectItem value="payments">תשלומים</SelectItem>
+              <SelectItem value="credit">קרדיט</SelectItem>
+              <SelectItem value="deferred">דחוי</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Field 4 (leftmost): Installments */}
-        <div>
-          <input
-            type="number"
-            min={1}
-            max={12}
-            placeholder="תשלומים"
-            value={payment.cardInstallments ?? 1}
-            onChange={(e) => onUpdate({ cardInstallments: Number(e.target.value) })}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        <FloatingInput
+          label="מספר תשלומים"
+          id="cardInstallments"
+          type="number"
+          min={1}
+          max={12}
+          value={String(payment.cardInstallments ?? 1)}
+          onChange={(e) => onUpdate({ cardInstallments: Number(e.target.value) })}
+          containerClassName="w-full min-w-0"
+        />
+      </PaymentGrid>
     );
   }
 
-  // Bank transfer: 3 fields (account, branch, bank)
+  // Bank transfer: 3 fields (bank, branch, account) - order: בנק | סניף | חשבון לקוח
   if (method === "העברה בנקאית") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <div>
-          <label style={labelStyle}>חשבון לקוח</label>
-          <input
-            type="text"
-            placeholder="מספר חשבון"
-            value={payment.bankAccount ?? ""}
-            onChange={(e) => onUpdate({ bankAccount: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+      <PaymentGrid gridRef={gridRef}>
+        <FloatingInput
+          label="בנק"
+          id="bankName"
+          value={payment.bankName ?? ""}
+          onChange={(e) => onUpdate({ bankName: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <label style={labelStyle}>סניף</label>
-          <input
-            type="text"
-            placeholder="מספר סניף"
-            value={payment.bankBranch ?? ""}
-            onChange={(e) => onUpdate({ bankBranch: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+        <FloatingInput
+          label="סניף"
+          id="bankBranch"
+          value={payment.bankBranch ?? ""}
+          onChange={(e) => onUpdate({ bankBranch: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <label style={labelStyle}>בנק</label>
-          <input
-            type="text"
-            placeholder="שם הבנק"
-            value={payment.bankName ?? ""}
-            onChange={(e) => onUpdate({ bankName: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        <FloatingInput
+          label="חשבון לקוח"
+          id="bankAccount"
+          value={payment.bankAccount ?? ""}
+          onChange={(e) => onUpdate({ bankAccount: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
+      </PaymentGrid>
     );
   }
 
   // Check: 4 fields (bank, branch, account, check number)
   if (method === "צ׳ק") {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(4, 1fr)" }}>
-        <div>
-          <label style={labelStyle}>בנק לקוח</label>
-          <input
-            type="text"
-            placeholder="שם הבנק"
-            value={payment.checkBank ?? ""}
-            onChange={(e) => onUpdate({ checkBank: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+      <PaymentGrid gridRef={gridRef}>
+        <FloatingInput
+          label="בנק לקוח"
+          id="checkBank"
+          value={payment.checkBank ?? ""}
+          onChange={(e) => onUpdate({ checkBank: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <label style={labelStyle}>סניף לקוח</label>
-          <input
-            type="text"
-            placeholder="מספר סניף"
-            value={payment.checkBranch ?? ""}
-            onChange={(e) => onUpdate({ checkBranch: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+        <FloatingInput
+          label="סניף לקוח"
+          id="checkBranch"
+          value={payment.checkBranch ?? ""}
+          onChange={(e) => onUpdate({ checkBranch: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <label style={labelStyle}>חשבון לקוח</label>
-          <input
-            type="text"
-            placeholder="מספר חשבון"
-            value={payment.checkAccount ?? ""}
-            onChange={(e) => onUpdate({ checkAccount: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+        <FloatingInput
+          label="חשבון לקוח"
+          id="checkAccount"
+          value={payment.checkAccount ?? ""}
+          onChange={(e) => onUpdate({ checkAccount: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <label style={labelStyle}>מס׳ הצ׳ק</label>
-          <input
-            type="text"
-            placeholder="מספר צ׳ק"
-            value={payment.checkNumber ?? ""}
-            onChange={(e) => onUpdate({ checkNumber: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        <FloatingInput
+          label="מס׳ הצ׳ק"
+          id="checkNumber"
+          value={payment.checkNumber ?? ""}
+          onChange={(e) => onUpdate({ checkNumber: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
+      </PaymentGrid>
     );
   }
 
@@ -200,15 +198,17 @@ export default function PaymentDetailsSection({
   // Payoneer: Single full-width transaction field
   if (method === "Payoneer") {
     return (
-      <div>
-        <input
-          type="text"
-          placeholder="מס' העסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
+      <PaymentGrid gridRef={gridRef}>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FloatingInput
+            label="מספר עסקה"
+            id="transactionReference"
+            value={payment.transactionReference ?? ""}
+            onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+            containerClassName="w-full min-w-0"
+          />
+        </div>
+      </PaymentGrid>
     );
   }
 
@@ -223,66 +223,66 @@ export default function PaymentDetailsSection({
     method === "Pay"
   ) {
     return (
-      <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
-        <div>
-          <input
-            type="text"
-            placeholder="חשבון משלם (לא חובה)"
-            value={payment.payerAccount ?? ""}
-            onChange={(e) => onUpdate({ payerAccount: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
+      <PaymentGrid gridRef={gridRef}>
+        <FloatingInput
+          label="חשבון משלם"
+          id="payerAccount"
+          value={payment.payerAccount ?? ""}
+          onChange={(e) => onUpdate({ payerAccount: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
 
-        <div>
-          <input
-            type="text"
-            placeholder="מס' העסקה (לא חובה)"
-            value={payment.transactionReference ?? ""}
-            onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-            style={inputStyle}
-          />
-        </div>
-      </div>
+        <FloatingInput
+          label="מספר עסקה"
+          id="transactionReference"
+          value={payment.transactionReference ?? ""}
+          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+          containerClassName="w-full min-w-0"
+        />
+      </PaymentGrid>
     );
   }
 
   // Partial employee deduction: Single transaction field
   if (method === "ניכוי חלק עובד טל״א") {
     return (
-      <div>
-        <label style={labelStyle}>מס׳ העסקה</label>
-        <input
-          type="text"
-          placeholder="מספר עסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FloatingInput
+            label="מס׳ העסקה"
+            id="transactionReference"
+            value={payment.transactionReference ?? ""}
+            onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+            containerClassName="w-full min-w-0"
+          />
+        </div>
+      </PaymentGrid>
     );
   }
 
   // Withholding tax: Explanatory text only (no input fields)
   if (method === "ניכוי במקור") {
     return (
-      <div
-        style={{
-          padding: 12,
-          background: "#fef3c7",
-          border: "1px solid #fde68a",
-          borderRadius: 8,
-          fontSize: 13,
-          lineHeight: 1.6,
-        }}
-      >
-        <div style={{ textDecoration: "underline", marginBottom: 4 }}>
-          הסכום ששולם למס הכנסה על ידי הלקוח, להסבר
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <div
+            className="bg-warning/10 border border-warning/30 text-warning-fg"
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            <div style={{ textDecoration: "underline", marginBottom: 4 }}>
+              הסכום ששולם למס הכנסה על ידי הלקוח, להסבר
+            </div>
+            <div style={{ fontWeight: 700 }}>
+              הסכום צריך להיות חיובי אם המסמך חיובי
+            </div>
+          </div>
         </div>
-        <div style={{ fontWeight: 700 }}>
-          הסכום צריך להיות חיובי אם המסמך חיובי
-        </div>
-      </div>
+      </PaymentGrid>
     );
   }
 
@@ -296,32 +296,34 @@ export default function PaymentDetailsSection({
     method === "ביטקוין"
   ) {
     return (
-      <div>
-        <label style={labelStyle}>מס׳ העסקה</label>
-        <input
-          type="text"
-          placeholder="מספר עסקה"
-          value={payment.transactionReference ?? ""}
-          onChange={(e) => onUpdate({ transactionReference: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FloatingInput
+            label="מס׳ העסקה"
+            id="transactionReference"
+            value={payment.transactionReference ?? ""}
+            onChange={(e) => onUpdate({ transactionReference: e.target.value })}
+            containerClassName="w-full min-w-0"
+          />
+        </div>
+      </PaymentGrid>
     );
   }
 
   // Other deduction: Single description field
   if (method === "ניכוי אחר") {
     return (
-      <div>
-        <label style={labelStyle}>תיאור</label>
-        <input
-          type="text"
-          placeholder="תיאור הניכוי"
-          value={payment.description ?? ""}
-          onChange={(e) => onUpdate({ description: e.target.value })}
-          style={inputStyle}
-        />
-      </div>
+      <PaymentGrid>
+        <div className="xl:col-span-2 min-w-0 w-full">
+          <FloatingInput
+            label="תיאור"
+            id="description"
+            value={payment.description ?? ""}
+            onChange={(e) => onUpdate({ description: e.target.value })}
+            containerClassName="w-full min-w-0"
+          />
+        </div>
+      </PaymentGrid>
     );
   }
 

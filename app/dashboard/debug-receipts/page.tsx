@@ -187,19 +187,6 @@ export default async function DebugReceiptsPage() {
       {/* Actions */}
       <div style={{ marginTop: 32, display: "flex", gap: 12 }}>
         <a
-          href="/dashboard/documents/receipts"
-          style={{
-            padding: "10px 20px",
-            background: "#111827",
-            color: "white",
-            borderRadius: 8,
-            textDecoration: "none",
-            fontWeight: 600
-          }}
-        >
-          → לעמוד הקבלות
-        </a>
-        <a
           href="/dashboard/documents/receipt"
           style={{
             padding: "10px 20px",

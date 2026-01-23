@@ -162,50 +162,8 @@ async function onIssue() {
 }
 ```
 
-#### 5. `/app/dashboard/documents/receipts/ReceiptsListClient.tsx`
-**Changes**:
-1. Hide document number for drafts (show "טיוטה" instead)
-2. Replace "View" button with "📥 הורד PDF" for final receipts
-3. Button triggers PDF download on click
-
-**Draft Row**:
-```tsx
-<td>
-  {receipt.status === "draft" ? (
-    <span style={{ opacity: 0.5, fontSize: 12 }}>טיוטה</span>
-  ) : (
-    receipt.document_number
-  )}
-</td>
-```
-
-**PDF Download Button**:
-```tsx
-{receipt.status === "draft" ? (
-  <Link href={`/dashboard/documents/receipt?draftId=${receipt.id}`}>
-    עריכה
-  </Link>
-) : (
-  <button
-    onClick={() => {
-      const pdfUrl = `/api/receipts/${receipt.id}/pdf`;
-      const link = document.createElement("a");
-      link.href = pdfUrl;
-      link.download = `receipt-${receipt.document_number}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }}
-    style={{
-      background: "#3b82f6", // Blue button
-      color: "white",
-      border: "1px solid #3b82f6",
-    }}
-  >
-    📥 הורד PDF
-  </button>
-)}
-```
+#### 5. Receipts list route
+The route `/dashboard/documents/receipts` was removed (no longer needed).
 
 ---
 
@@ -225,20 +183,8 @@ async function onIssue() {
    - Redirects to `/dashboard/documents` after 500ms
 5. User has PDF file in Downloads folder
 
-### Flow 2: Download Existing Receipt PDF from List
-
-1. User navigates to `/dashboard/documents/receipts`
-2. Sees list of receipts:
-   ```
-   Number    Date        Customer    Amount      Status   Actions
-   000042    12/27/25    John Doe    1,000 ₪    Final    [📥 הורד PDF]
-   טיוטה     12/27/25    Jane Smith  500 ₪      Draft    [עריכה]
-   ```
-3. Clicks "📥 הורד PDF" button on final receipt
-4. **Browser downloads PDF immediately**
-5. User can click multiple receipts to download multiple PDFs
-
----
+### Flow 2: Download Existing Receipt PDF
+Receipts can be downloaded from the relevant receipt screens (e.g. summary/preview) and from the main documents views, without relying on a dedicated “all receipts” list route.
 
 ## Security & Data Validation
 

@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import CustomerFormClient from "../CustomerFormClient";
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
+export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
   
   // Check authentication
@@ -18,7 +19,7 @@ export default async function EditCustomerPage({ params }: { params: { id: strin
   const { data: customer, error } = await supabase
     .from("customers")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("company_id", companyId)
     .single();
 

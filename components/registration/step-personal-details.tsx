@@ -4,15 +4,36 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRegistration } from "./registration-context"
-import { NeumorphicCard } from "./neumorphic-card"
-import { NeumorphicInput } from "./neumorphic-input"
-import { NeumorphicButton } from "./neumorphic-button"
-import { Eye, EyeOff } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { FloatingInput } from "@/components/ui/floating-input"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { checkEmailExists } from "@/app/register/actions"
+import { cn } from "@/lib/utils"
+import Link from "next/link"
 
-export function StepPersonalDetails() {
+interface StepPersonalDetailsProps {
+  legalTermsText: string
+  marketingText: string
+  requireLegalTermsRequired: boolean
+  requireMarketingRequired: boolean
+}
+
+export function StepPersonalDetails({ 
+  legalTermsText, 
+  marketingText,
+  requireLegalTermsRequired,
+  requireMarketingRequired,
+}: StepPersonalDetailsProps) {
   const { data, updateData, nextStep, error, setError } = useRegistration()
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const [emailExists, setEmailExists] = useState(false)
+  // Use props instead of loading from client-side
+  const legalTermsRequired = requireLegalTermsRequired
+  const marketingRequired = requireMarketingRequired
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -35,95 +56,278 @@ export function StepPersonalDetails() {
       newErrors.password = "סיסמה חייבת להכיל לפחות 8 תווים"
     }
 
+    // Dynamic validation for legal terms based on system setting
+    if (legalTermsRequired && !data.acceptedLegalTerms) {
+      newErrors.acceptedLegalTerms = "יש לאשר את התנאים המשפטיים כדי להמשיך"
+    }
+
+    // Dynamic validation for marketing based on system setting
+    if (marketingRequired && !data.acceptedMarketing) {
+      newErrors.acceptedMarketing = "יש לאשר את קבלת המידע השיווקי כדי להמשיך"
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (validate()) {
+    
+    // First validate all fields
+    if (!validate()) {
+      return
+    }
+
+    // Then check if email already exists
+    setIsCheckingEmail(true)
+    setError(null)
+    setEmailExists(false)
+
+    try {
+      const result = await checkEmailExists(data.email)
+
+      if ("error" in result) {
+        // Network or server error
+        setError(result.message)
+        setIsCheckingEmail(false)
+        return
+      }
+
+      if (result.exists) {
+        // Email is already registered
+        setEmailExists(true)
+        setErrors(prev => ({
+          ...prev,
+          email: result.message ?? "האימייל כבר רשום במערכת"
+        }))
+        setIsCheckingEmail(false)
+        return
+      }
+
+      // Email is available - proceed to next step
+      setIsCheckingEmail(false)
       nextStep()
+
+    } catch (err) {
+      console.error("Error checking email:", err)
+      setError("אירעה שגיאה לא צפויה. נסה שוב.")
+      setIsCheckingEmail(false)
     }
   }
 
   return (
-    <NeumorphicCard>
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-foreground">פרטים אישיים</h2>
-        <p className="mt-1 text-sm text-muted-foreground">נתחיל עם הפרטים שלך</p>
-      </div>
+    <Card className="p-8">
+      <CardContent className="p-0">
+        <div className="mb-8">
+          <h2 className="text-right mb-2">פרטים אישיים</h2>
+          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>נתחיל עם הפרטים שלך</p>
+        </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {/* Form-level error announcement region */}
+        {error && (
+          <div 
+            className="p-4 rounded-[5px]" 
+            role="alert" 
+            aria-live="assertive"
+            style={{ backgroundColor: 'rgba(155, 0, 3, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+          >
+            {error}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4">
-          <NeumorphicInput
-            id="firstName"
+          <FloatingInput
             label="שם פרטי"
-            placeholder="ישראל"
+            id="firstName"
+            required
             value={data.firstName}
             onChange={(e) => updateData({ firstName: e.target.value })}
             error={errors.firstName}
+            containerClassName="w-full min-w-0"
           />
-          <NeumorphicInput
-            id="lastName"
+
+          <FloatingInput
             label="שם משפחה"
-            placeholder="ישראלי"
+            id="lastName"
+            required
             value={data.lastName}
             onChange={(e) => updateData({ lastName: e.target.value })}
             error={errors.lastName}
+            containerClassName="w-full min-w-0"
           />
         </div>
 
-        <NeumorphicInput
-          id="email"
-          type="email"
-          label="אימייל"
-          placeholder="israel@example.com"
-          value={data.email}
-          onChange={(e) => updateData({ email: e.target.value })}
-          error={errors.email}
-          dir="ltr"
-          className="text-left"
-        />
-
-        <NeumorphicInput
-          id="phone"
-          type="tel"
-          label="טלפון נייד"
-          placeholder="050-1234567"
-          value={data.phone}
-          onChange={(e) => updateData({ phone: e.target.value })}
-          error={errors.phone}
-          dir="ltr"
-          className="text-left"
-        />
-
-        <div className="relative">
-          <NeumorphicInput
-            id="password"
-            type={showPassword ? "text" : "password"}
-            label="סיסמה"
-            placeholder="לפחות 8 תווים"
-            value={data.password}
-            onChange={(e) => updateData({ password: e.target.value })}
-            error={errors.password}
+        <div className="space-y-2">
+          <FloatingInput
+            label="כתובת אימייל"
+            id="email"
+            type="email"
+            required
+            value={data.email}
+            onChange={(e) => {
+              updateData({ email: e.target.value })
+              if (errors.email) {
+                setErrors(prev => ({ ...prev, email: "" }))
+                setEmailExists(false)
+              }
+            }}
             dir="ltr"
-            className="text-left pl-10"
+            className="text-left"
+            helperText="נשתמש בכתובת זו להתחברות למערכת"
+            error={errors.email}
+            containerClassName="w-full min-w-0"
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute left-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+          {errors.email && emailExists && (
+            <div className="mt-2">
+              <Link 
+                href="/login" 
+                className="inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+                style={{ color: 'var(--link)' }}
+              >
+                ← חזרה להתחברות
+              </Link>
+            </div>
+          )}
         </div>
 
-        {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</p>}
+        <div className="space-y-2">
+          <FloatingInput
+            label="טלפון נייד"
+            id="phone"
+            type="tel"
+            required
+            value={data.phone}
+            onChange={(e) => updateData({ phone: e.target.value })}
+            dir="ltr"
+            className="text-left"
+            helperText="פורמט: 050-1234567"
+            error={errors.phone}
+            containerClassName="w-full min-w-0"
+          />
+        </div>
 
-        <NeumorphicButton type="submit" className="mt-2">
-          המשך
-        </NeumorphicButton>
+        <div className="space-y-2">
+          <div className="relative">
+            <FloatingInput
+              label="סיסמה"
+              id="password"
+              type={showPassword ? "text" : "password"}
+              required
+              value={data.password}
+              onChange={(e) => updateData({ password: e.target.value })}
+              dir="ltr"
+              className="text-left pr-12"
+              helperText="מינימום 8 תווים"
+              error={errors.password}
+              containerClassName="w-full min-w-0"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+              aria-pressed={showPassword}
+              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+              style={{ color: 'var(--muted-fg)' }}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Legal Terms Checkbox - Always shown, validation depends on system setting */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="legal-terms"
+              checked={data.acceptedLegalTerms}
+              onCheckedChange={(checked) => {
+                updateData({ acceptedLegalTerms: checked === true })
+                if (errors.acceptedLegalTerms) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.acceptedLegalTerms
+                    return newErrors
+                  })
+                }
+              }}
+              className={cn(
+                "mt-1",
+                errors.acceptedLegalTerms && "border-danger"
+              )}
+            />
+            <label
+              htmlFor="legal-terms"
+              className={cn(
+                "text-sm cursor-pointer",
+                errors.acceptedLegalTerms && "text-danger"
+              )}
+              dangerouslySetInnerHTML={{ __html: legalTermsText + (legalTermsRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
+            />
+          </div>
+          {errors.acceptedLegalTerms && (
+            <p className="text-xs text-danger mt-1">{errors.acceptedLegalTerms}</p>
+          )}
+        </div>
+
+        {/* Marketing Checkbox - Validation depends on system setting */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="marketing"
+              checked={data.acceptedMarketing}
+              onCheckedChange={(checked) => {
+                updateData({ acceptedMarketing: checked === true })
+                if (errors.acceptedMarketing) {
+                  setErrors(prev => {
+                    const newErrors = { ...prev }
+                    delete newErrors.acceptedMarketing
+                    return newErrors
+                  })
+                }
+              }}
+              className={cn(
+                "mt-1",
+                errors.acceptedMarketing && "border-danger"
+              )}
+            />
+            <label 
+              htmlFor="marketing" 
+              className={cn(
+                "text-sm cursor-pointer",
+                errors.acceptedMarketing && "text-danger"
+              )}
+              dangerouslySetInnerHTML={{ __html: marketingText + (marketingRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
+            />
+          </div>
+          {errors.acceptedMarketing && (
+            <p className="text-xs text-danger mt-1">{errors.acceptedMarketing}</p>
+          )}
+        </div>
+
+        <Button 
+          type="submit" 
+          variant="primary"
+          className="w-full"
+          disabled={
+            isCheckingEmail || 
+            (legalTermsRequired && !data.acceptedLegalTerms) ||
+            (marketingRequired && !data.acceptedMarketing)
+          }
+          aria-busy={isCheckingEmail}
+          loading={isCheckingEmail}
+        >
+          {isCheckingEmail ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin ml-2" aria-hidden="true" />
+              בודק זמינות אימייל...
+            </>
+          ) : (
+            "המשך לשלב הבא"
+          )}
+        </Button>
       </form>
-    </NeumorphicCard>
+      </CardContent>
+    </Card>
   )
 }

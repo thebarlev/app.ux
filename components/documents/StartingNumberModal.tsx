@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
+import { AlertCircle, Hash, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { HelperText } from "@/components/ui/helper-text";
+import { FieldWrapper } from "@/components/ui/field-wrapper";
+import { FormSection } from "@/components/ui/form-section";
 
 type Props = {
   documentType: string;
@@ -17,8 +24,32 @@ export default function StartingNumberModal({
   const [startingNumber, setStartingNumber] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   const quickOptions = [1, 100, 1000];
+
+  // Focus trap and escape key handler
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) {
+        onClose();
+      }
+    };
+
+    // Focus the modal when it opens
+    closeButtonRef.current?.focus();
+
+    document.addEventListener('keydown', handleEscape);
+    
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [loading, onClose]);
 
   async function onConfirm() {
     if (startingNumber < 1) {
@@ -56,227 +87,153 @@ export default function StartingNumberModal({
     }
   }
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !loading) {
-      onClose();
-    }
-  };
-
   return (
-    <div
-      onClick={handleBackdropClick}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 9999,
-        padding: 16,
-      }}
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => e.target === e.currentTarget && !loading && onClose()}
+      role="presentation"
+      dir="rtl"
     >
-      <div
-        dir="rtl"
-        style={{
-          background: "white",
-          borderRadius: 16,
-          maxWidth: 500,
-          width: "100%",
-          boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
-        }}
+      <div 
+        className="w-full max-w-[600px] bg-modal rounded-[5px] shadow-xl text-modal-fg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+        aria-describedby="modal-description"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          style={{
-            padding: "24px",
-            borderBottom: "1px solid #e5e7eb",
-          }}
-        >
-          <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0 }}>
-            🔢 בחירת מספר מסמך ראשון
-          </h2>
-          <p style={{ fontSize: 14, opacity: 0.7, margin: "8px 0 0 0", lineHeight: 1.5 }}>
-            זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
-          </p>
-        </div>
-
-        {/* Info Banner */}
-        <div
-          style={{
-            padding: 14,
-            background: "#fef3c7",
-            borderBottom: "1px solid #fde68a",
-            fontSize: 13,
-            color: "#92400e",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 16 }}>⚠️</span>
-          <span>
-            <strong>חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
-          </span>
+        <div className="flex items-start justify-between gap-4 p-[30px] pb-0">
+          <div className="flex items-start gap-4 flex-1">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-primary/10 flex-shrink-0">
+              <Hash className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 id="modal-title" className="mb-2">
+                בחירת מספר מסמך ראשון
+              </h2>
+              <p id="modal-description" className="leading-relaxed">
+                זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
+              </p>
+            </div>
+          </div>
+          <Button
+            ref={closeButtonRef}
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="סגור חלון"
+            className="flex-shrink-0"
+          >
+            <X className="h-5 w-5" />
+          </Button>
         </div>
 
         {/* Content */}
-        <div style={{ padding: 24 }}>
+        <div className="p-[30px] space-y-[50px]">
+          {/* Warning Alert */}
+          <div className="flex items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-[5px]" role="alert">
+            <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="text-sm text-fg">
+              <strong className="font-semibold">חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
+            </div>
+          </div>
+
+          {/* Error announcement */}
+          {error && (
+            <div className="p-4 bg-danger/10 border border-danger/20 rounded-[5px]" role="alert" aria-live="assertive">
+              <HelperText error className="mb-0">
+                {error}
+              </HelperText>
+            </div>
+          )}
+
           {/* Quick Options */}
-          <div style={{ marginBottom: 20 }}>
-            <label
-              style={{
-                display: "block",
-                fontWeight: 700,
-                marginBottom: 10,
-                fontSize: 14,
-              }}
-            >
-              בחירה מהירה:
-            </label>
-            <div style={{ display: "flex", gap: 8 }}>
+          <div className="space-y-[25px]">
+            <Label>בחירה מהירה</Label>
+            <div className="ui-form-grid" role="group" aria-label="אפשרויות מספר התחלתי">
               {quickOptions.map((num) => (
-                <button
+                <Button
                   key={num}
                   type="button"
-                  onClick={() => setStartingNumber(num)}
-                  disabled={loading}
-                  style={{
-                    flex: 1,
-                    padding: "12px 16px",
-                    borderRadius: 10,
-                    border: startingNumber === num ? "2px solid #3b82f6" : "2px solid #e5e7eb",
-                    background: startingNumber === num ? "#eff6ff" : "white",
-                    color: startingNumber === num ? "#1e40af" : "#374151",
-                    fontWeight: startingNumber === num ? 700 : 600,
-                    fontSize: 16,
-                    cursor: loading ? "not-allowed" : "pointer",
-                    transition: "all 0.2s",
+                  variant={startingNumber === num ? "primary" : "secondary"}
+                  onClick={() => {
+                    setStartingNumber(num);
+                    setError(null);
                   }}
+                  disabled={loading}
+                  aria-pressed={startingNumber === num}
+                  aria-label={`בחר מספר ${num}`}
                 >
                   {num}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
 
           {/* Custom Input */}
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontWeight: 700,
-                marginBottom: 8,
-                fontSize: 14,
-              }}
-            >
-              או הזן מספר מותאם אישית:
-            </label>
-            <input
+          <FieldWrapper 
+            label="או הזן מספר מותאם אישית"
+            required
+            error={error}
+            id="customNumber"
+          >
+            <Input
+              id="customNumber"
               type="number"
               min={1}
+              required
               value={startingNumber}
               onChange={(e) => {
                 const val = parseInt(e.target.value, 10);
                 if (!isNaN(val) && val >= 1) {
                   setStartingNumber(val);
+                  setError(null);
                 }
               }}
               disabled={loading}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 8,
-                border: `2px solid ${error ? "#ef4444" : "#d1d5db"}`,
-                fontSize: 16,
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                if (!error) e.target.style.borderColor = "#3b82f6";
-              }}
-              onBlur={(e) => {
-                if (!error) e.target.style.borderColor = "#d1d5db";
-              }}
+              aria-required="true"
+              aria-invalid={!!error}
             />
-            {error && (
-              <div style={{ color: "#ef4444", fontSize: 13, marginTop: 6 }}>
-                ⚠️ {error}
-              </div>
-            )}
-          </div>
+          </FieldWrapper>
 
           {/* Preview */}
-          <div
-            style={{
-              marginTop: 20,
-              padding: 16,
-              background: "#f9fafb",
-              borderRadius: 10,
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600, color: "#6b7280", marginBottom: 8 }}>
+          <div className="p-4 bg-muted/30 border border-border rounded-[5px]" aria-live="polite">
+            <div className="text-sm font-semibold text-muted-fg mb-2">
               תצוגה מקדימה של המיספור:
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#111827" }}>
-              {String(startingNumber).padStart(6, "0")}, {String(startingNumber + 1).padStart(6, "0")}, {String(startingNumber + 2).padStart(6, "0")}...
+            <div className="text-lg font-bold text-fg">
+              {startingNumber}, {startingNumber + 1}, {startingNumber + 2}...
             </div>
           </div>
         </div>
 
         {/* Footer Actions */}
-        <div
-          style={{
-            padding: "16px 24px",
-            borderTop: "1px solid #e5e7eb",
-            display: "flex",
-            gap: 12,
-            background: "#f9fafb",
-          }}
-        >
-          {/* Confirm Button */}
-          <button
-            onClick={onConfirm}
-            disabled={loading || startingNumber < 1}
-            style={{
-              flex: 1,
-              padding: "14px 20px",
-              background: loading || startingNumber < 1 ? "#9ca3af" : "#111827",
-              color: "white",
-              border: "none",
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 16,
-              cursor: loading || startingNumber < 1 ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            {loading ? "⏳ שומר..." : "✅ אישור והתחלת מיספור"}
-          </button>
-
-          {/* Cancel Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            style={{
-              padding: "14px 20px",
-              background: "white",
-              color: "#6b7280",
-              border: "2px solid #e5e7eb",
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 16,
-              cursor: loading ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
-            }}
-          >
-            ביטול
-          </button>
+        <div className="p-[30px] pt-0">
+          <div className="flex gap-3 justify-start">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={loading}
+              aria-label="ביטול ללא שמירה"
+            >
+              ביטול
+            </Button>
+            <Button
+              ref={confirmButtonRef}
+              type="button"
+              onClick={onConfirm}
+              disabled={loading || startingNumber < 1}
+              loading={loading}
+              aria-busy={loading}
+              aria-label={loading ? "שומר מספר התחלתי" : "אישור והתחלת מיספור"}
+            >
+              {loading ? "שומר..." : "אישור והתחלת מיספור"}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

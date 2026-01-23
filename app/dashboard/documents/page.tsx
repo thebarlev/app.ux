@@ -1,61 +1,41 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getAllDocumentsListAction, type DocumentsListFilters } from "./actions";
+import DocumentsListClient from "./DocumentsListClient";
 
-const DOCUMENT_PRODUCTS = [
-  {
-    slug: "receipt",
-    title: "קבלות",
-    description: "הפקה וניהול קבלות",
-  },
-  {
-    slug: "tax-invoice",
-    title: "חשבוניות מס",
-    description: "הפקה וניהול חשבוניות מס",
-  },
-  {
-    slug: "tax-invoice-receipt",
-    title: "חשבונית מס קבלה",
-    description: "מסמך משולב",
-  },
-];
+type PageProps = {
+  searchParams: Promise<{
+    search?: string;
+    documentType?: string;
+    page?: string;
+  }>;
+};
 
-export default function DocumentsPortalPage() {
+export default async function DocumentsPage({ searchParams }: PageProps) {
+  const supabase = await createClient();
+  
+  // Authenticate user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const params = await searchParams;
+  
+  // Parse filters from URL params
+  const filters: DocumentsListFilters = {
+    search: params.search,
+    documentType: params.documentType || "all",
+    page: params.page ? parseInt(params.page) : 1,
+    pageSize: 50,
+  };
+
+  // Fetch documents
+  const result = await getAllDocumentsListAction(filters);
+
   return (
-    <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800 }}>מסמכים</h1>
-      <p style={{ marginTop: 8 }}>
-        כל סוג מסמך הוא מוצר נפרד בחשבון שלך
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-          gap: 16,
-          marginTop: 24,
-        }}
-      >
-        {DOCUMENT_PRODUCTS.map((doc) => (
-          <Link
-            key={doc.slug}
-            href={`/dashboard/documents/${doc.slug}`}
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: 16,
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {doc.title}
-            </div>
-            <div style={{ marginTop: 8, opacity: 0.8 }}>
-              {doc.description}
-            </div>
-          </Link>
-        ))}
-      </div>
+    <main dir="rtl" className="min-h-screen" >
+      <DocumentsListClient initialData={result} initialFilters={filters} />
     </main>
   );
 }
-
