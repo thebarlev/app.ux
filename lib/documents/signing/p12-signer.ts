@@ -3,7 +3,6 @@ import "server-only"
 import crypto from "crypto"
 import forge from "node-forge"
 import SignPdf from "node-signpdf"
-// @ts-ignore - node-signpdf helper has no stable types
 import { plainAddPlaceholder } from "node-signpdf/dist/helpers"
 
 export type P12SigningResult = {
@@ -19,7 +18,7 @@ function getEnvOrThrow(key: string) {
 }
 
 function sha256Hex(buf: Buffer) {
-  return crypto.createHash("sha256").update(buf).digest("hex")
+  return crypto.createHash("sha256").update(new Uint8Array(buf)).digest("hex")
 }
 
 function fingerprintCertSha256FromP12(p12Buffer: Buffer, password: string) {
@@ -32,7 +31,8 @@ function fingerprintCertSha256FromP12(p12Buffer: Buffer, password: string) {
 
   // DER encode certificate and hash
   const derCert = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).getBytes()
-  return crypto.createHash("sha256").update(Buffer.from(derCert, "binary")).digest("hex")
+  const derBuffer = Buffer.from(derCert, "binary")
+  return crypto.createHash("sha256").update(new Uint8Array(derBuffer)).digest("hex")
 }
 
 /**

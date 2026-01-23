@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
 import { getReceiptPreviewUrlAction } from "./receipt/actions";
+import { getTaxInvoicePreviewUrlAction } from "./tax-invoice/actions";
 import { Eye, Copy, Download, X } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
@@ -53,6 +54,8 @@ function getDocumentTypeLabel(type: string): string {
   switch (type) {
     case "receipt":
       return "קבלה";
+    case "tax_invoice":
+      return "חשבונית מס";
     case "invoice":
       return "חשבונית";
     case "quote":
@@ -116,10 +119,13 @@ function truncateDescription(description: string | null): string {
 
 export default function DocumentsListClient({ initialData, initialFilters }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openDocumentId = searchParams.get("open");
+  const lastOpenedRef = useRef<string | null>(null);
 
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
-  const ALL_DOC_TYPES_FOR_TEST = ["receipt", "invoice", "quote", "delivery_note"] as const;
+  const ALL_DOC_TYPES_FOR_TEST = ["receipt", "tax_invoice", "invoice", "quote", "delivery_note"] as const;
 
   const [search, setSearch] = useState(initialFilters.search || "");
   const [documentType, setDocumentType] = useState(initialFilters.documentType || "all");
@@ -261,6 +267,16 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     // Keys already in descending order because we iterate sorted docs; preserve insertion order.
     return Array.from(map.values());
   }, [documents]);
+
+  useEffect(() => {
+    if (!openDocumentId || lastOpenedRef.current === openDocumentId) return;
+    const doc = documents.find((d) => d.id === openDocumentId);
+    if (!doc) return;
+    setSelectedDocumentId(doc.id);
+    setSelectedDocSnapshot(doc);
+    setIsQuickViewOpen(true);
+    lastOpenedRef.current = openDocumentId;
+  }, [documents, openDocumentId]);
 
   function formatIsoDate(d: Date): string {
     const yyyy = d.getFullYear();
@@ -1141,6 +1157,10 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                               router.push(`/dashboard/documents/receipt/${doc.id}/summary`);
                               return;
                             }
+                            if (doc.document_type === "tax_invoice") {
+                              router.push(`/dashboard/documents/tax-invoice/${doc.id}/summary`);
+                              return;
+                            }
                             setSelectedDocumentId(doc.id);
                             setSelectedDocSnapshot(doc);
                             setIsQuickViewOpen(true);
@@ -1365,21 +1385,38 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
           }
         } : undefined}
         onOpenSummary={
-          selectedDocSnapshot?.document_type === "receipt" && selectedDocumentId
+          selectedDocSnapshot?.document_type && selectedDocumentId
             ? async () => {
                 setIsQuickViewOpen(false);
-                router.push(`/dashboard/documents/receipt/${selectedDocumentId}/summary`);
+                if (selectedDocSnapshot.document_type === "receipt") {
+                  router.push(`/dashboard/documents/receipt/${selectedDocumentId}/summary`);
+                  return;
+                }
+                if (selectedDocSnapshot.document_type === "tax_invoice") {
+                  router.push(`/dashboard/documents/tax-invoice/${selectedDocumentId}/summary`);
+                }
               }
             : undefined
         }
         onViewDocument={
-          selectedDocSnapshot?.document_type === "receipt" && selectedDocumentId
+          selectedDocSnapshot?.document_type && selectedDocumentId
             ? async () => {
-                const result = await getReceiptPreviewUrlAction(selectedDocumentId);
-                if (result.ok && result.url) {
-                  window.open(result.url, "_blank");
-                } else {
-                  alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
+                if (selectedDocSnapshot.document_type === "receipt") {
+                  const result = await getReceiptPreviewUrlAction(selectedDocumentId);
+                  if (result.ok && result.url) {
+                    window.open(result.url, "_blank");
+                  } else {
+                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
+                  }
+                  return;
+                }
+                if (selectedDocSnapshot.document_type === "tax_invoice") {
+                  const result = await getTaxInvoicePreviewUrlAction(selectedDocumentId);
+                  if (result.ok && result.url) {
+                    window.open(result.url, "_blank");
+                  } else {
+                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
+                  }
                 }
               }
             : undefined

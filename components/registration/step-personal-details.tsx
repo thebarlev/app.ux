@@ -98,7 +98,7 @@ export function StepPersonalDetails({
         setEmailExists(true)
         setErrors(prev => ({
           ...prev,
-          email: result.message
+          email: result.message ?? "האימייל כבר רשום במערכת"
         }))
         setIsCheckingEmail(false)
         return

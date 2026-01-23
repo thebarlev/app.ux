@@ -19,7 +19,7 @@ async function fetchSystemTexts(options?: { lang?: "he" | "en"; page?: string })
   const nextKey = `${lang}:${page || "*"}`
 
   if (textCache && cacheKey === nextKey && Date.now() - cacheTimestamp < CACHE_TTL) {
-    return textCache;
+    return textCache ?? {};
   }
 
   try {
@@ -41,7 +41,7 @@ async function fetchSystemTexts(options?: { lang?: "he" | "en"; page?: string })
     cacheKey = nextKey
     cacheTimestamp = Date.now();
     
-    return textCache;
+    return textCache ?? {};
   } catch (error) {
     console.error("[SystemText] Fetch error:", error);
     return {};

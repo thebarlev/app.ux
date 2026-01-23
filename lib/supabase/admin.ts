@@ -31,6 +31,10 @@ export function createAdminClient() {
     throw new Error(errorMessage)
   }
 
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing Supabase admin credentials after validation")
+  }
+
   return createSupabaseClient(supabaseUrl, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,

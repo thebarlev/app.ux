@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import type { TemplateDefinition } from "@/lib/types/template"
 import { revalidatePath } from "next/cache"
+import type { DocumentType } from "@/config/documentVariables"
 
 // ==================== FETCH TEMPLATES ====================
 
@@ -89,7 +90,19 @@ export async function getTemplateByIdAction(templateId: string) {
       return { ok: false as const, message: error.message }
     }
 
-    return { ok: true as const, template: data as TemplateDefinition }
+    const { data: typeRows } = await supabase
+      .from("template_document_types")
+      .select("document_type")
+      .eq("template_id", templateId)
+
+    const documentTypes =
+      (typeRows || []).map((row: any) => row.document_type).filter(Boolean)
+
+    return {
+      ok: true as const,
+      template: data as TemplateDefinition,
+      documentTypes,
+    }
   } catch (error) {
     return {
       ok: false as const,
@@ -103,7 +116,8 @@ export async function getTemplateByIdAction(templateId: string) {
 export type CreateTemplatePayload = {
   name: string
   description?: string
-  documentType: "receipt" | "invoice" | "quote" | "delivery_note"
+  documentType: DocumentType
+  documentTypes?: DocumentType[]
   htmlHe: string
   cssHe?: string
   htmlEn?: string
@@ -210,6 +224,27 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
     
     console.log("✅ Template created successfully:", data.id)
 
+    // Save multi-document type associations (junction table)
+    const requestedTypes =
+      payload.documentTypes && payload.documentTypes.length > 0
+        ? payload.documentTypes
+        : [payload.documentType]
+    const uniqueTypes = Array.from(new Set(requestedTypes))
+    const { error: mappingError } = await supabase
+      .from("template_document_types")
+      .upsert(
+        uniqueTypes.map((documentType) => ({
+          template_id: data.id,
+          document_type: documentType,
+        })),
+        { onConflict: "template_id,document_type" }
+      )
+
+    if (mappingError) {
+      console.error("❌ Failed to save template document types:", mappingError)
+      return { ok: false as const, message: mappingError.message }
+    }
+
     console.log("🔄 Revalidating path...")
     revalidatePath("/admin/templates")
     console.log("🎉 Action completed successfully")
@@ -298,6 +333,34 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
 
     if (error) {
       return { ok: false as const, message: error.message }
+    }
+
+    const requestedTypes =
+      payload.documentTypes && payload.documentTypes.length > 0
+        ? payload.documentTypes
+        : [payload.documentType]
+    const uniqueTypes = Array.from(new Set(requestedTypes))
+
+    const { error: deleteError } = await supabase
+      .from("template_document_types")
+      .delete()
+      .eq("template_id", payload.id)
+
+    if (deleteError) {
+      return { ok: false as const, message: deleteError.message }
+    }
+
+    const { error: insertError } = await supabase
+      .from("template_document_types")
+      .insert(
+        uniqueTypes.map((documentType) => ({
+          template_id: payload.id,
+          document_type: documentType,
+        }))
+      )
+
+    if (insertError) {
+      return { ok: false as const, message: insertError.message }
     }
 
     revalidatePath("/admin/templates")

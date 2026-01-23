@@ -30,13 +30,11 @@ export async function GET(req: Request) {
     }
 
     const arrayBuffer = await data.arrayBuffer();
-    const body = Buffer.from(arrayBuffer);
-
-    return new NextResponse(body, {
+    return new NextResponse(arrayBuffer, {
       headers: {
         "Content-Type": "application/zip",
         "Content-Disposition": `attachment; filename="Income.zip"`,
-        "Content-Length": String(body.byteLength),
+        "Content-Length": String(arrayBuffer.byteLength),
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });

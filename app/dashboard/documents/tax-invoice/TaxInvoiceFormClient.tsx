@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
-import type { InitialReceiptCreateData } from "./actions";
-import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import type { InitialTaxInvoiceCreateData, TaxInvoiceDraftPayload } from "./actions";
 import {
-  issueReceiptAction,
-  saveReceiptDraftAction,
-  updateReceiptDraftAction,
+  issueTaxInvoiceAction,
+  saveTaxInvoiceDraftAction,
+  updateTaxInvoiceDraftAction,
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
@@ -17,46 +16,31 @@ import StartingNumberModal from "@/components/documents/StartingNumberModal";
 import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
 import ReceiptConfirmationModal from "@/components/documents/ReceiptConfirmationModal";
 import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
-import PaymentDetailsSection from "./PaymentDetailsSection";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
-import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FloatingTextarea } from "@/components/ui/floating-textarea";
 import { FloatingDateInput } from "@/components/ui/floating-date-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CurrencyAmountGroup } from "@/components/ui/currency-amount-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import { cn } from "@/lib/utils";
 import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
-import { Trash2, Save, CheckCircle, Eye } from "lucide-react";
+import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
-const PAYMENT_METHODS = [
-  "העברה בנקאית",
-  "Bit",
-  "PayBox",
-  "כרטיס אשראי",
-  "מזומן",
-  "צ׳ק",
-  "PayPal",
-  "Payoneer",
-  "Google Pay",
-  "Apple Pay",
-  "ביטקוין",
-  "אתריום",
-  "שובר BuyME",
-  "שובר מתנה",
-  "שווה כסף",
-  "V-CHECK",
-  "Colu",
-  "Pay",
-  "ניכוי במקור",
-  "ניכוי חלק עובד טל״א",
-  "ניכוי אחר",
-] as const;
+type ItemRow = {
+  label: string;
+  sku: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  currency: string;
+  vatMode: "before" | "included";
+};
+
 
 function todayYmd() {
   const d = new Date();
@@ -71,13 +55,13 @@ function formatMoney(amount: number, currency: string) {
   return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
 }
 
-export default function ReceiptFormClient({
+export default function TaxInvoiceFormClient({
   initial,
   footerText,
   editData,
   draftId,
 }: {
-  initial: InitialReceiptCreateData;
+  initial: InitialTaxInvoiceCreateData;
   footerText?: string;
   editData?: {
     id: string;
@@ -86,6 +70,10 @@ export default function ReceiptFormClient({
     total: number;
     currency: string;
     notes: string;
+    vatType?: "regular" | "no_vat";
+    vatRate?: number | null;
+    vatAmount?: number | null;
+    subtotal?: number | null;
   } | null;
   draftId?: string;
 }) {
@@ -103,15 +91,24 @@ export default function ReceiptFormClient({
     initial.ok ? initial.settings.allowedCurrencies : ["₪", "$", "€"]
   );
   const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "₪");
+  const [vatType, setVatType] = useState<"regular" | "no_vat">("regular");
+  const defaultVatRate = useMemo(() => {
+    const base = initial.ok ? initial.vatRate ?? 18 : 18;
+    return Number.isFinite(base) ? base : 18;
+  }, [initial]);
+  const vatRate = vatType === "no_vat" ? 0 : defaultVatRate;
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
+  const [dueDate, setDueDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
-  const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
+  const [itemErrors, setItemErrors] = useState<{
+    [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
+  }>({});
 
   const [notes, setNotes] = useState("");
   const [emailNotes, setEmailNotes] = useState("");
@@ -120,7 +117,10 @@ export default function ReceiptFormClient({
   const customerNameRef = useRef<HTMLDivElement>(null);
   const paymentsTableRef = useRef<HTMLDivElement>(null);
 
-  const [payments, setPayments] = useState<PaymentRow[]>([{ method: "", date: todayYmd(), amount: 0, currency }]);
+  const [items, setItems] = useState<ItemRow[]>([
+    { label: "", sku: "", description: "", quantity: 1, unitPrice: 0, currency, vatMode: "before" },
+  ]);
+  const [confirmedRows, setConfirmedRows] = useState<Set<number>>(new Set());
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -147,6 +147,15 @@ export default function ReceiptFormClient({
 
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const summaryBlockRef = useRef<HTMLDivElement | null>(null);
+  const summaryRowRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const summaryValueRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const addItemButtonRef = useRef<HTMLDivElement | null>(null);
+  const headerTotalRef = useRef<HTMLDivElement | null>(null);
+  const itemTotalRef = useRef<HTMLDivElement | null>(null);
+  const summaryOuterRef = useRef<HTMLDivElement | null>(null);
+  const summaryLabelRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const summaryValueContainerRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
     if (initial.ok && !initial.sequenceLocked && !draftId) {
@@ -160,36 +169,108 @@ export default function ReceiptFormClient({
       setDocumentDate(editData.documentDate);
       setCurrency(editData.currency);
       setNotes(editData.notes);
+      if (editData.vatType) setVatType(editData.vatType);
     }
   }, [editData]);
 
+  useEffect(() => {
+    if (dueDate < documentDate) {
+      setDueDate(documentDate);
+    }
+  }, [documentDate, dueDate]);
+
   const previewNumber = initial.ok ? initial.previewNumber : null;
 
+  const getLineGross = useCallback((item: ItemRow) => {
+    const qty = Number.isFinite(item.quantity) ? item.quantity : 0;
+    const unit = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
+    return Number((qty * unit).toFixed(2));
+  }, []);
+
+  const getLineNet = useCallback(
+    (item: ItemRow) => {
+      const gross = getLineGross(item);
+      if (vatRate <= 0) return gross;
+      if (item.vatMode === "included") {
+        const net = gross / (1 + vatRate / 100);
+        return Number(net.toFixed(2));
+      }
+      return gross;
+    },
+    [getLineGross, vatRate]
+  );
+
+  const getLineVat = useCallback(
+    (item: ItemRow) => {
+      if (vatRate <= 0) return 0;
+      const net = getLineNet(item);
+      if (item.vatMode === "included") {
+        const gross = getLineGross(item);
+        return Number((gross - net).toFixed(2));
+      }
+      return Number((net * (vatRate / 100)).toFixed(2));
+    },
+    [getLineGross, getLineNet, vatRate]
+  );
+
+  const subtotal = useMemo(() => {
+    return items.reduce((acc, item) => acc + getLineNet(item), 0);
+  }, [items, getLineNet]);
+  const vatAmount = useMemo(() => {
+    if (vatRate <= 0) return 0;
+    return Number(items.reduce((acc, item) => acc + getLineVat(item), 0).toFixed(2));
+  }, [items, vatRate, getLineVat]);
   const total = useMemo(() => {
-    const sum = payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+    if (vatRate <= 0) return subtotal;
+    const sum = subtotal + vatAmount;
     if (!roundTotals) return sum;
     return Math.round(sum);
-  }, [payments, roundTotals]);
+  }, [subtotal, vatAmount, vatRate, roundTotals]);
+  const hasConfirmedItems = confirmedRows.size > 0;
 
-  const payload: ReceiptDraftPayload = useMemo(() => {
+  const payload: TaxInvoiceDraftPayload = useMemo(() => {
     return {
-      documentType: "receipt",
+      documentType: "tax_invoice",
       customerName,
       customerId,
       documentDate,
       description,
-      payments,
+      payments: [],
+      items: items.map((item) => ({
+        ...item,
+        lineTotal: getLineNet(item),
+      })),
       notes,
       currency,
       total,
+      vatType,
+      vatRate,
+      vatAmount,
+      subtotal,
       roundTotals,
       language,
     };
-  }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language]);
+  }, [
+    customerName,
+    customerId,
+    documentDate,
+    description,
+    items,
+    notes,
+    currency,
+    total,
+    getLineNet,
+    vatType,
+    vatRate,
+    vatAmount,
+    subtotal,
+    roundTotals,
+    language,
+  ]);
 
   useEffect(() => {
     if (currency !== "₪") {
-      setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+      setItems((prev) => prev.map((item) => ({ ...item, currency })));
     }
   }, [currency]);
 
@@ -204,16 +285,66 @@ export default function ReceiptFormClient({
     );
   }
 
-  function addPaymentRow() {
-    setPayments((prev) => [...prev, { method: "", date: todayYmd(), amount: 0, currency }]);
+  function addItemRow() {
+    setItems((prev) => [
+      ...prev,
+      { label: "", sku: "", description: "", quantity: 1, unitPrice: 0, currency, vatMode: "before" },
+    ]);
   }
 
-  function updatePaymentRow(i: number, patch: Partial<PaymentRow>) {
-    setPayments((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  function updateItemRow(i: number, patch: Partial<ItemRow>) {
+    setItems((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setConfirmedRows((prev) => {
+      if (!prev.has(i)) return prev;
+      const next = new Set(prev);
+      next.delete(i);
+      return next;
+    });
   }
 
-  function removePaymentRow(i: number) {
-    setPayments((prev) => prev.filter((_, idx) => idx !== i));
+  function removeItemRow(i: number) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+    setConfirmedRows((prev) => {
+      if (!prev.has(i)) return prev;
+      const next = new Set(prev);
+      next.delete(i);
+      return next;
+    });
+  }
+
+  function validateItemRow(item: ItemRow) {
+    const errors: { description?: string; quantity?: string; unitPrice?: string; currency?: string } = {};
+    if (!item.description || item.description.trim().length === 0) {
+      errors.description = "חובה למלא פירוט";
+    }
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+      errors.quantity = "כמות חייבת להיות גדולה מ-0";
+    }
+    if (!Number.isFinite(item.unitPrice) || item.unitPrice <= 0) {
+      errors.unitPrice = "מחיר חייב להיות גדול מ-0";
+    }
+    if (!item.currency) {
+      errors.currency = "חובה לבחור מטבע";
+    }
+    return errors;
+  }
+
+  function confirmItemRow(i: number) {
+    const errors = validateItemRow(items[i]);
+    if (Object.keys(errors).length > 0) {
+      setItemErrors((prev) => ({ ...prev, [i]: errors }));
+      return;
+    }
+    setItemErrors((prev) => {
+      const next = { ...prev };
+      if (next[i]) delete next[i];
+      return next;
+    });
+    setConfirmedRows((prev) => new Set(prev).add(i));
+  }
+
+  function getLineTotal(item: ItemRow) {
+    return getLineNet(item);
   }
 
   function focusFieldWithError(fieldRef: React.RefObject<HTMLElement | null>) {
@@ -236,8 +367,21 @@ export default function ReceiptFormClient({
       return;
     }
 
-    if (!payments || payments.length === 0) {
-      toast.error("חובה להוסיף לפחות תקבול אחד");
+    if (!items || items.length === 0) {
+      toast.error("חובה להוסיף לפחות פריט אחד");
+      return;
+    }
+
+    const previewErrors: {
+      [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
+    } = {};
+    items.forEach((item, i) => {
+      const rowErrors = validateItemRow(item);
+      if (Object.keys(rowErrors).length > 0) previewErrors[i] = rowErrors;
+    });
+    if (Object.keys(previewErrors).length > 0) {
+      setItemErrors(previewErrors);
+      focusFieldWithError(paymentsTableRef);
       return;
     }
 
@@ -247,35 +391,16 @@ export default function ReceiptFormClient({
     setPreviewPdfUrl(null);
 
     try {
-      const paymentsForPreview = payments.map((p) => {
-        const payment: any = {
-          method: p.method || "תשלום",
-          date: p.date || documentDate,
-          amount: p.amount || 0,
-          currency: p.currency || currency,
-        };
-
-        if (p.bankName) payment.bankName = p.bankName;
-        if (p.bankBranch || p.branch) payment.branch = p.bankBranch || p.branch;
-        if (p.bankAccount || p.accountNumber) payment.accountNumber = p.bankAccount || p.accountNumber;
-
-        if (p.cardLastDigits) payment.cardLastDigits = p.cardLastDigits;
-        if (p.cardType) payment.cardType = p.cardType;
-        if (p.cardDealType) payment.cardDealType = p.cardDealType;
-        if (p.cardInstallments) payment.cardInstallments = p.cardInstallments;
-
-        if (p.checkBank) payment.checkBank = p.checkBank;
-        if (p.checkBranch) payment.checkBranch = p.checkBranch;
-        if (p.checkAccount) payment.checkAccount = p.checkAccount;
-        if (p.checkNumber) payment.checkNumber = p.checkNumber;
-
-        if (p.payerAccount) payment.payerAccount = p.payerAccount;
-        if (p.transactionReference) payment.transactionReference = p.transactionReference;
-
-        if (p.description) payment.description = p.description;
-
-        return payment;
-      });
+      const itemsForPreview = items.map((item) => ({
+        label: item.label || "",
+        sku: item.sku || "",
+        description: item.description || "",
+        quantity: item.quantity || 0,
+        unitPrice: item.unitPrice || 0,
+        currency: item.currency || currency,
+        vatMode: item.vatMode,
+        lineTotal: getLineNet(item),
+      }));
 
       const params = new URLSearchParams({
         previewNumber: previewNumber || "",
@@ -286,14 +411,18 @@ export default function ReceiptFormClient({
         notes: notes || "",
         footerNotes: footerText || "",
         total: total.toString() || "0",
+        subtotal: subtotal.toString(),
+        vatRate: vatRate.toString(),
+        vatAmount: vatAmount.toString(),
+        vatType: vatType,
         currency: currency || "₪",
-        payments: JSON.stringify(paymentsForPreview),
+        items: JSON.stringify(itemsForPreview),
       });
 
       const docIdForPreview = draftId || (editData as any)?.id || null;
       if (docIdForPreview) params.set("documentId", String(docIdForPreview));
 
-      setPreviewPdfUrl(`/dashboard/documents/receipt/preview?${params.toString()}`);
+      setPreviewPdfUrl(`/dashboard/documents/tax-invoice/preview?${params.toString()}`);
       setBusy(null);
     } catch (error: any) {
       setBusy(null);
@@ -307,13 +436,13 @@ export default function ReceiptFormClient({
     setMessage(null);
     setDescriptionError(null);
     setCustomerNameError(null);
-    setPaymentErrors({});
+    setItemErrors({});
 
     setBusy("draft");
     try {
       let result;
-      if (draftId && editData) result = await updateReceiptDraftAction(draftId, payload);
-      else result = await saveReceiptDraftAction(payload);
+      if (draftId && editData) result = await updateTaxInvoiceDraftAction(draftId, payload);
+      else result = await saveTaxInvoiceDraftAction(payload);
 
       if (!result.ok) {
         toast.error(result.message || "שמירת טיוטה נכשלה");
@@ -392,7 +521,7 @@ export default function ReceiptFormClient({
     setMessage(null);
     setDescriptionError(null);
     setCustomerNameError(null);
-    setPaymentErrors({});
+    setItemErrors({});
 
     if (!sequenceLocked) {
       toast.error("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
@@ -431,16 +560,15 @@ export default function ReceiptFormClient({
       return;
     }
 
-    const errors: { [key: number]: { method?: string; amount?: string } } = {};
-    payments.forEach((payment, i) => {
-      const rowErrors: { method?: string; amount?: string } = {};
-      if (!payment.method) rowErrors.method = "יש לבחור אמצעי תשלום";
-      else if (!payment.amount || payment.amount <= 0) rowErrors.amount = "סכום חייב להיות גדול מ-0";
+    const errors: { [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string } } =
+      {};
+    items.forEach((item, i) => {
+      const rowErrors = validateItemRow(item);
       if (Object.keys(rowErrors).length > 0) errors[i] = rowErrors;
     });
 
     if (Object.keys(errors).length > 0) {
-      setPaymentErrors(errors);
+      setItemErrors(errors);
       focusFieldWithError(paymentsTableRef);
       setIsFinalizing(false);
       setConfirmationModalOpen(false);
@@ -480,7 +608,7 @@ export default function ReceiptFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueReceiptAction(payload);
+      const result = await issueTaxInvoiceAction(payload);
 
       if (!result || !result.ok) {
         toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
@@ -493,7 +621,7 @@ export default function ReceiptFormClient({
       setBusy(null);
 
       setSuccessModalData({
-        documentId: result.receiptId,
+        documentId: result.documentId,
         documentNumber: result.documentNumber || "",
         companyName: result.companyName || "העסק שלי",
         language,
@@ -555,16 +683,21 @@ export default function ReceiptFormClient({
             settings={{
               currency,
               language,
-              vatType: "",
+              vatType,
               roundTotals,
               allowedCurrencies,
               allowedLanguages: [
                 { value: "he", label: "עברית" },
                 { value: "en", label: "English" },
               ],
+              allowedVatTypes: [
+                { value: "regular", label: "כולל מע״מ", summaryLabel: "כולל מע״מ (ברירת מחדל)" },
+                { value: "no_vat", label: "ללא מע״מ (אילת / חו״ל)" },
+              ],
               canEdit: {
                 currency: true,
                 language: true,
+                vatType: true,
                 roundTotals: true,
               },
             }}
@@ -572,25 +705,26 @@ export default function ReceiptFormClient({
               if (patch.currency !== undefined) setCurrency(patch.currency);
               if (patch.language !== undefined) setLanguage(patch.language as "he" | "en");
               if (patch.roundTotals !== undefined) setRoundTotals(patch.roundTotals);
+              if (patch.vatType !== undefined) setVatType(patch.vatType as "regular" | "no_vat");
             }}
           />
 
           <div className="mb-[50px]">
             <div className="flex justify-between items-center">
-              <h1 className="text-right">קבלה {previewNumber || "---"}</h1>
+              <h1 className="text-right">חשבונית מס {previewNumber || "---"}</h1>
             </div>
             {initial.companyName && <h2 className="text-right mt-[10px] mb-[40px]">{initial.companyName}</h2>}
           </div>
 
           <form className="ui-section-gap">
-            <FormSection title="פרטי לקוח" description="">
+            <FormSection title="פרטי המסמך" description="">
               <div
                 className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px]  border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]"
               >
-                          <div
-                            className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
-                            data-payment-primary-grid="true"
-                          >
+                <div
+                  className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]"
+                  data-payment-primary-grid="true"
+                >
                   <div ref={customerNameRef}>
                     <CustomerAutocomplete
                       id="customerName"
@@ -626,6 +760,19 @@ export default function ReceiptFormClient({
                     min={minAllowedDate || undefined}
                     containerClassName="w-full min-w-0 ui-document-date-offset"
                   />
+
+                  <FloatingDateInput
+                    label="תשלום עד"
+                    required
+                    id="dueDate"
+                    value={dueDate}
+                    onChange={(value) => {
+                      if (value < documentDate) setDueDate(documentDate);
+                      else setDueDate(value);
+                    }}
+                    min={documentDate || undefined}
+                    containerClassName="w-full min-w-0 ui-document-date-offset"
+                  />
                 </div>
               </div>
             </FormSection>
@@ -657,10 +804,9 @@ export default function ReceiptFormClient({
               </div>
             </FormSection>
 
-            {/* Payments Section (UPDATED LAYOUT) */}
-            <FormSection title="פירוט תקבולים" description="">
+            <FormSection title="רשימת פריטים" description="">
               <div ref={paymentsTableRef} className="space-y-[10px]">
-                {Object.keys(paymentErrors).length > 0 && (
+                {Object.keys(itemErrors).length > 0 && (
                   <div
                     style={{
                       backgroundColor: "#FEF2F2",
@@ -679,190 +825,325 @@ export default function ReceiptFormClient({
                 )}
 
                 <div className="space-y-[20px]">
-                  {payments.map((row, i) => (
+                  <div className="px-[20px] sm:px-6 lg:px-8">
+                    <div className="ui-item-grid ui-item-label font-semibold">
+                      <div className="text-right pr-[20px] translate-y-[20px]">מק״ט</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">פירוט</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">כמות</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">מחיר ליחידה</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
+                      {vatRate > 0 ? (
+                        <div className="text-right pr-[20px] translate-y-[20px]">מע״מ</div>
+                      ) : (
+                        <div className="text-right opacity-0 pr-[20px] translate-y-[20px]" aria-hidden="true">
+                          מע״מ
+                        </div>
+                      )}
+                      <div className="text-right pr-[00px] translate-y-[20px]" ref={headerTotalRef}>
+                        סה״כ
+                      </div>
+                      <div className="text-right pr-[-50px] translate-y-[20px]">אישור</div>
+                    </div>
+                  </div>
+                  {items.map((row, i) => (
                     <div key={i}>
                       <div
-                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
-                        style={{
-                          backgroundColor: "white",
-                          border: "none",
-                        }}
+                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 ti-items-row"
                         data-payment-card="true"
+                        data-locked={confirmedRows.has(i) ? "true" : "false"}
                       >
-                      {payments.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removePaymentRow(i)}
-                          aria-label="מחיקה"
-                          className="absolute top-3 left-3 text-danger hover:text-danger hover:bg-danger/10"
-                          title="מחק"
-                          style={{ color: "#9B0003" }}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      )}
-
-                      <div className="min-w-0">
-                        {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
-                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-                          <div className="w-full min-w-0">
-                            <label
-                              htmlFor={`payment-method-${i}`}
-                              className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
-                            >
-                              אמצעי תשלום<span className="ms-1">*</span>
-                            </label>
-                            <Select
-                              value={row.method}
-                              onValueChange={(v) => {
-                                updatePaymentRow(i, { method: v as any });
-                                if (paymentErrors[i]?.method) {
-                                  const newErrors = { ...paymentErrors };
-                                  if (newErrors[i]) {
-                                    delete newErrors[i].method;
-                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                        <div className="min-w-0">
+                          <div className="ui-item-grid items-center">
+                            <Input
+                              value={row.sku}
+                              onChange={(e) => updateItemRow(i, { sku: e.target.value })}
+                              
+                              className="ti-items-input text-right min-w-0"
+                              disabled={confirmedRows.has(i)}
+                            />
+                            <Input
+                              value={row.description}
+                              onChange={(e) => {
+                                updateItemRow(i, { description: e.target.value });
+                                if (itemErrors[i]?.description && e.target.value.trim().length > 0) {
+                                  const next = { ...itemErrors };
+                                  if (next[i]) {
+                                    delete next[i].description;
+                                    if (Object.keys(next[i]).length === 0) delete next[i];
                                   }
-                                  setPaymentErrors(newErrors);
+                                  setItemErrors(next);
                                 }
                               }}
+                              placeholder="פירוט"
+                              className={cn(
+                                "ti-items-input text-right min-w-0",
+                                itemErrors[i]?.description ? "border-danger focus-visible:ring-danger" : ""
+                              )}
+                              disabled={confirmedRows.has(i)}
+                            />
+                            <Input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={Number.isFinite(row.quantity) ? row.quantity : ""}
+                              onChange={(e) => {
+                                const value = Number(e.target.value || 0);
+                                updateItemRow(i, { quantity: value });
+                                if (itemErrors[i]?.quantity && value > 0) {
+                                  const next = { ...itemErrors };
+                                  if (next[i]) {
+                                    delete next[i].quantity;
+                                    if (Object.keys(next[i]).length === 0) delete next[i];
+                                  }
+                                  setItemErrors(next);
+                                }
+                              }}
+                              className={cn(
+                                "ti-items-input text-right min-w-0",
+                                itemErrors[i]?.quantity ? "border-danger focus-visible:ring-danger" : ""
+                              )}
+                              inputMode="numeric"
+                              disabled={confirmedRows.has(i)}
+                            />
+                            <MoneyInput
+                              className={cn(
+                                "w-full min-w-0 text-right",
+                                itemErrors[i]?.unitPrice ? "border-danger focus-visible:ring-danger" : "",
+                                confirmedRows.has(i) ? "pointer-events-none" : ""
+                              )}
+                              variant="items"
+                              value={row.unitPrice}
+                              onChange={(v) => {
+                                updateItemRow(i, { unitPrice: v });
+                                if (itemErrors[i]?.unitPrice && v > 0) {
+                                  const next = { ...itemErrors };
+                                  if (next[i]) {
+                                    delete next[i].unitPrice;
+                                    if (Object.keys(next[i]).length === 0) delete next[i];
+                                  }
+                                  setItemErrors(next);
+                                }
+                              }}
+                              currency={currency}
+                            />
+                            <Select
+                              value={row.currency || currency}
+                              disabled={currency !== "₪" || confirmedRows.has(i)}
+                              onValueChange={(v) => updateItemRow(i, { currency: v })}
                             >
                               <SelectTrigger
-                                id={`payment-method-${i}`}
                                 variant="underline"
                                 className={cn(
-                                  "w-full min-w-0",
-                                  paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
+                                  "ti-items-select w-full min-w-0",
+                                  itemErrors[i]?.currency ? "border-danger focus:border-danger" : ""
                                 )}
-                                aria-required="true"
-                                aria-invalid={!!paymentErrors[i]?.method}
-                                aria-describedby={paymentErrors[i]?.method ? `payment-method-${i}-error` : undefined}
+                                aria-label="מטבע"
                               >
-                                <SelectValue placeholder="בחר אמצעי תשלום..." />
+                                <SelectValue />
                               </SelectTrigger>
-
                               <SelectContent>
-                                {PAYMENT_METHODS.map((m) => (
-                                  <SelectItem key={m} value={m}>
-                                    {m}
+                                {allowedCurrencies.map((c) => (
+                                  <SelectItem key={c} value={c}>
+                                    {c}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
-
-                          <FloatingDateInput
-                            label="תאריך תשלום"
-                            required
-                            id={`payment-date-${i}`}
-                            value={row.date}
-                            onChange={(value) => updatePaymentRow(i, { date: value })}
-                            containerClassName="w-full min-w-0"
-                          />
-
-                          <FieldWrapper
-                            label="סכום"
-                            required
-                            error={paymentErrors[i]?.amount}
-                            id={`payment-amount-${i}`}
-                            className="w-full min-w-0 ui-money-block"
-                            labelClassName="ui-money-label"
-                          >
-                            {/* עטיפה כדי להבטיח min-w-0 + w-full */}
-                            <div className="min-w-0 w-full">
-                              <CurrencyAmountGroup
-                                currencyControl={
-                                  <div className="shrink-0">
-                                    <Select
-                                      value={row.currency || currency}
-                                      disabled={currency !== "₪"}
-                                      onValueChange={(v) => updatePaymentRow(i, { currency: v })}
-                                    >
-                                      <SelectTrigger
-                                        variant="underline"
-                                        className="w-[72px] shrink-0"
-                                        style={{ fontSize: "18px", fontWeight: 600 }}
-                                        aria-label="מטבע"
-                                      >
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {allowedCurrencies.map((c) => (
-                                          <SelectItem key={c} value={c}>
-                                            {c}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                }
-                                amountControl={
-                                  <div className="min-w-0 w-full">
-                                    <MoneyInput  className="w-full min-w-0"
-                                      id={`payment-amount-${i}`}
-                                      value={row.amount}
-                                      onChange={(v) => {
-                                        updatePaymentRow(i, { amount: v });
-                                        if (paymentErrors[i]?.amount && v > 0) {
-                                          const newErrors = { ...paymentErrors };
-                                          if (newErrors[i]) {
-                                            delete newErrors[i].amount;
-                                            if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
-                                          }
-                                          setPaymentErrors(newErrors);
-                                        }
-                                      }}
-                                      currency={currency}
-                                      error={!!paymentErrors[i]?.amount}
-                                      style={{ fontSize: "18px", fontWeight: 600 }}
-                                      aria-required={true}
-                                      aria-invalid={!!paymentErrors[i]?.amount}
-                                      aria-describedby={paymentErrors[i]?.amount ? `payment-amount-${i}-error` : undefined}
-                                    />
-                                  </div>
-                                }
-                              />
+                            {vatRate > 0 ? (
+                              <Select
+                                value={row.vatMode}
+                                disabled={confirmedRows.has(i)}
+                                onValueChange={(v) => updateItemRow(i, { vatMode: v as any })}
+                              >
+                                <SelectTrigger
+                                  variant="underline"
+                                  className="ti-items-select w-full min-w-0"
+                                  aria-label="מע״מ"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="before">לפני</SelectItem>
+                                  <SelectItem value="included">כולל</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="h-[50px]" aria-hidden="true" />
+                            )}
+                            <div
+                              className="text-right text-[18px] font-regular"
+                              ref={(el) => {
+                                if (i === 0) itemTotalRef.current = el;
+                              }}
+                            >
+                              {formatMoney(getLineTotal(row), row.currency || currency)}
                             </div>
-                          </FieldWrapper>
-                        </div>
-
-                        <div className="mt-[50px] min-w-0">
-                          <PaymentDetailsSection payment={row} onUpdate={(updates) => updatePaymentRow(i, updates)} />
+                            <div className="flex items-center justify-center gap-2">
+                              {confirmedRows.has(i) ? (
+                                <>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      setConfirmedRows((prev) => {
+                                        const next = new Set(prev);
+                                        next.delete(i);
+                                        return next;
+                                      })
+                                    }
+                                    aria-label="עריכה"
+                                    className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button type="button" variant="default" onClick={() => confirmItemRow(i)}>
+                                  אישור
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItemRow(i)}
+                                aria-label="מחיקה"
+                                className="text-danger hover:text-danger hover:bg-danger/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      </div>
-                      {i < payments.length - 1 ? (
+                      {i < items.length - 1 ? (
                         <div className="h-px bg-[var(--muted-fg)] opacity-50 mx-[20px] sm:mx-6 lg:mx-8 mt-[15px]" />
                       ) : null}
                     </div>
                   ))}
                 </div>
 
-                <div className="pr-[25px]">
-  <Button
-    type="button"
-    onClick={addPaymentRow}
-    variant="secondary"
-  >
-    הוספת תקבול
-  </Button>
-</div>
-
-                <div className="pt-[50px] mt-[50px]">
-                  <div className="flex justify-between items-center">
-                    <div className="text-lg font-bold" style={{ color: "#19183B" }}>
-                      
-                    </div>
-                    <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
-                    סה״כ   {formatMoney(total, currency)}
-                    </div>
+                <div className="flex items-start justify-between gap-6">
+                  <div className="shrink-0 pr-[25px]" ref={addItemButtonRef}>
+                    <Button type="button" onClick={addItemRow} variant="secondary">
+                      הוספת פריט
+                    </Button>
                   </div>
-                  {roundTotals && (
-                    <p className="text-xs mt-2 text-right" style={{ color: "#19183B", opacity: 0.8 }}>
-                      כולל עיגול לסכום סופי
-                    </p>
-                  )}
+
+                  {hasConfirmedItems ? (
+                    <div className="pt-[50px] mt-[-16px] flex-1 ml-[110px]" ref={summaryOuterRef}>
+                      <div className="px-[20px] sm:px-6 lg:px-8">
+                        <div className="ui-item-grid" ref={summaryBlockRef}>
+                          <div className="col-span-8 self-start text-right text-[24px]   text-fg">
+                            <div
+                              className="ui-item-grid items-center"
+                              ref={(el) => {
+                                summaryRowRefs.current[0] = el;
+                              }}
+                            >
+                              <div className="col-span-4" />
+                            <div
+                              className="col-span-2 text-right whitespace-nowrap"
+                              ref={(el) => {
+                                summaryLabelRefs.current[0] = el;
+                              }}
+                            >
+                              סה״כ לפני מע״מ
+                            </div>
+                            <div
+                              className="text-right mr-[55px] w-[calc(100%+50px)] -ml-[50px]"
+                              ref={(el) => {
+                                summaryValueContainerRefs.current[0] = el;
+                              }}
+                            >
+                                <span
+                                className="inline-block w-full text-right"
+                                  ref={(el) => {
+                                    summaryValueRefs.current[0] = el;
+                                  }}
+                                >
+                                  {formatMoney(subtotal, currency)}
+                                </span>
+                              </div>
+                              <div />
+                            </div>
+                            {vatRate > 0 ? (
+                            <div
+                              className="ui-item-grid items-center mt-[12px]"
+                                ref={(el) => {
+                                  summaryRowRefs.current[1] = el;
+                                }}
+                              >
+                                <div className="col-span-4" />
+                                <div
+                                  className="col-span-2 text-right whitespace-nowrap"
+                                  ref={(el) => {
+                                    summaryLabelRefs.current[1] = el;
+                                  }}
+                                >
+                                  מע״מ ({vatRate}%)
+                                </div>
+                                <div
+                                  className="text-right mr-[55px] w-[calc(100%+50px)] -ml-[50px]"
+                                  ref={(el) => {
+                                    summaryValueContainerRefs.current[1] = el;
+                                  }}
+                                >
+                                  <span
+                                    className="inline-block w-full text-right"
+                                    ref={(el) => {
+                                      summaryValueRefs.current[1] = el;
+                                    }}
+                                  >
+                                    {formatMoney(vatAmount, currency)}
+                                  </span>
+                                </div>
+                                <div />
+                              </div>
+                            ) : null}
+                          <div
+                            className="ui-item-grid items-center mt-[12px] doc-totals-grand"
+                            ref={(el) => {
+                              summaryRowRefs.current[2] = el;
+                            }}
+                          >
+                              <div className="col-span-4" />
+                              <div
+                                className="col-span-2 text-right whitespace-nowrap font-bold text-primary"
+                                ref={(el) => {
+                                  summaryLabelRefs.current[2] = el;
+                                }}
+                              >
+                                סה״כ כולל מע״מ
+                              </div>
+                              <div
+                                className="text-right mr-[55px] w-[calc(100%+50px)] -ml-[50px]"
+                                ref={(el) => {
+                                  summaryValueContainerRefs.current[2] = el;
+                                }}
+                              >
+                                <span
+                                className="inline-block w-full text-right font-bold text-primary"
+                                  ref={(el) => {
+                                    summaryValueRefs.current[2] = el;
+                                  }}
+                                >
+                                  {formatMoney(total, currency)}
+                                </span>
+                              </div>
+                              <div />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {roundTotals && (
+                        <p className="text-xs mt-2 text-right text-muted-foreground">
+                          כולל עיגול לסכום סופי
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </FormSection>
@@ -923,7 +1204,6 @@ export default function ReceiptFormClient({
                 loading={busy === "issue"}
                 className="flex items-center gap-2"
               >
-                <CheckCircle className="h-4 w-4" />
                 הפקת מסמך
               </Button>
             </div>
@@ -971,7 +1251,7 @@ export default function ReceiptFormClient({
 
           {showStartingNumberModal && (
             <StartingNumberModal
-              documentType="receipt"
+              documentType="tax_invoice"
               onClose={() => {
                 window.location.href = "/dashboard/documents";
               }}
@@ -1035,7 +1315,7 @@ export default function ReceiptFormClient({
               documentId={successModalData.documentId}
               baseLanguage={successModalData.language}
               onViewDocument={async () => {
-                window.location.href = `/dashboard/documents/receipt/${successModalData.documentId}/summary`;
+                window.location.href = `/dashboard/documents/tax-invoice/${successModalData.documentId}/summary`;
               }}
               onDownloadHebrew={async (opts) => {
                 try {

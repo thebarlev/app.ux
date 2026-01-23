@@ -46,6 +46,7 @@ type Props = {
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   receipt: "קבלה",
+  tax_invoice: "חשבונית מס",
   invoice: "חשבונית",
   quote: "הצעת מחיר",
   delivery_note: "תעודת משלוח",
@@ -170,6 +171,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
             <SelectContent>
               <SelectItem value="all">כל הסוגים</SelectItem>
               <SelectItem value="receipt">קבלה</SelectItem>
+              <SelectItem value="tax_invoice">חשבונית מס</SelectItem>
               <SelectItem value="invoice">חשבונית</SelectItem>
               <SelectItem value="quote">הצעת מחיר</SelectItem>
               <SelectItem value="delivery_note">תעודת משלוח</SelectItem>

@@ -13,15 +13,17 @@ export interface RegistrationData {
   businessName: string
   businessType: "osek_patur" | "osek_murshe" | "ltd" | "partnership" | ""
   companyNumber: string // מספר חברה / תעודת זהות (חובה)
+  businessNumber: string
+  isBusinessFound: boolean
   industry: string
   customIndustry: string // תחום פעילות מותאם אישית (אם בחר "אחר")
   // Step 3: Optional English Details
   businessNameEn: string
   englishAddress: string
-  // Step 3: Address (Final Step) - REMOVED
-  // street: string
-  // city: string // שדה טקסט חופשי
-  // postalCode: string
+  // Step 3: Address (Final Step)
+  street: string
+  city: string // שדה טקסט חופשי
+  postalCode: string
   // Legal and Marketing Checkboxes
   acceptedLegalTerms: boolean
   acceptedMarketing: boolean
@@ -49,13 +51,15 @@ const initialData: RegistrationData = {
   businessName: "",
   businessType: "",
   companyNumber: "",
+  businessNumber: "",
+  isBusinessFound: false,
   industry: "",
   customIndustry: "",
   businessNameEn: "",
   englishAddress: "",
-  // street: "",
-  // city: "",
-  // postalCode: "",
+  street: "",
+  city: "",
+  postalCode: "",
   acceptedLegalTerms: false,
   acceptedMarketing: true,
 }

@@ -2,18 +2,12 @@
 
 import { useState } from "react"
 import type { TemplateDefinition } from "@/lib/types/template"
+import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from "@/config/documentVariables"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   Card,
@@ -22,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Eye, Save } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { updateTemplateAction, type UpdateTemplatePayload } from "../actions"
@@ -30,15 +25,20 @@ import ThumbnailUpload from "@/components/admin/ThumbnailUpload"
 
 type Props = {
   template: TemplateDefinition
+  documentTypes: string[]
 }
 
 type TemplateLang = "he" | "en"
 
-export default function TemplateEditorClient({ template }: Props) {
+export default function TemplateEditorClient({ template, documentTypes }: Props) {
   const router = useRouter()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description || "")
-  const [documentType, setDocumentType] = useState(template.document_type)
+  const initialTypes =
+    documentTypes && documentTypes.length > 0
+      ? documentTypes
+      : [template.document_type].filter(Boolean)
+  const [selectedDocumentTypes, setSelectedDocumentTypes] = useState<string[]>(initialTypes)
   const [activeLang, setActiveLang] = useState<TemplateLang>("he")
 
   const [htmlHe, setHtmlHe] = useState(template.html_he || template.html_template || "")
@@ -54,6 +54,19 @@ export default function TemplateEditorClient({ template }: Props) {
   })
 
   const isGlobal = template.company_id === null
+
+  const toggleDocumentType = (type: string) => {
+    setSelectedDocumentTypes((prev) => {
+      if (prev.includes(type)) {
+        if (prev.length === 1) {
+          toast.error("חייב לבחור לפחות סוג מסמך אחד")
+          return prev
+        }
+        return prev.filter((t) => t !== type)
+      }
+      return [...prev, type]
+    })
+  }
 
   // Extract CSS from <style> tags in HTML
   const extractCssFromHtml = (html: string): { cleanHtml: string; extractedCss: string } => {
@@ -130,13 +143,19 @@ ${html}
 
   // Handle save
   const handleSave = async () => {
+    if (selectedDocumentTypes.length === 0) {
+      toast.error("חייב לבחור לפחות סוג מסמך אחד")
+      return
+    }
     setIsSaving(true)
     try {
+      const primaryType = (selectedDocumentTypes[0] || template.document_type) as any
       const payload: UpdateTemplatePayload = {
         id: template.id,
         name,
         description,
-        documentType: documentType as any,
+        documentType: primaryType,
+        documentTypes: selectedDocumentTypes as any,
         htmlHe: useFullHtmlByLang.he ? extractCssFromHtml(htmlHe).cleanHtml : htmlHe,
         cssHe: useFullHtmlByLang.he ? (extractCssFromHtml(htmlHe).extractedCss || cssHe) : cssHe,
         htmlEn: useFullHtmlByLang.en ? extractCssFromHtml(htmlEn).cleanHtml : htmlEn,
@@ -218,22 +237,76 @@ ${html}
                   placeholder="תבנית קבלה סטנדרטית"
                   className="h-10"
                 />
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="documentType" className="text-sm font-medium">סוג מסמך</Label>
-                  <Select
-                    value={documentType}
-                    onValueChange={(value) => setDocumentType(value as any)}
-                  >
-                    <SelectTrigger className="h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="receipt">קבלה</SelectItem>
-                      <SelectItem value="invoice">חשבונית</SelectItem>
-                      <SelectItem value="quote">הצעת מחיר</SelectItem>
-                      <SelectItem value="delivery_note">תעודת משלוח</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="mt-4 space-y-3">
+                  <Label className="text-sm font-medium">סוגי מסמכים</Label>
+                  <p className="text-xs text-muted-foreground">
+                    בחר סוג מסמך אחד או יותר שהתבנית תתמוך בהם
+                  </p>
+
+                  <div className="p-3 bg-muted/50 rounded-lg border border-border">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedDocumentTypes.length === Object.keys(DOCUMENT_TYPES).length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDocumentTypes(Object.values(DOCUMENT_TYPES))
+                          } else {
+                            setSelectedDocumentTypes([DOCUMENT_TYPES.RECEIPT])
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      <span className="font-medium text-sm">בחר הכל</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(DOCUMENT_TYPE_LABELS).map(([type, label]) => (
+                      <div
+                        key={type}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
+                          selectedDocumentTypes.includes(type)
+                            ? "bg-primary/5 border-primary"
+                            : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => toggleDocumentType(type)}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                            selectedDocumentTypes.includes(type)
+                              ? "bg-primary border-primary"
+                              : "border-muted-foreground/30"
+                          }`}
+                        >
+                          {selectedDocumentTypes.includes(type) && (
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="w-3 h-3 text-primary-foreground"
+                            >
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedDocumentTypes.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {selectedDocumentTypes.map((type) => (
+                        <Badge key={type} variant="secondary">
+                          {DOCUMENT_TYPE_LABELS[type as keyof typeof DOCUMENT_TYPE_LABELS]}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

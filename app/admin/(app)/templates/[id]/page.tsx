@@ -15,7 +15,7 @@ export default async function TemplateEditorPage({
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/login")
+    redirect("/admin/login")
   }
 
   // Fetch template
@@ -41,7 +41,7 @@ export default async function TemplateEditorPage({
           </div>
         }
       >
-        <TemplateEditorClient template={result.template} />
+        <TemplateEditorClient template={result.template} documentTypes={result.documentTypes || []} />
       </Suspense>
     </div>
   )

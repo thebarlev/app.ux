@@ -26,8 +26,10 @@ export async function GET() {
     }
 
     // Test 4: Check storage policies
-    const { data: policies, error: policiesError } = await supabase
-      .rpc('exec', { sql: `
+    let policiesError: string | undefined;
+    try {
+      const { error } = await supabase.rpc("exec", {
+        sql: `
         SELECT 
           policyname,
           permissive,
@@ -37,9 +39,16 @@ export async function GET() {
         WHERE schemaname = 'storage'
           AND tablename = 'objects'
         ORDER BY policyname;
-      ` })
-      .then(() => ({ data: "SQL query not available via client", error: null }))
-      .catch((e) => ({ data: null, error: e }));
+      `,
+      });
+      if (error) {
+        policiesError = error.message;
+      } else {
+        policiesError = "SQL query not available via client";
+      }
+    } catch (e) {
+      policiesError = e instanceof Error ? e.message : "Unknown error";
+    }
 
     return NextResponse.json({
       success: true,

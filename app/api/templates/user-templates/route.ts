@@ -61,9 +61,35 @@ export async function GET() {
       })
     }
 
+    const templateIds = (data || []).map((t: any) => t.id).filter(Boolean)
+    let documentTypesByTemplateId: Record<string, string[]> = {}
+    if (templateIds.length > 0) {
+      const { data: mappingRows } = await supabase
+        .from("template_document_types")
+        .select("template_id, document_type")
+        .in("template_id", templateIds)
+
+      documentTypesByTemplateId = (mappingRows || []).reduce((acc: Record<string, string[]>, row: any) => {
+        const tid = row.template_id
+        if (!acc[tid]) acc[tid] = []
+        if (row.document_type) acc[tid].push(row.document_type)
+        return acc
+      }, {})
+    }
+
+    const templatesWithMappings = (data || []).map((t: any) => ({
+      ...t,
+      document_types:
+        documentTypesByTemplateId[t.id]?.length > 0
+          ? Array.from(new Set(documentTypesByTemplateId[t.id]))
+          : t.document_type
+            ? [t.document_type]
+            : [],
+    }))
+
     return NextResponse.json({
       ok: true,
-      templates: data || [],
+      templates: templatesWithMappings,
     })
   } catch (error) {
     console.error("Error in /api/templates/user-templates:", error)

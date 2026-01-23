@@ -32,7 +32,7 @@ import type {
  */
 export async function getTemplateForDocument(
   companyId: string,
-  documentType: "receipt" | "invoice" | "quote" | "delivery_note",
+  documentType: "receipt" | "tax_invoice" | "invoice" | "quote" | "delivery_note",
   options?: {
     language?: "he" | "en";
     /**
@@ -108,6 +108,25 @@ export async function getTemplateForDocument(
       })
     } catch (e: any) {
       console.warn("[TEMPLATE_FETCH] Failed to fetch admin-visible templates (diagnostic):", e?.message || e)
+    }
+  }
+
+  // Resolve multi-document type mappings (templates linked via junction table)
+  let mappedTemplateIds: string[] = []
+  try {
+    const { data: mappedRows, error: mappedError } = await supabase
+      .from("template_document_types")
+      .select("template_id")
+      .eq("document_type", documentType)
+
+    if (!mappedError && mappedRows && mappedRows.length > 0) {
+      mappedTemplateIds = Array.from(
+        new Set(mappedRows.map((row: any) => row.template_id).filter(Boolean))
+      )
+    }
+  } catch (e: any) {
+    if (DEBUG_TEMPLATES) {
+      console.warn("[TEMPLATE_FETCH] Failed to load template_document_types mappings:", e?.message || e)
     }
   }
 
@@ -404,6 +423,47 @@ export async function getTemplateForDocument(
     return {
       ...picked,
       templateId: anyGlobalTemplate.id,
+    }
+  }
+
+  // PRIORITY 4.5: Any active mapped template (company first, then global)
+  if (mappedTemplateIds.length > 0) {
+    const { data: mappedCompanyTemplate } = await supabase
+      .from("templates")
+      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+      .eq("company_id", companyId)
+      .in("id", mappedTemplateIds)
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (mappedCompanyTemplate) {
+      console.log(`⚠️ Using mapped company template: ${mappedCompanyTemplate.id}`)
+      const picked = pickVariant(mappedCompanyTemplate)
+      return {
+        ...picked,
+        templateId: mappedCompanyTemplate.id,
+      }
+    }
+
+    const { data: mappedGlobalTemplate } = await supabase
+      .from("templates")
+      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+      .is("company_id", null)
+      .in("id", mappedTemplateIds)
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (mappedGlobalTemplate) {
+      console.log(`⚠️ Using mapped global template: ${mappedGlobalTemplate.name} (${mappedGlobalTemplate.id})`)
+      const picked = pickVariant(mappedGlobalTemplate)
+      return {
+        ...picked,
+        templateId: mappedGlobalTemplate.id,
+      }
     }
   }
 
@@ -1598,7 +1658,6 @@ export async function generateDocumentPDF(
     const errorMessage = error?.message || String(error)
     const errorStack = error?.stack || "No stack trace"
     const errorName = error?.name || error?.constructor?.name || typeof error
-    
     console.error(`[generateDocumentPDF] Exception during PDF generation for document ${documentId}:`, {
       error: errorMessage,
       errorName,

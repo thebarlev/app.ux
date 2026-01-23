@@ -14,7 +14,7 @@ export default async function NewTemplatePage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/login")
+    redirect("/admin/login")
   }
 
   return (

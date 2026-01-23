@@ -149,7 +149,7 @@ export default function TemplatePreviewClient({ template }: Props) {
             // Handle nested conditionals
             itemHtml = itemHtml.replace(
               /\{\{#if\s+this\.(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-              (m, prop, content) => {
+              (match: string, prop: string, content: string) => {
                 return item[prop] ? content : ""
               }
             )
@@ -157,7 +157,7 @@ export default function TemplatePreviewClient({ template }: Props) {
             // Replace {{this.prop}}
             itemHtml = itemHtml.replace(
               /\{\{\s*this\.(\w+)\s*\}\}/g,
-              (m, prop) => {
+              (match: string, prop: string) => {
                 const value = item[prop]
                 return value !== undefined && value !== null ? String(value) : ""
               }

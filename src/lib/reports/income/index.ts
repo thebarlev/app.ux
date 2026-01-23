@@ -307,7 +307,8 @@ export function buildIncomePdf({ businessId, from, to, documents }: PDFParams): 
     doc.text(footerText, 210 - 15 - footerWidth, 285);
   }
 
-  return doc.output('arraybuffer') as Uint8Array;
+  const output = doc.output('arraybuffer') as ArrayBuffer;
+  return new Uint8Array(output);
 }
 
 /**

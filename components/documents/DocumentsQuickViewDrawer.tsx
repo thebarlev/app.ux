@@ -51,6 +51,8 @@ function getDocumentTypeLabel(type: string): string {
   switch (type) {
     case "receipt":
       return "קבלה";
+    case "tax_invoice":
+      return "חשבונית מס";
     case "invoice":
       return "חשבונית";
     case "quote":
@@ -94,7 +96,7 @@ export default function DocumentsQuickViewDrawer(props: {
 
   useEffect(() => {
     if (!props.open || !props.documentId) return;
-    if (doc?.document_type !== "receipt") {
+    if (doc?.document_type !== "receipt" && doc?.document_type !== "tax_invoice") {
       setPaymentsState({ status: "idle" });
       return;
     }
@@ -204,7 +206,7 @@ export default function DocumentsQuickViewDrawer(props: {
                   </CardContent>
                 </Card>
 
-                {doc.document_type === "receipt" ? (
+                {doc.document_type === "receipt" || doc.document_type === "tax_invoice" ? (
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-right text-[18px]">פרטי תשלום</CardTitle>
@@ -254,7 +256,7 @@ export default function DocumentsQuickViewDrawer(props: {
           <SheetFooter className="flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                {doc?.document_type === "receipt" && props.onOpenSummary ? (
+                {["receipt", "tax_invoice"].includes(doc?.document_type || "") && props.onOpenSummary ? (
                   <Button
                     type="button"
                     variant="secondary"

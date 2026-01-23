@@ -106,6 +106,47 @@
     --field-date-underline-gap: 6px;
     --field-date-icon-offset-y: var(--field-date-text-offset-y);
 
+    /* ===== Typography Tokens ===== */
+    --typography-item-label-size: 18px;
+
+    /* ===== Tax Invoice: Items Section Tokens ===== */
+    --ti-items-row-bg: #ffffff;
+    --ti-items-row-border: transparent;
+    --ti-items-input-bg: #ffffff;
+    --ti-items-input-text: #19183B;
+    --ti-items-placeholder-text: #708993;
+    --ti-items-label-text: #708993;
+    --ti-items-field-gap: 12px;
+    --ti-items-row-radius: 0px;
+    --ti-items-input-height: 50px;
+    --ti-items-input-padding-x: 15px;
+    --ti-items-input-focus-ring: #708993;
+    --ti-items-input-text-size: var(--field-input-text-size);
+    --doc-items-locked-input-bg: transparent;
+    --doc-items-locked-input-border: transparent;
+    --doc-items-locked-opacity: 1;
+    --doc-item-edit-bg: #EDF1F5;
+    --doc-item-locked-bg: #ffffff;
+    --doc-totals-grand-bg: #E5F9F5;
+    --doc-totals-grand-radius: 14px;
+    --doc-totals-grand-padding: 10px 14px;
+    --doc-totals-grand-pad-y: 10px;
+    --doc-totals-grand-pad-bottom: 10px;
+    --doc-totals-grand-pad-x: 14px;
+    --doc-totals-grand-width: 370px;
+    --doc-totals-grand-offset-x: 528px;
+
+    /* ===== Items Grid (Invoice Item List) ===== */
+    --ti-items-grid-template: minmax(0, 1fr) minmax(0, 3fr) minmax(0, 0.8fr) minmax(0, 1fr)
+      minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.8fr);
+
+    /* ===== Typography Tokens ===== */
+    --typography-item-label-size: 18px;
+
+    /* ===== Items Grid (Invoice Item List) ===== */
+    --item-grid-template: minmax(0, 1.3fr) minmax(0, 0.7fr) minmax(0, 3fr) minmax(0, 0.7fr)
+      minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 0.7fr);
+
     /* ===== Dropdown Tokens: Labels (separate from inputs) ===== */
     --field-select-label-margin-top: 15px;
     --field-select-label-gap: -10px;
@@ -232,6 +273,125 @@ label.ui-date-label {
 .ui-select-label {
   margin-top: var(--field-select-label-margin-top);
   margin-bottom: var(--field-select-label-gap);
+}
+
+.ui-item-label {
+  font-size: var(--typography-item-label-size);
+  line-height: 1.2;
+  color: var(--ti-items-label-text);
+}
+
+.ui-item-grid {
+  display: grid;
+  grid-template-columns: var(--ti-items-grid-template);
+  align-items: center;
+  gap: var(--ti-items-field-gap);
+}
+
+.ti-items-row {
+  background-color: var(--ti-items-row-bg);
+  border: 1px solid var(--ti-items-row-border);
+  border-radius: var(--ti-items-row-radius);
+}
+
+.ti-items-input,
+.ti-items-money {
+  width: 100%;
+  height: var(--ti-items-input-height);
+  border-radius: var(--ti-items-row-radius);
+  padding: 0 var(--ti-items-input-padding-x);
+  color: var(--ti-items-input-text);
+  background-color: var(--ti-items-input-bg);
+  border: 1px solid var(--ti-items-row-border);
+  font-size: var(--ti-items-input-text-size);
+  outline: none;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.ti-items-money {
+  border-bottom: 1px solid var(--ti-items-row-border);
+  background-color: var(--ti-items-input-bg);
+}
+
+.ti-items-input::placeholder,
+.ti-items-money::placeholder {
+  color: var(--ti-items-placeholder-text);
+}
+
+.ti-items-input:focus-visible,
+.ti-items-money:focus-visible {
+  box-shadow: 0 0 0 2px var(--ti-items-input-focus-ring);
+}
+
+.ti-items-select {
+  width: 100%;
+  height: var(--ti-items-input-height);
+  border-radius: var(--ti-items-row-radius);
+  padding: 0 var(--ti-items-input-padding-x);
+  color: var(--ti-items-input-text);
+  background-color: var(--ti-items-input-bg);
+  border: 1px solid var(--ti-items-row-border);
+  font-size: var(--ti-items-input-text-size);
+  outline: none;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.ti-items-select:focus-visible {
+  box-shadow: 0 0 0 2px var(--ti-items-input-focus-ring);
+}
+
+.ti-items-select[data-slot="select-trigger"] {
+  align-items: center;
+  border: 1px solid var(--ti-items-row-border);
+  border-bottom: 1px solid var(--ti-items-row-border);
+  background-color: var(--ti-items-input-bg);
+  padding: 0 var(--ti-items-input-padding-x);
+  translate: 0;
+  height: var(--ti-items-input-height);
+  transform: none !important;
+}
+
+.ti-items-select[data-slot="select-trigger"] [data-slot="select-value"] {
+  transform: none;
+}
+
+.ti-items-row[data-locked="true"] input.ti-items-input,
+.ti-items-row[data-locked="true"] input.ti-items-money,
+.ti-items-row[data-locked="true"] .ti-items-select[data-slot="select-trigger"] {
+  background-color: var(--doc-item-locked-bg) !important;
+  border-color: var(--doc-items-locked-input-border) !important;
+  opacity: var(--doc-items-locked-opacity);
+}
+.ti-items-row[data-locked="true"] input.ti-items-input:disabled,
+.ti-items-row[data-locked="true"] input.ti-items-money:disabled,
+.ti-items-row[data-locked="true"] .ti-items-select[data-slot="select-trigger"][data-disabled="true"] {
+  background-color: var(--doc-item-locked-bg) !important;
+  border-color: var(--doc-items-locked-input-border) !important;
+  opacity: var(--doc-items-locked-opacity);
+}
+.ti-items-row[data-locked="false"] .ti-items-money,
+.ti-items-row[data-locked="false"] .ti-items-select[data-slot="select-trigger"] {
+  background: var(--doc-item-edit-bg);
+}
+
+.doc-totals-grand {
+  position: relative;
+}
+.doc-totals-grand::before {
+  content: "";
+  position: absolute;
+  right: clamp(0px, var(--doc-totals-grand-offset-x), calc(100% - var(--doc-totals-grand-width)));
+  top: calc(-1 * var(--doc-totals-grand-pad-y));
+  bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
+  width: var(--doc-totals-grand-width);
+  background: var(--doc-totals-grand-bg);
+  border-radius: var(--doc-totals-grand-radius);
+  pointer-events: none;
+  z-index: 0;
+}
+.doc-totals-grand > * {
+  position: relative;
+  z-index: 1;
 }
 
 .ui-no-spin {
@@ -545,7 +705,7 @@ label.ui-date-label {
   /* ==================== UI Kit Utility Classes ==================== */
   
   .ui-container {
-    @apply mx-auto max-w-[1200px] px-4 sm:px-6 lg:px-10;
+    @apply mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-10;
   }
 
   .ui-form-grid {

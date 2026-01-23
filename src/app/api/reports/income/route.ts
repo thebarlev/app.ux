@@ -56,9 +56,10 @@ export async function POST(request: NextRequest) {
       dateFrom: fromDate,
       dateTo: toDate,
     });
+    const zipBody = Uint8Array.from(zipBytes).buffer;
     
     // Return ZIP file
-    return new NextResponse(zipBytes, {
+    return new NextResponse(zipBody, {
       status: 200,
       headers: {
         'Content-Type': 'application/zip',

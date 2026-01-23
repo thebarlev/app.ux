@@ -4,7 +4,19 @@ import { useState } from "react"
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Menu, X, Home, FileText, Users, LogOut, BarChart, ChevronDown, Settings } from "lucide-react"
+import {
+  Menu,
+  X,
+  Home,
+  FileText,
+  Users,
+  LogOut,
+  BarChart,
+  ChevronDown,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import { logoutAction } from "@/app/dashboard/actions"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
@@ -18,6 +30,11 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>
   subItems?: { href: string; label: string }[]
 }
+
+const SIDEBAR_EXPANDED_CLASS = "w-[240px]"
+const SIDEBAR_COLLAPSED_CLASS = "w-[60px]"
+const SIDEBAR_DEFAULT_CLASS = "w-[200px]"
+const SIDEBAR_LS_KEY = "docsSidebarPinnedCollapsed"
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "דשבורד", icon: Home },
@@ -65,24 +82,35 @@ function isSubItemActive(subItemHref: string, pathname: string): boolean {
   return pathname === subItemHref
 }
 
-function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
+function NavLink({
+  item,
+  onClick,
+  expanded,
+  onExpand,
+}: {
+  item: NavItem
+  onClick?: () => void
+  expanded: boolean
+  onExpand?: () => void
+}) {
   const pathname = usePathname()
   const isActive = isItemActive(item, pathname)
   const hasActiveSubItem = hasActiveChild(item, pathname)
 
   // Common right-slot width so rows align (chevron column)
-  const RightSlot = ({ children }: { children?: React.ReactNode }) => (
-    <span className="shrink-0 w-6 flex items-center justify-center" aria-hidden="true">
-      {children}
-    </span>
-  )
+  const RightSlot = ({ children }: { children?: React.ReactNode }) =>
+    expanded ? (
+      <span className="shrink-0 w-6 flex items-center justify-center" aria-hidden="true">
+        {children}
+      </span>
+    ) : null
 
   if (item.subItems) {
     const baseRowClass = `block flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
       hasActiveSubItem
         ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium"
         : "text-sidebar-fg hover:bg-sidebar-hover"
-    }`
+    } ${expanded ? "" : "justify-center px-2"}`
 
     return (
       <div className="block">
@@ -98,7 +126,7 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
                 <item.icon className="h-5 w-5 text-current" />
               </span>
 
-              <span className="flex-1 ui-sidebar-current-text">{item.label}</span>
+              {expanded ? <span className="flex-1 ui-sidebar-current-text">{item.label}</span> : null}
 
               <RightSlot>
                 <ChevronDown className="h-4 w-4 transition-transform duration-200 group-open:rotate-180 text-current ui-sidebar-current-icon" />
@@ -138,12 +166,15 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
                 className={baseRowClass}
                 style={{ fontSize: "18px", lineHeight: "1", margin: 0, width: "100%", textAlign: "right" }}
                 aria-label={item.label}
+                onClick={() => {
+                  if (!expanded) onExpand?.()
+                }}
               >
                 <span className="shrink-0 ui-sidebar-current-icon">
                   <item.icon className="h-5 w-5 text-current" />
                 </span>
 
-                <span className="flex-1 ui-sidebar-current-text">{item.label}</span>
+                {expanded ? <span className="flex-1 ui-sidebar-current-text">{item.label}</span> : null}
 
                 <RightSlot>
                   <ChevronDown className="h-4 w-4 transition-transform duration-200 text-current ui-sidebar-current-icon" />
@@ -170,27 +201,44 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   return (
     <Link
       href={item.href!}
-      onClick={onClick}
+      onClick={() => {
+        if (!expanded) onExpand?.()
+        onClick?.()
+      }}
       className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
         isActive
           ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium"
           : "text-sidebar-fg hover:bg-sidebar-hover"
-      }`}
+      } ${expanded ? "" : "justify-center px-2"}`}
       style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
     >
       <span className="shrink-0 ui-sidebar-current-icon">
         <item.icon className="h-5 w-5 text-current" />
       </span>
 
-      <span className="flex-1 ui-sidebar-current-text">{item.label}</span>
+      {expanded ? <span className="flex-1 ui-sidebar-current-text">{item.label}</span> : null}
 
       {/* keeps alignment with rows that have a chevron */}
-      <span className="shrink-0 w-6" aria-hidden="true" />
+      {expanded ? <span className="shrink-0 w-6" aria-hidden="true" /> : null}
     </Link>
   )
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  expanded,
+  inDocsCreate,
+  pinnedCollapsed,
+  onToggleCollapse,
+  onExpandFromIcon,
+}: {
+  onNavigate?: () => void
+  expanded: boolean
+  inDocsCreate: boolean
+  pinnedCollapsed: boolean
+  onToggleCollapse: () => void
+  onExpandFromIcon: () => void
+}) {
   const pathname = usePathname()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -203,26 +251,38 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="mb-8 px-4 pt-6">
-        <div className="text-xl font-bold text-sidebar-fg">מערכת ניהול</div>
-        <div className="text-xs text-sidebar-fg mt-1">Dashboard</div>
+        {expanded ? (
+          <>
+            <div className="text-xl font-bold text-sidebar-fg">מערכת ניהול</div>
+            <div className="text-xs text-sidebar-fg mt-1">Dashboard</div>
+          </>
+        ) : null}
       </div>
 
       {/* Navigation */}
       <nav aria-label="ניווט ראשי" className="flex-1 px-3 overflow-y-auto">
         {navItems.map((item, idx) => (
           <div key={idx} style={{ margin: 0, padding: 0 }}>
-            <NavLink item={item} onClick={onNavigate} />
+            <NavLink item={item} onClick={onNavigate} expanded={expanded} onExpand={onExpandFromIcon} />
           </div>
         ))}
       </nav>
 
       {/* New Document Button */}
-      <div style={{ marginBottom: "30px", marginTop: "50px", padding: "0 30px", position: "relative" }}>
+      <div
+        style={{
+          marginBottom: "30px",
+          marginTop: "50px",
+          paddingLeft: expanded ? "30px" : "0px",
+          paddingRight: expanded ? "30px" : "1px",
+          position: "relative",
+        }}
+      >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center justify-center gap-2 w-[55px] h-[55px]  transition-all font-bold bg-[#99DE76] hover:bg-[#FFC669] text-[#19183B] text-[18px] py-[14px] "
+              className="flex items-center justify-center gap-2 w-[60px] h-[60px] transition-all font-bold bg-[#99DE76] hover:bg-[#FFC669] text-[#19183B] text-[18px] py-[14px]"
               aria-label="מסמך חדש"
             >
               <span style={{ fontSize: "44px", fontWeight: "bold", marginRight: "2px", color: "var(--fg)" }}>+</span>
@@ -231,6 +291,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent side="left" align="start" sideOffset={8} className="min-w-[160px]">
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/dashboard/documents/tax-invoice" className="w-full">
+                חשבונית מס
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
               <Link href="/dashboard/documents/receipt" className="w-full">
                 קבלה
@@ -248,31 +313,54 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/")
               ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium visited:text-sidebar-active-fg"
               : "text-sidebar-fg hover:bg-sidebar-hover visited:text-sidebar-fg"
-          }`}
+          } ${expanded ? "" : "justify-center px-2"}`}
           style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
-          onClick={onNavigate}
+          onClick={() => {
+            if (!expanded) onExpandFromIcon()
+            onNavigate?.()
+          }}
         >
           <span className="shrink-0 ui-sidebar-current-icon">
             <Settings className="h-5 w-5 text-current" />
           </span>
-          <span className="flex-1 ui-sidebar-current-text">הגדרות</span>
-          <span className="shrink-0 w-6" aria-hidden="true" />
+          {expanded ? <span className="flex-1 ui-sidebar-current-text">הגדרות</span> : null}
+          {expanded ? <span className="shrink-0 w-6" aria-hidden="true" /> : null}
         </Link>
       </div>
 
       {/* Logout Button */}
-      <div className="sticky bottom-0 bg-sidebar/95 backdrop-blur pt-4 pb-6 px-3">
+      <div
+        className={`sticky bottom-0 bg-sidebar/95 backdrop-blur pt-4 pb-6 ${
+          expanded ? "px-3" : "px-0"
+        }`}
+      >
         <button
           type="button"
           onClick={handleLogout}
           disabled={isLoggingOut}
           aria-label={isLoggingOut ? "מתנתק..." : "התנתק מהמערכת"}
-          className="ui-sidebar-item text-sidebar-fg hover:text-sidebar-fg disabled:opacity-50 disabled:cursor-not-allowed w-full"
-          style={{ fontSize: "18px" }}
+          className={`ui-sidebar-item text-sidebar-fg hover:text-sidebar-fg disabled:opacity-50 disabled:cursor-not-allowed w-full ${
+            expanded ? "" : "justify-start px-0 pr-[20px] gap-0"
+          }`}
+          style={{
+            fontSize: "18px",
+            paddingLeft: expanded ? undefined : "0px",
+            paddingRight: expanded ? undefined : "20px",
+          }}
         >
           <LogOut className="h-5 w-5 text-current" />
-          <span>{isLoggingOut ? "מתנתק..." : "התנתקות"}</span>
-          <span className="shrink-0 w-6" aria-hidden="true" />
+          {expanded ? <span>{isLoggingOut ? "מתנתק..." : "התנתקות"}</span> : null}
+          {expanded ? <span className="shrink-0 w-6" aria-hidden="true" /> : null}
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border border-sidebar-border h-10 hover:bg-sidebar-hover transition"
+          aria-label={pinnedCollapsed ? "הרחב תפריט" : "כווץ תפריט"}
+        >
+          {pinnedCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          {expanded ? <span className="text-sm text-sidebar-fg">{pinnedCollapsed ? "הרחב" : "כווץ"}</span> : null}
         </button>
       </div>
     </div>
@@ -283,6 +371,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const isReceiptPreview = pathname?.startsWith("/dashboard/documents/receipt/preview")
+  const isDocCreateRoute =
+    pathname?.startsWith("/dashboard/documents/receipt") ||
+    pathname?.startsWith("/dashboard/documents/tax-invoice")
+  const [pinnedCollapsed, setPinnedCollapsed] = useState(isDocCreateRoute ? true : false)
   const mobileHeaderRef = React.useRef<HTMLDivElement>(null)
   const hamburgerButtonRef = React.useRef<HTMLButtonElement>(null)
   const desktopAsideRef = React.useRef<HTMLElement | null>(null)
@@ -363,6 +455,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [sidebarOpen])
 
   React.useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(SIDEBAR_LS_KEY)
+      if (stored === null) {
+        const defaultCollapsed = !!isDocCreateRoute
+        setPinnedCollapsed(defaultCollapsed)
+        window.localStorage.setItem(SIDEBAR_LS_KEY, String(defaultCollapsed))
+      } else {
+        setPinnedCollapsed(stored === "true")
+      }
+    } catch {
+      setPinnedCollapsed(!!isDocCreateRoute)
+    }
+  }, [isDocCreateRoute])
+
+  React.useEffect(() => {
     captureHorizontalOverflowSnapshot("mount")
     const onResize = () => captureHorizontalOverflowSnapshot("resize")
     window.addEventListener("resize", onResize)
@@ -373,14 +480,28 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     captureHorizontalOverflowSnapshot(sidebarOpen ? "drawer_open" : "drawer_closed")
   }, [sidebarOpen, captureHorizontalOverflowSnapshot])
 
+  const isExpanded = !pinnedCollapsed
+  const desktopPaddingClass = isDocCreateRoute
+    ? "md:pr-[60px]"
+    : isExpanded
+      ? "md:pr-[200px]"
+      : "md:pr-[60px]"
   const mainWrapperClassName = isReceiptPreview
     ? "relative z-0 flex-1 min-w-0 bg-bg"
-    : "relative z-0 flex-1 min-w-0 pr-0 md:pr-[200px] bg-bg"
+    : `relative z-0 flex-1 min-w-0 pr-0 ${desktopPaddingClass} bg-bg`
   const mainClassName = isReceiptPreview
     ? "w-full h-screen"
     : "w-full max-w-[1440px] mx-auto px-02 lg:px-12 pt-8 pb-12"
+  const widthClass = isDocCreateRoute
+    ? isExpanded
+      ? SIDEBAR_EXPANDED_CLASS
+      : SIDEBAR_COLLAPSED_CLASS
+    : isExpanded
+      ? SIDEBAR_DEFAULT_CLASS
+      : SIDEBAR_COLLAPSED_CLASS
   const desktopAsideClassName =
-    "hidden md:block fixed right-[15px] top-[15px] z-50 h-[calc(100%-30px)] w-[200px] max-w-[250px] bg-sidebar overflow-hidden rounded-[10px]"
+    `hidden md:block fixed right-[15px] top-[15px] z-50 h-[calc(100%-30px)] ${widthClass} max-w-[250px] ` +
+    "bg-sidebar overflow-hidden rounded-[10px] transition-[width] duration-200 ease-out group"
 
   return (
     <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir="rtl">
@@ -416,7 +537,29 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* Desktop Sidebar */}
       {!isReceiptPreview && (
         <aside ref={desktopAsideRef} className={desktopAsideClassName}>
-          <SidebarContent />
+          <SidebarContent
+            expanded={isExpanded}
+            inDocsCreate={!!isDocCreateRoute}
+            pinnedCollapsed={pinnedCollapsed}
+            onToggleCollapse={() => {
+              const next = !pinnedCollapsed
+              setPinnedCollapsed(next)
+              try {
+                window.localStorage.setItem(SIDEBAR_LS_KEY, String(next))
+              } catch {
+                // ignore
+              }
+            }}
+            onExpandFromIcon={() => {
+              if (!pinnedCollapsed) return
+              setPinnedCollapsed(false)
+              try {
+                window.localStorage.setItem(SIDEBAR_LS_KEY, "false")
+              } catch {
+                // ignore
+              }
+            }}
+          />
         </aside>
       )}
 
@@ -436,7 +579,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </button>
             </div>
             <div className="h-[calc(100%-73px)]">
-              <SidebarContent onNavigate={() => setSidebarOpen(false)} />
+              <SidebarContent
+                onNavigate={() => setSidebarOpen(false)}
+                expanded={true}
+                inDocsCreate={false}
+                pinnedCollapsed={false}
+                onToggleCollapse={() => {}}
+                onExpandFromIcon={() => {}}
+              />
             </div>
           </aside>
 

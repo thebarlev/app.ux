@@ -713,10 +713,24 @@ export async function generatePDFFromHTML(
  */
 export function validateTemplate(
   templateHtml: string,
-  documentType: "receipt" | "invoice" | "quote" | "delivery_note"
+  documentType: "receipt" | "tax_invoice" | "invoice" | "quote" | "delivery_note"
 ): { valid: boolean; missing: string[]; recommended: string[] } {
   const VALIDATION_RULES = {
     receipt: {
+      required: [
+        "{{company.name}}",
+        "{{document.number}}",
+        "{{document.issue_date}}",
+        "{{totals.total_amount}}",
+      ],
+      recommended: [
+        "{{company.logo_url}}",
+        "{{customer.name}}",
+        "{{#each items}}",
+        "{{#each payments}}",
+      ],
+    },
+    tax_invoice: {
       required: [
         "{{company.name}}",
         "{{document.number}}",

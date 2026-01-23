@@ -135,7 +135,7 @@ export default function ReceiptConfirmationModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           console.log("[FINALIZE_RECEIPT] Overlay clicked", { isLoading, isFinalizing });
@@ -190,7 +190,7 @@ export default function ReceiptConfirmationModal({
               id="confirmation-modal-title"
               className="text-2xl font-bold text-modal-fg mb-8"
             >
-              אישור הפקת קבלה
+              אישור הפקת חשבונית מס
             </h2>
 
             {/* Document Info - Horizontal row layout, centered, 18px font */}

@@ -198,13 +198,14 @@ ${currentHtml}
         name,
         description,
         documentType: selectedDocumentTypes[0] as any, // Use first type for backward compatibility
+        documentTypes: selectedDocumentTypes as any,
         htmlHe: finalHtml,
         cssHe: finalCss,
         htmlEn: finalHtmlEn,
         cssEn: finalCssEn,
         isDefault,
         isActive,
-        thumbnailUrl, // Include thumbnail URL in creation
+        thumbnailUrl: thumbnailUrl ?? undefined, // Include thumbnail URL in creation
       }
 
       console.log("📦 Payload:", payload)

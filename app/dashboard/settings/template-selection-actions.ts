@@ -99,7 +99,23 @@ export async function getTemplatesForDocumentTypeAction(
       console.log("[TEMPLATE_FETCH] companyId:", companyId)
     }
 
-    // Get available templates
+    // Resolve template IDs linked via multi-document types
+    let linkedTemplateIds: string[] = []
+    try {
+      const { data: mappingRows, error: mappingError } = await supabase
+        .from("template_document_types")
+        .select("template_id")
+        .eq("document_type", documentType)
+      if (!mappingError) {
+        linkedTemplateIds = Array.from(
+          new Set((mappingRows || []).map((row: any) => row.template_id).filter(Boolean))
+        )
+      }
+    } catch {
+      // ignore - fallback to document_type column only
+    }
+
+    // Get available templates (legacy column)
     let query = supabase
       .from("templates")
       .select("id, name, description, document_type, thumbnail_url, is_default, is_active, company_id")
@@ -138,8 +154,37 @@ export async function getTemplatesForDocumentTypeAction(
       selection = selectionData
     }
 
+    let mergedTemplates = templates || []
+
+    if (linkedTemplateIds.length > 0) {
+      let linkedQuery = supabase
+        .from("templates")
+        .select("id, name, description, document_type, thumbnail_url, is_default, is_active, company_id")
+        .in("id", linkedTemplateIds)
+        .eq("is_active", true)
+
+      if (companyId) {
+        linkedQuery = linkedQuery.or(`company_id.eq.${companyId},company_id.is.null`)
+      } else {
+        linkedQuery = linkedQuery.is("company_id", null)
+      }
+
+      const { data: linkedTemplates, error: linkedError } = await linkedQuery
+      if (!linkedError && linkedTemplates && linkedTemplates.length > 0) {
+        const byId = new Map<string, any>()
+        for (const t of mergedTemplates) byId.set(t.id, t)
+        for (const t of linkedTemplates) byId.set(t.id, t)
+        mergedTemplates = Array.from(byId.values())
+        mergedTemplates.sort((a: any, b: any) => {
+          if (a.is_default !== b.is_default) return a.is_default ? -1 : 1
+          if (a.company_id !== b.company_id) return a.company_id ? -1 : 1
+          return String(a.name || "").localeCompare(String(b.name || ""))
+        })
+      }
+    }
+
     // Mark selected template
-    const templatesWithSelection = (templates || []).map((t) => ({
+    const templatesWithSelection = (mergedTemplates || []).map((t) => ({
       ...t,
       is_selected: t.id === selection?.template_id,
     }))

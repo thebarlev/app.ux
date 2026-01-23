@@ -289,8 +289,7 @@ export default function QuickAddCustomerModal({
               onChange={handleInputChange}
               required
               autoFocus
-              className="custom-input"
-              className="text-modal-fg"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
@@ -326,8 +325,7 @@ export default function QuickAddCustomerModal({
               name="tax_id"
               value={formData.tax_id}
               onChange={handleInputChange}
-              className="custom-input"
-              className="text-modal-fg"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
@@ -367,8 +365,7 @@ export default function QuickAddCustomerModal({
               name="phone"
               value={formData.phone}
               onChange={handleInputChange}
-              className="custom-input"
-              className="text-modal-fg"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,
@@ -404,8 +401,7 @@ export default function QuickAddCustomerModal({
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              className="custom-input"
-              className="text-modal-fg"
+              className="custom-input text-modal-fg"
               style={{
                 width: "100%",
                 padding: 10,

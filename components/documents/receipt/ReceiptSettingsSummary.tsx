@@ -14,6 +14,7 @@ interface ReceiptSettingsSummaryProps {
     roundTotals: boolean;
     allowedCurrencies?: string[];
     allowedLanguages?: { value: "he" | "en"; label: string }[];
+    allowedVatTypes?: { value: string; label: string; summaryLabel?: string }[];
     canEdit?: {
       currency?: boolean;
       language?: boolean;
@@ -34,10 +35,16 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
   const [expanded, setExpanded] = useState(false);
 
   // Short summary string with dot separators (removed VAT)
+  const vatLabel = settings.allowedVatTypes?.find((v) => v.value === settings.vatType)?.summaryLabel
+    || settings.allowedVatTypes?.find((v) => v.value === settings.vatType)?.label
+    || settings.vatType;
   const summary = [
     `מטבע: ${settings.currency}`,
     `שפה: ${settings.language === "he" ? "עברית" : "English"}`,
-  ].join(" · ");
+    settings.vatType ? `סוג מע״מ: ${vatLabel}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Card
@@ -70,9 +77,9 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
         </span>
       </button>
       {expanded && (
-        <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 border-t border-border bg-white rounded-b-[20px]">
+        <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 border-t border-border bg-white rounded-b-[20px]">
           {/* Currency */}
-          <div className="flex flex-col gap-1 min-w-[120px]">
+          <div className="flex flex-col gap-1 min-w-[80px]">
             <span className="text-muted-foreground mb-1">מטבע</span>
             {settings.canEdit?.currency ? (
               <Select value={settings.currency} onValueChange={(v) => onChange({ currency: v })}>
@@ -99,7 +106,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
             )}
           </div>
           {/* Language */}
-          <div className="flex flex-col gap-1 min-w-[120px]">
+          <div className="flex flex-col gap-1 min-w-[80px]">
             <span className="text-muted-foreground mb-1">שפה</span>
             {settings.canEdit?.language ? (
               <Select value={settings.language} onValueChange={(v) => onChange({ language: v as "he" | "en" })}>
@@ -128,6 +135,30 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
               </span>
             )}
           </div>
+          {settings.vatType ? (
+            <div className="flex flex-col gap-1 min-w-[200px]">
+              <span className="text-muted-foreground mb-1">סוג מע״מ</span>
+              {settings.canEdit?.vatType ? (
+                <div className="flex flex-col gap-3 text-[14px]" style={{ color: "#708993" }}>
+                  {(settings.allowedVatTypes || [{ value: settings.vatType, label: settings.vatType }]).map((t) => (
+                    <label key={t.value} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="vatType"
+                        value={t.value}
+                        checked={settings.vatType === t.value}
+                        onChange={() => onChange({ vatType: t.value })}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      <span>{t.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ color: "#708993" }}>{vatLabel}</span>
+              )}
+            </div>
+          ) : null}
           {/* Round Totals */}
           <div className="flex flex-col gap-1 min-w-[120px] items-center justify-center">
             <span className="text-muted-foreground mb-2">עיגול סכום</span>

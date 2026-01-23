@@ -4,7 +4,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 
-type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "link";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "danger"
+  | "ghost"
+  | "link"
+  | "outline"
+  | "default"
+  | "destructive";
 type ButtonSize = "default" | "sm" | "icon";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -24,8 +32,13 @@ export function buttonVariants(opts?: { variant?: ButtonVariant; size?: ButtonSi
 
   const variants: Record<ButtonVariant, string> = {
     primary: "text-white hover:opacity-100 active:opacity-100",
-    secondary: "bg-[#EDF1F5] text-[#19183B] border border-[#1D868F] hover:bg-[#1D868F] hover:text-white active:bg-[#1D868F] active:text-white",
+    default: "text-white hover:opacity-100 active:opacity-100",
+    secondary:
+      "bg-[#EDF1F5] text-[#19183B] border border-[#1D868F] hover:bg-[#1D868F] hover:text-white active:bg-[#1D868F] active:text-white",
+    outline:
+      "bg-[#EDF1F5] text-[#19183B] border border-[#1D868F] hover:bg-[#1D868F] hover:text-white active:bg-[#1D868F] active:text-white",
     danger: "bg-danger text-danger-fg hover:opacity-90 active:opacity-80",
+    destructive: "bg-danger text-danger-fg hover:opacity-90 active:opacity-80",
     ghost: "bg-transparent text-fg hover:bg-muted active:bg-muted",
     link: "bg-transparent text-primary underline-offset-4 hover:underline",
   };
@@ -41,9 +54,9 @@ export function buttonVariants(opts?: { variant?: ButtonVariant; size?: ButtonSi
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "primary", size = "default", loading, children, disabled, style, ...props }, ref) => {
-    const isPrimary = variant === "primary";
-    const isSecondary = variant === "secondary";
-    const isDanger = variant === "danger";
+    const isPrimary = variant === "primary" || variant === "default";
+    const isSecondary = variant === "secondary" || variant === "outline";
+    const isDanger = variant === "danger" || variant === "destructive";
     const isUnderlineTrigger = className?.includes("ui-dd-trigger") || className?.includes("border-b");
     
     const baseStyle = isPrimary

@@ -183,6 +183,26 @@ function calculateSummary(documents: any[]) {
 /**
  * Generate income report (PDF or other formats)
  */
+export type GenerateIncomeReportResult =
+  | {
+      ok: true;
+      reports: Array<{
+        filename: string;
+        month: string;
+        from: string;
+        to: string;
+        summary: any;
+        documentCount: number;
+      }>;
+      totalMonths: number;
+      companyName: string;
+      companyId: string;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export async function generateIncomeReportAction(params: {
   startDate: string;
   endDate: string;
@@ -192,7 +212,7 @@ export async function generateIncomeReportAction(params: {
   fileFormat: string;
   scope: '10000' | '500000';
   emails?: string[];
-}) {
+}): Promise<GenerateIncomeReportResult> {
   try {
     const companyId = await getCompanyIdForUser();
     const supabase = await createClient();
@@ -205,7 +225,7 @@ export async function generateIncomeReportAction(params: {
       .single();
     
     if (!company) {
-      return { ok: false, error: 'Company not found' };
+      return { ok: false as const, error: 'Company not found' };
     }
     
     // Split date range into monthly segments
@@ -248,7 +268,7 @@ export async function generateIncomeReportAction(params: {
     // For now, return metadata
     
     return {
-      ok: true,
+      ok: true as const,
       reports,
       totalMonths: monthlySegments.length,
       companyName: company.company_name,
@@ -258,7 +278,7 @@ export async function generateIncomeReportAction(params: {
   } catch (error: any) {
     console.error('Generate report error:', error);
     return {
-      ok: false,
+      ok: false as const,
       error: error.message || 'Failed to generate report',
     };
   }

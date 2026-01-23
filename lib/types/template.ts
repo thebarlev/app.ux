@@ -11,7 +11,13 @@
 // Template Definition Types
 // ============================================
 
-export type DocumentType = 'receipt' | 'invoice' | 'quote' | 'delivery_note' | 'credit_invoice';
+export type DocumentType =
+  | 'receipt'
+  | 'tax_invoice'
+  | 'invoice'
+  | 'quote'
+  | 'delivery_note'
+  | 'credit_invoice';
 
 export interface TemplateDefinition {
   id: string;
@@ -279,6 +285,11 @@ export interface TemplateValidationRules {
 export const TEMPLATE_VALIDATION_RULES: Record<DocumentType, TemplateValidationRules> = {
   receipt: {
     document_type: 'receipt',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  tax_invoice: {
+    document_type: 'tax_invoice',
     required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
     recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
   },

@@ -180,7 +180,7 @@ export async function GET(
     console.log(`[PDF] Generated PDF size: ${pdfBuffer.length} bytes`);
 
     // Return PDF as downloadable file with proper headers
-    return new NextResponse(pdfBuffer, {
+    return new NextResponse(pdfArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

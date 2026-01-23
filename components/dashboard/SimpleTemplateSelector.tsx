@@ -188,9 +188,17 @@ export default function SimpleTemplateSelector({ className }: Props) {
 
                   {/* Badges */}
                   <div className="flex flex-wrap gap-1.5">
-                    <Badge variant="outline" className="text-[11px] px-2 py-0.5">
-                      {getDocumentTypeLabel(template.document_type)}
-                    </Badge>
+                    {(template as any).document_types?.length
+                      ? (template as any).document_types.map((type: string) => (
+                          <Badge key={type} variant="outline" className="text-[11px] px-2 py-0.5">
+                            {getDocumentTypeLabel(type)}
+                          </Badge>
+                        ))
+                      : (
+                        <Badge variant="outline" className="text-[11px] px-2 py-0.5">
+                          {getDocumentTypeLabel(template.document_type)}
+                        </Badge>
+                      )}
                     
                     {template.company_id === null && (
                       <Badge variant="secondary" className="text-[11px] px-2 py-0.5">

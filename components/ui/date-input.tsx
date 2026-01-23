@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Input } from './input'
 import { Calendar } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from './popover'
-import { DayPicker } from 'react-day-picker'
+import { DayPicker, type Matcher } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 
 interface DateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> {
@@ -251,6 +251,10 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
   const selectedDate = value ? new Date(value + 'T00:00:00') : undefined
   const minDate = min ? new Date(min + 'T00:00:00') : undefined
   const maxDate = max ? new Date(max + 'T00:00:00') : undefined
+  const disabledMatchers = [
+    minDate ? ({ before: minDate } satisfies Matcher) : null,
+    maxDate ? ({ after: maxDate } satisfies Matcher) : null,
+  ].filter(Boolean) as Matcher[]
 
   const handleDaySelect = (date: Date | undefined) => {
     if (date) {
@@ -465,14 +469,7 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
             mode="single"
             selected={selectedDate}
             onSelect={handleDaySelect}
-            disabled={
-              minDate || maxDate
-                ? {
-                    ...(minDate ? { before: minDate } : {}),
-                    ...(maxDate ? { after: maxDate } : {}),
-                  }
-                : undefined
-            }
+            disabled={disabledMatchers.length > 0 ? disabledMatchers : undefined}
             dir="rtl"
             className="rounded-[20px] p-4"
             style={{

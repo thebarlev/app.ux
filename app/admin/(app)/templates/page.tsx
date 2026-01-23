@@ -15,7 +15,7 @@ export default async function TemplatesPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect("/login")
+    redirect("/admin/login")
   }
 
   // Fetch templates

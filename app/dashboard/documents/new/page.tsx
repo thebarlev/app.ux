@@ -26,8 +26,8 @@ const documentTypes: DocumentType[] = [
     name: "חשבונית מס",
     description: "חשבונית מס רגילה",
     icon: <FileText className="h-6 w-6" />,
-    href: "#",
-    enabled: false,
+    href: "/dashboard/documents/tax-invoice",
+    enabled: true,
   },
   {
     id: "tax-invoice-receipt",
