@@ -98,6 +98,10 @@ export async function getTemplateByIdAction(templateId: string) {
     const documentTypes =
       (typeRows || []).map((row: any) => row.document_type).filter(Boolean)
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:101',message:'getTemplateByIdAction types',data:{templateId,documentTypes,count:documentTypes.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H6'})}).catch(()=>{});
+    // #endregion
+
     return {
       ok: true as const,
       template: data as TemplateDefinition,
@@ -177,6 +181,7 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
     }
 
     // If setting as default, unset other defaults for this document type
+    const primaryTemplateType = toTemplateDocumentType(payload.documentType)
     if (payload.isDefault) {
       if (companyId) {
         console.log("📝 Unsetting other defaults for company:", companyId)
@@ -184,7 +189,7 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
           .from("templates")
           .update({ is_default: false })
           .eq("company_id", companyId)
-          .eq("document_type", payload.documentType)
+          .eq("document_type", primaryTemplateType)
       } else {
         // Admin creating global template - unset global defaults
         console.log("📝 Unsetting other global defaults for document_type:", payload.documentType)
@@ -192,7 +197,7 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
           .from("templates")
           .update({ is_default: false })
           .is("company_id", null)
-          .eq("document_type", payload.documentType)
+          .eq("document_type", primaryTemplateType)
       }
     }
 
@@ -204,7 +209,7 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
         company_id: companyId, // null for admins, UUID for regular users
         name: payload.name,
         description: payload.description || null,
-        document_type: payload.documentType,
+        document_type: primaryTemplateType,
         html_template: payload.htmlHe,
         css: payload.cssHe || null,
         html_en: payload.htmlEn || null,
@@ -229,7 +234,8 @@ export async function createTemplateAction(payload: CreateTemplatePayload) {
       payload.documentTypes && payload.documentTypes.length > 0
         ? payload.documentTypes
         : [payload.documentType]
-    const uniqueTypes = Array.from(new Set(requestedTypes))
+    const mappedTypes = requestedTypes.map((type) => toTemplateDocumentType(type))
+    const uniqueTypes = Array.from(new Set(mappedTypes))
     const { error: mappingError } = await supabase
       .from("template_document_types")
       .upsert(
@@ -264,10 +270,25 @@ export type UpdateTemplatePayload = CreateTemplatePayload & {
   id: string
 }
 
+const toTemplateDocumentType = (documentType: string) => {
+  if (documentType === "invoiceReceipt") return "invoice_receipt"
+  if (documentType === "creditNote") return "credit_note"
+  if (documentType === "workOrder") return "work_order"
+  if (documentType === "deliveryNote") return "delivery_note"
+  if (documentType === "returnNote") return "return_note"
+  if (documentType === "purchaseOrder") return "purchase_order"
+  if (documentType === "selfInvoice") return "self_invoice"
+  if (documentType === "selfCreditNote") return "self_credit_note"
+  return documentType
+}
+
 export async function updateTemplateAction(payload: UpdateTemplatePayload) {
   try {
     const supabase = await createClient()
     const companyId = await getCompanyIdForUser()
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:270',message:'updateTemplateAction entry',data:{templateId:payload.id,documentType:payload.documentType,documentTypes:payload.documentTypes,isDefault:payload.isDefault,isActive:payload.isActive},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
 
     // Validation
     if (!payload.name || payload.name.trim().length < 3) {
@@ -296,20 +317,21 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
     }
 
     // If setting as default, unset other defaults
+    const primaryTemplateType = toTemplateDocumentType(payload.documentType)
     if (payload.isDefault) {
       if (existing.company_id === null) {
         await supabase
           .from("templates")
           .update({ is_default: false })
           .is("company_id", null)
-          .eq("document_type", payload.documentType)
+          .eq("document_type", primaryTemplateType)
           .neq("id", payload.id)
       } else {
         await supabase
           .from("templates")
           .update({ is_default: false })
           .eq("company_id", companyId)
-          .eq("document_type", payload.documentType)
+          .eq("document_type", primaryTemplateType)
           .neq("id", payload.id)
       }
     }
@@ -320,7 +342,7 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       .update({
         name: payload.name,
         description: payload.description || null,
-        document_type: payload.documentType,
+        document_type: primaryTemplateType,
         html_template: payload.htmlHe,
         css: payload.cssHe || null,
         html_en: payload.htmlEn || null,
@@ -339,7 +361,11 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       payload.documentTypes && payload.documentTypes.length > 0
         ? payload.documentTypes
         : [payload.documentType]
-    const uniqueTypes = Array.from(new Set(requestedTypes))
+    const mappedTypes = requestedTypes.map((type) => toTemplateDocumentType(type))
+    const uniqueTypes = Array.from(new Set(mappedTypes))
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:343',message:'template_document_types requested',data:{templateId:payload.id,requestedTypes,uniqueTypes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
 
     const { error: deleteError } = await supabase
       .from("template_document_types")
@@ -347,6 +373,9 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       .eq("template_id", payload.id)
 
     if (deleteError) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:350',message:'template_document_types delete error',data:{templateId:payload.id,errorMessage:deleteError.message,code:(deleteError as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+      // #endregion
       return { ok: false as const, message: deleteError.message }
     }
 
@@ -360,8 +389,15 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       )
 
     if (insertError) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:362',message:'template_document_types insert error',data:{templateId:payload.id,errorMessage:insertError.message,code:(insertError as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       return { ok: false as const, message: insertError.message }
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:370',message:'template_document_types insert success',data:{templateId:payload.id,count:uniqueTypes.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
 
     revalidatePath("/admin/templates")
     revalidatePath(`/admin/templates/${payload.id}`)

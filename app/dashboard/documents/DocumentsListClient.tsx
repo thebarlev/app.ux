@@ -12,8 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
-import { getReceiptPreviewUrlAction } from "./receipt/actions";
-import { getTaxInvoicePreviewUrlAction } from "./tax-invoice/actions";
 import { Eye, Copy, Download, X } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
@@ -28,6 +26,12 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { selectUnderline } from "@/components/ui/field-styles";
 import { cn } from "@/lib/utils";
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+import { getDocumentPreviewUrlAction } from "@/lib/documents/actions";
+
+const DOCUMENT_CONFIGS_BY_DB = new Map(
+  getAllDocumentConfigs().map((config) => [config.dbValue, config])
+);
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -51,20 +55,8 @@ function formatAmount(amount: number | null, currency: string | null): string {
 }
 
 function getDocumentTypeLabel(type: string): string {
-  switch (type) {
-    case "receipt":
-      return "קבלה";
-    case "tax_invoice":
-      return "חשבונית מס";
-    case "invoice":
-      return "חשבונית";
-    case "quote":
-      return "הצעת מחיר";
-    case "delivery_note":
-      return "תעודת משלוח";
-    default:
-      return type;
-  }
+  const config = DOCUMENT_CONFIGS_BY_DB.get(type);
+  return config?.label || type;
 }
 
 function normalizeStatus(raw: string | null | undefined): "open" | "pending" | "closed" | "canceled" | null {
@@ -125,7 +117,21 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
-  const ALL_DOC_TYPES_FOR_TEST = ["receipt", "tax_invoice", "invoice", "quote", "delivery_note"] as const;
+  const ALL_DOC_TYPES_FOR_TEST = [
+    "receipt",
+    "tax_invoice",
+    "invoiceReceipt",
+    "credit_note",
+    "invoice",
+    "quote",
+    "proforma",
+    "work_order",
+    "delivery_note",
+    "return_note",
+    "purchase_order",
+    "self_invoice",
+    "self_credit_note",
+  ] as const;
 
   const [search, setSearch] = useState(initialFilters.search || "");
   const [documentType, setDocumentType] = useState(initialFilters.documentType || "all");
@@ -1153,12 +1159,13 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (doc.document_type === "receipt") {
-                              router.push(`/dashboard/documents/receipt/${doc.id}/summary`);
-                              return;
-                            }
-                            if (doc.document_type === "tax_invoice") {
-                              router.push(`/dashboard/documents/tax-invoice/${doc.id}/summary`);
+                            const config = DOCUMENT_CONFIGS_BY_DB.get(doc.document_type);
+                            if (config) {
+                              const basePath =
+                                config.category === "business"
+                                  ? "/business/documents"
+                                  : "/dashboard/documents";
+                              router.push(`${basePath}/${config.routeSegment}/${doc.id}/summary`);
                               return;
                             }
                             setSelectedDocumentId(doc.id);
@@ -1388,35 +1395,27 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
           selectedDocSnapshot?.document_type && selectedDocumentId
             ? async () => {
                 setIsQuickViewOpen(false);
-                if (selectedDocSnapshot.document_type === "receipt") {
-                  router.push(`/dashboard/documents/receipt/${selectedDocumentId}/summary`);
-                  return;
-                }
-                if (selectedDocSnapshot.document_type === "tax_invoice") {
-                  router.push(`/dashboard/documents/tax-invoice/${selectedDocumentId}/summary`);
-                }
+                const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
+                if (!config) return;
+                const basePath =
+                  config.category === "business" ? "/business/documents" : "/dashboard/documents";
+                router.push(`${basePath}/${config.routeSegment}/${selectedDocumentId}/summary`);
               }
             : undefined
         }
         onViewDocument={
           selectedDocSnapshot?.document_type && selectedDocumentId
             ? async () => {
-                if (selectedDocSnapshot.document_type === "receipt") {
-                  const result = await getReceiptPreviewUrlAction(selectedDocumentId);
-                  if (result.ok && result.url) {
-                    window.open(result.url, "_blank");
-                  } else {
-                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
-                  }
-                  return;
-                }
-                if (selectedDocSnapshot.document_type === "tax_invoice") {
-                  const result = await getTaxInvoicePreviewUrlAction(selectedDocumentId);
-                  if (result.ok && result.url) {
-                    window.open(result.url, "_blank");
-                  } else {
-                    alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
-                  }
+                const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
+                if (!config) return;
+                const result = await getDocumentPreviewUrlAction(
+                  config.uiKey as any,
+                  selectedDocumentId
+                );
+                if (result.ok && result.url) {
+                  window.open(result.url, "_blank");
+                } else {
+                  alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
                 }
               }
             : undefined

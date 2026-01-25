@@ -7,6 +7,15 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/com
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Download, Eye } from "lucide-react";
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+
+const DOCUMENT_CONFIGS_BY_DB = new Map(
+  getAllDocumentConfigs().map((config) => [config.dbValue, config])
+);
+
+const ITEM_DOCUMENT_TYPES = new Set(
+  getAllDocumentConfigs().map((config) => config.dbValue)
+);
 
 export type DocumentsQuickViewDocumentSnapshot = {
   id: string;
@@ -48,18 +57,8 @@ function formatAmount(amount: number | null, currency: string | null): string {
 }
 
 function getDocumentTypeLabel(type: string): string {
-  switch (type) {
-    case "receipt":
-      return "קבלה";
-    case "tax_invoice":
-      return "חשבונית מס";
-    case "invoice":
-      return "חשבונית";
-    case "quote":
-      return "הצעת מחיר";
-    default:
-      return type;
-  }
+  const config = DOCUMENT_CONFIGS_BY_DB.get(type);
+  return config?.label || type;
 }
 
 export default function DocumentsQuickViewDrawer(props: {
@@ -96,7 +95,7 @@ export default function DocumentsQuickViewDrawer(props: {
 
   useEffect(() => {
     if (!props.open || !props.documentId) return;
-    if (doc?.document_type !== "receipt" && doc?.document_type !== "tax_invoice") {
+    if (!doc?.document_type || !ITEM_DOCUMENT_TYPES.has(doc.document_type)) {
       setPaymentsState({ status: "idle" });
       return;
     }

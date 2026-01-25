@@ -13,10 +13,17 @@ CREATE TABLE IF NOT EXISTS public.template_document_types (
     'receipt',
     'invoice',
     'tax_invoice',
+    'invoice_receipt',     -- ✅ Added: חשבונית מס/קבלה
+    'credit_note',         -- ✅ Added: חשבונית זיכוי
     'quote',
     'delivery_note',
-    'credit_invoice',
     'proforma',
+    'work_order',
+    'return_note',
+    'purchase_order',
+    'self_invoice',
+    'self_credit_note',
+    'credit_invoice',
     'transaction_invoice'
   )),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

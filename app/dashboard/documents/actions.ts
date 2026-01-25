@@ -225,6 +225,9 @@ export async function lockStartingNumberAction(params: {
   prefix?: string | null;
 }) {
   try {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:228',message:'lockStartingNumberAction entry',data:{documentType:params.documentType,startingNumber:params.startingNumber,hasPrefix:!!params.prefix},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     const companyId = await getCompanyIdForUser();
 
     const result = await initializeSequence(
@@ -235,11 +238,20 @@ export async function lockStartingNumberAction(params: {
     );
 
     if (!result.ok) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:238',message:'lockStartingNumberAction failed',data:{documentType:params.documentType,message:result.message||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
       return { ok: false as const, message: result.message ?? "Failed to initialize sequence" };
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:243',message:'lockStartingNumberAction success',data:{documentType:params.documentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
     return { ok: true as const };
   } catch (error: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:247',message:'lockStartingNumberAction exception',data:{documentType:params.documentType,errorMessage:error?.message||String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     return { ok: false as const, message: error?.message ?? "Unknown error" };
   }
 }

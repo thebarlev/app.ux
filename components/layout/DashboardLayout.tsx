@@ -18,7 +18,13 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { logoutAction } from "@/app/dashboard/actions"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -51,6 +57,30 @@ const navItems: NavItem[] = [
     label: "מסמכים",
     icon: FileText,
     subItems: [{ href: "/dashboard/documents", label: "כל המסמכים" }],
+  },
+  {
+    label: "מסמכי Income",
+    icon: FileText,
+    subItems: [
+      { href: "/dashboard/incomes/documents/new/invoice", label: "חשבונית מס" },
+      { href: "/dashboard/incomes/documents/new/invoiceReceipt", label: "חשבונית מס / קבלה" },
+      { href: "/dashboard/incomes/documents/new/receipt", label: "קבלה" },
+      { href: "/dashboard/incomes/documents/new/creditNote", label: "חשבונית זיכוי" },
+    ],
+  },
+  {
+    label: "ניהול שוטף",
+    icon: FileText,
+    subItems: [
+      { href: "/business/documents/new/quote", label: "הצעת מחיר" },
+      { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)" },
+      { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
+      { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
+      { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
+      { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
+      { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
+      { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
+    ],
   },
 ]
 
@@ -274,7 +304,7 @@ function SidebarContent({
           marginBottom: "30px",
           marginTop: "50px",
           paddingLeft: expanded ? "30px" : "0px",
-          paddingRight: expanded ? "30px" : "1px",
+          paddingRight: expanded ? "14px" : "1px",
           position: "relative",
         }}
       >
@@ -292,13 +322,64 @@ function SidebarContent({
 
           <DropdownMenuContent side="left" align="start" sideOffset={8} className="min-w-[160px]">
             <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/documents/tax-invoice" className="w-full">
+              <Link href="/dashboard/incomes/documents/new/invoice" className="w-full">
                 חשבונית מס
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/documents/receipt" className="w-full">
+              <Link href="/dashboard/incomes/documents/new/invoiceReceipt" className="w-full">
+                חשבונית מס / קבלה
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/dashboard/incomes/documents/new/creditNote" className="w-full">
+                חשבונית זיכוי
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/dashboard/incomes/documents/new/receipt" className="w-full">
                 קבלה
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/quote" className="w-full">
+                הצעת מחיר
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/proforma" className="w-full">
+                חשבון עסקה (דרישת תשלום)
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/workOrder" className="w-full">
+                הזמנת עבודה
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/deliveryNote" className="w-full">
+                תעודת משלוח
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/returnNote" className="w-full">
+                תעודת החזרה
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/purchaseOrder" className="w-full">
+                הזמנת רכש
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/selfInvoice" className="w-full">
+                חשבונית עצמית
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
+              <Link href="/business/documents/new/selfCreditNote" className="w-full">
+                חשבונית זיכוי עצמית
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -373,7 +454,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const isReceiptPreview = pathname?.startsWith("/dashboard/documents/receipt/preview")
   const isDocCreateRoute =
     pathname?.startsWith("/dashboard/documents/receipt") ||
-    pathname?.startsWith("/dashboard/documents/tax-invoice")
+    pathname?.startsWith("/dashboard/documents/tax-invoice") ||
+    pathname?.startsWith("/dashboard/incomes/documents/new") ||
+    pathname?.startsWith("/business/documents/new")
   const [pinnedCollapsed, setPinnedCollapsed] = useState(isDocCreateRoute ? true : false)
   const mobileHeaderRef = React.useRef<HTMLDivElement>(null)
   const hamburgerButtonRef = React.useRef<HTMLButtonElement>(null)
@@ -455,17 +538,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }, [sidebarOpen])
 
   React.useEffect(() => {
+    const nextCollapsed = !!isDocCreateRoute
+    setPinnedCollapsed(nextCollapsed)
     try {
-      const stored = window.localStorage.getItem(SIDEBAR_LS_KEY)
-      if (stored === null) {
-        const defaultCollapsed = !!isDocCreateRoute
-        setPinnedCollapsed(defaultCollapsed)
-        window.localStorage.setItem(SIDEBAR_LS_KEY, String(defaultCollapsed))
-      } else {
-        setPinnedCollapsed(stored === "true")
-      }
+      window.localStorage.setItem(SIDEBAR_LS_KEY, String(nextCollapsed))
     } catch {
-      setPinnedCollapsed(!!isDocCreateRoute)
+      // ignore
     }
   }, [isDocCreateRoute])
 

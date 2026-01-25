@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import { ArrowLeft } from "lucide-react";
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 
 type Customer = {
   id: string;
@@ -33,16 +34,20 @@ type Props = {
   initialDocuments: Document[];
 };
 
+const DOCUMENT_CONFIGS_BY_DB = new Map(
+  getAllDocumentConfigs().map((config) => [config.dbValue, config])
+);
+
 const getDocumentTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
-    receipt: "קבלה",
-    tax_invoice: "חשבונית מס",
-    invoice_receipt: "חשבונית מס/קבלה",
-    quote: "הצעת מחיר",
-    delivery_note: "תעודת משלוח",
-    credit_invoice: "חשבונית זיכוי",
-  };
-  return labels[type] || type;
+  const config = DOCUMENT_CONFIGS_BY_DB.get(type);
+  return config?.label || type;
+};
+
+const getDocumentPath = (docType: string, docId: string) => {
+  const config = DOCUMENT_CONFIGS_BY_DB.get(docType);
+  if (!config) return `/dashboard/documents/${docType}/${docId}`;
+  const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+  return `${basePath}/${config.routeSegment}/${docId}/summary`;
 };
 
 const getStatusBadge = (status: string) => {
@@ -153,7 +158,7 @@ export default function CustomerDocumentsClient({ customer, initialDocuments }: 
               <p style={{ opacity: 0.7, marginBottom: 20 }}>
                 טרם נוצרו מסמכים עבור לקוח זה
               </p>
-              <Link href="/dashboard/documents/receipt">
+              <Link href="/dashboard/incomes/documents/new/receipt">
                 <Button style={{ height: '50px', fontSize: '18px' }}>
                   צור מסמך חדש
                 </Button>
@@ -194,7 +199,7 @@ export default function CustomerDocumentsClient({ customer, initialDocuments }: 
                         </td>
                         <td style={{ padding: 20 }}>{getStatusBadge(doc.document_status)}</td>
                         <td style={{ padding: 20, textAlign: "center" }}>
-                          <Link href={`/dashboard/documents/${doc.document_type}/${doc.id}`}>
+                          <Link href={getDocumentPath(doc.document_type, doc.id)}>
                             <Button variant="secondary" style={{ height: '40px', fontSize: '16px' }}>
                               צפה
                             </Button>

@@ -5,10 +5,27 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 
+const DOCUMENT_TYPE_LABELS = {
+  invoice: "חשבונית מס",
+  tax_invoice: "חשבונית מס",
+  invoiceReceipt: "חשבונית מס / קבלה",
+  creditNote: "חשבונית זיכוי",
+  receipt: "קבלה",
+  quote: "הצעת מחיר",
+  proforma: "חשבון עסקה (דרישת תשלום)",
+  workOrder: "הזמנת עבודה",
+  deliveryNote: "תעודת משלוח",
+  returnNote: "תעודת החזרה",
+  purchaseOrder: "הזמנת רכש",
+  selfInvoice: "חשבונית עצמית",
+  selfCreditNote: "חשבונית זיכוי עצמית",
+} as const;
+
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  documentType?: keyof typeof DOCUMENT_TYPE_LABELS;
   documentDate: string;
   customerName: string;
   total: number;
@@ -31,6 +48,7 @@ export default function ReceiptConfirmationModal({
   isOpen,
   onClose,
   onConfirm,
+  documentType,
   documentDate,
   customerName,
   total,
@@ -43,6 +61,7 @@ export default function ReceiptConfirmationModal({
   onConsentCheckedChange,
   onRevokeConsent,
 }: Props) {
+  const documentLabel = documentType ? DOCUMENT_TYPE_LABELS[documentType] : "מסמך";
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
@@ -190,7 +209,7 @@ export default function ReceiptConfirmationModal({
               id="confirmation-modal-title"
               className="text-2xl font-bold text-modal-fg mb-8"
             >
-              אישור הפקת חשבונית מס
+              אישור הפקת {documentLabel}
             </h2>
 
             {/* Document Info - Horizontal row layout, centered, 18px font */}

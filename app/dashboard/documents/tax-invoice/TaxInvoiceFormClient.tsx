@@ -1,15 +1,19 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
-import type { InitialTaxInvoiceCreateData, TaxInvoiceDraftPayload } from "./actions";
+import type {
+  InitialDocumentCreateData,
+  DocumentDraftPayload,
+  DocumentIssueType,
+} from "@/lib/documents/actions";
 import {
-  issueTaxInvoiceAction,
-  saveTaxInvoiceDraftAction,
-  updateTaxInvoiceDraftAction,
+  issueDocumentAction,
+  saveDocumentDraftAction,
+  updateDocumentDraftAction,
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
-} from "./actions";
+} from "@/lib/documents/actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
@@ -28,6 +32,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import { cn } from "@/lib/utils";
 import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
+import { getDocumentConfig } from "@/lib/documents/document-configs";
 import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,11 +62,13 @@ function formatMoney(amount: number, currency: string) {
 
 export default function TaxInvoiceFormClient({
   initial,
+  documentType = "tax_invoice",
   footerText,
   editData,
   draftId,
 }: {
-  initial: InitialTaxInvoiceCreateData;
+  initial: InitialDocumentCreateData;
+  documentType?: DocumentIssueType;
   footerText?: string;
   editData?: {
     id: string;
@@ -78,6 +85,9 @@ export default function TaxInvoiceFormClient({
   } | null;
   draftId?: string;
 }) {
+  const documentConfig = useMemo(() => getDocumentConfig(documentType), [documentType]);
+  const documentLabel = documentConfig?.label || "חשבונית מס";
+  const basePath = documentConfig?.category === "business" ? "/business/documents" : "/dashboard/documents";
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -230,9 +240,9 @@ export default function TaxInvoiceFormClient({
   }, [subtotal, vatAmount, vatRate, roundTotals]);
   const hasConfirmedItems = confirmedRows.size > 0;
 
-  const payload: TaxInvoiceDraftPayload = useMemo(() => {
+  const payload: DocumentDraftPayload = useMemo(() => {
     return {
-      documentType: "tax_invoice",
+      documentType,
       customerName,
       customerId,
       documentDate,
@@ -427,7 +437,8 @@ export default function TaxInvoiceFormClient({
       const docIdForPreview = draftId || (editData as any)?.id || null;
       if (docIdForPreview) params.set("documentId", String(docIdForPreview));
 
-      setPreviewPdfUrl(`/dashboard/documents/tax-invoice/preview?${params.toString()}`);
+      const routeSegment = documentConfig?.routeSegment || "tax-invoice";
+      setPreviewPdfUrl(`${basePath}/${routeSegment}/preview?${params.toString()}`);
       setBusy(null);
     } catch (error: any) {
       setBusy(null);
@@ -446,8 +457,8 @@ export default function TaxInvoiceFormClient({
     setBusy("draft");
     try {
       let result;
-      if (draftId && editData) result = await updateTaxInvoiceDraftAction(draftId, payload);
-      else result = await saveTaxInvoiceDraftAction(payload);
+      if (draftId && editData) result = await updateDocumentDraftAction(documentType, draftId, payload);
+      else result = await saveDocumentDraftAction(documentType, payload);
 
       if (!result.ok) {
         toast.error(result.message || "שמירת טיוטה נכשלה");
@@ -457,7 +468,7 @@ export default function TaxInvoiceFormClient({
 
       toast.success("הטיוטה נשמרה");
       setBusy(null);
-      window.location.href = "/dashboard/documents";
+      window.location.href = basePath;
     } catch (error: any) {
       toast.error(error.message || "שמירת טיוטה נכשלה");
       setBusy(null);
@@ -613,7 +624,7 @@ export default function TaxInvoiceFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueTaxInvoiceAction(payload);
+      const result = await issueDocumentAction(documentType, payload);
 
       if (!result || !result.ok) {
         toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
@@ -716,7 +727,9 @@ export default function TaxInvoiceFormClient({
 
           <div className="mb-[50px]">
             <div className="flex justify-between items-center">
-              <h1 className="text-right">חשבונית מס {previewNumber || "---"}</h1>
+              <h1 className="text-right">
+                {documentLabel} {previewNumber || "---"}
+              </h1>
             </div>
             {initial.companyName && <h2 className="text-right mt-[10px] mb-[40px]">{initial.companyName}</h2>}
           </div>
@@ -1256,9 +1269,9 @@ export default function TaxInvoiceFormClient({
 
           {showStartingNumberModal && (
             <StartingNumberModal
-              documentType="tax_invoice"
+              documentType={documentType}
               onClose={() => {
-                window.location.href = "/dashboard/documents";
+                window.location.href = basePath;
               }}
               onSuccess={() => {
                 setShowStartingNumberModal(false);
@@ -1283,6 +1296,7 @@ export default function TaxInvoiceFormClient({
               setConfirmationModalOpen(false);
             }}
             onConfirm={handleIssueConfirm}
+            documentType={documentType}
             documentDate={documentDate}
             customerName={customerName}
             total={total}
@@ -1313,14 +1327,15 @@ export default function TaxInvoiceFormClient({
             <ReceiptSuccessModal
               isOpen={successModalOpen}
               onClose={() => {
-                window.location.href = "/dashboard";
+                window.location.href = basePath === "/dashboard/documents" ? "/dashboard" : basePath;
               }}
               documentNumber={successModalData.documentNumber}
               companyName={successModalData.companyName}
               documentId={successModalData.documentId}
               baseLanguage={successModalData.language}
               onViewDocument={async () => {
-                window.location.href = `/dashboard/documents/tax-invoice/${successModalData.documentId}/summary`;
+                const routeSegment = documentConfig?.routeSegment || "tax-invoice";
+                window.location.href = `${basePath}/${routeSegment}/${successModalData.documentId}/summary`;
               }}
               onDownloadHebrew={async (opts) => {
                 try {

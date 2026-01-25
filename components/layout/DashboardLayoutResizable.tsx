@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, X, Home, FileText, Users, Settings, LogOut, GripVertical } from "lucide-react"
@@ -31,10 +31,25 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    title: "קבלות וחשבוניות",
+    title: "מסמכי Income",
     items: [
-      { href: "/dashboard/documents/receipt", label: "קבלה חדשה" },
-      { href: "/dashboard/documents/tax-invoice-receipt", label: "חשבונית מס קבלה" },
+      { href: "/dashboard/incomes/documents/new/invoice", label: "חשבונית מס" },
+      { href: "/dashboard/incomes/documents/new/invoiceReceipt", label: "חשבונית מס / קבלה" },
+      { href: "/dashboard/incomes/documents/new/receipt", label: "קבלה" },
+      { href: "/dashboard/incomes/documents/new/creditNote", label: "חשבונית זיכוי" },
+    ],
+  },
+  {
+    title: "ניהול שוטף",
+    items: [
+      { href: "/business/documents/new/quote", label: "הצעת מחיר" },
+      { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)" },
+      { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
+      { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
+      { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
+      { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
+      { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
+      { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
     ],
   },
   {

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function RedirectToReceipt() {
-  redirect("/dashboard/documents/receipt");
+  redirect("/dashboard/incomes/documents/new/receipt");
 }

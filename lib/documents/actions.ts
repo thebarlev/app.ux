@@ -7,6 +7,7 @@ import {
   finalizeDocument,
   getNextDocumentNumberPreview,
 } from "@/lib/document-helpers";
+import { getDocumentConfig } from "@/lib/documents/document-configs";
 import type {
   PaymentRow,
   PaymentMethod,
@@ -20,7 +21,19 @@ import {
   DIGITAL_SIGNATURES_DEFERRED_MESSAGE,
 } from "@/lib/documents/signing/feature-flags";
 
-export type DocumentIssueType = "receipt" | "tax_invoice";
+export type DocumentIssueType =
+  | "receipt"
+  | "tax_invoice"
+  | "invoiceReceipt"
+  | "creditNote"
+  | "quote"
+  | "proforma"
+  | "workOrder"
+  | "deliveryNote"
+  | "returnNote"
+  | "purchaseOrder"
+  | "selfInvoice"
+  | "selfCreditNote";
 
 export type VatType = "regular" | "no_vat";
 
@@ -64,11 +77,31 @@ export type InitialDocumentCreateData =
 const DOCUMENT_ROUTE_SEGMENTS: Record<DocumentIssueType, string> = {
   receipt: "receipt",
   "tax_invoice": "tax-invoice",
+  invoiceReceipt: "invoice-receipt",
+  creditNote: "credit-note",
+  quote: "quote",
+  proforma: "proforma",
+  workOrder: "work-order",
+  deliveryNote: "delivery-note",
+  returnNote: "return-note",
+  purchaseOrder: "purchase-order",
+  selfInvoice: "self-invoice",
+  selfCreditNote: "self-credit-note",
 };
 
 const DOCUMENT_TYPE_LABELS: Record<DocumentIssueType, string> = {
   receipt: "קבלה",
   "tax_invoice": "חשבונית מס",
+  invoiceReceipt: "חשבונית מס / קבלה",
+  creditNote: "חשבונית זיכוי",
+  quote: "הצעת מחיר",
+  proforma: "חשבון עסקה (דרישת תשלום)",
+  workOrder: "הזמנת עבודה",
+  deliveryNote: "תעודת משלוח",
+  returnNote: "תעודת החזרה",
+  purchaseOrder: "הזמנת רכש",
+  selfInvoice: "חשבונית עצמית",
+  selfCreditNote: "חשבונית זיכוי עצמית",
 };
 
 // Re-export types for backward compatibility
@@ -99,6 +132,40 @@ function getLogPrefix(documentType: DocumentIssueType) {
 
 function getDocumentTypeLabel(documentType: DocumentIssueType) {
   return DOCUMENT_TYPE_LABELS[documentType] || documentType;
+}
+
+function toDbDocumentType(documentType: DocumentIssueType) {
+  if (documentType === "invoiceReceipt") return "invoice_receipt";
+  if (documentType === "creditNote") return "credit_note";
+  if (documentType === "workOrder") return "work_order";
+  if (documentType === "deliveryNote") return "delivery_note";
+  if (documentType === "returnNote") return "return_note";
+  if (documentType === "purchaseOrder") return "purchase_order";
+  if (documentType === "selfInvoice") return "self_invoice";
+  if (documentType === "selfCreditNote") return "self_credit_note";
+  return documentType;
+}
+
+function isItemDocumentType(documentType: DocumentIssueType) {
+  return (
+    documentType === "tax_invoice" ||
+    documentType === "invoiceReceipt" ||
+    documentType === "creditNote" ||
+    documentType === "quote" ||
+    documentType === "proforma" ||
+    documentType === "workOrder" ||
+    documentType === "deliveryNote" ||
+    documentType === "returnNote" ||
+    documentType === "purchaseOrder" ||
+    documentType === "selfInvoice" ||
+    documentType === "selfCreditNote"
+  );
+}
+
+function getDocumentBasePath(documentType: DocumentIssueType) {
+  const config = getDocumentConfig(documentType);
+  if (config?.category === "business") return "/business/documents";
+  return "/dashboard/documents";
 }
 
 function itemRowToLineItem(
@@ -310,11 +377,12 @@ export async function revokeRecipientConsentAction(
 
 async function getMinAllowedDate(companyId: string, documentType: DocumentIssueType): Promise<string | null> {
   const supabase = await createClient();
+  const dbDocumentType = toDbDocumentType(documentType);
   const { data, error } = await supabase
     .from("documents")
     .select("issue_date")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", dbDocumentType)
     .eq("document_status", "final")
     .order("issue_date", { ascending: false })
     .limit(1)
@@ -355,7 +423,7 @@ export async function getInitialDocumentCreateData(
     };
 
     let vatRate: number | undefined = undefined;
-    if (documentType === "tax_invoice") {
+    if (isItemDocumentType(documentType)) {
       const { data: vatSetting } = await supabase
         .from("global_settings")
         .select("setting_value")
@@ -391,7 +459,7 @@ function validatePayload(p: DocumentDraftPayload, minAllowedDate?: string | null
     };
     return `תאריך המסמך חייב להיות ${formatDateForDisplay(minAllowedDate)} או מאוחר יותר. המסמך האחרון הונפק ב-${formatDateForDisplay(minAllowedDate)}.`;
   }
-  if (p.documentType === "tax_invoice" && Array.isArray(p.items)) {
+  if (isItemDocumentType(p.documentType) && Array.isArray(p.items)) {
     if (p.items.length === 0) return "חובה להוסיף לפחות פריט אחד.";
     for (const [i, row] of p.items.entries()) {
       if (!row.description) return `שורת פריט ${i + 1}: חובה למלא פירוט.`;
@@ -421,23 +489,23 @@ export async function saveDocumentDraftAction(
 ) {
   const supabase = await createClient();
   const companyId = await getCompanyIdForUser();
+  const dbDocumentType = toDbDocumentType(documentType);
 
   const minAllowedDate = await getMinAllowedDate(companyId, documentType);
   const err = validatePayload(payload, minAllowedDate);
   if (err) return { ok: false as const, message: err };
 
-  const taxFields =
-    documentType === "tax_invoice"
-      ? {
-          subtotal: payload.subtotal ?? payload.total,
-          vat_rate: payload.vatRate ?? 0,
-          vat_amount: payload.vatAmount ?? 0,
-        }
-      : {};
+  const taxFields = isItemDocumentType(documentType)
+    ? {
+        subtotal: payload.subtotal ?? payload.total,
+        vat_rate: payload.vatRate ?? 0,
+        vat_amount: payload.vatAmount ?? 0,
+      }
+    : {};
 
   const baseInsert = {
     company_id: companyId,
-    document_type: documentType,
+    document_type: dbDocumentType,
     document_status: "draft",
     document_number: null,
     customer_id: payload.customerId || null,
@@ -481,7 +549,7 @@ export async function saveDocumentDraftAction(
     return { ok: false as const, message: "Draft creation failed." };
   }
 
-  if (documentType === "tax_invoice" && payload.items && payload.items.length > 0) {
+  if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
     const lineItems = payload.items.map((item, idx) =>
       itemRowToLineItem(item, data.id, companyId, idx + 1, payload.documentDate)
     );
@@ -527,6 +595,7 @@ export async function issueDocumentAction(
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
+    const dbDocumentType = toDbDocumentType(documentType);
     const minAllowedDate = await getMinAllowedDate(companyId, documentType);
     console.log(`${logPrefix} Got minAllowedDate`, { minAllowedDate });
 
@@ -587,18 +656,17 @@ export async function issueDocumentAction(
       total: payload.total,
     });
 
-    const taxFields =
-      documentType === "tax_invoice"
-        ? {
-            subtotal: payload.subtotal ?? payload.total,
-            vat_rate: payload.vatRate ?? 0,
-            vat_amount: payload.vatAmount ?? 0,
-          }
-        : {};
+    const taxFields = isItemDocumentType(documentType)
+      ? {
+          subtotal: payload.subtotal ?? payload.total,
+          vat_rate: payload.vatRate ?? 0,
+          vat_amount: payload.vatAmount ?? 0,
+        }
+      : {};
 
     const baseDraftInsert = {
       company_id: companyId,
-      document_type: documentType,
+      document_type: dbDocumentType,
       document_status: "draft",
       document_number: null,
       customer_id: payload.customerId || null,
@@ -652,7 +720,7 @@ export async function issueDocumentAction(
 
     console.log(`${logPrefix} Draft created`, { draftId: draft.id });
 
-    if (documentType === "tax_invoice" && payload.items && payload.items.length > 0) {
+    if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
       console.log(`${logPrefix} Inserting item line items`, { count: payload.items.length });
       const lineItems = payload.items.map((item, idx) =>
         itemRowToLineItem(item, draft.id, companyId, idx + 1, payload.documentDate)
@@ -778,7 +846,7 @@ export async function updateDocumentDraftAction(
     .select("id, document_status")
     .eq("id", draftId)
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", dbDocumentType)
     .maybeSingle();
 
   if (fetchError) return { ok: false as const, message: fetchError.message };
@@ -791,14 +859,13 @@ export async function updateDocumentDraftAction(
     };
   }
 
-  const taxFields =
-    documentType === "tax_invoice"
-      ? {
-          subtotal: payload.subtotal ?? payload.total,
-          vat_rate: payload.vatRate ?? 0,
-          vat_amount: payload.vatAmount ?? 0,
-        }
-      : {};
+  const taxFields = isItemDocumentType(documentType)
+    ? {
+        subtotal: payload.subtotal ?? payload.total,
+        vat_rate: payload.vatRate ?? 0,
+        vat_amount: payload.vatAmount ?? 0,
+      }
+    : {};
 
   const baseUpdate = {
     customer_name: payload.customerName,
@@ -844,13 +911,14 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
+    const dbDocumentType = toDbDocumentType(documentType);
 
     const { data, error } = await supabase
       .from("documents")
       .select("*")
       .eq("id", draftId)
       .eq("company_id", companyId)
-      .eq("document_type", documentType)
+      .eq("document_type", dbDocumentType)
       .maybeSingle();
 
     if (error) return { ok: false as const, message: error.message };
@@ -899,6 +967,7 @@ export async function getDocumentPreviewUrlAction(
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
+    const dbDocumentType = toDbDocumentType(documentType);
     const documentLabel = getDocumentTypeLabel(documentType);
     const routeSegment = DOCUMENT_ROUTE_SEGMENTS[documentType] || documentType;
 
@@ -907,7 +976,7 @@ export async function getDocumentPreviewUrlAction(
       .select("*")
       .eq("id", documentId)
       .eq("company_id", companyId)
-      .eq("document_type", documentType)
+      .eq("document_type", dbDocumentType)
       .maybeSingle();
 
     if (docError || !doc) {
@@ -984,7 +1053,7 @@ export async function getDocumentPreviewUrlAction(
       language: (doc as any)?.language || "he",
     });
 
-    if (documentType === "tax_invoice") {
+    if (isItemDocumentType(documentType)) {
       params.set("subtotal", String((doc as any).subtotal ?? doc.total_amount ?? 0));
       params.set("vatRate", String((doc as any).vat_rate ?? 0));
       params.set("vatAmount", String((doc as any).vat_amount ?? 0));
@@ -996,7 +1065,8 @@ export async function getDocumentPreviewUrlAction(
       }
     }
 
-    const url = `/dashboard/documents/${routeSegment}/preview?${params.toString()}`;
+    const basePath = getDocumentBasePath(documentType);
+    const url = `${basePath}/${routeSegment}/preview?${params.toString()}`;
 
     return { ok: true, url };
   } catch (error: any) {

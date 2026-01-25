@@ -76,7 +76,21 @@ create table if not exists public.document_sequences (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   document_type text not null
-    check (document_type in ('tax_invoice', 'invoice_receipt', 'receipt', 'quote', 'delivery_note', 'credit_invoice')),
+    check (document_type in (
+      'tax_invoice',
+      'invoice_receipt',
+      'receipt',
+      'quote',
+      'proforma',
+      'work_order',
+      'delivery_note',
+      'return_note',
+      'purchase_order',
+      'self_invoice',
+      'self_credit_note',
+      'credit_invoice',
+      'credit_note'
+    )),
 
   prefix text default '',
   starting_number integer not null default 1,

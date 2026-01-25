@@ -6,6 +6,18 @@
 import { createClient } from "@/lib/supabase/server"
 import { randomUUID } from "crypto"
 
+const toSequenceDocumentType = (documentType: string) => {
+  if (documentType === "invoiceReceipt") return "invoice_receipt"
+  if (documentType === "creditNote") return "credit_note"
+  if (documentType === "workOrder") return "work_order"
+  if (documentType === "deliveryNote") return "delivery_note"
+  if (documentType === "returnNote") return "return_note"
+  if (documentType === "purchaseOrder") return "purchase_order"
+  if (documentType === "selfInvoice") return "self_invoice"
+  if (documentType === "selfCreditNote") return "self_credit_note"
+  return documentType
+}
+
 /**
  * Get the company ID for the currently authenticated user
  * Checks both company_members (multi-tenant) and companies.auth_user_id (owner)
@@ -69,16 +81,27 @@ export async function initializeSequence(
   prefix?: string
 ): Promise<{ ok: boolean; message?: string }> {
   const supabase = await createClient()
+  const sequenceDocumentType = toSequenceDocumentType(documentType)
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:73',message:'initializeSequence entry',data:{documentType,startingNumber,hasPrefix:!!prefix},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:80',message:'initializeSequence mapped documentType',data:{documentType,sequenceDocumentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
 
   // Check if already exists
   const { data: existing } = await supabase
     .from("document_sequences")
     .select("id, is_locked")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", sequenceDocumentType)
     .maybeSingle()
 
   if (existing) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:86',message:'initializeSequence update path',data:{documentType,isLocked:!!existing.is_locked},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
     if (existing.is_locked) {
       return { ok: false, message: "sequence_already_locked" }
     }
@@ -99,11 +122,14 @@ export async function initializeSequence(
   }
 
   // Create new sequence
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:108',message:'initializeSequence insert path',data:{documentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   const { error } = await supabase
     .from("document_sequences")
     .insert({
       company_id: companyId,
-      document_type: documentType,
+      document_type: sequenceDocumentType,
       starting_number: startingNumber,
       current_number: startingNumber - 1,
       prefix: prefix ?? "",
@@ -111,7 +137,12 @@ export async function initializeSequence(
       locked_at: new Date().toISOString(),
     })
 
-  if (error) return { ok: false, message: error.message }
+  if (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:121',message:'initializeSequence insert error',data:{documentType,errorMessage:error.message,code:(error as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+    return { ok: false, message: error.message }
+  }
   return { ok: true }
 }
 
@@ -124,6 +155,7 @@ export async function isSequenceLocked(params: {
   documentType: string;
 }): Promise<{ locked: boolean; currentNumber: number | null }> {
   const supabase = await createClient()
+  const sequenceDocumentType = toSequenceDocumentType(params.documentType)
 
   console.log("[isSequenceLocked] Called with params:", params);
 
@@ -136,7 +168,7 @@ export async function isSequenceLocked(params: {
     .from("document_sequences")
     .select("is_locked, current_number, starting_number, prefix")
     .eq("company_id", params.companyId)
-    .eq("document_type", params.documentType)
+    .eq("document_type", sequenceDocumentType)
     .maybeSingle()
 
   if (error) {
@@ -168,12 +200,13 @@ export async function getNextDocumentNumberPreview(
   documentType: string
 ): Promise<{ nextNumber: number | null; formatted: string | null }> {
   const supabase = await createClient()
+  const sequenceDocumentType = toSequenceDocumentType(documentType)
 
   const { data: sequence } = await supabase
     .from("document_sequences")
     .select("current_number, starting_number, prefix, is_locked")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", sequenceDocumentType)
     .maybeSingle()
 
   if (!sequence) {
@@ -203,13 +236,17 @@ export async function finalizeDocument(
 ): Promise<{ ok: boolean; documentNumber?: string; message?: string }> {
   const requestId = randomUUID()
   const supabase = await createClient()
+  const sequenceDocumentType = toSequenceDocumentType(documentType)
 
   // Generate number atomically - this is the moment allocation happens
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:215',message:'finalizeDocument generate_number input',data:{documentType,sequenceDocumentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   const { data: docNumber, error: rpcError } = await supabase.rpc(
     "generate_document_number",
     {
       p_company_id: companyId,
-      p_document_type: documentType,
+      p_document_type: sequenceDocumentType,
     }
   )
 

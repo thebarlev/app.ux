@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { TemplateDefinition } from "@/lib/types/template"
 import { DOCUMENT_TYPES, DOCUMENT_TYPE_LABELS } from "@/config/documentVariables"
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -34,11 +35,28 @@ export default function TemplateEditorClient({ template, documentTypes }: Props)
   const router = useRouter()
   const [name, setName] = useState(template.name)
   const [description, setDescription] = useState(template.description || "")
+  const normalizeDocumentType = (type: string) => {
+    if (type === "invoice_receipt") return "invoiceReceipt"
+    if (type === "credit_note") return "creditNote"
+    if (type === "work_order") return "workOrder"
+    if (type === "delivery_note") return "deliveryNote"
+    if (type === "return_note") return "returnNote"
+    if (type === "purchase_order") return "purchaseOrder"
+    if (type === "self_invoice") return "selfInvoice"
+    if (type === "self_credit_note") return "selfCreditNote"
+    return type
+  }
   const initialTypes =
     documentTypes && documentTypes.length > 0
       ? documentTypes
       : [template.document_type].filter(Boolean)
-  const [selectedDocumentTypes, setSelectedDocumentTypes] = useState<string[]>(initialTypes)
+  const normalizedDocumentTypes = initialTypes.map(normalizeDocumentType)
+  const uiDocumentConfigs = getAllDocumentConfigs().map((config) => ({
+    type: config.uiKey,
+    label: config.label,
+  }))
+  const allSelectableTypes = uiDocumentConfigs.map((item) => item.type)
+  const [selectedDocumentTypes, setSelectedDocumentTypes] = useState<string[]>(normalizedDocumentTypes)
   const [activeLang, setActiveLang] = useState<TemplateLang>("he")
 
   const [htmlHe, setHtmlHe] = useState(template.html_he || template.html_template || "")
@@ -147,6 +165,9 @@ ${html}
       toast.error("חייב לבחור לפחות סוג מסמך אחד")
       return
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:146',message:'handleSave start',data:{templateId:template.id,selectedCount:selectedDocumentTypes.length,selectedDocumentTypes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H7'})}).catch(()=>{});
+    // #endregion
     setIsSaving(true)
     try {
       const primaryType = (selectedDocumentTypes[0] || template.document_type) as any
@@ -165,6 +186,9 @@ ${html}
       }
 
       const result = await updateTemplateAction(payload)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:171',message:'handleSave result',data:{ok:result.ok,message:result.message||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H8'})}).catch(()=>{});
+      // #endregion
       if (result.ok) {
         toast.success("התבנית נשמרה בהצלחה")
         router.refresh()
@@ -247,13 +271,16 @@ ${html}
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={selectedDocumentTypes.length === Object.keys(DOCUMENT_TYPES).length}
+                        checked={allSelectableTypes.every((type) => selectedDocumentTypes.includes(type))}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedDocumentTypes(Object.values(DOCUMENT_TYPES))
+                            setSelectedDocumentTypes(allSelectableTypes)
                           } else {
                             setSelectedDocumentTypes([DOCUMENT_TYPES.RECEIPT])
                           }
+                          // #region agent log
+                          fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:248',message:'select all toggled',data:{checked:e.target.checked,selectedCount: e.target.checked ? Object.keys(DOCUMENT_TYPES).length : 1},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H9'})}).catch(()=>{});
+                          // #endregion
                         }}
                         className="h-4 w-4 rounded border-gray-300"
                       />
@@ -262,7 +289,7 @@ ${html}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(DOCUMENT_TYPE_LABELS).map(([type, label]) => (
+                    {uiDocumentConfigs.map(({ type, label }) => (
                       <div
                         key={type}
                         className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-all ${

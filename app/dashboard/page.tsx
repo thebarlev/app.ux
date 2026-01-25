@@ -24,7 +24,7 @@ export default function DashboardPage() {
         <FormSection title="פעולות מהירות">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1120px] mx-auto w-full px-4 sm:px-6 lg:px-10">
             <DashboardCard
-              href="/dashboard/documents/receipt"
+              href="/dashboard/incomes/documents/new/receipt"
               icon={PlusCircle}
               title="קבלה חדשה"
               description="צור קבלה חדשה ללקוח"

@@ -14,9 +14,17 @@
 export type DocumentType =
   | 'receipt'
   | 'tax_invoice'
+  | 'invoiceReceipt'
+  | 'creditNote'
   | 'invoice'
   | 'quote'
+  | 'proforma'
+  | 'work_order'
   | 'delivery_note'
+  | 'return_note'
+  | 'purchase_order'
+  | 'self_invoice'
+  | 'self_credit_note'
   | 'credit_invoice';
 
 export interface TemplateDefinition {
@@ -290,6 +298,41 @@ export const TEMPLATE_VALIDATION_RULES: Record<DocumentType, TemplateValidationR
   },
   tax_invoice: {
     document_type: 'tax_invoice',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  proforma: {
+    document_type: 'proforma',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  work_order: {
+    document_type: 'work_order',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  return_note: {
+    document_type: 'return_note',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  purchase_order: {
+    document_type: 'purchase_order',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  self_invoice: {
+    document_type: 'self_invoice',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  self_credit_note: {
+    document_type: 'self_credit_note',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
+  },
+  creditNote: {
+    document_type: 'creditNote',
     required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
     recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
   },

@@ -35,13 +35,14 @@ export function Sidebar() {
       <div className="mt-3">
         <details className="group">
           <summary className="list-none cursor-pointer rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover transition flex items-center justify-between">
-            <span>קבלות / חשבוניות</span>
+            <span>מסמכי Income</span>
             <span className="text-sidebar-fg group-open:rotate-180 transition">⌄</span>
           </summary>
 
           <div className="mt-2 space-y-1 pr-3 border-r border-sidebar-border">
-            <NavLink label="קבלה חדשה" href="/dashboard/documents/receipt" />
-            <NavLink label="חשבונית מס קבלה" href="/dashboard/documents/tax-invoice-receipt" />
+            <NavLink label="חשבונית מס" href="/dashboard/incomes/documents/new/invoice" />
+            <NavLink label="חשבונית מס / קבלה" href="/dashboard/incomes/documents/new/invoiceReceipt" />
+            <NavLink label="קבלה" href="/dashboard/incomes/documents/new/receipt" />
           </div>
         </details>
       </div>

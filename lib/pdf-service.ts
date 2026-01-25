@@ -18,6 +18,56 @@ import type {
   PDFGenerationResult 
 } from "@/lib/types/template"
 
+const TAX_INVOICE_LIKE_TYPES = new Set([
+  "tax_invoice",
+  "invoiceReceipt",
+  "invoice_receipt",
+  "credit_note",
+  "quote",
+  "proforma",
+  "work_order",
+  "delivery_note",
+  "return_note",
+  "purchase_order",
+  "self_invoice",
+  "self_credit_note",
+]);
+
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  receipt: "קבלה",
+  tax_invoice: "חשבונית מס",
+  invoiceReceipt: "חשבונית מס / קבלה",
+  invoice_receipt: "חשבונית מס / קבלה",
+  credit_note: "חשבונית זיכוי",
+  quote: "הצעת מחיר",
+  proforma: "חשבון עסקה (דרישת תשלום)",
+  work_order: "הזמנת עבודה",
+  delivery_note: "תעודת משלוח",
+  return_note: "תעודת החזרה",
+  purchase_order: "הזמנת רכש",
+  self_invoice: "חשבונית עצמית",
+  self_credit_note: "חשבונית זיכוי עצמית",
+};
+
+const isTaxInvoiceLike = (documentType: string) => TAX_INVOICE_LIKE_TYPES.has(documentType);
+
+const TEMPLATE_TYPE_ALIASES: Record<string, string> = {
+  invoiceReceipt: "tax_invoice",
+  invoice_receipt: "tax_invoice",
+  credit_note: "tax_invoice",
+  quote: "tax_invoice",
+  proforma: "tax_invoice",
+  work_order: "tax_invoice",
+  delivery_note: "tax_invoice",
+  return_note: "tax_invoice",
+  purchase_order: "tax_invoice",
+  self_invoice: "tax_invoice",
+  self_credit_note: "tax_invoice",
+};
+
+const resolveTemplateDocumentType = (documentType: string) =>
+  TEMPLATE_TYPE_ALIASES[documentType] || documentType;
+
 // ==================== TEMPLATE FETCHING ====================
 
 /**
@@ -32,7 +82,20 @@ import type {
  */
 export async function getTemplateForDocument(
   companyId: string,
-  documentType: "receipt" | "tax_invoice" | "invoice" | "quote" | "delivery_note",
+  documentType:
+    | "receipt"
+    | "tax_invoice"
+    | "invoiceReceipt"
+    | "credit_note"
+    | "quote"
+    | "proforma"
+    | "work_order"
+    | "delivery_note"
+    | "return_note"
+    | "purchase_order"
+    | "self_invoice"
+    | "self_credit_note"
+    | "invoice",
   options?: {
     language?: "he" | "en";
     /**
@@ -52,6 +115,11 @@ export async function getTemplateForDocument(
   const language: "he" | "en" = options?.language || "he"
   const allowFallbackToHe = options?.allowFallbackToHe === true
   const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
+  const templateDocumentType = resolveTemplateDocumentType(documentType)
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:82',message:'getTemplateForDocument entry',data:{documentType,templateDocumentType,language,allowFallbackToHe},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
@@ -117,17 +185,23 @@ export async function getTemplateForDocument(
     const { data: mappedRows, error: mappedError } = await supabase
       .from("template_document_types")
       .select("template_id")
-      .eq("document_type", documentType)
+      .eq("document_type", templateDocumentType)
 
     if (!mappedError && mappedRows && mappedRows.length > 0) {
       mappedTemplateIds = Array.from(
         new Set(mappedRows.map((row: any) => row.template_id).filter(Boolean))
       )
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:140',message:'template_document_types mapping',data:{documentType,templateDocumentType,mappedCount:mappedTemplateIds.length,hasError:!!mappedError},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
   } catch (e: any) {
     if (DEBUG_TEMPLATES) {
       console.warn("[TEMPLATE_FETCH] Failed to load template_document_types mappings:", e?.message || e)
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:133',message:'template_document_types mapping exception',data:{documentType,error:e?.message||String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
   }
 
   const pickVariant = (row: any) => {
@@ -168,8 +242,12 @@ export async function getTemplateForDocument(
     .from("company_template_selections")
     .select("template_id")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", templateDocumentType)
     .maybeSingle()
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:193',message:'company_template_selections lookup',data:{documentType,templateDocumentType,hasSelection:!!userSelection?.template_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] PRIORITY 0 - userSelection:", {
@@ -215,10 +293,14 @@ export async function getTemplateForDocument(
     .from("templates")
     .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .eq("document_type", templateDocumentType)
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:250',message:'company default template',data:{documentType,templateDocumentType,hasDefault:!!companyDefault?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+  // #endregion
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] PRIORITY 1 - companyDefault:", {
@@ -607,7 +689,7 @@ export async function prepareDocumentData(
   // Map line items to payments array
   const payments = (items || []).map((item: any) => {
     const metadata = item.payment_metadata || {}
-    if (doc.document_type === "tax_invoice") {
+    if (isTaxInvoiceLike(doc.document_type)) {
       return {
         payment_method: metadata.label || item.description || "",
         date: item.item_date || doc.issue_date || "",
@@ -1020,7 +1102,7 @@ export async function prepareDocumentData(
     },
     document: {
       document_type: doc.document_type as any,
-      document_type_label: doc.document_type === "tax_invoice" ? "חשבונית מס" : "קבלה",
+      document_type_label: DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה",
       document_number: doc.document_number || "",
       document_date: doc.issue_date || "",
       reference_number: null,
@@ -1028,7 +1110,7 @@ export async function prepareDocumentData(
       direction: documentLanguage === "en" ? "ltr" : "rtl",
     } as any,
     document_type: doc.document_type as any,
-    document_type_label: doc.document_type === "tax_invoice" ? "חשבונית מס" : "קבלה",
+    document_type_label: DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה",
     payments: mappedPayments,
     items: (items || []).map((item) => ({
       description: item.description,
@@ -1122,7 +1204,7 @@ export async function prepareDocumentData(
 
   // Generate HTML rows for payments table
   // This is used when template engine doesn't support {{#each}}
-  if (doc.document_type === "tax_invoice") {
+  if (isTaxInvoiceLike(doc.document_type)) {
     templateData.PAYMENTS_ROWS_HTML = ""
     templateData.TOTAL_AMOUNT = ""
   } else if (mappedPayments.length > 0) {
@@ -1149,10 +1231,13 @@ export async function prepareDocumentData(
         cardType: payment.cardType,
         notes: payment.description,
       })
+      const detailsWithMethod = payment.method
+        ? `${payment.method}: ${paymentDetails}`.trim()
+        : paymentDetails
       
       // Escape HTML to prevent XSS
       const escapedMethod = escapeHtml(payment.method)
-      const escapedDetails = escapeHtml(paymentDetails)
+      const escapedDetails = escapeHtml(detailsWithMethod)
       const escapedDate = escapeHtml(formattedPaymentDate)
       const escapedAmount = escapeHtml(formattedAmount)
       
@@ -1170,7 +1255,7 @@ export async function prepareDocumentData(
     // Empty string if no payments (not null)
     templateData.PAYMENTS_ROWS_HTML = ""
   }
-  if (doc.document_type === "tax_invoice") {
+  if (isTaxInvoiceLike(doc.document_type)) {
     const itemRows = (items || []).map((item: any) => {
       const metadata = item.payment_metadata || {}
       const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
@@ -1205,7 +1290,7 @@ export async function prepareDocumentData(
     templateData.TI_TOTAL_AMOUNT = ""
   }
   if (process.env.NODE_ENV !== "production") {
-    if (doc.document_type === "tax_invoice") {
+    if (isTaxInvoiceLike(doc.document_type)) {
       console.log("[template-vars][tax_invoice]", {
         TI_ROWS_HTML: templateData.TI_ROWS_HTML,
         TI_SUBTOTAL: templateData.TI_SUBTOTAL,
@@ -1458,7 +1543,13 @@ export async function generateDocumentPDF(
     }
 
     // 4. Validate template (optional - log warnings)
-    const validation = validateTemplate(template.html, doc.document_type as any)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:1546',message:'validateTemplate call',data:{documentType:doc.document_type,templateType:resolveTemplateDocumentType(doc.document_type)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'})}).catch(()=>{});
+    // #endregion
+    const validation = validateTemplate(
+      template.html,
+      resolveTemplateDocumentType(doc.document_type) as any
+    )
     if (!validation.valid) {
       console.warn(`Template missing required placeholders:`, validation.missing)
     }

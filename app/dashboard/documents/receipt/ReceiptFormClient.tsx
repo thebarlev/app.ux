@@ -998,6 +998,7 @@ export default function ReceiptFormClient({
               setConfirmationModalOpen(false);
             }}
             onConfirm={handleIssueConfirm}
+            documentType="receipt"
             documentDate={documentDate}
             customerName={customerName}
             total={total}
