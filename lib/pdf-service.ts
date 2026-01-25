@@ -1075,9 +1075,17 @@ export async function prepareDocumentData(
 
   // Build template data structure  
   const resolvedCustomerName = doc.customer?.name || doc.customer_name || ""
+  
+  // Check if any item has SKU data (non-empty sku field)
+  const hasSkuData = (items || []).some((item: any) => {
+    const sku = item.item_sku || null
+    return sku && String(sku).trim().length > 0
+  })
+  
   const templateData: ReceiptTemplateData & Record<string, any> = {
     t,
     DOCUMENT_COPY_LABEL: options?.documentCopyLabel ?? "",
+    HAS_SKU_DATA: hasSkuData, // ✅ משתנה חדש - האם יש מק"ט בשורות
     company: {
       company_name: companyNameLocalized,
       company_name_he: companyNameHe,
@@ -1120,6 +1128,7 @@ export async function prepareDocumentData(
       total_price: parseFloat(item.line_total),
       vat_rate: doc.vat_rate ? parseFloat(doc.vat_rate) : undefined,
       notes: item.notes || null,
+      sku: item.item_sku || null, // ✅ הוסף מק"ט
     })),
     totals: {
       subtotal: doc.subtotal ? parseFloat(doc.subtotal) : 0,
@@ -1256,13 +1265,17 @@ export async function prepareDocumentData(
     templateData.PAYMENTS_ROWS_HTML = ""
   }
   if (isTaxInvoiceLike(doc.document_type)) {
+    // ✅ יצירת שורות טבלה דינמיות - 5 תאים כשיש מק"ט, 4 תאים כשאין
     const itemRows = (items || []).map((item: any) => {
       const metadata = item.payment_metadata || {}
       const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
       const lineTotal = Number(item.line_total || 0)
       const itemDate = item.item_date || doc.issue_date || ""
+      const sku = item.item_sku || ""
+      
       const formattedDate = formatDate(itemDate)
       const formattedTotal = formatCurrency(lineTotal)
+      
       const escapedQty = escapeHtml(String(quantity))
       const escapedDetails = escapeHtml(
         metadata.details || item.description || metadata.label || ""
@@ -1270,6 +1283,19 @@ export async function prepareDocumentData(
       const escapedDate = escapeHtml(formattedDate)
       const escapedTotal = escapeHtml(formattedTotal)
 
+      // אם יש מק"ט במסמך הזה, יוצר 5 תאים (כולל מק"ט)
+      if (hasSkuData) {
+        const escapedSku = escapeHtml(String(sku))
+        return `<tr>
+  <td>${escapedSku}</td>
+  <td>${escapedQty}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedDate}</td>
+  <td>${escapedTotal}</td>
+</tr>`
+      }
+      
+      // אם אין מק"ט במסמך, יוצר 4 תאים (בלי מק"ט)
       return `<tr>
   <td>${escapedQty}</td>
   <td>${escapedDetails}</td>
@@ -1278,12 +1304,17 @@ export async function prepareDocumentData(
 </tr>`
     })
     templateData.TI_ROWS_HTML = itemRows.join("\n")
+    
+    // ✅ SKU_ROWS_HTML כבר לא נדרש (הוסרה הטבלה הנפרדת)
+    templateData.SKU_ROWS_HTML = ""
+    
     templateData.TI_SUBTOTAL = formatCurrency(doc.subtotal ? parseFloat(doc.subtotal) : 0)
     templateData.TI_VAT_RATE = doc.vat_rate ? parseFloat(doc.vat_rate) : 0
     templateData.TI_VAT_AMOUNT = formatCurrency(doc.vat_amount ? parseFloat(doc.vat_amount) : 0)
     templateData.TI_TOTAL_AMOUNT = formatCurrency(parseFloat(doc.total_amount || 0))
   } else {
     templateData.TI_ROWS_HTML = ""
+    templateData.SKU_ROWS_HTML = "" // ✅ ריק עבור מסמכי קבלה רגילים
     templateData.TI_SUBTOTAL = ""
     templateData.TI_VAT_RATE = ""
     templateData.TI_VAT_AMOUNT = ""
@@ -1292,7 +1323,9 @@ export async function prepareDocumentData(
   if (process.env.NODE_ENV !== "production") {
     if (isTaxInvoiceLike(doc.document_type)) {
       console.log("[template-vars][tax_invoice]", {
-        TI_ROWS_HTML: templateData.TI_ROWS_HTML,
+        TI_ROWS_HTML_length: templateData.TI_ROWS_HTML.length,
+        HAS_SKU_DATA: templateData.HAS_SKU_DATA, // ✅ האם יש מק"ט
+        items_count: (items || []).length,
         TI_SUBTOTAL: templateData.TI_SUBTOTAL,
         TI_VAT_RATE: templateData.TI_VAT_RATE,
         TI_VAT_AMOUNT: templateData.TI_VAT_AMOUNT,

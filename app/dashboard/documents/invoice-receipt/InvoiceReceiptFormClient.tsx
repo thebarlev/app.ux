@@ -125,6 +125,14 @@ export default function InvoiceReceiptFormClient({
   const [showPreview, setShowPreview] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [successModalData, setSuccessModalData] = useState<{
+    documentId: string;
+    documentNumber: string;
+    companyName: string;
+    documentTypeLabel: string;
+    language: "he" | "en";
+  } | null>(null);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [successDocumentId, setSuccessDocumentId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentGiven, setIsConsentGiven] = useState(false);
@@ -302,8 +310,14 @@ export default function InvoiceReceiptFormClient({
         return;
       }
 
-      setSuccessDocumentId(result.documentId!);
-      setShowSuccess(true);
+      setSuccessModalData({
+        documentId: result.documentId || "",
+        documentNumber: result.documentNumber || "",
+        companyName: result.companyName || "העסק שלי",
+        documentTypeLabel: "חשבונית מס / קבלה",
+        language,
+      });
+      setSuccessModalOpen(true);
     } catch (err: any) {
       toast.error(err.message || "שגיאה בהפקה");
     } finally {
@@ -672,13 +686,80 @@ export default function InvoiceReceiptFormClient({
         />
       )}
 
-      {showSuccess && (
+      {successModalData && (
         <ReceiptSuccessModal
-          documentId={successDocumentId}
-          documentType="invoiceReceipt"
+          isOpen={successModalOpen}
           onClose={() => {
-            setShowSuccess(false);
+            setSuccessModalOpen(false);
             window.location.href = basePath;
+          }}
+          documentNumber={successModalData.documentNumber}
+          companyName={successModalData.companyName}
+          documentTypeLabel={successModalData.documentTypeLabel}
+          documentId={successModalData.documentId}
+          baseLanguage={successModalData.language}
+          onViewDocument={async () => {
+            window.location.href = `/dashboard/documents/invoice-receipt/${successModalData.documentId}/summary`;
+          }}
+          onDownloadHebrew={async (opts) => {
+            try {
+              const issue = opts?.issue || "copy";
+              const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=he&issue=${issue}`;
+              const response = await fetch(pdfUrl);
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.details || errorData.error || response.statusText;
+                throw new Error(`PDF download failed: ${errorMessage}`);
+              }
+
+              const blob = await response.blob();
+              if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `invoice-receipt-${successModalData.documentNumber}-he-${issue}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+
+              toast.success("הקובץ הורד בהצלחה");
+            } catch (error: any) {
+              console.error("Hebrew PDF download failed:", error);
+              toast.error(error.message || "שגיאה בהורדת PDF");
+            }
+          }}
+          onDownloadEnglish={async (opts) => {
+            try {
+              const issue = opts?.issue || "copy";
+              const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=en&issue=${issue}`;
+              const response = await fetch(pdfUrl);
+
+              if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.details || errorData.error || response.statusText;
+                throw new Error(`PDF download failed: ${errorMessage}`);
+              }
+
+              const blob = await response.blob();
+              if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `invoice-receipt-${successModalData.documentNumber}-en-${issue}.pdf`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              document.body.removeChild(a);
+
+              toast.success("File downloaded successfully");
+            } catch (error: any) {
+              console.error("English PDF download failed:", error);
+              toast.error(error.message || "Failed to download PDF");
+            }
           }}
         />
       )}

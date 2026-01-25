@@ -11,6 +11,7 @@ type Props = {
   documentNumber: string;
   companyName: string;
   documentId: string;
+  documentTypeLabel: string;
   onViewDocument: () => void;
   onDownloadHebrew: (opts?: { issue?: "original" | "copy" }) => void;
   onDownloadEnglish: (opts?: { issue?: "original" | "copy" }) => void;
@@ -23,6 +24,7 @@ export default function ReceiptSuccessModal({
   documentNumber,
   companyName,
   documentId,
+  documentTypeLabel,
   onViewDocument,
   onDownloadHebrew,
   onDownloadEnglish,
@@ -261,7 +263,7 @@ export default function ReceiptSuccessModal({
 
           {/* Receipt Number */}
           <p className="text-base text-modal-fg mb-4">
-            קבלה #{documentNumber}
+            {documentTypeLabel} #{documentNumber}
           </p>
 
           {/* Actions Grid */}

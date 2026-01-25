@@ -198,6 +198,7 @@ function itemRowToLineItem(
     bank_name: null,
     branch: null,
     account_number: null,
+    item_sku: item.sku || null, // ✅ שמירה ישירה של המק"ט
     payment_metadata: metadata,
   };
 }

@@ -142,6 +142,7 @@ export default function ReceiptFormClient({
     documentId: string;
     documentNumber: string;
     companyName: string;
+    documentTypeLabel: string;
     language: "he" | "en";
   } | null>(null);
 
@@ -496,6 +497,7 @@ export default function ReceiptFormClient({
         documentId: result.receiptId,
         documentNumber: result.documentNumber || "",
         companyName: result.companyName || "העסק שלי",
+        documentTypeLabel: "קבלה",
         language,
       });
       setSuccessModalOpen(true);
@@ -1033,6 +1035,7 @@ export default function ReceiptFormClient({
               }}
               documentNumber={successModalData.documentNumber}
               companyName={successModalData.companyName}
+              documentTypeLabel={successModalData.documentTypeLabel}
               documentId={successModalData.documentId}
               baseLanguage={successModalData.language}
               onViewDocument={async () => {

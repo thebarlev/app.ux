@@ -153,6 +153,7 @@ export default function TaxInvoiceFormClient({
     documentId: string;
     documentNumber: string;
     companyName: string;
+    documentTypeLabel: string;
     language: "he" | "en";
   } | null>(null);
 
@@ -640,6 +641,7 @@ export default function TaxInvoiceFormClient({
         documentId: result.documentId,
         documentNumber: result.documentNumber || "",
         companyName: result.companyName || "העסק שלי",
+        documentTypeLabel: "חשבונית מס",
         language,
       });
       setSuccessModalOpen(true);
@@ -1331,6 +1333,7 @@ export default function TaxInvoiceFormClient({
               }}
               documentNumber={successModalData.documentNumber}
               companyName={successModalData.companyName}
+              documentTypeLabel={successModalData.documentTypeLabel}
               documentId={successModalData.documentId}
               baseLanguage={successModalData.language}
               onViewDocument={async () => {
