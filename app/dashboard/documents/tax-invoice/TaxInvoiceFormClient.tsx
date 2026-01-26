@@ -90,6 +90,7 @@ export default function TaxInvoiceFormClient({
   const basePath = documentConfig?.category === "business" ? "/business/documents" : "/dashboard/documents";
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const showDueDate = documentType === "tax_invoice" || documentType === "deliveryNote";
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
   const [showStartingNumberModal, setShowStartingNumberModal] = useState(false);
@@ -247,7 +248,7 @@ export default function TaxInvoiceFormClient({
       customerName,
       customerId,
       documentDate,
-      paymentDueDate: dueDate,
+      paymentDueDate: showDueDate ? dueDate : "",
       description,
       payments: [],
       items: items.map((item) => ({
@@ -268,7 +269,6 @@ export default function TaxInvoiceFormClient({
     customerName,
     customerId,
     documentDate,
-    dueDate,
     description,
     items,
     notes,
@@ -281,6 +281,8 @@ export default function TaxInvoiceFormClient({
     subtotal,
     roundTotals,
     language,
+    showDueDate,
+    dueDate,
   ]);
 
   useEffect(() => {
@@ -422,7 +424,7 @@ export default function TaxInvoiceFormClient({
         customerName: customerName || "",
         customerId: customerId || "",
         documentDate: documentDate || todayYmd(),
-        paymentDueDate: dueDate || documentDate || todayYmd(),
+        paymentDueDate: showDueDate ? dueDate || documentDate || todayYmd() : "",
         description: description || "",
         notes: notes || "",
         footerNotes: footerText || "",
@@ -780,19 +782,20 @@ export default function TaxInvoiceFormClient({
                     min={minAllowedDate || undefined}
                     containerClassName="w-full min-w-0 ui-document-date-offset"
                   />
-
-                  <FloatingDateInput
-                    label="תשלום עד"
-                    required
-                    id="dueDate"
-                    value={dueDate}
-                    onChange={(value) => {
-                      if (value < documentDate) setDueDate(documentDate);
-                      else setDueDate(value);
-                    }}
-                    min={documentDate || undefined}
-                    containerClassName="w-full min-w-0 ui-document-date-offset"
-                  />
+                  {showDueDate ? (
+                    <FloatingDateInput
+                      label="תשלום עד"
+                      required
+                      id="dueDate"
+                      value={dueDate}
+                      onChange={(value) => {
+                        if (value < documentDate) setDueDate(documentDate);
+                        else setDueDate(value);
+                      }}
+                      min={documentDate || undefined}
+                      containerClassName="w-full min-w-0 ui-document-date-offset"
+                    />
+                  ) : null}
                 </div>
               </div>
             </FormSection>
@@ -1028,6 +1031,8 @@ export default function TaxInvoiceFormClient({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => removeItemRow(i)}
+                                disabled={items.length === 1}
+                                title={items.length === 1 ? "חייב להיות לפחות פריט אחד" : "מחיקה"}
                                 aria-label="מחיקה"
                                 className="text-danger hover:text-danger hover:bg-danger/10"
                               >

@@ -233,7 +233,12 @@
 
   }
 
-  html, body {
+  html {
+    height: 100%;
+    scrollbar-gutter: stable; /* שומר מקום קבוע ל-scrollbar, מונע shift */
+  }
+
+  body {
     height: 100%;
     background-color: var(--bg);
     font-family: 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
@@ -994,3 +999,37 @@ aside nav svg {
   color: currentColor !important;
 }
 .ui-sidebar svg { color: currentColor !important; }
+
+/* ===============================
+   Fix: Scrollbar Shift Prevention
+   מונע תזוזה של העמוד כש-dropdown נפתח
+   =============================== */
+
+/* פתרון גלובלי: מבטל scroll lock של Radix UI לחלוטין */
+body[data-scroll-locked],
+body[data-remove-scroll-bar],
+html[data-scroll-locked],
+html[data-remove-scroll-bar] {
+  overflow: auto !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+  position: static !important;
+  width: auto !important;
+}
+
+/* עוקף inline styles שRadix מוסיף ישירות ל-body */
+body[style*="overflow"] {
+  overflow: auto !important;
+}
+
+body[style*="padding-right"],
+body[style*="padding-left"] {
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* מבטל את ה-inert שRadix מוסיף לאלמנטים אחרים */
+[data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+}

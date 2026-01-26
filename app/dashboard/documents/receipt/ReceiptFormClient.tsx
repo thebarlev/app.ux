@@ -25,13 +25,14 @@ import { FloatingTextarea } from "@/components/ui/floating-textarea";
 import { FloatingDateInput } from "@/components/ui/floating-date-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CurrencyAmountGroup } from "@/components/ui/currency-amount-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import { cn } from "@/lib/utils";
 import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
-import { Trash2, Save, CheckCircle, Eye } from "lucide-react";
+import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const PAYMENT_METHODS = [
@@ -121,6 +122,7 @@ export default function ReceiptFormClient({
   const paymentsTableRef = useRef<HTMLDivElement>(null);
 
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "", date: todayYmd(), amount: 0, currency }]);
+  const [confirmedPayments, setConfirmedPayments] = useState<Set<number>>(new Set());
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -171,6 +173,7 @@ export default function ReceiptFormClient({
     if (!roundTotals) return sum;
     return Math.round(sum);
   }, [payments, roundTotals]);
+  const hasConfirmedPayments = confirmedPayments.size > 0;
 
   const payload: ReceiptDraftPayload = useMemo(() => {
     return {
@@ -211,10 +214,47 @@ export default function ReceiptFormClient({
 
   function updatePaymentRow(i: number, patch: Partial<PaymentRow>) {
     setPayments((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+    setConfirmedPayments((prev) => {
+      if (!prev.has(i)) return prev;
+      const next = new Set(prev);
+      next.delete(i);
+      return next;
+    });
   }
 
   function removePaymentRow(i: number) {
     setPayments((prev) => prev.filter((_, idx) => idx !== i));
+    setConfirmedPayments((prev) => {
+      if (!prev.has(i)) return prev;
+      const next = new Set(prev);
+      next.delete(i);
+      return next;
+    });
+  }
+
+  function validatePaymentRow(payment: PaymentRow) {
+    const errors: { method?: string; amount?: string } = {};
+    if (!payment.method || payment.method.trim().length === 0) {
+      errors.method = "חובה לבחור אמצעי תשלום";
+    }
+    if (!Number.isFinite(payment.amount) || payment.amount <= 0) {
+      errors.amount = "סכום חייב להיות גדול מ-0";
+    }
+    return errors;
+  }
+
+  function confirmPaymentRow(i: number) {
+    const errors = validatePaymentRow(payments[i]);
+    if (Object.keys(errors).length > 0) {
+      setPaymentErrors((prev) => ({ ...prev, [i]: errors }));
+      return;
+    }
+    setPaymentErrors((prev) => {
+      const next = { ...prev };
+      if (next[i]) delete next[i];
+      return next;
+    });
+    setConfirmedPayments((prev) => new Set(prev).add(i));
   }
 
   function focusFieldWithError(fieldRef: React.RefObject<HTMLElement | null>) {
@@ -681,158 +721,323 @@ export default function ReceiptFormClient({
                 )}
 
                 <div className="space-y-[20px]">
+                  {/* Headers Row */}
+                  <div className="px-[20px] sm:px-6 lg:px-8">
+                    <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center font-semibold">
+                      <div className="text-right pr-[20px] translate-y-[20px]">אמצעי תשלום</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">תאריך</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">סכום</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
+                      <div className="text-right pr-[20px] translate-y-[20px]">פרטים נוספים</div>
+                      <div className="text-right translate-y-[20px] pr-[30px]">פעולות</div>
+                    </div>
+                  </div>
+
                   {payments.map((row, i) => (
                     <div key={i}>
                       <div
-                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6"
-                        style={{
-                          backgroundColor: "white",
-                          border: "none",
-                        }}
+                        className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 ti-items-row"
                         data-payment-card="true"
+                        data-locked={confirmedPayments.has(i) ? "true" : "false"}
                       >
-                      {payments.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removePaymentRow(i)}
-                          aria-label="מחיקה"
-                          className="absolute top-3 left-3 text-danger hover:text-danger hover:bg-danger/10"
-                          title="מחק"
-                          style={{ color: "#9B0003" }}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      )}
+                        <div className="min-w-0">
+                          {/* Desktop View - Single Row Grid */}
+                          <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center">
+                            {/* אמצעי תשלום - 24% */}
+                            <div className="w-full min-w-0">
+                              <Select
+                                value={row.method}
+                                disabled={confirmedPayments.has(i)}
+                                onValueChange={(v) => {
+                                  updatePaymentRow(i, { method: v as any });
+                                  if (paymentErrors[i]?.method) {
+                                    const newErrors = { ...paymentErrors };
+                                    if (newErrors[i]) {
+                                      delete newErrors[i].method;
+                                      if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                    }
+                                    setPaymentErrors(newErrors);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger
+                                  variant="underline"
+                                  className={cn(
+                                    "ti-items-select w-full min-w-0",
+                                    paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
+                                  )}
+                                  aria-label="אמצעי תשלום"
+                                >
+                                  <SelectValue placeholder="בחר..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PAYMENT_METHODS.map((m) => (
+                                    <SelectItem key={m} value={m}>
+                                      {m}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
 
-                      <div className="min-w-0">
-                        {/* Grid דינמי: כמה שיותר בשורה אחת, נשבר יפה */}
-                      <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]">
-                          <div className="w-full min-w-0">
-                            <label
-                              htmlFor={`payment-method-${i}`}
-                              className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
-                            >
-                              אמצעי תשלום<span className="ms-1">*</span>
-                            </label>
-                            <Select
-                              value={row.method}
-                              onValueChange={(v) => {
-                                updatePaymentRow(i, { method: v as any });
-                                if (paymentErrors[i]?.method) {
+                            {/* תאריך - 13% */}
+                            <Input
+                              type="date"
+                              id={`payment-date-${i}`}
+                              value={row.date}
+                              onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                              className="ti-items-input text-right min-w-0"
+                              disabled={confirmedPayments.has(i)}
+                            />
+
+                            {/* סכום - 13% */}
+                            <MoneyInput
+                              className={cn(
+                                "w-full min-w-0 text-right",
+                                paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
+                                confirmedPayments.has(i) ? "pointer-events-none" : ""
+                              )}
+                              variant="items"
+                              value={row.amount}
+                              onChange={(v) => {
+                                updatePaymentRow(i, { amount: v });
+                                if (paymentErrors[i]?.amount && v > 0) {
                                   const newErrors = { ...paymentErrors };
                                   if (newErrors[i]) {
-                                    delete newErrors[i].method;
+                                    delete newErrors[i].amount;
                                     if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
                                   }
                                   setPaymentErrors(newErrors);
                                 }
                               }}
+                              currency={currency}
+                            />
+
+                            {/* מטבע - 80px */}
+                            <Select
+                              value={row.currency || currency}
+                              disabled={currency !== "₪" || confirmedPayments.has(i)}
+                              onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                             >
                               <SelectTrigger
-                                id={`payment-method-${i}`}
                                 variant="underline"
-                                className={cn(
-                                  "w-full min-w-0",
-                                  paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
-                                )}
-                                aria-required="true"
-                                aria-invalid={!!paymentErrors[i]?.method}
-                                aria-describedby={paymentErrors[i]?.method ? `payment-method-${i}-error` : undefined}
+                                className="ti-items-select w-full min-w-0"
+                                aria-label="מטבע"
                               >
-                                <SelectValue placeholder="בחר אמצעי תשלום..." />
+                                <SelectValue />
                               </SelectTrigger>
-
                               <SelectContent>
-                                {PAYMENT_METHODS.map((m) => (
-                                  <SelectItem key={m} value={m}>
-                                    {m}
+                                {allowedCurrencies.map((c) => (
+                                  <SelectItem key={c} value={c}>
+                                    {c}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                          </div>
 
-                          <FloatingDateInput
-                            label="תאריך תשלום"
-                            required
-                            id={`payment-date-${i}`}
-                            value={row.date}
-                            onChange={(value) => updatePaymentRow(i, { date: value })}
-                            containerClassName="w-full min-w-0"
-                          />
-
-                          <FieldWrapper
-                            label="סכום"
-                            required
-                            error={paymentErrors[i]?.amount}
-                            id={`payment-amount-${i}`}
-                            className="w-full min-w-0 ui-money-block"
-                            labelClassName="ui-money-label"
-                          >
-                            {/* עטיפה כדי להבטיח min-w-0 + w-full */}
-                            <div className="min-w-0 w-full">
-                              <CurrencyAmountGroup
-                                currencyControl={
-                                  <div className="shrink-0">
-                                    <Select
-                                      value={row.currency || currency}
-                                      disabled={currency !== "₪"}
-                                      onValueChange={(v) => updatePaymentRow(i, { currency: v })}
-                                    >
-                                      <SelectTrigger
-                                        variant="underline"
-                                        className="w-[72px] shrink-0"
-                                        style={{ fontSize: "18px", fontWeight: 600 }}
-                                        aria-label="מטבע"
-                                      >
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {allowedCurrencies.map((c) => (
-                                          <SelectItem key={c} value={c}>
-                                            {c}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                }
-                                amountControl={
-                                  <div className="min-w-0 w-full">
-                                    <MoneyInput  className="w-full min-w-0"
-                                      id={`payment-amount-${i}`}
-                                      value={row.amount}
-                                      onChange={(v) => {
-                                        updatePaymentRow(i, { amount: v });
-                                        if (paymentErrors[i]?.amount && v > 0) {
-                                          const newErrors = { ...paymentErrors };
-                                          if (newErrors[i]) {
-                                            delete newErrors[i].amount;
-                                            if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
-                                          }
-                                          setPaymentErrors(newErrors);
-                                        }
-                                      }}
-                                      currency={currency}
-                                      error={!!paymentErrors[i]?.amount}
-                                      style={{ fontSize: "18px", fontWeight: 600 }}
-                                      aria-required={true}
-                                      aria-invalid={!!paymentErrors[i]?.amount}
-                                      aria-describedby={paymentErrors[i]?.amount ? `payment-amount-${i}-error` : undefined}
-                                    />
-                                  </div>
-                                }
+                            {/* פרטים נוספים - flex-1 */}
+                            <div className="min-w-0">
+                              <PaymentDetailsSection
+                                payment={row}
+                                onUpdate={(updates) => updatePaymentRow(i, updates)}
+                                isConfirmed={confirmedPayments.has(i)}
+                                renderMode="inline"
                               />
                             </div>
-                          </FieldWrapper>
-                        </div>
 
-                        <div className="mt-[50px] min-w-0">
-                          <PaymentDetailsSection payment={row} onUpdate={(updates) => updatePaymentRow(i, updates)} />
+                            {/* כפתורים - 1fr */}
+                            <div className="flex items-center justify-center gap-2">
+                              {confirmedPayments.has(i) ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setConfirmedPayments((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(i);
+                                      return next;
+                                    })
+                                  }
+                                  aria-label="עריכה"
+                                  className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                  אישור
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removePaymentRow(i)}
+                                disabled={payments.length === 1}
+                                title={payments.length === 1 ? "חייב להיות לפחות תקבול אחד" : "מחיקה"}
+                                aria-label="מחיקה"
+                                className="text-danger hover:text-danger hover:bg-danger/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Mobile View - Stack (only for mobile) */}
+                          <div className="md:hidden space-y-4">
+                            {/* אמצעי תשלום */}
+                            <div className="w-full">
+                              <label className="block text-sm text-muted-fg mb-2">אמצעי תשלום</label>
+                              <Select
+                                value={row.method}
+                                disabled={confirmedPayments.has(i)}
+                                onValueChange={(v) => {
+                                  updatePaymentRow(i, { method: v as any });
+                                  if (paymentErrors[i]?.method) {
+                                    const newErrors = { ...paymentErrors };
+                                    if (newErrors[i]) {
+                                      delete newErrors[i].method;
+                                      if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                    }
+                                    setPaymentErrors(newErrors);
+                                  }
+                                }}
+                              >
+                                <SelectTrigger
+                                  variant="underline"
+                                  className={cn(
+                                    "ti-items-select w-full",
+                                    paymentErrors[i]?.method ? "border-danger focus:border-danger" : ""
+                                  )}
+                                  aria-label="אמצעי תשלום"
+                                >
+                                  <SelectValue placeholder="בחר..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PAYMENT_METHODS.map((m) => (
+                                    <SelectItem key={m} value={m}>
+                                      {m}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* תאריך */}
+                            <div className="w-full">
+                              <label className="block text-sm text-muted-fg mb-2">תאריך תשלום</label>
+                              <Input
+                                type="date"
+                                id={`payment-date-mobile-${i}`}
+                                value={row.date}
+                                onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                                className="ti-items-input text-right w-full"
+                                disabled={confirmedPayments.has(i)}
+                              />
+                            </div>
+
+                            {/* סכום + מטבע - ביחד במובייל */}
+                            <div className="w-full">
+                              <label className="block text-sm text-muted-fg mb-2">סכום</label>
+                              <div className="flex gap-3 items-center">
+                                <MoneyInput
+                                  className={cn(
+                                    "flex-1 text-right",
+                                    paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
+                                    confirmedPayments.has(i) ? "pointer-events-none" : ""
+                                  )}
+                                  variant="items"
+                                  value={row.amount}
+                                  onChange={(v) => {
+                                    updatePaymentRow(i, { amount: v });
+                                    if (paymentErrors[i]?.amount && v > 0) {
+                                      const newErrors = { ...paymentErrors };
+                                      if (newErrors[i]) {
+                                        delete newErrors[i].amount;
+                                        if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                      }
+                                      setPaymentErrors(newErrors);
+                                    }
+                                  }}
+                                  currency={currency}
+                                />
+
+                                <Select
+                                  value={row.currency || currency}
+                                  disabled={currency !== "₪" || confirmedPayments.has(i)}
+                                  onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                                >
+                                  <SelectTrigger
+                                    variant="underline"
+                                    className="ti-items-select w-[80px] shrink-0"
+                                    aria-label="מטבע"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {allowedCurrencies.map((c) => (
+                                      <SelectItem key={c} value={c}>
+                                        {c}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* פרטים נוספים */}
+                            {row.method && (
+                              <div className="w-full">
+                                <label className="block text-sm text-muted-fg mb-2">פרטים נוספים</label>
+                                <PaymentDetailsSection
+                                  payment={row}
+                                  onUpdate={(updates) => updatePaymentRow(i, updates)}
+                                  isConfirmed={confirmedPayments.has(i)}
+                                  renderMode="inline"
+                                />
+                              </div>
+                            )}
+
+                            {/* כפתורים */}
+                            <div className="flex items-center justify-center gap-2 pt-2">
+                              {confirmedPayments.has(i) ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setConfirmedPayments((prev) => {
+                                      const next = new Set(prev);
+                                      next.delete(i);
+                                      return next;
+                                    })
+                                  }
+                                  aria-label="עריכה"
+                                  className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                  אישור
+                                </Button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removePaymentRow(i)}
+                                disabled={payments.length === 1}
+                                title={payments.length === 1 ? "חייב להיות לפחות תקבול אחד" : "מחיקה"}
+                                aria-label="מחיקה"
+                                className="text-danger hover:text-danger hover:bg-danger/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
                       </div>
                       {i < payments.length - 1 ? (
                         <div className="h-px bg-[var(--muted-fg)] opacity-50 mx-[20px] sm:mx-6 lg:mx-8 mt-[15px]" />
@@ -842,30 +1047,26 @@ export default function ReceiptFormClient({
                 </div>
 
                 <div className="pr-[25px]">
-  <Button
-    type="button"
-    onClick={addPaymentRow}
-    variant="secondary"
-  >
-    הוספת תקבול
-  </Button>
-</div>
-
-                <div className="pt-[50px] mt-[50px]">
-                  <div className="flex justify-between items-center">
-                    <div className="text-lg font-bold" style={{ color: "#19183B" }}>
-                      
-                    </div>
-                    <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
-                    סה״כ   {formatMoney(total, currency)}
-                    </div>
-                  </div>
-                  {roundTotals && (
-                    <p className="text-xs mt-2 text-right" style={{ color: "#19183B", opacity: 0.8 }}>
-                      כולל עיגול לסכום סופי
-                    </p>
-                  )}
+                  <Button type="button" onClick={addPaymentRow} variant="secondary">
+                    הוספת תקבול
+                  </Button>
                 </div>
+
+                {hasConfirmedPayments && (
+                  <div className="pt-[50px] mt-[50px]">
+                    <div className="flex justify-between items-center">
+                      <div className="text-lg font-bold" style={{ color: "#19183B" }}></div>
+                      <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
+                        סה״כ {formatMoney(total, currency)}
+                      </div>
+                    </div>
+                    {roundTotals && (
+                      <p className="text-xs mt-2 text-right" style={{ color: "#19183B", opacity: 0.8 }}>
+                        כולל עיגול לסכום סופי
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </FormSection>
 

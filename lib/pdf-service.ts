@@ -50,6 +50,8 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
 };
 
 const isTaxInvoiceLike = (documentType: string) => TAX_INVOICE_LIKE_TYPES.has(documentType);
+const isInvoiceReceiptType = (documentType: string) =>
+  documentType === "invoiceReceipt" || documentType === "invoice_receipt";
 
 const TEMPLATE_TYPE_ALIASES: Record<string, string> = {
   invoiceReceipt: "tax_invoice",
@@ -1213,10 +1215,16 @@ export async function prepareDocumentData(
 
   // Generate HTML rows for payments table
   // This is used when template engine doesn't support {{#each}}
-  if (isTaxInvoiceLike(doc.document_type)) {
+  // NOTE: invoiceReceipt is tax-invoice-like *and* has payments; keep payments enabled for it.
+  if (isTaxInvoiceLike(doc.document_type) && !isInvoiceReceiptType(doc.document_type)) {
     templateData.PAYMENTS_ROWS_HTML = ""
     templateData.TOTAL_AMOUNT = ""
+    templateData.PAYMENTS_TOTAL = ""
   } else if (mappedPayments.length > 0) {
+    const paymentsTotal = mappedPayments.reduce((acc: number, p: any) => {
+      const n = typeof p?.amount === "number" ? p.amount : parseFloat(p?.amount || 0)
+      return acc + (Number.isFinite(n) ? n : 0)
+    }, 0)
     const paymentRows = mappedPayments.map((payment: any) => {
       // Get payment date (fallback to document date if missing)
       const paymentDate = payment.date || doc.issue_date || ""
@@ -1260,9 +1268,11 @@ export async function prepareDocumentData(
     })
     
     templateData.PAYMENTS_ROWS_HTML = paymentRows.join("\n")
+    templateData.PAYMENTS_TOTAL = formatCurrency(paymentsTotal)
   } else {
     // Empty string if no payments (not null)
     templateData.PAYMENTS_ROWS_HTML = ""
+    templateData.PAYMENTS_TOTAL = ""
   }
   if (isTaxInvoiceLike(doc.document_type)) {
     // ✅ יצירת שורות טבלה דינמיות - 5 תאים כשיש מק"ט, 4 תאים כשאין

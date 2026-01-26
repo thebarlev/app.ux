@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { ScrollLockFix } from "@/components/ScrollLockFix"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -582,7 +583,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     "bg-sidebar overflow-hidden rounded-[10px] transition-[width] duration-200 ease-out group"
 
   return (
-    <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir="rtl">
+    <>
+      <ScrollLockFix />
+      <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir="rtl">
       {/* Main Content Area */}
       <div className={mainWrapperClassName}>
         {/* Mobile Header */}
@@ -672,5 +675,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </>
       ) : null}
     </div>
+    </>
   )
 }

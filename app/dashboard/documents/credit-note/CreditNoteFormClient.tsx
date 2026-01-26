@@ -236,7 +236,7 @@ export default function CreditNoteFormClient({
       customerName,
       customerId,
       documentDate,
-      paymentDueDate: dueDate,
+      paymentDueDate: "",
       description,
       payments: [],
       items: items.map((item) => ({
@@ -257,7 +257,6 @@ export default function CreditNoteFormClient({
     customerName,
     customerId,
     documentDate,
-    dueDate,
     description,
     items,
     notes,
@@ -409,7 +408,7 @@ export default function CreditNoteFormClient({
         customerName: customerName || "",
         customerId: customerId || "",
         documentDate: documentDate || todayYmd(),
-        paymentDueDate: dueDate || documentDate || todayYmd(),
+        paymentDueDate: "",
         description: description || "",
         notes: notes || "",
         footerNotes: footerText || "",
@@ -764,19 +763,6 @@ export default function CreditNoteFormClient({
                     min={minAllowedDate || undefined}
                     containerClassName="w-full min-w-0 ui-document-date-offset"
                   />
-
-                  <FloatingDateInput
-                    label="תשלום עד"
-                    required
-                    id="dueDate"
-                    value={dueDate}
-                    onChange={(value) => {
-                      if (value < documentDate) setDueDate(documentDate);
-                      else setDueDate(value);
-                    }}
-                    min={documentDate || undefined}
-                    containerClassName="w-full min-w-0 ui-document-date-offset"
-                  />
                 </div>
               </div>
             </FormSection>
@@ -1011,6 +997,8 @@ export default function CreditNoteFormClient({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => removeItemRow(i)}
+                                disabled={items.length === 1}
+                                title={items.length === 1 ? "חייב להיות לפחות פריט אחד" : "מחיקה"}
                                 aria-label="מחיקה"
                                 className="text-danger hover:text-danger hover:bg-danger/10"
                               >
