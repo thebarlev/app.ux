@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getCompanyIdForUser,
   isSequenceLocked,
@@ -270,6 +271,7 @@ export async function getRecipientConsentStatusAction(
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     const resolved = await resolveRecipientIdentifier({ supabase, customerId, customerName, companyId });
     if (!resolved.ok) return { ok: false, message: resolved.message };
@@ -471,13 +473,14 @@ function validatePayload(p: DocumentDraftPayload, minAllowedDate?: string | null
       if (!row.currency) return `שורת פריט ${i + 1}: חובה לבחור מטבע.`;
     }
   } else {
+    const allowNegativePayments = (p as any)?.allowNegativePayments === true;
     if (!Array.isArray(p.payments) || p.payments.length === 0)
       return "חובה להוסיף לפחות תקבול אחד.";
     for (const [i, row] of p.payments.entries()) {
       if (!row.method) return `שורת תקבול ${i + 1}: חובה לבחור אמצעי תשלום.`;
       if (!row.date) return `שורת תקבול ${i + 1}: חובה לבחור תאריך.`;
-      if (!Number.isFinite(row.amount) || row.amount <= 0)
-        return `שורת תקבול ${i + 1}: סכום חייב להיות גדול מ-0.`;
+      if (!Number.isFinite(row.amount) || (allowNegativePayments ? row.amount >= 0 : row.amount <= 0))
+        return `שורת תקבול ${i + 1}: סכום חייב להיות ${allowNegativePayments ? "קטן מ-0" : "גדול מ-0"}.`;
       if (!row.currency) return `שורת תקבול ${i + 1}: חובה לבחור מטבע.`;
     }
   }
@@ -841,6 +844,7 @@ export async function updateDocumentDraftAction(
 
   const supabase = await createClient();
   const companyId = await getCompanyIdForUser();
+  const dbDocumentType = toDbDocumentType(documentType);
 
   const { data: existing, error: fetchError } = await supabase
     .from("documents")
@@ -950,6 +954,105 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
           typeof (data as any).vat_rate === "number" && (data as any).vat_rate > 0
             ? "regular"
             : "no_vat",
+      },
+    };
+  } catch (e: any) {
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
+  }
+}
+
+/**
+ * Get document by ID for chaining purposes (prefill items).
+ * Returns basic document info + line items from document_line_items table.
+ */
+export async function getDocumentForChainingAction(documentId: string) {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    // Get document
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("id", documentId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (error) return { ok: false as const, message: error.message };
+    if (!data) return { ok: false as const, message: "Document not found" };
+
+    // Get line items from separate table
+    const { data: lineItems } = await supabase
+      .from("document_line_items")
+      .select("*")
+      .eq("document_id", documentId)
+      .eq("company_id", companyId)
+      .order("line_number");
+
+    let items: TaxInvoiceItemRow[] = [];
+    let payments: PaymentRow[] = [];
+    if (lineItems && lineItems.length > 0) {
+      items = lineItems.map((item: any) => {
+        // Parse payment_metadata if exists (for receipts/invoices)
+        const metadata = item.payment_metadata || {};
+        
+        return {
+          label: metadata.label || item.description || "",
+          sku: metadata.sku || item.item_sku || "",
+          description: metadata.details || item.description || "",
+          quantity: typeof item.quantity === "number" ? item.quantity : 1,
+          unitPrice: typeof item.unit_price === "number" ? item.unit_price : 0,
+          currency: item.currency || data.currency || "₪",
+          vatMode: metadata.vatMode || "before",
+          lineTotal: typeof item.line_total === "number" ? item.line_total : 0,
+        };
+      });
+      payments = lineItems.map((item: any) => {
+        const metadata = item.payment_metadata || {};
+        return {
+          method: item.description || "תשלום",
+          date: item.item_date || data.issue_date || new Date().toISOString().split("T")[0],
+          amount: typeof item.line_total === "number" ? item.line_total : Number(item.line_total || 0),
+          currency: item.currency || data.currency || "₪",
+          bankName: item.bank_name || metadata.bankName || undefined,
+          branch: item.branch || metadata.bankBranch || metadata.branch || undefined,
+          accountNumber: item.account_number || metadata.bankAccount || metadata.accountNumber || undefined,
+          cardLastDigits: metadata.cardLastDigits || undefined,
+          cardType: metadata.cardType || undefined,
+          cardDealType: metadata.cardDealType || undefined,
+          cardInstallments: metadata.cardInstallments || undefined,
+          checkBank: metadata.checkBank || undefined,
+          checkBranch: metadata.checkBranch || undefined,
+          checkAccount: metadata.checkAccount || undefined,
+          checkNumber: metadata.checkNumber || undefined,
+          payerAccount: metadata.payerAccount || undefined,
+          transactionReference: metadata.transactionReference || undefined,
+          description: metadata.description || undefined,
+          reference_number: metadata.reference_number || undefined,
+          reference: metadata.reference || undefined,
+          notes: metadata.notes || undefined,
+        };
+      });
+    }
+
+    return {
+      ok: true as const,
+      document: {
+        id: data.id,
+        documentType: data.document_type,
+        customerId: data.customer_id,
+        customerName: data.customer_name ?? "",
+        documentDescription: data.document_description ?? "",
+        documentDate: data.issue_date ?? null,
+        currency: data.currency ?? "₪",
+        totalAmount: typeof data.total_amount === "number" ? data.total_amount : 0,
+        items,
+        payments,
+        vatRate: typeof (data as any).vat_rate === "number" ? (data as any).vat_rate : null,
+        vatType:
+          typeof (data as any).vat_rate === "number" && (data as any).vat_rate > 0
+            ? ("regular" as const)
+            : ("no_vat" as const),
       },
     };
   } catch (e: any) {
@@ -1081,4 +1184,337 @@ function todayYmd() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+// =====================================================
+// Document links (organizational only)
+// =====================================================
+
+export type DocumentLinkType = "payment" | "credit" | "conversion" | "cancellation" | "related";
+
+export type DocumentLinkDTO = {
+  id: string;
+  linkType: DocumentLinkType;
+  amount: number;
+  note: string | null;
+  createdAt: string;
+  source: {
+    id: string;
+    documentType: string;
+    documentNumber: string;
+    documentStatus: string;
+    issueDate: string | null;
+    totalAmount: number;
+    customerName: string | null;
+  };
+  target: {
+    id: string;
+    documentType: string;
+    documentNumber: string;
+    documentStatus: string;
+    issueDate: string | null;
+    totalAmount: number;
+    customerName: string | null;
+  };
+};
+
+export type OpenDocument = {
+  id: string;
+  document_number: string | null;
+  document_type: string;
+  total_amount: number | null;
+  outstanding_balance: number | null;
+  accounting_status: string | null;
+  issue_date: string | null;
+};
+
+export async function getOpenDocumentsByCustomer(
+  customerId: string,
+  companyId: string
+): Promise<{ ok: true; data: OpenDocument[] } | { ok: false; message: string }> {
+  try {
+    if (!customerId) return { ok: false, message: "חסר מזהה לקוח" };
+    if (!companyId) return { ok: false, message: "חסר מזהה חברה" };
+
+    const currentCompanyId = await getCompanyIdForUser();
+    if (currentCompanyId !== companyId) {
+      return { ok: false, message: "אי התאמה בין חברה נבחרת לחברה מחוברת" };
+    }
+
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select(
+        "id, document_number, document_type, total_amount, outstanding_balance, accounting_status, issue_date"
+      )
+      .eq("company_id", companyId)
+      .eq("customer_id", customerId)
+      .eq("document_status", "final")
+      .in("accounting_status", ["open", "partially_paid"])
+      .in("document_type", ["tax_invoice", "invoice_receipt", "transaction_invoice"])
+      .order("issue_date", { ascending: false, nullsFirst: false });
+
+    if (error) return { ok: false, message: error.message };
+
+    const rows: OpenDocument[] = (data || []).map((d: any) => ({
+      id: String(d.id),
+      document_number: d.document_number ?? null,
+      document_type: String(d.document_type),
+      total_amount: typeof d.total_amount === "number" ? d.total_amount : d.total_amount ? Number(d.total_amount) : null,
+      outstanding_balance:
+        typeof d.outstanding_balance === "number"
+          ? d.outstanding_balance
+          : d.outstanding_balance
+            ? Number(d.outstanding_balance)
+            : null,
+      accounting_status: d.accounting_status ?? null,
+      issue_date: d.issue_date ?? null,
+    }));
+
+    return { ok: true, data: rows };
+  } catch (e: any) {
+    return { ok: false, message: e?.message ?? "unknown_error" };
+  }
+}
+
+export async function createDocumentLinkAction(args: {
+  sourceDocumentId: string;
+  targetDocumentId: string;
+  linkType: DocumentLinkType;
+  amount: number;
+  note?: string | null;
+}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth?.user?.id || null;
+
+    if (!args.sourceDocumentId || !args.targetDocumentId) {
+      return { ok: false, message: "חסרים מזהי מסמכים לשיוך" };
+    }
+    if (args.sourceDocumentId === args.targetDocumentId) {
+      return { ok: false, message: "לא ניתן לשייך מסמך לעצמו" };
+    }
+
+    const amount = Number(args.amount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return { ok: false, message: "סכום שיוך לא תקין" };
+    }
+    if (["payment", "credit", "cancellation"].includes(args.linkType) && amount <= 0) {
+      return { ok: false, message: "סכום חייב להיות גדול מ-0 עבור שיוך זה" };
+    }
+
+    // Verify both documents belong to the current company
+    const { data: docs, error: docsError } = await supabase
+      .from("documents")
+      .select("id, company_id")
+      .eq("company_id", companyId)
+      .in("id", [args.sourceDocumentId, args.targetDocumentId]);
+
+    if (docsError) return { ok: false, message: docsError.message };
+    if (!docs || docs.length !== 2) {
+      return { ok: false, message: "אחד מהמסמכים לשיוך לא נמצא" };
+    }
+
+    const { data, error } = await supabase
+      .from("document_links")
+      .insert({
+        company_id: companyId,
+        source_document_id: args.sourceDocumentId,
+        target_document_id: args.targetDocumentId,
+        link_type: args.linkType,
+        amount,
+        note: args.note ?? null,
+        created_by: userId,
+      })
+      .select("id")
+      .single();
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, id: data.id };
+  } catch (e: any) {
+    return { ok: false, message: e?.message ?? "unknown_error" };
+  }
+}
+
+export async function deleteDocumentLinkAction(args: {
+  id: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    if (!args.id) return { ok: false, message: "חסר מזהה שיוך" };
+
+    const { error } = await supabase
+      .from("document_links")
+      .delete()
+      .eq("id", args.id)
+      .eq("company_id", companyId);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, message: e?.message ?? "unknown_error" };
+  }
+}
+
+/**
+ * Close (cancel) a non-regulatory document.
+ * Only allowed for: quote, proforma, work_order, delivery_note, return_note, 
+ * purchase_order, self_invoice, self_credit_note.
+ */
+export async function closeDocumentAction(documentId: string) {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Verify document exists and belongs to company
+    const { data: doc, error: fetchError } = await supabase
+      .from("documents")
+      .select("document_type, document_status")
+      .eq("id", documentId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return { ok: false as const, message: fetchError.message };
+    }
+    if (!doc) {
+      return { ok: false as const, message: "מסמך לא נמצא" };
+    }
+
+    // Only block tax_invoice; all other types are allowed to close
+    if (doc.document_type === "tax_invoice") {
+      return {
+        ok: false as const,
+        message: "לא ניתן לסגור חשבונית מס.",
+      };
+    }
+
+    // Update status to canceled
+    const adminClient = createAdminClient();
+    const cancellationReason = "closed_by_user";
+    const cancelledAt = new Date().toISOString();
+    const cancelledBy = user?.id ?? null;
+
+    const { error: updateError } = await adminClient
+      .from("documents")
+      .update({
+        document_status: "cancelled",
+        cancellation_reason: cancellationReason,
+        cancelled_at: cancelledAt,
+        cancelled_by: cancelledBy,
+      })
+      .eq("id", documentId)
+      .eq("company_id", companyId);
+
+    if (updateError) {
+      return { ok: false as const, message: updateError.message };
+    }
+
+    return { ok: true as const };
+  } catch (e: any) {
+    return { ok: false as const, message: e?.message ?? "unknown_error" };
+  }
+}
+
+export async function markDocumentCancelledAction(args: {
+  documentId: string;
+  reason: string;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!args.documentId) return { ok: false, message: "חסר מזהה מסמך" };
+
+    const adminClient = createAdminClient();
+    const cancelledAt = new Date().toISOString();
+    const cancelledBy = user?.id ?? null;
+
+    const { error } = await adminClient
+      .from("documents")
+      .update({
+        document_status: "cancelled",
+        cancellation_reason: args.reason,
+        cancelled_at: cancelledAt,
+        cancelled_by: cancelledBy,
+      })
+      .eq("id", args.documentId)
+      .eq("company_id", companyId);
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, message: e?.message ?? "unknown_error" };
+  }
+}
+
+export async function listDocumentLinksAction(args: {
+  documentId: string;
+}): Promise<{ ok: true; links: DocumentLinkDTO[] } | { ok: false; message: string }> {
+  try {
+    const supabase = await createClient();
+    const companyId = await getCompanyIdForUser();
+
+    if (!args.documentId) return { ok: false, message: "חסר מזהה מסמך" };
+
+    const { data, error } = await supabase
+      .from("document_links")
+      .select(
+        `
+          id,
+          link_type,
+          amount,
+          note,
+          created_at,
+          source:source_document_id(
+            id, document_type, document_number, document_status, issue_date, total_amount, customer_name
+          ),
+          target:target_document_id(
+            id, document_type, document_number, document_status, issue_date, total_amount, customer_name
+          )
+        `
+      )
+      .eq("company_id", companyId)
+      .or(`source_document_id.eq.${args.documentId},target_document_id.eq.${args.documentId}`)
+      .order("created_at", { ascending: false });
+
+    if (error) return { ok: false, message: error.message };
+
+    const links: DocumentLinkDTO[] = (data || []).map((row: any) => ({
+      id: row.id,
+      linkType: row.link_type,
+      amount: Number(row.amount || 0),
+      note: row.note ?? null,
+      createdAt: row.created_at,
+      source: {
+        id: row.source?.id,
+        documentType: row.source?.document_type,
+        documentNumber: row.source?.document_number,
+        documentStatus: row.source?.document_status,
+        issueDate: row.source?.issue_date ?? null,
+        totalAmount: Number(row.source?.total_amount || 0),
+        customerName: row.source?.customer_name ?? null,
+      },
+      target: {
+        id: row.target?.id,
+        documentType: row.target?.document_type,
+        documentNumber: row.target?.document_number,
+        documentStatus: row.target?.document_status,
+        issueDate: row.target?.issue_date ?? null,
+        totalAmount: Number(row.target?.total_amount || 0),
+        customerName: row.target?.customer_name ?? null,
+      },
+    }));
+
+    return { ok: true, links };
+  } catch (e: any) {
+    return { ok: false, message: e?.message ?? "unknown_error" };
+  }
 }

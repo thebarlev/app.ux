@@ -324,3 +324,110 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
 
   return { html, css }
 }
+
+/**
+ * Generic default template for tax-invoice-like documents (and others).
+ * Used ONLY as a last-resort fallback when DB templates are missing/invalid.
+ */
+export function getDefaultGenericDocumentTemplate(): { html: string; css: string } {
+  const html = `
+<div class="receipt-document" dir="{{document.direction}}">
+  <div class="header">
+    {{#if company.company_logo}}
+    <img src="{{company.company_logo}}" alt="{{company.company_name}}" class="logo" />
+    {{/if}}
+    <div class="company-details">
+      <h1>{{company.company_name}}</h1>
+      {{#if company.company_tax_id}}<p>{{company.company_tax_id}}</p>{{/if}}
+      {{#if company.company_address}}<p>{{company.company_address}}</p>{{/if}}
+      {{#if company.company_phone}}<p>{{company.company_phone}}</p>{{/if}}
+    </div>
+  </div>
+
+  <div class="document-info">
+    <h2>{{document.document_type_label}} #{{document.document_number}}</h2>
+    <p>{{formatted_date}}</p>
+    {{#if description}}
+    <p class="description">{{description}}</p>
+    {{/if}}
+  </div>
+
+  {{#if customer.customer_name}}
+  <div class="customer-section">
+    <div class="customer-line">
+      <span class="label">לכבוד</span>
+      <span class="value">{{customer.customer_name}}</span>
+    </div>
+    {{#if customer.customer_phone}}
+    <div class="customer-line">
+      <span class="label">טלפון</span>
+      <span class="value">{{customer.customer_phone}}</span>
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if TI_ROWS_HTML}}
+  <div class="payment-section">
+    <h3>פירוט</h3>
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>כמות</th>
+          <th>תיאור</th>
+          <th>תאריך</th>
+          <th>סכום</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{{TI_ROWS_HTML}}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  {{#if PAYMENTS_ROWS_HTML}}
+  <div class="payment-section">
+    <h3>פירוט תקבולים</h3>
+    <table class="payments-table">
+      <thead>
+        <tr>
+          <th>אמצעי</th>
+          <th>פרטים</th>
+          <th>תאריך</th>
+          <th>סכום</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{{PAYMENTS_ROWS_HTML}}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  <div class="totals-section">
+    <div class="total-row final">
+      <span class="label"><strong>סה״כ</strong></span>
+      <span class="value"><strong>{{formatted_total}}</strong></span>
+    </div>
+  </div>
+
+  {{#if notes_data.notes}}
+  <div class="notes-section">
+    <h4>הערות</h4>
+    <p>{{notes_data.notes}}</p>
+  </div>
+  {{/if}}
+
+  {{#if notes_data.signature}}
+  <div class="signature-section">
+    <img src="{{notes_data.signature}}" alt="signature" class="signature" />
+  </div>
+  {{/if}}
+</div>
+  `.trim()
+
+  // Reuse the receipt CSS for consistent rendering
+  const css = getDefaultReceiptTemplate().css
+  return { html, css }
+}

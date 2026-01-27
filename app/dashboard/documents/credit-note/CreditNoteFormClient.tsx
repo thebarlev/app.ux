@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import type { InitialCreditNoteCreateData, CreditNoteDraftPayload } from "./actions";
 import {
   issueCreditNoteAction,
@@ -9,7 +10,9 @@ import {
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
+  issueNegativeReceiptForInvoiceReceiptAction,
 } from "./actions";
+import { createDocumentLinkAction, getDocumentForChainingAction } from "@/lib/documents/actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
@@ -77,6 +80,7 @@ export default function CreditNoteFormClient({
   } | null;
   draftId?: string;
 }) {
+  const searchParams = useSearchParams();
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -100,18 +104,22 @@ export default function CreditNoteFormClient({
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const customerFallbackSetRef = useRef(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [dueDate, setDueDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [sourceDocumentId, setSourceDocumentId] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
 
   const [notes, setNotes] = useState("");
   const [emailNotes, setEmailNotes] = useState("");
+  const chainLogRef = useRef<{ sourceId?: string; items?: number; confirmed?: number } | null>(null);
+  const prefillNotesOverrideRef = useRef(false);
 
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLDivElement>(null);
@@ -175,6 +183,54 @@ export default function CreditNoteFormClient({
     }
   }, [editData]);
 
+  // Optional prefill from URL params (UI only; no DB logic changes)
+  useEffect(() => {
+    if (editData || draftId) return;
+    const prefillCustomerId = searchParams.get("customerId");
+    const prefillCustomerName = searchParams.get("customerName");
+    const prefillNotes = searchParams.get("notes");
+    const prefillSourceDocumentId = searchParams.get("sourceDocumentId");
+
+    if (prefillCustomerId) setCustomerId(prefillCustomerId);
+    if (prefillCustomerName) setCustomerName(prefillCustomerName);
+    if (!prefillCustomerName && prefillSourceDocumentId && !customerFallbackSetRef.current) {
+      customerFallbackSetRef.current = true;
+      setCustomerName("לקוח לא מזוהה");
+    }
+    if (prefillNotes) {
+      setNotes(prefillNotes);
+      if (prefillSourceDocumentId) {
+        prefillNotesOverrideRef.current = true;
+        setDescription(prefillNotes);
+      }
+    }
+    if (prefillSourceDocumentId) setSourceDocumentId(prefillSourceDocumentId);
+    if (prefillSourceDocumentId) {
+      getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok) {
+          const loadedItems = res.document.items.map((item) => ({
+            label: item.label,
+            sku: item.sku,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            currency: item.currency,
+            vatMode: item.vatMode,
+          }));
+          if (loadedItems.length > 0) {
+            setItems(loadedItems);
+            setConfirmedRows(new Set(loadedItems.map((_, idx) => idx)));
+          }
+          if (typeof res.document.documentDescription === "string" && !prefillNotesOverrideRef.current) {
+            setDescription(res.document.documentDescription);
+          }
+          if (res.document.currency) setCurrency(res.document.currency);
+          if (res.document.vatType) setVatType(res.document.vatType);
+        }
+      });
+    }
+  }, [searchParams, editData, draftId]);
+
   useEffect(() => {
     if (dueDate < documentDate) {
       setDueDate(documentDate);
@@ -229,6 +285,24 @@ export default function CreditNoteFormClient({
     return Math.round(sum);
   }, [subtotal, vatAmount, vatRate, roundTotals]);
   const hasConfirmedItems = confirmedRows.size > 0;
+
+  useEffect(() => {
+    if (!sourceDocumentId) return;
+    const snapshot = { sourceId: sourceDocumentId, items: items.length, confirmed: confirmedRows.size };
+    if (
+      chainLogRef.current &&
+      chainLogRef.current.sourceId === snapshot.sourceId &&
+      chainLogRef.current.items === snapshot.items &&
+      chainLogRef.current.confirmed === snapshot.confirmed
+    ) {
+      return;
+    }
+    chainLogRef.current = snapshot;
+  }, [sourceDocumentId, items.length, confirmedRows.size, hasConfirmedItems, description, notes]);
+
+  useEffect(() => {
+    if (!confirmationModalOpen) return;
+  }, [confirmationModalOpen, consentChecked, recipientConsent.status, recipientConsent.hasConsent, customerName, total]);
 
   const payload: CreditNoteDraftPayload = useMemo(() => {
     return {
@@ -610,6 +684,9 @@ export default function CreditNoteFormClient({
 
     setBusy("issue");
     try {
+      if (sourceDocumentId) {
+        await getDocumentForChainingAction(sourceDocumentId);
+      }
       const result = await issueCreditNoteAction(payload);
 
       if (!result || !result.ok) {
@@ -617,6 +694,43 @@ export default function CreditNoteFormClient({
         setBusy(null);
         setIsFinalizing(false);
         return;
+      }
+
+      // Keep confirmation modal open during auto-cancellation flow
+
+
+      // Create credit link to source document if exists
+      if (sourceDocumentId) {
+        const linkAmount = total; // Credit note amount
+        const note = description ? `זיכוי: ${description}` : null;
+        
+        const linkRes = await createDocumentLinkAction({
+          sourceDocumentId: result.documentId,      // Credit note is SOURCE
+          targetDocumentId: sourceDocumentId,       // Original doc is TARGET
+          linkType: "credit",
+          amount: linkAmount,
+          note,
+        });
+        
+        if (!linkRes.ok) {
+          toast.error(linkRes.message || "הזיכוי נכשל: לא ניתן ליצור קשר בין המסמכים");
+        }
+      }
+
+      if (sourceDocumentId) {
+        const autoRes = await issueNegativeReceiptForInvoiceReceiptAction({
+          sourceDocumentId,
+          customerId: customerId || null,
+          customerName: customerName || "",
+          currency: currency || "₪",
+          total,
+          documentDate,
+          language,
+          roundTotals,
+        });
+        if (!autoRes.ok && autoRes.message !== "Source document is not invoice_receipt") {
+          toast.error(autoRes.message || "הפקת קבלה שלילית נכשלה");
+        }
       }
 
       setConfirmationModalOpen(false);
@@ -817,19 +931,19 @@ export default function CreditNoteFormClient({
                 <div className="space-y-[20px]">
                   <div className="px-[20px] sm:px-6 lg:px-8">
                     <div className="ui-item-grid ui-item-label font-semibold">
-                      <div className="text-right pr-[20px] translate-y-[20px]">מק״ט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">פירוט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">כמות</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מחיר ליחידה</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מק״ט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">פירוט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">כמות</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מחיר ליחידה</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מטבע</div>
                       {vatRate > 0 ? (
-                        <div className="text-right pr-[20px] translate-y-[20px]">מע״מ</div>
+                        <div className="text-right pr-[12px] translate-y-[20px]">מע״מ</div>
                       ) : (
-                        <div className="text-right opacity-0 pr-[20px] translate-y-[20px]" aria-hidden="true">
+                        <div className="text-right opacity-0 pr-[12px] translate-y-[20px]" aria-hidden="true">
                           מע״מ
                         </div>
                       )}
-                      <div className="text-right pr-[00px] translate-y-[20px]" ref={headerTotalRef}>
+                      <div className="text-right pr-[12px] translate-y-[20px]" ref={headerTotalRef}>
                         סה״כ
                       </div>
                       <div className="text-right pr-[-50px] translate-y-[20px]">אישור</div>

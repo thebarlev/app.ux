@@ -6,6 +6,13 @@ import { getCompanyIdForUser, initializeSequence, isSequenceLocked } from "@/lib
 export type DocumentsListFilters = {
   search?: string;
   documentType?: string;
+  /**
+   * Optional filter by document_status.
+   * - "draft": only drafts
+   * - "nonDraft": everything except drafts
+   * - "all": no filtering (default)
+   */
+  documentStatusFilter?: "all" | "draft" | "nonDraft";
   dateFrom?: string;
   dateTo?: string;
   page?: number;
@@ -24,10 +31,23 @@ export type DocumentListItem = {
   total_amount: number | null;
   currency: string | null;
   document_status: string;
+  accounting_status?: string | null;
+  paid_amount?: number | null;
+  credited_amount?: number | null;
+  outstanding_balance?: number | null;
+  reference_text?: string | null;
+  /**
+   * UI-only derived flags (no DB schema changes).
+   * Used to compute the 4-status UI mapping deterministically.
+   */
+  has_outgoing_credit_link?: boolean;
+  credited_by_credit_amount?: number | null;
+  is_canceled_by_credit?: boolean;
   created_at: string;
 };
 
 export type DocumentsListResult = {
+  companyId: string;
   documents: DocumentListItem[];
   totalCount: number;
   page: number;
@@ -52,6 +72,7 @@ export async function getAllDocumentsListAction(
       return {
         ok: true,
         data: {
+          companyId: "",
           documents: [],
           totalCount: 0,
           page: 1,
@@ -63,6 +84,7 @@ export async function getAllDocumentsListAction(
     const {
       search = "",
       documentType,
+      documentStatusFilter = "all",
       dateFrom,
       dateTo,
       page = 1,
@@ -84,9 +106,21 @@ export async function getAllDocumentsListAction(
         total_amount,
         currency,
         document_status,
+        accounting_status,
+        paid_amount,
+        credited_amount,
+        outstanding_balance,
+        reference_text,
         company_id
       `, { count: "exact" })
       .eq("company_id", companyId);
+
+    // Document status filter
+    if (documentStatusFilter === "draft") {
+      query = query.eq("document_status", "draft");
+    } else if (documentStatusFilter === "nonDraft") {
+      query = query.neq("document_status", "draft");
+    }
 
     // Document type filter
     if (documentType && documentType !== "all") {
@@ -185,8 +219,15 @@ export async function getAllDocumentsListAction(
       }
     });
 
+    const toFiniteNumberOrNull = (v: unknown): number | null => {
+      if (v === null || v === undefined) return null;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
     // Transform to DocumentListItem format
     const items: DocumentListItem[] = (documents || []).map((doc) => ({
+      // NOTE: Supabase may return numeric/decimal columns as strings.
       id: doc.id,
       document_number: doc.document_number,
       document_type: doc.document_type,
@@ -195,15 +236,69 @@ export async function getAllDocumentsListAction(
       customer_name: doc.customer_name || null,
       document_description: doc.document_description || null,
       payment_method: paymentMethodMap.get(doc.id) || null,
-      total_amount: doc.total_amount || null,
+      total_amount: toFiniteNumberOrNull((doc as any).total_amount),
       currency: doc.currency || "ILS",
       document_status: doc.document_status,
+      accounting_status: (doc as any).accounting_status ?? null,
+      paid_amount: toFiniteNumberOrNull((doc as any).paid_amount),
+      credited_amount: toFiniteNumberOrNull((doc as any).credited_amount),
+      outstanding_balance: toFiniteNumberOrNull((doc as any).outstanding_balance),
+      reference_text: (doc as any).reference_text ?? null,
+      has_outgoing_credit_link: false,
+      credited_by_credit_amount: null,
+      is_canceled_by_credit: false,
       created_at: doc.created_at,
     }));
+
+    // UI-only flags: credit links (source/target) for the current page
+    const ids = items.map((it) => it.id);
+    if (ids.length > 0) {
+      // Outgoing credit links: source_document_id in ids
+      const { data: outgoingCredits, error: outgoingErr } = await supabase
+        .from("document_links")
+        .select("source_document_id")
+        .eq("company_id", companyId)
+        .in("link_type", ["credit", "cancellation"])
+        .in("source_document_id", ids);
+
+      if (outgoingErr) {
+        console.warn("[getAllDocumentsListAction] outgoing credit links query failed:", outgoingErr.message);
+      }
+
+      const outgoingSet = new Set<string>((outgoingCredits || []).map((r: any) => String(r.source_document_id)));
+
+      // Incoming credit sum: target_document_id in ids
+      const { data: incomingCredits, error: incomingErr } = await supabase
+        .from("document_links")
+        .select("target_document_id, amount")
+        .eq("company_id", companyId)
+        .in("link_type", ["credit", "cancellation"])
+        .in("target_document_id", ids);
+
+      if (incomingErr) {
+        console.warn("[getAllDocumentsListAction] incoming credit links query failed:", incomingErr.message);
+      }
+
+      const incomingSum = new Map<string, number>();
+      for (const row of incomingCredits || []) {
+        const id = String((row as any).target_document_id);
+        const amount = typeof (row as any).amount === "number" ? (row as any).amount : Number((row as any).amount || 0);
+        incomingSum.set(id, (incomingSum.get(id) || 0) + (Number.isFinite(amount) ? amount : 0));
+      }
+
+      for (const it of items) {
+        const sum = incomingSum.get(it.id) ?? 0;
+        const total = typeof it.total_amount === "number" ? it.total_amount : null;
+        it.has_outgoing_credit_link = outgoingSet.has(it.id);
+        it.credited_by_credit_amount = Number.isFinite(sum) ? Number(sum.toFixed(2)) : null;
+        it.is_canceled_by_credit = !!(total && total > 0 && sum >= total);
+      }
+    }
 
     return {
       ok: true,
       data: {
+        companyId,
         documents: items,
         totalCount: count || 0,
         page,
@@ -225,9 +320,6 @@ export async function lockStartingNumberAction(params: {
   prefix?: string | null;
 }) {
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:228',message:'lockStartingNumberAction entry',data:{documentType:params.documentType,startingNumber:params.startingNumber,hasPrefix:!!params.prefix},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     const companyId = await getCompanyIdForUser();
 
     const result = await initializeSequence(
@@ -238,20 +330,11 @@ export async function lockStartingNumberAction(params: {
     );
 
     if (!result.ok) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:238',message:'lockStartingNumberAction failed',data:{documentType:params.documentType,message:result.message||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       return { ok: false as const, message: result.message ?? "Failed to initialize sequence" };
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:243',message:'lockStartingNumberAction success',data:{documentType:params.documentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
     return { ok: true as const };
   } catch (error: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/dashboard/documents/actions.ts:247',message:'lockStartingNumberAction exception',data:{documentType:params.documentType,errorMessage:error?.message||String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     return { ok: false as const, message: error?.message ?? "Unknown error" };
   }
 }

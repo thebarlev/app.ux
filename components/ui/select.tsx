@@ -24,11 +24,8 @@ function SelectValue({
   className,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
-  const valueRef = React.useRef<HTMLSpanElement | null>(null)
-
   return (
     <SelectPrimitive.Value 
-      ref={valueRef}
       data-slot="select-value" 
       className={cn("text-right", className)}
       {...props} 
@@ -56,16 +53,17 @@ function SelectTrigger({
     variant === 'underline'
       ? cn(selectUnderline, fieldStateBorders.default, "disabled:border-muted-fg")
       : "rounded-[5px] px-[15px] border border-transparent bg-input focus:ring-2 focus:ring-ring focus:ring-offset-0";
-  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
-  
   return (
     <SelectPrimitive.Trigger
-      ref={triggerRef}
       data-slot="select-trigger"
       data-size={size}
       className={cn(selectBase, heightClass, variantClass, className)}
       dir="rtl"
-      style={{ fontSize: "18px" }}
+      style={{ 
+        fontSize: "var(--field-input-text-size)",
+        display: "flex",
+        alignItems: "center",
+      }}
       {...props}
     >
       {children}

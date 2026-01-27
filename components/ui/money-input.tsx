@@ -13,6 +13,9 @@ interface MoneyInputProps {
   className?: string
   style?: React.CSSProperties
   id?: string
+  allowNegative?: boolean
+  displayValue?: string
+  readOnly?: boolean
   "aria-required"?: boolean
   "aria-invalid"?: boolean
   "aria-describedby"?: string
@@ -27,6 +30,9 @@ export function MoneyInput({
   className = "",
   style,
   id,
+  allowNegative = false,
+  displayValue,
+  readOnly = false,
   "aria-required": ariaRequired,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
@@ -43,16 +49,18 @@ export function MoneyInput({
         ? fieldStateBorders.error
         : fieldStateBorders.default;
 
-  
   return (
     <div className="relative" style={{ width: style?.width || '100%' }}>
       <input
         id={id}
-        type="number"
-        min={0}
+        type={displayValue ? "text" : "number"}
+        min={allowNegative ? undefined : 0}
         step="0.01"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={displayValue ?? value}
+        onChange={(e) => {
+          if (displayValue || readOnly) return;
+          onChange(Number(e.target.value));
+        }}
         className={cn(
           variant === "items"
             ? "ti-items-money ui-no-spin w-full min-w-0 text-right"
@@ -68,6 +76,7 @@ export function MoneyInput({
           fontSize: typeof fontSize === 'string' ? fontSize : `${fontSize}px`,
           fontWeight: typeof fontWeight === 'string' ? fontWeight : `${fontWeight}`,
         }}
+        readOnly={readOnly}
         aria-required={ariaRequired}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}

@@ -12,6 +12,7 @@ interface DateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
   onChange: (value: string) => void // YYYY-MM-DD format
   min?: string // YYYY-MM-DD format - minimum allowed date
   max?: string // YYYY-MM-DD format - maximum allowed date
+  variant?: "default" | "items" // variant for styling - items uses ti-items tokens
 }
 
 /**
@@ -21,7 +22,7 @@ interface DateInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement
  * while storing internally as YYYY-MM-DD for compatibility
  * Supports min date restriction and calendar picker
  */
-export function DateInput({ value, onChange, min, max, ...props }: DateInputProps) {
+export function DateInput({ value, onChange, min, max, variant = "default", ...props }: DateInputProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [open, setOpen] = React.useState(false)
   // Convert YYYY-MM-DD to DD/MM/YYYY for display
@@ -56,6 +57,7 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
 
   const [displayValue, setDisplayValue] = React.useState('')
   const [isMounted, setIsMounted] = React.useState(false)
+  const hasTiItemsClass = (props.className ?? "").includes("ti-items-input")
 
   // Sync display value when prop value changes
   React.useEffect(() => {
@@ -274,6 +276,7 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
           {...props}
           ref={inputRef}
           type="text"
+          variant={variant}
           value={isMounted ? displayValue : formatToDisplay(value)}
           onChange={handleChangeWithValidation}
           onBlur={handleBlur}
@@ -301,33 +304,55 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
           placeholder="DD/MM/YYYY"
           maxLength={10}
           inputMode="numeric"
-          style={{ 
-            paddingTop:
-              "calc(var(--field-input-padding-top) + var(--field-date-label-gap) + var(--field-date-text-offset-y))",
-            paddingBottom:
-              "calc(var(--field-input-padding-bottom) + var(--field-date-underline-gap))",
-            paddingRight: "var(--field-calendar-icon-padding-right)",
-            fontSize: "var(--field-input-text-size)",
-            ...props.style 
-          }}
+          style={
+            variant === "items"
+              ? {
+                  paddingRight: "var(--ti-items-calendar-icon-padding-right)",
+                  ...props.style,
+                } // For items variant, add padding for icon
+              : {
+                  paddingTop: "var(--field-input-padding-top)",
+                  paddingBottom: "var(--field-input-padding-bottom)",
+                  paddingRight: "var(--field-calendar-icon-padding-right)",
+                  fontSize: "var(--field-input-text-size)",
+                  ...props.style,
+                }
+          }
         />
         <PopoverTrigger asChild>
           <button
             type="button"
-            style={{
-              position: 'absolute',
-              right: 'var(--field-calendar-icon-right)',
-              top: 'var(--field-calendar-icon-top)',
-              transform: 'translateY(calc(-50% + var(--field-calendar-icon-translate-y)))',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 'var(--field-calendar-icon-hit-padding)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 10,
-            }}
+            style={
+              variant === "items"
+                ? {
+                    position: 'absolute',
+                    right: 'var(--ti-items-calendar-icon-right)',
+                    top: 'var(--ti-items-calendar-icon-top)',
+                    transform: 'translateY(calc(-50% + var(--ti-items-calendar-icon-translate-y)))',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                  }
+                : {
+                    position: 'absolute',
+                    right: 'var(--field-calendar-icon-right)',
+                    top: 'var(--field-calendar-icon-top)',
+                    transform: 'translateY(calc(-50% + var(--field-calendar-icon-translate-y)))',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 'var(--field-calendar-icon-hit-padding)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10,
+                  }
+            }
             aria-label="פתח לוח שנה"
             onClick={(e) => {
               e.preventDefault()
@@ -336,11 +361,19 @@ export function DateInput({ value, onChange, min, max, ...props }: DateInputProp
             }}
           >
             <Calendar
-              style={{
-                width: 'var(--field-calendar-icon-size)',
-                height: 'var(--field-calendar-icon-size)',
-                color: 'var(--field-calendar-icon-color)',
-              }}
+              style={
+                variant === "items"
+                  ? {
+                      width: 'var(--ti-items-calendar-icon-size)',
+                      height: 'var(--ti-items-calendar-icon-size)',
+                      color: 'var(--ti-items-calendar-icon-color)',
+                    }
+                  : {
+                      width: 'var(--field-calendar-icon-size)',
+                      height: 'var(--field-calendar-icon-size)',
+                      color: 'var(--field-calendar-icon-color)',
+                    }
+              }
             />
           </button>
         </PopoverTrigger>

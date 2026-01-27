@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReceiptStyleSettings } from "@/lib/types/receipt-style";
 
 function getCurrencyCode(currencySymbol: string): string {
@@ -19,12 +19,13 @@ function formatMoney(amount: number, currency: string, language: "he" | "en") {
   const n = Number.isFinite(amount) ? amount : 0;
   const currencyCode = getCurrencyCode(currency);
   try {
-    return new Intl.NumberFormat(language === "en" ? "en-US" : "he-IL", {
+    const formatted = new Intl.NumberFormat(language === "en" ? "en-US" : "he-IL", {
       style: "currency",
       currency: currencyCode,
       currencyDisplay: language === "en" ? "code" : "narrowSymbol",
       maximumFractionDigits: 2,
     }).format(n);
+    return formatted;
   } catch {
     return `${n.toLocaleString(language === "en" ? "en-US" : "he-IL", { maximumFractionDigits: 2 })} ${currency}`;
   }
@@ -216,6 +217,13 @@ export default function PreviewClient({
   } catch (e) {
     console.error("Failed to parse items:", e);
   }
+
+  const previewLogRef = useRef<{ count: number } | null>(null);
+  useEffect(() => {
+    if (previewLogRef.current?.count === items.length) return;
+    previewLogRef.current = { count: items.length };
+    const itemsSubtotal = items.reduce((acc, item) => acc + (Number.isFinite(item.lineTotal) ? item.lineTotal : 0), 0);
+  }, [items, subtotal, vatAmount, total]);
 
   const PREVIEW_SCALE = 0.5;
 

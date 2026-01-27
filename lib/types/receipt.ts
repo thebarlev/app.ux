@@ -86,6 +86,7 @@ export type ReceiptDraftPayload = {
   total: number;
   roundTotals: boolean;
   language: "he" | "en";
+  allowNegativePayments?: boolean;
 };
 
 /**

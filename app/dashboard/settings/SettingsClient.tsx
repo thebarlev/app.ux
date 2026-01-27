@@ -173,16 +173,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
     };
   }, []);
 
-  useEffect(() => {
-    const blocks = Array.from(document.querySelectorAll(".ui-field-block"));
-    if (blocks.length === 0) return;
-    const rootStyles = getComputedStyle(document.documentElement);
-    const offsetVar = rootStyles.getPropertyValue("--field-block-offset-y").trim();
-    if (!offsetVar || offsetVar === "0px") {
-      document.documentElement.style.setProperty("--field-block-offset-y", "-14px");
-    }
-  }, []);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -683,7 +673,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
               <label
                 ref={booksRegionLabelRef}
                 htmlFor="books_region"
-                className="ui-select-label block text-right text-[length:var(--field-label-size)] text-[color:var(--field-label)] leading-none"
+                className="ui-select-label block text-right"
               >
                 אזור שמירת ספרים
               </label>
@@ -708,7 +698,7 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
 
             {/* Business Type - READ ONLY */}
             <div className="w-full min-w-0 ui-field-block">
-              <label htmlFor="business_type" className="block text-right text-[length:var(--field-label-size)] text-muted-fg mb-0 leading-none mt-[7px]">
+              <label htmlFor="business_type" className="ui-select-label block text-right text-muted-fg">
                 סוג עסק<span className="ms-1">*</span>
               </label>
               <Select value={formData.business_type} onValueChange={(value) => setFormData(prev => ({ ...prev, business_type: value as any }))} disabled>
@@ -743,8 +733,8 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             />
 
             {/* Industry */}
-            <div className="w-full min-w-0">
-              <label htmlFor="industry" className="block text-right text-[12px] text-fg mb-0 leading-none mt-[7px]">
+            <div className="w-full min-w-0 ui-field-block">
+              <label htmlFor="industry" className="ui-select-label block text-right text-fg">
                 תחום פעילות<span className="ms-1">*</span>
               </label>
               <Select value={formData.industry} onValueChange={(value) => setFormData(prev => ({ ...prev, industry: value }))}>

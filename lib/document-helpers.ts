@@ -83,13 +83,6 @@ export async function initializeSequence(
   const supabase = await createClient()
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:73',message:'initializeSequence entry',data:{documentType,startingNumber,hasPrefix:!!prefix},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:80',message:'initializeSequence mapped documentType',data:{documentType,sequenceDocumentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-
   // Check if already exists
   const { data: existing } = await supabase
     .from("document_sequences")
@@ -99,9 +92,6 @@ export async function initializeSequence(
     .maybeSingle()
 
   if (existing) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:86',message:'initializeSequence update path',data:{documentType,isLocked:!!existing.is_locked},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
     if (existing.is_locked) {
       return { ok: false, message: "sequence_already_locked" }
     }
@@ -122,9 +112,6 @@ export async function initializeSequence(
   }
 
   // Create new sequence
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:108',message:'initializeSequence insert path',data:{documentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
   const { error } = await supabase
     .from("document_sequences")
     .insert({
@@ -138,9 +125,6 @@ export async function initializeSequence(
     })
 
   if (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:121',message:'initializeSequence insert error',data:{documentType,errorMessage:error.message,code:(error as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
     return { ok: false, message: error.message }
   }
   return { ok: true }
@@ -239,9 +223,6 @@ export async function finalizeDocument(
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
   // Generate number atomically - this is the moment allocation happens
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/document-helpers.ts:215',message:'finalizeDocument generate_number input',data:{documentType,sequenceDocumentType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
   const { data: docNumber, error: rpcError } = await supabase.rpc(
     "generate_document_number",
     {
@@ -503,6 +484,38 @@ export async function finalizeDocument(
     }
   }
 
+  // Initialize accounting fields on finalization.
+  // IMPORTANT:
+  // - We do NOT introduce new DB status values.
+  // - This is only the initial state for newly finalized docs, before any document_links exist.
+  // - Later, document_links triggers will recompute paid/credited/outstanding/accounting_status.
+  const { data: docForAccounting, error: docForAccountingError } = await supabase
+    .from("documents")
+    .select("document_type, total_amount")
+    .eq("id", draftId)
+    .eq("company_id", companyId)
+    .single()
+
+  if (docForAccountingError) {
+    console.error(`[finalizeDocument] Failed to load document for accounting init ${draftId}:`, docForAccountingError)
+    return { ok: false, message: `Failed to finalize document: ${docForAccountingError.message}` }
+  }
+
+  const docType = String((docForAccounting as any)?.document_type || documentType || "").toLowerCase()
+  const totalAmountRaw = (docForAccounting as any)?.total_amount
+  const totalAmount =
+    typeof totalAmountRaw === "number" ? totalAmountRaw : totalAmountRaw ? Number(totalAmountRaw) : 0
+  const totalAmountSafe = Number.isFinite(totalAmount) ? Number(totalAmount.toFixed(2)) : 0
+
+  // Receipts / invoice-receipts are always "closed" (no outstanding balance) from issuance.
+  // Credit notes are treated as "closed" documents themselves; they "cancel" other documents via links.
+  const isAlwaysClosedDoc = docType === "receipt" || docType === "invoice_receipt" || docType === "credit_note"
+
+  const initialPaidAmount = isAlwaysClosedDoc ? totalAmountSafe : 0
+  const initialCreditedAmount = 0
+  const initialOutstandingBalance = isAlwaysClosedDoc ? 0 : totalAmountSafe
+  const initialAccountingStatus = totalAmountSafe <= 0 || isAlwaysClosedDoc ? "paid" : "open"
+
   // Now update document to finalized status
   // document_number was already updated above (before PDF generation)
   // pdf_storage_key was already saved by generateDocumentPDF (while document was still 'draft')
@@ -512,6 +525,10 @@ export async function finalizeDocument(
     .update({
       document_status: "final",
       finalized_at: new Date().toISOString(),
+      paid_amount: initialPaidAmount,
+      credited_amount: initialCreditedAmount,
+      outstanding_balance: initialOutstandingBalance,
+      accounting_status: initialAccountingStatus,
     })
     .eq("id", draftId)
     .eq("company_id", companyId)

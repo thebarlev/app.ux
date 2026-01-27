@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import type { InitialReceiptCreateData } from "./actions";
 import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
 import {
@@ -23,6 +24,7 @@ import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FloatingTextarea } from "@/components/ui/floating-textarea";
 import { FloatingDateInput } from "@/components/ui/floating-date-input";
+import { DateInput } from "@/components/ui/date-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,11 @@ import { cn } from "@/lib/utils";
 import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
 import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import {
+  createDocumentLinkAction,
+  getDocumentForChainingAction,
+  markDocumentCancelledAction,
+} from "@/lib/documents/actions";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -67,8 +74,10 @@ function todayYmd() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function formatMoney(amount: number, currency: string) {
+function formatMoney(amount: number, currency: string, showParensForNegative = false) {
   const n = Number.isFinite(amount) ? amount : 0;
+  const formatted = `${Math.abs(n).toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+  if (showParensForNegative && n < 0) return `(${formatted})`;
   return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
 }
 
@@ -90,6 +99,7 @@ export default function ReceiptFormClient({
   } | null;
   draftId?: string;
 }) {
+  const searchParams = useSearchParams();
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -107,11 +117,14 @@ export default function ReceiptFormClient({
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const customerFallbackSetRef = useRef(false);
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
+  const [isCancellationReceipt, setIsCancellationReceipt] = useState(false);
   const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
 
   const [notes, setNotes] = useState("");
@@ -166,6 +179,63 @@ export default function ReceiptFormClient({
     }
   }, [editData]);
 
+  // Optional prefill from URL params (UI only; no DB logic changes)
+  useEffect(() => {
+    if (editData || draftId) return;
+    const prefillCustomerId = searchParams.get("customerId");
+    const prefillCustomerName = searchParams.get("customerName");
+    const prefillNotes = searchParams.get("notes");
+    const prefillDescription = searchParams.get("description");
+    const prefillSourceDocumentId = searchParams.get("sourceDocumentId");
+    const prefillCancellation = searchParams.get("cancellation");
+
+    if (prefillCustomerId) setCustomerId(prefillCustomerId);
+    if (prefillCustomerName) setCustomerName(prefillCustomerName);
+    if (!prefillCustomerName && prefillSourceDocumentId && prefillCancellation === "1" && !customerFallbackSetRef.current) {
+      customerFallbackSetRef.current = true;
+      setCustomerName("לקוח לא מזוהה");
+    }
+    if (prefillNotes) setNotes(prefillNotes);
+    if (prefillDescription) setDescription(prefillDescription);
+    if (prefillCancellation === "1") setIsCancellationReceipt(true);
+    if (prefillSourceDocumentId) {
+      setChainSourceDocumentId(prefillSourceDocumentId);
+      // For receipts, load payments from source document items
+      getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok) {
+          const sourcePayments = (res.document as any).payments as PaymentRow[] | undefined;
+          const basePayments = sourcePayments && sourcePayments.length > 0
+            ? sourcePayments
+            : (res.document.items || []).map((item) => ({
+                method: prefillCancellation === "1" ? "מזומן" : "",
+                date: todayYmd(),
+                amount: item.lineTotal || (item.quantity * item.unitPrice),
+                currency: item.currency || currency,
+              }));
+
+          if (basePayments.length > 0) {
+            const normalizedPayments = basePayments.map((p) => ({
+              ...p,
+              amount: (prefillCancellation === "1" ? -Math.abs(p.amount || 0) : p.amount || 0),
+              currency: p.currency || currency,
+              method: (p.method && String(p.method).trim().length > 0 ? p.method : "מזומן") as any,
+              date: p.date || todayYmd(),
+              bankBranch: (p as any).bankBranch ?? (p as any).branch ?? undefined,
+              bankAccount: (p as any).bankAccount ?? (p as any).accountNumber ?? undefined,
+            }));
+
+            setPayments(normalizedPayments);
+            setConfirmedPayments(new Set(normalizedPayments.map((_, idx) => idx)));
+          }
+          const sourceDocumentDate = (res.document as any).documentDate as string | null | undefined;
+          if (isCancellationReceipt && sourceDocumentDate) {
+            setDocumentDate(sourceDocumentDate);
+          }
+        }
+      });
+    }
+  }, [searchParams, editData, draftId, currency]);
+
   const previewNumber = initial.ok ? initial.previewNumber : null;
 
   const total = useMemo(() => {
@@ -174,6 +244,9 @@ export default function ReceiptFormClient({
     return Math.round(sum);
   }, [payments, roundTotals]);
   const hasConfirmedPayments = confirmedPayments.size > 0;
+  useEffect(() => {
+    if (!isCancellationReceipt) return;
+  }, [isCancellationReceipt, chainSourceDocumentId, payments.length, total]);
 
   const payload: ReceiptDraftPayload = useMemo(() => {
     return {
@@ -188,8 +261,9 @@ export default function ReceiptFormClient({
       total,
       roundTotals,
       language,
+      allowNegativePayments: isCancellationReceipt,
     };
-  }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language]);
+  }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language, isCancellationReceipt]);
 
   useEffect(() => {
     if (currency !== "₪") {
@@ -237,8 +311,8 @@ export default function ReceiptFormClient({
     if (!payment.method || payment.method.trim().length === 0) {
       errors.method = "חובה לבחור אמצעי תשלום";
     }
-    if (!Number.isFinite(payment.amount) || payment.amount <= 0) {
-      errors.amount = "סכום חייב להיות גדול מ-0";
+    if (!Number.isFinite(payment.amount) || (isCancellationReceipt ? payment.amount >= 0 : payment.amount <= 0)) {
+      errors.amount = `סכום חייב להיות ${isCancellationReceipt ? "קטן מ-0" : "גדול מ-0"}`;
     }
     return errors;
   }
@@ -476,7 +550,8 @@ export default function ReceiptFormClient({
     payments.forEach((payment, i) => {
       const rowErrors: { method?: string; amount?: string } = {};
       if (!payment.method) rowErrors.method = "יש לבחור אמצעי תשלום";
-      else if (!payment.amount || payment.amount <= 0) rowErrors.amount = "סכום חייב להיות גדול מ-0";
+      else if (!payment.amount || (isCancellationReceipt ? payment.amount >= 0 : payment.amount <= 0))
+        rowErrors.amount = `סכום חייב להיות ${isCancellationReceipt ? "קטן מ-0" : "גדול מ-0"}`;
       if (Object.keys(rowErrors).length > 0) errors[i] = rowErrors;
     });
 
@@ -532,6 +607,49 @@ export default function ReceiptFormClient({
 
       setConfirmationModalOpen(false);
       setBusy(null);
+
+      if (chainSourceDocumentId) {
+        // Fetch source document to check if we should create payment link
+        const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
+        
+        let linkType: "related" | "payment" | "cancellation" = "related";
+        let linkAmount = 0;
+        
+        if (isCancellationReceipt) {
+          linkType = "cancellation";
+          linkAmount = Math.abs(total);
+        } else {
+          // If amounts match, treat as payment to close source
+          if (
+            sourceDoc.ok &&
+            sourceDoc.document.totalAmount &&
+            Math.abs(total - sourceDoc.document.totalAmount) < 0.01
+          ) {
+            linkType = "payment";
+            linkAmount = total;
+          }
+        }
+        
+        const note = notes ? `שרשור: ${notes}` : null;
+        const linkRes = await createDocumentLinkAction({
+          sourceDocumentId: isCancellationReceipt ? result.receiptId : chainSourceDocumentId,
+          targetDocumentId: isCancellationReceipt ? chainSourceDocumentId : result.receiptId,
+          linkType,
+          amount: linkAmount,
+          note,
+        });
+        if (!linkRes.ok) {
+          toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
+        } else if (isCancellationReceipt) {
+          const cancelRes = await markDocumentCancelledAction({
+            documentId: chainSourceDocumentId,
+            reason: "cancelled_by_negative_receipt",
+          });
+          if (!cancelRes.ok) {
+            toast.error(cancelRes.message || "לא ניתן לעדכן סטטוס מסמך מקור");
+          }
+        }
+      }
 
       setSuccessModalData({
         documentId: result.receiptId,
@@ -724,11 +842,11 @@ export default function ReceiptFormClient({
                   {/* Headers Row */}
                   <div className="px-[20px] sm:px-6 lg:px-8">
                     <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center font-semibold">
-                      <div className="text-right pr-[20px] translate-y-[20px]">אמצעי תשלום</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">תאריך</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">סכום</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">פרטים נוספים</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">אמצעי תשלום</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">תאריך</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">סכום</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מטבע</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">פרטים נוספים</div>
                       <div className="text-right translate-y-[20px] pr-[30px]">פעולות</div>
                     </div>
                   </div>
@@ -781,12 +899,12 @@ export default function ReceiptFormClient({
                             </div>
 
                             {/* תאריך - 13% */}
-                            <Input
-                              type="date"
+                            <DateInput
                               id={`payment-date-${i}`}
                               value={row.date}
-                              onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                              onChange={(v) => updatePaymentRow(i, { date: v })}
                               className="ti-items-input text-right min-w-0"
+                              variant="items"
                               disabled={confirmedPayments.has(i)}
                             />
 
@@ -798,10 +916,18 @@ export default function ReceiptFormClient({
                                 confirmedPayments.has(i) ? "pointer-events-none" : ""
                               )}
                               variant="items"
+                              allowNegative={isCancellationReceipt}
+                              displayValue={
+                                isCancellationReceipt
+                                  ? formatMoney(row.amount, currency, true)
+                                  : undefined
+                              }
+                              readOnly={isCancellationReceipt}
                               value={row.amount}
                               onChange={(v) => {
-                                updatePaymentRow(i, { amount: v });
-                                if (paymentErrors[i]?.amount && v > 0) {
+                                const next = isCancellationReceipt ? -Math.abs(v) : v;
+                                updatePaymentRow(i, { amount: next });
+                                if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
                                   const newErrors = { ...paymentErrors };
                                   if (newErrors[i]) {
                                     delete newErrors[i].amount;
@@ -927,12 +1053,12 @@ export default function ReceiptFormClient({
                             {/* תאריך */}
                             <div className="w-full">
                               <label className="block text-sm text-muted-fg mb-2">תאריך תשלום</label>
-                              <Input
-                                type="date"
+                              <DateInput
                                 id={`payment-date-mobile-${i}`}
                                 value={row.date}
-                                onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                                onChange={(v) => updatePaymentRow(i, { date: v })}
                                 className="ti-items-input text-right w-full"
+                                variant="items"
                                 disabled={confirmedPayments.has(i)}
                               />
                             </div>
@@ -948,10 +1074,18 @@ export default function ReceiptFormClient({
                                     confirmedPayments.has(i) ? "pointer-events-none" : ""
                                   )}
                                   variant="items"
+                              allowNegative={isCancellationReceipt}
+                              displayValue={
+                                isCancellationReceipt
+                                  ? formatMoney(row.amount, currency, true)
+                                  : undefined
+                              }
+                              readOnly={isCancellationReceipt}
                                   value={row.amount}
                                   onChange={(v) => {
-                                    updatePaymentRow(i, { amount: v });
-                                    if (paymentErrors[i]?.amount && v > 0) {
+                                const next = isCancellationReceipt ? -Math.abs(v) : v;
+                                updatePaymentRow(i, { amount: next });
+                                if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
                                       const newErrors = { ...paymentErrors };
                                       if (newErrors[i]) {
                                         delete newErrors[i].amount;
@@ -1057,7 +1191,7 @@ export default function ReceiptFormClient({
                     <div className="flex justify-between items-center">
                       <div className="text-lg font-bold" style={{ color: "#19183B" }}></div>
                       <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
-                        סה״כ {formatMoney(total, currency)}
+                        סה״כ {formatMoney(total, currency, isCancellationReceipt)}
                       </div>
                     </div>
                     {roundTotals && (

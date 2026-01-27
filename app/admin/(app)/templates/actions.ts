@@ -98,10 +98,6 @@ export async function getTemplateByIdAction(templateId: string) {
     const documentTypes =
       (typeRows || []).map((row: any) => row.document_type).filter(Boolean)
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:101',message:'getTemplateByIdAction types',data:{templateId,documentTypes,count:documentTypes.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H6'})}).catch(()=>{});
-    // #endregion
-
     return {
       ok: true as const,
       template: data as TemplateDefinition,
@@ -286,9 +282,6 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
   try {
     const supabase = await createClient()
     const companyId = await getCompanyIdForUser()
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:270',message:'updateTemplateAction entry',data:{templateId:payload.id,documentType:payload.documentType,documentTypes:payload.documentTypes,isDefault:payload.isDefault,isActive:payload.isActive},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
 
     // Validation
     if (!payload.name || payload.name.trim().length < 3) {
@@ -363,9 +356,6 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
         : [payload.documentType]
     const mappedTypes = requestedTypes.map((type) => toTemplateDocumentType(type))
     const uniqueTypes = Array.from(new Set(mappedTypes))
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:343',message:'template_document_types requested',data:{templateId:payload.id,requestedTypes,uniqueTypes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
 
     const { error: deleteError } = await supabase
       .from("template_document_types")
@@ -373,9 +363,6 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       .eq("template_id", payload.id)
 
     if (deleteError) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:350',message:'template_document_types delete error',data:{templateId:payload.id,errorMessage:deleteError.message,code:(deleteError as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
-      // #endregion
       return { ok: false as const, message: deleteError.message }
     }
 
@@ -389,15 +376,8 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       )
 
     if (insertError) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:362',message:'template_document_types insert error',data:{templateId:payload.id,errorMessage:insertError.message,code:(insertError as any)?.code||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
       return { ok: false as const, message: insertError.message }
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/actions.ts:370',message:'template_document_types insert success',data:{templateId:payload.id,count:uniqueTypes.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'})}).catch(()=>{});
-    // #endregion
 
     revalidatePath("/admin/templates")
     revalidatePath(`/admin/templates/${payload.id}`)

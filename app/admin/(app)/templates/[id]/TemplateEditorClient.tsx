@@ -165,9 +165,6 @@ ${html}
       toast.error("חייב לבחור לפחות סוג מסמך אחד")
       return
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:146',message:'handleSave start',data:{templateId:template.id,selectedCount:selectedDocumentTypes.length,selectedDocumentTypes},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H7'})}).catch(()=>{});
-    // #endregion
     setIsSaving(true)
     try {
       const primaryType = (selectedDocumentTypes[0] || template.document_type) as any
@@ -186,9 +183,6 @@ ${html}
       }
 
       const result = await updateTemplateAction(payload)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:171',message:'handleSave result',data:{ok:result.ok,message:result.message||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H8'})}).catch(()=>{});
-      // #endregion
       if (result.ok) {
         toast.success("התבנית נשמרה בהצלחה")
         router.refresh()
@@ -278,9 +272,6 @@ ${html}
                           } else {
                             setSelectedDocumentTypes([DOCUMENT_TYPES.RECEIPT])
                           }
-                          // #region agent log
-                          fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/admin/(app)/templates/[id]/TemplateEditorClient.tsx:248',message:'select all toggled',data:{checked:e.target.checked,selectedCount: e.target.checked ? Object.keys(DOCUMENT_TYPES).length : 1},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H9'})}).catch(()=>{});
-                          // #endregion
                         }}
                         className="h-4 w-4 rounded border-gray-300"
                       />

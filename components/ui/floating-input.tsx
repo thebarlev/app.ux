@@ -55,14 +55,10 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
       ? labelStates.success
       : labelStates.default;
 
-    const inputRef = React.useRef<HTMLInputElement | null>(null);
-    const labelRef = React.useRef<HTMLLabelElement | null>(null);
-
     return (
       <div className={cn("relative w-full min-w-0 ui-field-block", containerClassName)}>
         <input
           ref={(node) => {
-            inputRef.current = node;
             if (typeof ref === "function") ref(node);
             else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
           }}
@@ -75,7 +71,6 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           placeholder=" "
         />
         <label
-          ref={labelRef}
           htmlFor={inputId}
           className={cn(
             labelBase,

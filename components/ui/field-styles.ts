@@ -21,7 +21,7 @@ export const fieldStateBorders = {
 } as const;
 
 export const labelBase =
-  "ui-floating-label absolute start-0 top-[10px] pointer-events-none text-right text-[length:var(--field-label-size)] leading-[var(--field-label-line-height)] origin-top-right transition-all duration-200 translate-y-0 scale-100 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-[10px] peer-focus:translate-y-0 peer-focus:scale-100";
+  "ui-floating-label absolute start-0 top-[var(--field-label-top)] pointer-events-none text-right text-[length:var(--field-label-size)] leading-[var(--field-label-line-height)] origin-top-right transition-all duration-200 translate-y-0 scale-100 peer-placeholder-shown:top-[var(--field-label-empty-top)] peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:scale-100 peer-focus:top-[var(--field-label-top)] peer-focus:translate-y-0 peer-focus:scale-100";
 
 export const labelStates = {
   default: "text-[color:var(--field-label)] peer-focus:text-[color:var(--field-label-focus)]",

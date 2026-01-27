@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAllDocumentsListAction, type DocumentsListFilters } from "./actions";
-import DocumentsListClient from "./DocumentsListClient";
+import { getAllDocumentsListAction, type DocumentsListFilters } from "../actions";
+import DraftsListClient from "./DraftsListClient";
 
 type PageProps = {
   searchParams: Promise<{
@@ -11,32 +11,29 @@ type PageProps = {
   }>;
 };
 
-export default async function DocumentsPage({ searchParams }: PageProps) {
+export default async function DocumentDraftsPage({ searchParams }: PageProps) {
   const supabase = await createClient();
-  
-  // Authenticate user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect("/login");
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
   const params = await searchParams;
-  
-  // Parse filters from URL params
+
   const filters: DocumentsListFilters = {
     search: params.search,
     documentType: params.documentType || "all",
-    documentStatusFilter: "nonDraft",
+    documentStatusFilter: "draft",
     page: params.page ? parseInt(params.page) : 1,
     pageSize: 50,
   };
 
-  // Fetch documents
   const result = await getAllDocumentsListAction(filters);
 
   return (
-    <main dir="rtl" className="min-h-screen" >
-      <DocumentsListClient initialData={result} initialFilters={filters} />
+    <main dir="rtl" className="min-h-screen">
+      <DraftsListClient initialData={result} initialFilters={filters} />
     </main>
   );
 }
+

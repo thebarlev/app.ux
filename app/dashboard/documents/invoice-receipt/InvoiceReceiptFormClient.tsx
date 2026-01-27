@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import type {
   InitialInvoiceReceiptCreateData,
   InvoiceReceiptDraftPayload,
@@ -25,6 +26,7 @@ import PaymentDetailsSection from "../receipt/PaymentDetailsSection";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FloatingTextarea } from "@/components/ui/floating-textarea";
 import { FloatingDateInput } from "@/components/ui/floating-date-input";
+import { DateInput } from "@/components/ui/date-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,7 @@ import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/featur
 import { getDocumentConfig } from "@/lib/documents/document-configs";
 import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { createDocumentLinkAction, getDocumentForChainingAction } from "@/lib/documents/actions";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -106,6 +109,7 @@ export default function InvoiceReceiptFormClient({
   } | null;
   draftId?: string;
 }) {
+  const searchParams = useSearchParams();
   const documentConfig = useMemo(() => getDocumentConfig("invoiceReceipt"), []);
   const documentLabel = "חשבונית מס / קבלה";
   const basePath = "/dashboard/documents";
@@ -139,6 +143,7 @@ export default function InvoiceReceiptFormClient({
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
@@ -213,6 +218,41 @@ export default function InvoiceReceiptFormClient({
       if (editData.vatType) setVatType(editData.vatType);
     }
   }, [editData]);
+
+  // Optional prefill from URL params (UI only; no DB logic changes)
+  useEffect(() => {
+    if (editData || draftId) return;
+    const prefillCustomerId = searchParams.get("customerId");
+    const prefillCustomerName = searchParams.get("customerName");
+    const prefillNotes = searchParams.get("notes");
+    const prefillSourceDocumentId = searchParams.get("sourceDocumentId");
+
+    if (prefillCustomerId) setCustomerId(prefillCustomerId);
+    if (prefillCustomerName) setCustomerName(prefillCustomerName);
+    if (prefillNotes) setNotes(prefillNotes);
+    if (prefillSourceDocumentId) {
+      setChainSourceDocumentId(prefillSourceDocumentId);
+      // Load items from source document
+      getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok && res.document.items && res.document.items.length > 0) {
+          const loadedItems = res.document.items.map(item => ({
+            label: item.label,
+            sku: item.sku,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            currency: item.currency,
+            vatMode: item.vatMode,
+          }));
+          
+          setItems(loadedItems);
+          
+          // Mark all loaded items as confirmed
+          setConfirmedRows(new Set(loadedItems.map((_, idx) => idx)));
+        }
+      });
+    }
+  }, [searchParams, editData, draftId]);
 
   useEffect(() => {
     if (dueDate < documentDate) {
@@ -751,6 +791,36 @@ export default function InvoiceReceiptFormClient({
       setConfirmationModalOpen(false);
       setBusy(null);
 
+      if (chainSourceDocumentId) {
+        // Fetch source document to check if we should create payment link
+        const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
+        
+        let linkType: "related" | "payment" = "related";
+        let linkAmount = 0;
+        
+        // If amounts match, treat as payment to close source
+        if (
+          sourceDoc.ok &&
+          sourceDoc.document.totalAmount &&
+          Math.abs(total - sourceDoc.document.totalAmount) < 0.01
+        ) {
+          linkType = "payment";
+          linkAmount = total;
+        }
+        
+        const note = notes ? `שרשור: ${notes}` : null;
+        const linkRes = await createDocumentLinkAction({
+          sourceDocumentId: chainSourceDocumentId,
+          targetDocumentId: result.documentId || "",
+          linkType,
+          amount: linkAmount,
+          note,
+        });
+        if (!linkRes.ok) {
+          toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
+        }
+      }
+
       setSuccessModalData({
         documentId: result.documentId || "",
         documentNumber: result.documentNumber || "",
@@ -948,19 +1018,19 @@ export default function InvoiceReceiptFormClient({
                 <div className="space-y-[20px]">
                   <div className="px-[20px] sm:px-6 lg:px-8">
                     <div className="ui-item-grid ui-item-label font-semibold">
-                      <div className="text-right pr-[20px] translate-y-[20px]">מק״ט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">פירוט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">כמות</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מחיר ליחידה</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מק״ט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">פירוט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">כמות</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מחיר ליחידה</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מטבע</div>
                       {vatRate > 0 ? (
-                        <div className="text-right pr-[20px] translate-y-[20px]">מע״מ</div>
+                        <div className="text-right pr-[12px] translate-y-[20px]">מע״מ</div>
                       ) : (
-                        <div className="text-right opacity-0 pr-[20px] translate-y-[20px]" aria-hidden="true">
+                        <div className="text-right opacity-0 pr-[12px] translate-y-[20px]" aria-hidden="true">
                           מע״מ
                         </div>
                       )}
-                      <div className="text-right pr-[00px] translate-y-[20px]" ref={headerTotalRef}>
+                      <div className="text-right pr-[12px] translate-y-[20px]" ref={headerTotalRef}>
                         סה״כ
                       </div>
                       <div className="text-right pr-[-50px] translate-y-[20px]">אישור</div>
@@ -1352,12 +1422,12 @@ export default function InvoiceReceiptFormClient({
                             </div>
 
                             {/* תאריך - 13% */}
-                            <Input
-                              type="date"
+                            <DateInput
                               id={`payment-date-${i}`}
                               value={row.date}
-                              onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                              onChange={(v) => updatePaymentRow(i, { date: v })}
                               className="ti-items-input text-right min-w-0"
+                              variant="items"
                               disabled={confirmedPayments.has(i)}
                             />
 
@@ -1498,12 +1568,12 @@ export default function InvoiceReceiptFormClient({
                             {/* תאריך */}
                             <div className="w-full">
                               <label className="block text-sm text-muted-fg mb-2">תאריך תשלום</label>
-                              <Input
-                                type="date"
+                              <DateInput
                                 id={`payment-date-mobile-${i}`}
                                 value={row.date}
-                                onChange={(e) => updatePaymentRow(i, { date: e.target.value })}
+                                onChange={(v) => updatePaymentRow(i, { date: v })}
                                 className="ti-items-input text-right w-full"
+                                variant="items"
                                 disabled={confirmedPayments.has(i)}
                               />
                             </div>

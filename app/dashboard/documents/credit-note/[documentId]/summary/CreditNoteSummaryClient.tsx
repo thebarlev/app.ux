@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getCreditNotePreviewUrlAction } from "@/app/dashboard/documents/credit-note/actions";
@@ -199,6 +199,18 @@ export default function CreditNoteSummaryClient(props: {
       : vatRate > 0 && typeof props.creditNote.total_amount === "number"
         ? Number((props.creditNote.total_amount - vatAmount).toFixed(2))
         : props.creditNote.total_amount || 0;
+
+  const summaryLogRef = useRef<{ docId?: string; items?: number } | null>(null);
+  useEffect(() => {
+    const docId = props.creditNote.id;
+    const itemsCount = itemsToShow.length;
+    if (summaryLogRef.current?.docId === docId && summaryLogRef.current?.items === itemsCount) return;
+    summaryLogRef.current = { docId, items: itemsCount };
+    const itemsSubtotal = itemsToShow.reduce((acc, item) => {
+      const n = typeof item.lineTotal === "number" ? item.lineTotal : 0;
+      return acc + (Number.isFinite(n) ? n : 0);
+    }, 0);
+  }, [itemsToShow, subtotal, vatAmount, props.creditNote.total_amount, props.creditNote.id]);
 
   async function openFullPreview() {
     setBusy("view");

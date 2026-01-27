@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Link2 } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+import { createDocumentLinkAction } from "@/lib/documents/actions";
+import LinkDocumentsDialog, { type LinkDocumentsDialogLinkType } from "@/components/documents/LinkDocumentsDialog";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -29,6 +31,9 @@ export type DocumentsQuickViewDocumentSnapshot = {
   total_amount: number | null;
   currency: string | null;
   document_status: string;
+  accounting_status?: string | null;
+  outstanding_balance?: number | null;
+  reference_text?: string | null;
   created_at: string;
 };
 
@@ -38,6 +43,24 @@ type PaymentLine = {
   amount: number | null;
   currency: string | null;
   details: string | null;
+};
+
+type LinkDocLite = {
+  id: string;
+  document_type: string;
+  document_number: string | null;
+  issue_date: string | null;
+  document_status: string;
+};
+
+type DocumentLinkLine = {
+  id: string;
+  link_type: string;
+  amount: number;
+  note: string | null;
+  created_at: string;
+  source: LinkDocLite | null;
+  target: LinkDocLite | null;
 };
 
 function formatDate(dateStr: string | null): string {
@@ -61,22 +84,100 @@ function getDocumentTypeLabel(type: string): string {
   return config?.label || type;
 }
 
+function formatLinkType(t: string): string {
+  const s = String(t || "").toLowerCase();
+  if (s === "payment") return "תשלום";
+  if (s === "credit") return "זיכוי";
+  if (s === "cancellation") return "ביטול";
+  if (s === "conversion") return "המרה";
+  if (s === "related") return "שיוך";
+  return t || "שיוך";
+}
+
+type UIStatus = "open" | "closed" | "canceling" | "canceled";
+
+function computeUiStatusFromDocAndLinks(params: {
+  doc: DocumentsQuickViewDocumentSnapshot | null;
+  links: DocumentLinkLine[] | null;
+}): UIStatus {
+  const { doc, links } = params;
+  const ds = String(doc?.document_status || "").toLowerCase();
+  const isDocCanceled = ds === "canceled" || ds === "cancelled" || ds === "void";
+
+  const total = typeof doc?.total_amount === "number" ? doc.total_amount : doc?.total_amount ? Number(doc.total_amount) : null;
+  const outstanding =
+    typeof doc?.outstanding_balance === "number"
+      ? doc.outstanding_balance
+      : doc?.outstanding_balance
+        ? Number(doc.outstanding_balance)
+        : null;
+
+  const incomingCreditSum = (links || []).reduce((acc, l) => {
+    if (l.link_type !== "credit" && l.link_type !== "cancellation") return acc;
+    if (l.target?.id !== doc?.id) return acc;
+    const n = Number(l.amount || 0);
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
+
+  const isCanceledByCredit = !!(total && total > 0 && incomingCreditSum >= total);
+
+  const hasOutgoingCreditLink = (links || []).some(
+    (l) => (l.link_type === "credit" || l.link_type === "cancellation") && l.source?.id === doc?.id
+  );
+  const isCanceling = String(doc?.document_type || "").toLowerCase() === "credit_note" || hasOutgoingCreditLink;
+
+  const isFinal = ds === "final";
+
+  if (isDocCanceled || isCanceledByCredit) return "canceled";
+  if (isCanceling) return "canceling";
+
+  if (typeof outstanding === "number" && Number.isFinite(outstanding)) {
+    return outstanding <= 0 ? "closed" : "open";
+  }
+
+  if (isFinal) return "closed";
+  if (typeof total === "number" && total === 0) return "closed";
+  return "open";
+}
+
+function getStatusBadgeFromUi(status: UIStatus): { label: string; style: React.CSSProperties } {
+  switch (status) {
+    case "open":
+      return { label: "פתוח", style: { backgroundColor: "#E8F2FF", color: "#1D4ED8" } };
+    case "closed":
+      return { label: "סגור", style: { backgroundColor: "#E9F8F0", color: "#167C4B" } };
+    case "canceling":
+      return { label: "מבטל", style: { backgroundColor: "#F3E8FF", color: "#6D28D9" } };
+    case "canceled":
+      return { label: "מבוטל", style: { backgroundColor: "#FDE8E8", color: "#B91C1C" } };
+  }
+}
+
 export default function DocumentsQuickViewDrawer(props: {
   open: boolean;
   onClose: () => void;
   documentId: string | null;
   initialDoc?: DocumentsQuickViewDocumentSnapshot | null;
+  companyId?: string | null;
   onViewDocument?: () => Promise<void> | void;
   onOpenSummary?: () => Promise<void> | void;
   onDownload?: () => Promise<void> | void;
 }) {
   const doc = props.initialDoc || null;
 
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+
   const [isMobile, setIsMobile] = useState(false);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
     message?: string;
     payments?: PaymentLine[];
+  }>({ status: "idle" });
+
+  const [linksState, setLinksState] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    message?: string;
+    links?: DocumentLinkLine[];
   }>({ status: "idle" });
 
   useEffect(() => {
@@ -92,6 +193,102 @@ export default function DocumentsQuickViewDrawer(props: {
     const number = doc?.document_number || "—";
     return `${typeLabel} ${number}`;
   }, [doc?.document_number, doc?.document_type]);
+
+  function inferLinkTypeForSourceDocument(documentType: string): LinkDocumentsDialogLinkType {
+    const t = String(documentType || "").toLowerCase();
+    if (t === "receipt") return "payment";
+    if (t === "credit_note") return "credit";
+    if (t === "tax_invoice" || t === "invoice_receipt") return "conversion";
+    return "related";
+  }
+
+  const linkType = inferLinkTypeForSourceDocument(doc?.document_type || "");
+
+  const uiStatus = useMemo<UIStatus>(() => {
+    const links = linksState.status === "ready" ? linksState.links || [] : [];
+    return computeUiStatusFromDocAndLinks({ doc, links });
+  }, [doc, linksState.status, linksState.links]);
+
+  const uiBadge = useMemo(() => getStatusBadgeFromUi(uiStatus), [uiStatus]);
+
+  const reloadLinks = useCallback(async () => {
+    if (!props.open || !props.documentId) return;
+    setLinksState({ status: "loading" });
+
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("document_links")
+        .select(
+          `
+            id,
+            link_type,
+            amount,
+            note,
+            created_at,
+            source:source_document_id(id, document_type, document_number, issue_date, document_status),
+            target:target_document_id(id, document_type, document_number, issue_date, document_status)
+          `
+        )
+        .or(`source_document_id.eq.${props.documentId},target_document_id.eq.${props.documentId}`)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const links: DocumentLinkLine[] = (data || []).map((row: any) => ({
+        id: row.id,
+        link_type: row.link_type,
+        amount: typeof row.amount === "number" ? row.amount : Number(row.amount || 0),
+        note: row.note ?? null,
+        created_at: row.created_at,
+        source: row.source ?? null,
+        target: row.target ?? null,
+      }));
+
+      setLinksState({ status: "ready", links });
+    } catch (e: any) {
+      setLinksState({ status: "error", message: e?.message || "שגיאה בטעינת שיוכים" });
+    }
+  }, [props.open, props.documentId]);
+
+  async function handleCreateLinksFromDialog(selections: { documentId: string; amount: number }[]) {
+    if (!doc?.id) return;
+    if (!props.companyId) {
+      throw new Error("לא ניתן לחבר מסמכים: חסר מזהה חברה");
+    }
+    if (!doc.customer_id) {
+      throw new Error("לא ניתן לחבר מסמכים: אין לקוח משוייך למסמך");
+    }
+
+    const targetIsConversionAllowed = doc.document_type === "tax_invoice" || doc.document_type === "invoice_receipt";
+
+    for (const sel of selections) {
+      if (linkType === "conversion") {
+        if (!targetIsConversionAllowed) {
+          throw new Error("המרה מותרת רק לחשבונית מס / חשבונית מס-קבלה");
+        }
+        const res = await createDocumentLinkAction({
+          sourceDocumentId: sel.documentId, // transaction_invoice
+          targetDocumentId: doc.id, // current invoice (tax_invoice / invoice_receipt)
+          linkType: "conversion",
+          amount: 0,
+        });
+        if (!res.ok) throw new Error(res.message);
+        continue;
+      }
+
+      const amount = linkType === "payment" || linkType === "credit" ? sel.amount : 0;
+      const res = await createDocumentLinkAction({
+        sourceDocumentId: doc.id,
+        targetDocumentId: sel.documentId,
+        linkType,
+        amount,
+      });
+      if (!res.ok) throw new Error(res.message);
+    }
+
+    await reloadLinks();
+  }
 
   useEffect(() => {
     if (!props.open || !props.documentId) return;
@@ -144,27 +341,49 @@ export default function DocumentsQuickViewDrawer(props: {
     };
   }, [props.open, props.documentId, doc?.document_type]);
 
+  // Load document links (incoming + outgoing)
+  useEffect(() => {
+    void reloadLinks();
+  }, [reloadLinks]);
+
   return (
-    <Sheet
-      open={props.open}
-      onOpenChange={(next) => {
-        if (!next) props.onClose();
-      }}
-    >
-      <SheetContent
-        side={isMobile ? "bottom" : "right"}
-        className={cn(
-          // Move the built-in Sheet close (X) to the left side (opposite the RTL title),
-          // and reserve header space so it won't overlap the title text.
-          "flex flex-col bg-[#EDF1F5] z-[60] [&_[data-slot=sheet-close]]:left-4 [&_[data-slot=sheet-close]]:right-auto",
-          isMobile ? "h-[85vh] rounded-t-xl" : "w-full sm:max-w-md"
-        )}
+    <>
+      <Sheet
+        open={props.open}
+        onOpenChange={(next) => {
+          if (!next) props.onClose();
+        }}
       >
-        <div dir="rtl" className="flex h-full flex-col bg-[#EDF1F5]">
-          <SheetHeader className="flex-shrink-0 pl-14">
-            <SheetTitle className="text-right text-2xl font-bold">
-              {title}
-            </SheetTitle>
+        <SheetContent
+          side={isMobile ? "bottom" : "right"}
+          className={cn(
+            // Move the built-in Sheet close (X) to the left side (opposite the RTL title),
+            // and reserve header space so it won't overlap the title text.
+            "flex flex-col bg-[#EDF1F5] z-[60] [&_[data-slot=sheet-close]]:left-4 [&_[data-slot=sheet-close]]:right-auto",
+            isMobile ? "h-[85vh] rounded-t-xl" : "w-full sm:max-w-md"
+          )}
+        >
+          <div dir="rtl" className="flex h-full flex-col bg-[#EDF1F5]">
+            <SheetHeader className="flex-shrink-0 pl-14">
+              <SheetTitle className="text-right text-2xl font-bold">
+                <div className="flex items-center justify-end gap-2">
+                  <span
+                    className="ui-badge"
+                    style={{
+                      display: "inline-block",
+                      padding: "4px 10px",
+                      borderRadius: "999px",
+                      fontSize: "14px",
+                      fontWeight: 400,
+                      ...uiBadge.style,
+                    }}
+                    title="חיווי UI בלבד"
+                  >
+                    {uiBadge.label}
+                  </span>
+                  <span>{title}</span>
+                </div>
+              </SheetTitle>
 
             {doc ? (
               <div className="text-right text-muted-foreground text-[18px]">
@@ -202,6 +421,50 @@ export default function DocumentsQuickViewDrawer(props: {
                       <div className="font-bold text-foreground">סכום</div>
                       <div className="font-normal text-foreground">{formatAmount(doc.total_amount, doc.currency)}</div>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-right text-[18px]">מסמכים משוייכים</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {linksState.status === "loading" ? (
+                      <div className="text-right text-[18px] text-muted-foreground">טוען...</div>
+                    ) : linksState.status === "error" ? (
+                      <div className="ui-alert-danger">
+                        <div className="font-bold">שגיאה</div>
+                        <div className="mt-2">{linksState.message}</div>
+                      </div>
+                    ) : (linksState.links || []).length === 0 ? (
+                      <div className="text-right text-[18px] text-muted-foreground">—</div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {(linksState.links || []).map((l) => {
+                          const isOutgoing = l.source?.id === doc?.id;
+                          const other = isOutgoing ? l.target : l.source;
+                          const directionLabel = isOutgoing ? "יוצא" : "נכנס";
+                          const otherLabel = other
+                            ? `${getDocumentTypeLabel(other.document_type)} ${other.document_number || "—"}`
+                            : "—";
+                          const amountLabel = l.amount > 0 ? formatAmount(l.amount, doc?.currency || null) : null;
+                          return (
+                            <div key={l.id} className="rounded-md border border-border p-3">
+                              <div className="flex flex-col gap-1 text-right text-[18px]">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="font-semibold">
+                                    {formatLinkType(l.link_type)} • {directionLabel}
+                                  </div>
+                                  {amountLabel ? <div className="font-semibold">{amountLabel}</div> : null}
+                                </div>
+                                <div className="text-muted-foreground">{otherLabel}</div>
+                                {l.note ? <div className="text-muted-foreground">{l.note}</div> : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -308,12 +571,48 @@ export default function DocumentsQuickViewDrawer(props: {
                     </div>
                   </div>
                 ) : null}
+
+                {doc?.customer_id && props.companyId ? (
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="חיבור מסמכים"
+                      onClick={() => setLinkDialogOpen(true)}
+                      disabled={
+                        (linkType === "payment" || linkType === "credit") &&
+                        !(typeof doc?.total_amount === "number" && doc.total_amount > 0)
+                      }
+                    >
+                      <Link2 className="h-5 w-5" />
+                    </Button>
+                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                        חיבור מסמכים
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
-          </SheetFooter>
-        </div>
-      </SheetContent>
-    </Sheet>
+            </SheetFooter>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <LinkDocumentsDialog
+        open={linkDialogOpen}
+        onOpenChange={setLinkDialogOpen}
+        customerId={doc?.customer_id || ""}
+        companyId={props.companyId || ""}
+        sourceDocumentId={doc?.id || ""}
+        sourceTotal={typeof doc?.total_amount === "number" ? doc.total_amount : Number(doc?.total_amount || 0)}
+        sourceCurrency={doc?.currency || null}
+        linkType={linkType}
+        onConfirm={handleCreateLinksFromDialog}
+      />
+    </>
   );
 }
 

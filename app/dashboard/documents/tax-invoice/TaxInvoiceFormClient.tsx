@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import type {
   InitialDocumentCreateData,
   DocumentDraftPayload,
@@ -13,6 +14,7 @@ import {
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
+  getDocumentForChainingAction,
 } from "@/lib/documents/actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
@@ -35,6 +37,7 @@ import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/featur
 import { getDocumentConfig } from "@/lib/documents/document-configs";
 import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { createDocumentLinkAction } from "@/lib/documents/actions";
 
 type ItemRow = {
   label: string;
@@ -85,6 +88,7 @@ export default function TaxInvoiceFormClient({
   } | null;
   draftId?: string;
 }) {
+  const searchParams = useSearchParams();
   const documentConfig = useMemo(() => getDocumentConfig(documentType), [documentType]);
   const documentLabel = documentConfig?.label || "חשבונית מס";
   const basePath = documentConfig?.category === "business" ? "/business/documents" : "/dashboard/documents";
@@ -118,6 +122,7 @@ export default function TaxInvoiceFormClient({
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
@@ -186,6 +191,41 @@ export default function TaxInvoiceFormClient({
       if (editData.vatType) setVatType(editData.vatType);
     }
   }, [editData]);
+
+  // Optional prefill from URL params (UI only; no DB logic changes)
+  useEffect(() => {
+    if (editData || draftId) return;
+    const prefillCustomerId = searchParams.get("customerId");
+    const prefillCustomerName = searchParams.get("customerName");
+    const prefillNotes = searchParams.get("notes");
+    const prefillSourceDocumentId = searchParams.get("sourceDocumentId");
+
+    if (prefillCustomerId) setCustomerId(prefillCustomerId);
+    if (prefillCustomerName) setCustomerName(prefillCustomerName);
+    if (prefillNotes) setNotes(prefillNotes);
+    if (prefillSourceDocumentId) {
+      setChainSourceDocumentId(prefillSourceDocumentId);
+      // Load items from source document
+      getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok && res.document.items && res.document.items.length > 0) {
+          const loadedItems = res.document.items.map(item => ({
+            label: item.label,
+            sku: item.sku,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            currency: item.currency,
+            vatMode: item.vatMode,
+          }));
+          
+          setItems(loadedItems);
+          
+          // Mark all loaded items as confirmed
+          setConfirmedRows(new Set(loadedItems.map((_, idx) => idx)));
+        }
+      });
+    }
+  }, [searchParams, editData, draftId]);
 
   useEffect(() => {
     if (dueDate < documentDate) {
@@ -639,11 +679,42 @@ export default function TaxInvoiceFormClient({
       setConfirmationModalOpen(false);
       setBusy(null);
 
+      if (chainSourceDocumentId) {
+        // Fetch source document to check if we should create payment link
+        const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
+        
+        let linkType: "related" | "payment" = "related";
+        let linkAmount = 0;
+        
+        // If this is invoice-receipt and amounts match, treat as payment to close source
+        if (
+          documentType === "invoiceReceipt" &&
+          sourceDoc.ok &&
+          sourceDoc.document.totalAmount &&
+          Math.abs(total - sourceDoc.document.totalAmount) < 0.01
+        ) {
+          linkType = "payment";
+          linkAmount = total;
+        }
+        
+        const note = notes ? `שרשור: ${notes}` : null;
+        const linkRes = await createDocumentLinkAction({
+          sourceDocumentId: chainSourceDocumentId,
+          targetDocumentId: result.documentId,
+          linkType,
+          amount: linkAmount,
+          note,
+        });
+        if (!linkRes.ok) {
+          toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
+        }
+      }
+
       setSuccessModalData({
         documentId: result.documentId,
         documentNumber: result.documentNumber || "",
         companyName: result.companyName || "העסק שלי",
-        documentTypeLabel: "חשבונית מס",
+        documentTypeLabel: documentLabel,
         language,
       });
       setSuccessModalOpen(true);
@@ -850,19 +921,19 @@ export default function TaxInvoiceFormClient({
                 <div className="space-y-[20px]">
                   <div className="px-[20px] sm:px-6 lg:px-8">
                     <div className="ui-item-grid ui-item-label font-semibold">
-                      <div className="text-right pr-[20px] translate-y-[20px]">מק״ט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">פירוט</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">כמות</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מחיר ליחידה</div>
-                      <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מק״ט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">פירוט</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">כמות</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מחיר ליחידה</div>
+                      <div className="text-right pr-[12px] translate-y-[20px]">מטבע</div>
                       {vatRate > 0 ? (
-                        <div className="text-right pr-[20px] translate-y-[20px]">מע״מ</div>
+                        <div className="text-right pr-[12px] translate-y-[20px]">מע״מ</div>
                       ) : (
-                        <div className="text-right opacity-0 pr-[20px] translate-y-[20px]" aria-hidden="true">
+                        <div className="text-right opacity-0 pr-[12px] translate-y-[20px]" aria-hidden="true">
                           מע״מ
                         </div>
                       )}
-                      <div className="text-right pr-[00px] translate-y-[20px]" ref={headerTotalRef}>
+                      <div className="text-right pr-[12px] translate-y-[20px]" ref={headerTotalRef}>
                         סה״כ
                       </div>
                       <div className="text-right pr-[-50px] translate-y-[20px]">אישור</div>

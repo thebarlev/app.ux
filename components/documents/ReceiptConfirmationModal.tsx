@@ -154,7 +154,7 @@ export default function ReceiptConfirmationModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4"
+      className="receipt-confirmation-overlay fixed inset-0 flex items-center justify-center"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           console.log("[FINALIZE_RECEIPT] Overlay clicked", { isLoading, isFinalizing });
@@ -170,7 +170,7 @@ export default function ReceiptConfirmationModal({
     >
       <div
         ref={modalRef}
-        className="w-full max-w-[500px] bg-modal rounded-[20px] shadow-xl relative text-modal-fg"
+        className="receipt-confirmation-panel"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirmation-modal-title"
@@ -182,23 +182,23 @@ export default function ReceiptConfirmationModal({
           ref={closeButtonRef}
           onClick={onClose}
           disabled={isLoading}
-          className="absolute top-4 left-4 z-10 p-2 rounded-full hover:bg-black/10 transition-colors disabled:opacity-50"
+          className="receipt-confirmation-close"
           aria-label="סגירה"
         >
           <X className="h-5 w-5 text-modal-fg" />
         </button>
 
         {/* Modal Content */}
-        <div className="flex flex-col h-full">
-          <div className="p-8 text-center flex-1">
+        <div className="receipt-confirmation-content">
+          <div className="receipt-confirmation-body">
             {/* Description - ABOVE title */}
             <div
               id="confirmation-modal-description"
-              className="mb-6 p-4 mx-auto max-w-[500px]"
+              className="receipt-confirmation-description"
             >
-              <div className="flex flex-col items-center gap-3">
-                <AlertTriangle className="h-6 w-6 text-yellow-700 flex-shrink-0" aria-hidden="true" />
-                <p className="text-yellow-900 leading-relaxed" style={{ fontSize: "18px" }}>
+              <div className="receipt-confirmation-warning">
+                <AlertTriangle className="receipt-confirmation-warning-icon" aria-hidden="true" />
+                <p className="receipt-confirmation-warning-text">
                   רגע לפני שמאשרים שווה לעבור פעם נוספת על הפרטים ולוודא שהם נכונים, כי אחרי הפקת המסמך אי אפשר יהיה לתקן אותו.
                 </p>
               </div>
@@ -207,48 +207,48 @@ export default function ReceiptConfirmationModal({
             {/* Title */}
             <h2
               id="confirmation-modal-title"
-              className="text-2xl font-bold text-modal-fg mb-8"
+              className="receipt-confirmation-title"
             >
               אישור הפקת {documentLabel}
             </h2>
 
             {/* Document Info - Horizontal row layout, centered, 18px font */}
-            <div className="mb-3 flex flex-row items-center justify-center gap-6 mx-auto max-w-[500px] flex-nowrap">
-              <div className="flex flex-col items-center py-2">
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>תאריך המסמך</span>
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{formatDate(documentDate)}</span>
+            <div className="receipt-confirmation-summary">
+              <div className="receipt-confirmation-summary-item">
+                <span className="receipt-confirmation-summary-label">תאריך המסמך</span>
+                <span className="receipt-confirmation-summary-value">{formatDate(documentDate)}</span>
               </div>
-              <div className="flex flex-col items-center py-2">
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>שם הלקוח</span>
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{customerName}</span>
+              <div className="receipt-confirmation-summary-item">
+                <span className="receipt-confirmation-summary-label">שם הלקוח</span>
+                <span className="receipt-confirmation-summary-value">{customerName}</span>
               </div>
-              <div className="flex flex-col items-center py-2">
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>סכום מסמך</span>
-                <span className="text-modal-fg font-semibold" style={{ fontSize: "18px" }}>{formatMoney(total, currency)}</span>
+              <div className="receipt-confirmation-summary-item">
+                <span className="receipt-confirmation-summary-label">סכום מסמך</span>
+                <span className="receipt-confirmation-summary-value">{formatMoney(total, currency)}</span>
               </div>
             </div>
 
             {consentState && (
-              <div className="mt-6 mx-auto max-w-[500px] text-right">
+              <div className="receipt-confirmation-consent">
                 {consentState.status === "loading" && (
-                <div className="p-3 rounded-lg" style={{ backgroundColor: "#F3F4F6" }}>
-                  <p className="text-modal-fg" style={{ fontSize: "18px" }}>
+                <div className="receipt-confirmation-consent-loading">
+                  <p className="receipt-confirmation-consent-text">
                     טוען סטטוס הסכמה…
                   </p>
                 </div>
                 )}
 
                 {consentState.status === "error" && (
-                <div className="p-3 rounded-lg" style={{ backgroundColor: "#FEE2E2", border: "1px solid #FCA5A5" }}>
-                  <p className="text-red-900" style={{ fontSize: "18px" }}>
+                <div className="receipt-confirmation-consent-error">
+                  <p className="receipt-confirmation-consent-error-text">
                     {consentState.message || "שגיאה בבדיקת הסכמה"}
                   </p>
                 </div>
                 )}
 
                 {consentState.status === "ready" && (
-                <div className="p-4 rounded-lg" style={{ backgroundColor: "#EDF2FF", border: "1px solid #C7D2FE" }}>
-                  <div className="flex items-start gap-3">
+                <div className="receipt-confirmation-consent-ready">
+                  <div className="receipt-confirmation-consent-row">
                     {consentRequired ? (
                       <Checkbox
                         checked={consentChecked}
@@ -259,12 +259,12 @@ export default function ReceiptConfirmationModal({
                       <Checkbox checked disabled className="mt-1" />
                     )}
 
-                    <div className="flex-1">
-                      <p className="text-modal-fg leading-relaxed" style={{ fontSize: "18px" }}>
+                    <div className="receipt-confirmation-consent-body">
+                      <p className="receipt-confirmation-consent-text">
                         אני מאשר/ת שקיבלתי הסכמה מפורשת מהמקבל לקבלת מסמך ממוחשב (חתום) באמצעים דיגיטליים.
                       </p>
                       {consentState.recipientIdentifier && (
-                        <p className="text-muted-fg mt-2" style={{ fontSize: "14px" }} dir="ltr">
+                        <p className="receipt-confirmation-recipient" dir="ltr">
                           Recipient: {consentState.recipientIdentifier}
                         </p>
                       )}
@@ -272,8 +272,7 @@ export default function ReceiptConfirmationModal({
                         <button
                           type="button"
                           onClick={onRevokeConsent}
-                          className="mt-3 text-sm underline"
-                          style={{ color: "#B91C1C" }}
+                          className="receipt-confirmation-revoke"
                           disabled={isLoading || isFinalizing}
                         >
                           ביטול הסכמה
@@ -288,7 +287,7 @@ export default function ReceiptConfirmationModal({
           </div>
 
           {/* Action Buttons - Footer at bottom, RTL aligned */}
-          <div className="p-8 pt-0 flex flex-col gap-4 items-center " style={{ borderColor: "#E5E7EB" }}>
+          <div className="receipt-confirmation-footer">
             <Button
               ref={confirmButtonRef}
               type="button"

@@ -1,40 +1,53 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-// Standard field height: exactly 50px
-export const FIELD_HEIGHT_CLASS = "h-[50px]";
-export const FIELD_BASE_CLASS = "w-full  h-[50px] rounded-[0px] px-[15px] text-[14px] text-[#19183B] outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50 text-right";
+// Standard field height: exactly 60px
+export const FIELD_HEIGHT_CLASS = "h-[60px]";
+export const FIELD_BASE_CLASS = "w-full rounded-[0px] outline-none focus:ring-2 focus:ring-[#708993] focus:ring-offset-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50 text-right";
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  variant?: "default" | "items" // variant for styling - items uses ti-items tokens
+}
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
   {
     className = "",
     type = "text",
     style,
+    variant = "default",
     ...props
   },
   ref
 ) {
   const id = props.id;
   const usesUnderline = className.includes("border-b");
+  const isTiItemsInput = className.includes("ti-items-input");
+  const resolvedVariant = isTiItemsInput ? "items" : variant;
 
   return (
     <input
       type={type}
       ref={ref}
       className={cn(FIELD_BASE_CLASS, className)}
-      style={{
-        fontSize: "var(--field-input-text-size)",
-        /* אין "קונטור צבע" - border שקוף כדי לא לקפוץ בגובה */
-        ...(usesUnderline
-          ? null
+      style={
+        resolvedVariant === "items"
+          ? style // For items variant, use only custom styles (no field tokens)
           : {
-              border: "1px solid transparent",
-              backgroundColor: "#EDF1F5",
-            }),
-        ...style,
-      }}
+              height: "var(--field-height)",
+              fontSize: "var(--field-input-text-size)",
+              color: "var(--field-text)",
+              display: "flex",
+              alignItems: "center",
+              /* אין "קונטור צבע" - border שקוף כדי לא לקפוץ בגובה */
+              ...(usesUnderline
+                ? null
+                : {
+                    border: "1px solid var(--field-border)",
+                    backgroundColor: "var(--field-bg)",
+                  }),
+              ...style,
+            }
+      }
       {...props}
     />
   );

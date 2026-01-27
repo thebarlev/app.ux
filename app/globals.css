@@ -48,63 +48,82 @@
     --placeholder: #97B2BD;
 
     /* ===== Field Tokens: Shared Base ===== */
-    --field-bg: transparent;
+    --field-bg: #FFFFFF;
     --field-text: var(--fg);
-    --field-border: var(--border);
-    --field-border-focus: var(--border);
-    --field-border-error: var(--danger);
-    --field-radius: 0px;
-    --field-padding-x: 0px;
-    --field-block-offset-y: 8px;
+    --field-border: var(--fg);
+    --field-underline: var(--fg);
+    --field-label-color: var(--muted-fg);
+    --field-placeholder-color: var(--muted-fg);
+    /* ===== Field System - Unified ===== */
+/* גובה וגדלים */
+--field-height: 60px;
+--field-input-height: 60px;
+--field-height-sm: 40px;
+--field-text-size: 20px;
+--field-input-text-size: 18px;
+--field-label-size: 13px;
+--field-label-line-height: 1;
+--field-label-top: -14px;
+--field-label-empty-top: calc((var(--field-input-height) / 2) - 24px);
+--field-block-offset-y: -14px;
+--field-select-label-offset-y: 0px;
+--field-date-label-size: var(--field-label-size);
+--field-text-line-height: 60px;
 
-    /* ===== Field Tokens: Floating Labels (inputs/textareas) ===== */
-    --field-label: var(--fg);
-    --field-label-focus: var(--fg);
-    --field-label-size: 13px;
-    --field-label-line-height: 1;
-    --field-label-top: 3px;
-    --field-label-margin-bottom: 7px;
+/* מרחקים פנימיים */
+--field-padding-x: 15px;
+--field-input-padding-top: 8px;
+--field-input-padding-bottom: 10px;
+--field-text-padding-top: 0px;
+--field-text-padding-right: var(--field-padding-x);
+--field-text-padding-left: var(--field-padding-x);
+--field-text-to-bottom: 0px;
+--field-label-gap: 8px;        /* מרחק מלייבל לטקסט */
 
-    /* ===== Field Tokens: Inputs/Textareas (spacing + height) ===== */
-    --field-padding-y: 32px;
-    --field-text-offset: 2px;
-    --field-input-padding-top: calc(var(--field-padding-y) + 16px);
-    --field-input-padding-bottom: 10px;
-    --field-input-height: calc(var(--field-input-padding-top) + var(--field-input-padding-bottom) + 1px);
-    --field-height: var(--field-input-height);
-    --field-height-sm: 35px;
+/* מרכוז וכיוון */
+--field-line-height: 60px;
+--field-display: flex;
+--field-align-items: center;
+--field-justify-content: flex-end;
 
-    /* ===== Field Tokens: Money Input (amount + underline) ===== */
-    --field-money-label-gap: -7px;
-    --field-money-text-size: 10px;
-    --field-money-label-offset-y: 13px;
-    --field-money-padding-top: 10px;
-    --field-money-padding-bottom: 4px;
-    --field-money-height:40px;
-    --field-money-block-height: auto;
+/* Select specific */
+--field-select-height: 60px;
+--field-select-height-sm: 40px;
+--field-select-padding-top: 0px;
+--field-select-padding-bottom: 0px;
+--field-select-offset-y: 0px;
+--field-select-text-offset-y: 0px;
+--field-select-max-height: 280px;
 
-    /* ===== Field Tokens: Date Input Icon ===== */
-    --field-calendar-icon-inset: 15px;
-    --field-calendar-icon-right: 0px;
-    --field-calendar-icon-size: 20px;
-    --field-calendar-icon-gap: 10px;
-    --field-calendar-icon-hit-padding: 4px;
-    --field-calendar-icon-offset-y: 0px;
-    --field-calendar-icon-translate-y: 8px;
-    --field-calendar-icon-padding-right: calc(
-      var(--field-calendar-icon-right) +
-      var(--field-calendar-icon-size) +
-      var(--field-calendar-icon-gap)
-    );
-    --field-calendar-icon-top: calc(var(--field-padding-y) + 19px);
-    --field-calendar-icon-color: var(--muted-fg);
-    --field-date-inline-offset-y: -11px;
-    --field-date-text-offset-y: -7px;
-    --field-date-label-size: var(--field-label-size);
-    --field-date-label-offset-y: -7px;
-    --field-date-label-gap: 19px;
-    --field-date-underline-gap: 6px;
-    --field-date-icon-offset-y: var(--field-date-text-offset-y);
+/* אייקונים */
+--field-icon-offset-top: 50%;
+--field-icon-offset-x: 12px;   /* מרחק מצד שמאל ב-RTL */
+--field-icon-size: 18px;
+--field-icon-translate-y: -50%;
+--field-icon-padding-right: 25px; /* מרחק לטקסט כשיש אייקון מימין */
+
+
+  /* מיקום טקסט date */
+  --field-date-label-gap: 8px;
+  --field-date-text-offset-y: 0px;
+
+  /* מיקום האייקון ביחס לשורת הטקסט */
+  --field-calendar-icon-offset-y: 14px;
+  --field-calendar-icon-top: calc(50% + var(--field-calendar-icon-offset-y));
+  --field-calendar-icon-right: -3px;           /* מרחק מהימין (RTL) - הוזז 15px ימינה */
+  --field-calendar-icon-size: 18px;
+  --field-calendar-icon-color: var(--fg);
+  --field-calendar-icon-hit-padding: 6px;
+  --field-calendar-icon-padding-right: 25px;   /* מקום לטקסט כדי שלא יחפוף על האייקון */
+  
+  /* כשמשתמשים ב-top “אמיתי”, לא חייבים centering */
+  --field-calendar-icon-translate-y: -50%;
+
+
+
+  /* Textarea specific */
+--field-padding-y: 10px;       /* ריווח אנכי (מלמעלה ומלמטה) */
+--field-text-offset: 20px;     /* מרחק בין הלייבל לטקסט */
 
     /* ===== Typography Tokens ===== */
     --typography-item-label-size: 18px;
@@ -114,14 +133,20 @@
     --ti-items-row-border: transparent;
     --ti-items-input-bg: #ffffff;
     --ti-items-input-text: #19183B;
-    --ti-items-placeholder-text: #708993;
+    --ti-items-placeholder-text: #19183B;
     --ti-items-label-text: #708993;
     --ti-items-field-gap: 12px;
     --ti-items-row-radius: 0px;
     --ti-items-input-height: 50px;
-    --ti-items-input-padding-x: 15px;
+    --ti-items-input-padding-x: 12px;
     --ti-items-input-focus-ring: #708993;
-    --ti-items-input-text-size: var(--field-input-text-size);
+    --ti-items-input-text-size: 18px;
+    --ti-items-calendar-icon-size: 18px;
+    --ti-items-calendar-icon-color: var(--fg);
+    --ti-items-calendar-icon-right: 12px;
+    --ti-items-calendar-icon-top: 50%;
+    --ti-items-calendar-icon-translate-y: 0px;
+    --ti-items-calendar-icon-padding-right: 40px; /* רווח מימין לטקסט כדי שלא יעלה על האייקון */
     --doc-items-locked-input-bg: transparent;
     --doc-items-locked-input-border: transparent;
     --doc-items-locked-opacity: 1;
@@ -148,18 +173,10 @@
       minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 0.7fr);
 
     /* ===== Dropdown Tokens: Labels (separate from inputs) ===== */
-    --field-select-label-margin-top: 15px;
-    --field-select-label-gap: -10px;
-
-    /* ===== Dropdown Tokens: Trigger (separate from inputs) ===== */
-    --field-select-padding-top: 10px;
-    --field-select-underline-gap: -10px;
-    --field-select-padding-bottom: var(--field-select-underline-gap);
-    --field-select-offset-y: -10px;
-    --field-select-text-offset-y: 13px;
-    --field-select-height: var(--field-height);
-    --field-select-height-sm: var(--field-height-sm);
-    --field-select-max-height: 280px;
+    /* ===== Dropdown - משתמש באותם טוקנים כמו שאר השדות ===== */
+--dropdown-height: var(--field-height);
+--dropdown-text-size: var(--field-text-size);
+--dropdown-max-height: 280px;
 
     --success: #1D868F;
     --success-fg: #19183B;
@@ -173,6 +190,29 @@
     /* ===== Modals / Popups ===== */
     --modal-bg: #FFFFFF;
     --modal-fg: #19183B;
+    --receipt-confirmation-overlay-bg: rgba(25, 24, 59, 0.6);
+    --receipt-confirmation-overlay-z: 120;
+    --receipt-confirmation-panel-z: 130;
+    --receipt-confirmation-bg: #FFFFFF;
+    --receipt-confirmation-fg: #19183B;
+    --receipt-confirmation-radius: 20px;
+    --receipt-confirmation-shadow: 0 10px 25px rgba(25, 24, 59, 0.25);
+    --receipt-confirmation-max-width: 500px;
+    --receipt-confirmation-padding: 32px;
+    --receipt-confirmation-gap: 16px;
+    --receipt-confirmation-title-size: 24px;
+    --receipt-confirmation-description-size: 18px;
+    --receipt-confirmation-subtitle-size: 18px;
+    --receipt-confirmation-recipient-size: 14px;
+    --receipt-confirmation-warning-bg: #F3F4F6;
+    --receipt-confirmation-warning-text: #78350F;
+    --receipt-confirmation-warning-icon: #B45309;
+    --receipt-confirmation-consent-bg: #EDF2FF;
+    --receipt-confirmation-consent-border: #C7D2FE;
+    --receipt-confirmation-consent-error-bg: #FEE2E2;
+    --receipt-confirmation-consent-error-border: #FCA5A5;
+    --receipt-confirmation-consent-error-text: #7F1D1D;
+    --receipt-confirmation-revoke: #B91C1C;
 
     /* ===== Sidebar (Inverse) ===== */
     --sidebar-bg: #E8F6F8;
@@ -231,7 +271,7 @@
 --sidebar-active-fg: var(--fg); /* טקסט/אייקון כהים ב-current */
 
 
-  }
+} }
 
   html {
     height: 100%;
@@ -265,25 +305,35 @@
     line-height: 1.6;
   }
 
-label.ui-floating-label {
+/* כל הלייבלים - אותו סטייל */
+label.ui-floating-label,
+label.ui-date-label,
+.ui-select-label {
   font-size: var(--field-label-size) !important;
   line-height: var(--field-label-line-height) !important;
+  color: var(--field-label-color) !important;
+  margin-bottom: var(--field-label-gap) !important;
 }
 
-label.ui-date-label {
-  font-size: var(--field-date-label-size) !important;
-  margin-top: var(--field-date-label-offset-y);
+.ui-field-block {
+  position: relative;
 }
 
 .ui-select-label {
-  margin-top: var(--field-select-label-margin-top);
-  margin-bottom: var(--field-select-label-gap);
+  position: absolute;
+  inset-inline-start: 0;
+  top: var(--field-label-top);
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  transform: translateY(var(--field-select-label-offset-y));
 }
 
 .ui-item-label {
   font-size: var(--typography-item-label-size);
   line-height: 1.2;
   color: var(--ti-items-label-text);
+  text-align: right;
+  direction: rtl;
 }
 
 .ui-item-grid {
@@ -291,6 +341,240 @@ label.ui-date-label {
   grid-template-columns: var(--ti-items-grid-template);
   align-items: center;
   gap: var(--ti-items-field-gap);
+}
+
+/* Documents list: shift actions label/icons to the right */
+.docs-actions-shift {
+  display: inline-block;
+  transform: translateX(20px);
+}
+
+.docs-actions-cell {
+  overflow: visible;
+}
+
+.docs-row-fixed {
+  height: 65px;
+}
+
+.docs-row-fixed > td {
+  height: 65px;
+}
+
+@media (max-width: 640px) {
+  .docs-actions-icons {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+.receipt-confirmation-overlay {
+  background: var(--receipt-confirmation-overlay-bg);
+  padding: var(--receipt-confirmation-gap);
+  z-index: var(--receipt-confirmation-overlay-z);
+}
+
+.receipt-confirmation-panel {
+  width: 100%;
+  max-width: var(--receipt-confirmation-max-width);
+  background: var(--receipt-confirmation-bg);
+  color: var(--receipt-confirmation-fg);
+  border-radius: var(--receipt-confirmation-radius);
+  box-shadow: var(--receipt-confirmation-shadow);
+  position: relative;
+  z-index: var(--receipt-confirmation-panel-z);
+}
+
+.receipt-confirmation-close {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  padding: 8px;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
+}
+
+.receipt-confirmation-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.receipt-confirmation-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.receipt-confirmation-body {
+  padding: var(--receipt-confirmation-padding);
+  text-align: center;
+  flex: 1;
+}
+
+.receipt-confirmation-description {
+  margin-bottom: 24px;
+  padding: 16px;
+  max-width: var(--receipt-confirmation-max-width);
+  margin-inline: auto;
+}
+
+.receipt-confirmation-warning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.receipt-confirmation-warning-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--receipt-confirmation-warning-icon);
+  flex-shrink: 0;
+}
+
+.receipt-confirmation-warning-text {
+  color: var(--receipt-confirmation-warning-text);
+  font-size: var(--receipt-confirmation-description-size);
+  line-height: 1.6;
+}
+
+.receipt-confirmation-title {
+  font-size: var(--receipt-confirmation-title-size);
+  font-weight: 700;
+  margin-bottom: 32px;
+  color: var(--receipt-confirmation-fg);
+}
+
+.receipt-confirmation-summary {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 12px;
+  max-width: var(--receipt-confirmation-max-width);
+  margin-inline: auto;
+}
+
+.receipt-confirmation-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.receipt-confirmation-summary-label,
+.receipt-confirmation-summary-value {
+  font-size: var(--receipt-confirmation-subtitle-size);
+  font-weight: 600;
+  color: var(--receipt-confirmation-fg);
+}
+
+.receipt-confirmation-consent {
+  margin-top: 24px;
+  max-width: var(--receipt-confirmation-max-width);
+  margin-inline: auto;
+  text-align: right;
+}
+
+.receipt-confirmation-consent-loading {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--receipt-confirmation-warning-bg);
+}
+
+.receipt-confirmation-consent-error {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--receipt-confirmation-consent-error-bg);
+  border: 1px solid var(--receipt-confirmation-consent-error-border);
+}
+
+.receipt-confirmation-consent-error-text {
+  color: var(--receipt-confirmation-consent-error-text);
+  font-size: var(--receipt-confirmation-description-size);
+}
+
+.receipt-confirmation-consent-ready {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--receipt-confirmation-consent-bg);
+  border: 1px solid var(--receipt-confirmation-consent-border);
+}
+
+.receipt-confirmation-consent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.receipt-confirmation-consent-body {
+  flex: 1;
+}
+
+.receipt-confirmation-consent-text {
+  font-size: var(--receipt-confirmation-description-size);
+  line-height: 1.6;
+  color: var(--receipt-confirmation-fg);
+}
+
+.receipt-confirmation-recipient {
+  margin-top: 8px;
+  font-size: var(--receipt-confirmation-recipient-size);
+  color: var(--muted-fg);
+}
+
+.receipt-confirmation-revoke {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--receipt-confirmation-revoke);
+  text-decoration: underline;
+}
+
+.receipt-confirmation-footer {
+  padding: var(--receipt-confirmation-padding);
+  padding-top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--receipt-confirmation-gap);
+  align-items: center;
+  border-top: 1px solid #E5E7EB;
+}
+
+@media (max-width: 640px) {
+  .receipt-confirmation-panel {
+    max-width: 100%;
+  }
+
+  .receipt-confirmation-body {
+    padding: 20px;
+  }
+
+  .receipt-confirmation-title {
+    font-size: 20px;
+    margin-bottom: 20px;
+  }
+
+  .receipt-confirmation-description {
+    margin-bottom: 16px;
+  }
+
+  .receipt-confirmation-warning-text,
+  .receipt-confirmation-consent-text,
+  .receipt-confirmation-summary-label,
+  .receipt-confirmation-summary-value {
+    font-size: 16px;
+  }
+
+  .receipt-confirmation-summary {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .receipt-confirmation-footer {
+    padding: 20px;
+    padding-top: 0;
+  }
 }
 
 .ti-items-row {
@@ -303,6 +587,7 @@ label.ui-date-label {
 .ti-items-money {
   width: 100%;
   height: var(--ti-items-input-height);
+  line-height: var(--ti-items-input-height);
   border-radius: var(--ti-items-row-radius);
   padding: 0 var(--ti-items-input-padding-x);
   color: var(--ti-items-input-text);
@@ -311,16 +596,28 @@ label.ui-date-label {
   font-size: var(--ti-items-input-text-size);
   outline: none;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  text-align: right;
+  direction: rtl;
 }
 
 .ti-items-money {
   border-bottom: 1px solid var(--ti-items-row-border);
   background-color: var(--ti-items-input-bg);
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: var(--ti-items-input-height) !important;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .ti-items-input::placeholder,
 .ti-items-money::placeholder {
   color: var(--ti-items-placeholder-text);
+  text-align: right;
+  direction: rtl;
+  line-height: normal;
 }
 
 .ti-items-input:focus-visible,
@@ -339,6 +636,10 @@ label.ui-date-label {
   font-size: var(--ti-items-input-text-size);
   outline: none;
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
+  text-align: right;
+  direction: rtl;
+  display: flex;
+  align-items: center;
 }
 
 .ti-items-select:focus-visible {
@@ -346,6 +647,7 @@ label.ui-date-label {
 }
 
 .ti-items-select[data-slot="select-trigger"] {
+  display: flex;
   align-items: center;
   border: 1px solid var(--ti-items-row-border);
   border-bottom: 1px solid var(--ti-items-row-border);
@@ -354,10 +656,27 @@ label.ui-date-label {
   translate: 0;
   height: var(--ti-items-input-height);
   transform: none !important;
+  text-align: right;
+  direction: rtl;
 }
 
 .ti-items-select[data-slot="select-trigger"] [data-slot="select-value"] {
   transform: none;
+  display: flex;
+  align-items: center;
+  line-height: var(--ti-items-input-height);
+}
+
+/* Placeholder color for select - use fg token */
+.ti-items-select[data-slot="select-trigger"] [data-slot="select-value"],
+.ti-items-select[data-slot="select-trigger"] [data-slot="select-value"] span,
+.ti-items-select[data-slot="select-trigger"] span[data-radix-select-placeholder] {
+  color: var(--fg) !important;
+}
+
+/* Icon color for select */
+.ti-items-select[data-slot="select-trigger"] svg {
+  color: var(--fg);
 }
 
 .ti-items-row[data-locked="true"] input.ti-items-input,
@@ -374,6 +693,7 @@ label.ui-date-label {
   border-color: var(--doc-items-locked-input-border) !important;
   opacity: var(--doc-items-locked-opacity);
 }
+.ti-items-row[data-locked="false"] .ti-items-input,
 .ti-items-row[data-locked="false"] .ti-items-money,
 .ti-items-row[data-locked="false"] .ti-items-select[data-slot="select-trigger"] {
   background: var(--doc-item-edit-bg);
@@ -431,18 +751,38 @@ label.ui-date-label {
   transform: translateY(var(--field-select-text-offset-y));
 }
 
-  input::placeholder,
-  textarea::placeholder {
-    font-size: 18px;
-    color: #708993;
-    text-align: right;
-    direction: rtl;
-  }
+input::placeholder,
+textarea::placeholder {
+  font-size: var(--field-input-text-size);
+  color: var(--field-placeholder-color);
+  text-align: right;
+  direction: rtl;
+}
+
+/* כל שדות הקלט - גובה אחיד (לא ti-items!) */
+input:not([type="checkbox"]):not([type="radio"]):not(.ti-items-input):not(.ti-items-money),
+textarea,
+[data-slot="select-trigger"]:not(.ti-items-select) {
+  height: var(--field-height);
+  font-size: var(--field-input-text-size);
+  line-height: var(--field-text-line-height);
+  padding-top: var(--field-text-padding-top);
+  padding-bottom: var(--field-text-to-bottom);
+  padding-right: var(--field-text-padding-right);   /* ← מהטוקן */
+  padding-left: var(--field-text-padding-left);     /* ← מהטוקן */
+  box-sizing: border-box;
+  text-align: right;
+  direction: rtl;
+}
+
+/* שדות input רגילים שאינם ti-items - צריכים padding אופקי */
+input:not([type="checkbox"]):not([type="radio"]):not(.ti-items-input):not(.ti-items-money) {
+  padding-right: var(--field-padding-x);
+  padding-left: var(--field-padding-x);
+}
 
 /* Global input text size override (runtime reliable) */
-:root {
-  --field-input-text-size:20px;
-}
+
 
   h1 {
     font-size: 56px;
@@ -507,7 +847,7 @@ label.ui-date-label {
   color: inherit;
 }
 
-}
+
 
 @layer components {
   .ui-field-block {
@@ -515,8 +855,11 @@ label.ui-date-label {
   }
   /* ===== Dropdown UI Classes ===== */
   .ui-dd-trigger {
-    @apply h-dropdown w-full rounded-dropdown border border-dropdown-border bg-dropdown-bg text-dropdown-fg px-3 flex items-center gap-3 outline-none transition-colors;
-    font-size: 18px;
+    @apply w-full rounded-dropdown border border-dropdown-border bg-dropdown-bg text-dropdown-fg flex items-center gap-3 outline-none transition-colors;
+    height: var(--field-height);
+    font-size: var(--field-text-size);
+    padding: 0 var(--field-padding-x);
+    padding-bottom: var(--field-text-to-bottom);
     line-height: 1.25;
     justify-content: space-between;
     text-align: right;
@@ -814,19 +1157,38 @@ label.ui-date-label {
 
   /* ==================== Input Icon Fixes ==================== */
   
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-    opacity: 0.7;
-    cursor: pointer;
-  }
+/* ==============================
+   Date / Time picker icon
+   Token-based positioning
+   ============================== */
 
-  input[type="date"]::-webkit-calendar-picker-indicator:hover,
-  input[type="time"]::-webkit-calendar-picker-indicator:hover,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
-    opacity: 0.9;
-  }
+   input[type="date"],
+   input[type="time"],
+   input[type="datetime-local"] {
+     position: relative;
+   }
+   
+   input[type="date"]::-webkit-calendar-picker-indicator,
+   input[type="time"]::-webkit-calendar-picker-indicator,
+   input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+     position: absolute;
+     top: var(--field-icon-offset-top);
+     left: var(--field-icon-offset-x);     /* RTL */
+     transform: translateY(var(--field-icon-translate-y));
+     width: var(--field-icon-size);
+     height: var(--field-icon-size);
+   
+     filter: invert(1);
+     opacity: 0.7;
+     cursor: pointer;
+   }
+   
+   input[type="date"]::-webkit-calendar-picker-indicator:hover,
+   input[type="time"]::-webkit-calendar-picker-indicator:hover,
+   input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+     opacity: 0.9;
+   }
+   
 
   @keyframes error-shake {
     0%, 100% { transform: translateX(0); }

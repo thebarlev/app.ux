@@ -5,10 +5,11 @@ import { createAdminClient } from "@/lib/supabase/admin"
 import { isPdfDebugEnabled, logPdfEvent, type PdfLogContext } from "@/lib/pdf-logger"
 import { 
   compileAndRender, 
+  compileTemplate,
   generatePDFFromHTML, 
   validateTemplate 
 } from "@/lib/template-engine"
-import { getDefaultReceiptTemplate } from "@/lib/default-templates"
+import { getDefaultGenericDocumentTemplate, getDefaultReceiptTemplate } from "@/lib/default-templates"
 import { getPageTexts } from "@/lib/system-texts"
 import { signPdfWithEnvP12 } from "@/lib/documents/signing/p12-signer"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
@@ -119,10 +120,6 @@ export async function getTemplateForDocument(
   const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
   const templateDocumentType = resolveTemplateDocumentType(documentType)
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:82',message:'getTemplateForDocument entry',data:{documentType,templateDocumentType,language,allowFallbackToHe},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H1'})}).catch(()=>{});
-  // #endregion
-
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
       companyId,
@@ -194,16 +191,10 @@ export async function getTemplateForDocument(
         new Set(mappedRows.map((row: any) => row.template_id).filter(Boolean))
       )
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:140',message:'template_document_types mapping',data:{documentType,templateDocumentType,mappedCount:mappedTemplateIds.length,hasError:!!mappedError},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
   } catch (e: any) {
     if (DEBUG_TEMPLATES) {
       console.warn("[TEMPLATE_FETCH] Failed to load template_document_types mappings:", e?.message || e)
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:133',message:'template_document_types mapping exception',data:{documentType,error:e?.message||String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
   }
 
   const pickVariant = (row: any) => {
@@ -239,6 +230,25 @@ export async function getTemplateForDocument(
     throw new Error("TEMPLATE_MISSING_LANGUAGE:he")
   }
 
+  const pickVariantChecked = (row: any, stage: string) => {
+    const picked = pickVariant(row)
+    try {
+      // Compile-only check to catch syntax errors (unclosed blocks, etc.)
+      compileTemplate(picked.html)
+      return picked
+    } catch (e: any) {
+      console.warn("⚠️ Skipping invalid template (syntax error)", {
+        stage,
+        documentType,
+        templateDocumentType,
+        templateId: row?.id || null,
+        templateName: row?.name || null,
+        error: e?.message || String(e),
+      })
+      return null
+    }
+  }
+
   // PRIORITY 0: User's explicit selection from settings (highest priority)
   const { data: userSelection } = await supabase
     .from("company_template_selections")
@@ -246,10 +256,6 @@ export async function getTemplateForDocument(
     .eq("company_id", companyId)
     .eq("document_type", templateDocumentType)
     .maybeSingle()
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:193',message:'company_template_selections lookup',data:{documentType,templateDocumentType,hasSelection:!!userSelection?.template_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
-  // #endregion
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] PRIORITY 0 - userSelection:", {
@@ -279,10 +285,12 @@ export async function getTemplateForDocument(
           isActive: selectedTemplate.is_active
         })
       }
-      const picked = pickVariant(selectedTemplate)
-      return {
-        ...picked,
-        templateId: selectedTemplate.id,
+      const picked = pickVariantChecked(selectedTemplate, "PRIORITY_0_USER_SELECTION")
+      if (picked) {
+        return {
+          ...picked,
+          templateId: selectedTemplate.id,
+        }
       }
     } else {
       // Selection exists but template is inactive or deleted - log warning and continue to fallbacks
@@ -299,10 +307,6 @@ export async function getTemplateForDocument(
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:250',message:'company default template',data:{documentType,templateDocumentType,hasDefault:!!companyDefault?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
-  // #endregion
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] PRIORITY 1 - companyDefault:", {
@@ -322,10 +326,12 @@ export async function getTemplateForDocument(
         cssLength: ((companyDefault as any).css || "").length
       })
     }
-    const picked = pickVariant(companyDefault)
-    return {
-      ...picked,
-      templateId: companyDefault.id,
+    const picked = pickVariantChecked(companyDefault, "PRIORITY_1_COMPANY_DEFAULT")
+    if (picked) {
+      return {
+        ...picked,
+        templateId: companyDefault.id,
+      }
     }
   }
 
@@ -465,10 +471,12 @@ export async function getTemplateForDocument(
         cssLength: ((globalDefault as any).css || "").length
       })
     }
-    const picked = pickVariant(globalDefault)
-    return {
-      ...picked,
-      templateId: globalDefault.id,
+    const picked = pickVariantChecked(globalDefault, "PRIORITY_2_GLOBAL_DEFAULT")
+    if (picked) {
+      return {
+        ...picked,
+        templateId: globalDefault.id,
+      }
     }
   }
 
@@ -484,10 +492,12 @@ export async function getTemplateForDocument(
 
   if (anyCompanyTemplate) {
     console.log(`⚠️ Using fallback company template: ${anyCompanyTemplate.id}`)
-    const picked = pickVariant(anyCompanyTemplate)
-    return {
-      ...picked,
-      templateId: anyCompanyTemplate.id,
+    const picked = pickVariantChecked(anyCompanyTemplate, "PRIORITY_3_ANY_COMPANY")
+    if (picked) {
+      return {
+        ...picked,
+        templateId: anyCompanyTemplate.id,
+      }
     }
   }
 
@@ -503,10 +513,12 @@ export async function getTemplateForDocument(
 
   if (anyGlobalTemplate) {
     console.log(`⚠️ Using fallback global template: ${anyGlobalTemplate.name} (${anyGlobalTemplate.id})`)
-    const picked = pickVariant(anyGlobalTemplate)
-    return {
-      ...picked,
-      templateId: anyGlobalTemplate.id,
+    const picked = pickVariantChecked(anyGlobalTemplate, "PRIORITY_4_ANY_GLOBAL")
+    if (picked) {
+      return {
+        ...picked,
+        templateId: anyGlobalTemplate.id,
+      }
     }
   }
 
@@ -524,10 +536,12 @@ export async function getTemplateForDocument(
 
     if (mappedCompanyTemplate) {
       console.log(`⚠️ Using mapped company template: ${mappedCompanyTemplate.id}`)
-      const picked = pickVariant(mappedCompanyTemplate)
-      return {
-        ...picked,
-        templateId: mappedCompanyTemplate.id,
+      const picked = pickVariantChecked(mappedCompanyTemplate, "PRIORITY_4_5_MAPPED_COMPANY")
+      if (picked) {
+        return {
+          ...picked,
+          templateId: mappedCompanyTemplate.id,
+        }
       }
     }
 
@@ -543,15 +557,17 @@ export async function getTemplateForDocument(
 
     if (mappedGlobalTemplate) {
       console.log(`⚠️ Using mapped global template: ${mappedGlobalTemplate.name} (${mappedGlobalTemplate.id})`)
-      const picked = pickVariant(mappedGlobalTemplate)
-      return {
-        ...picked,
-        templateId: mappedGlobalTemplate.id,
+      const picked = pickVariantChecked(mappedGlobalTemplate, "PRIORITY_4_5_MAPPED_GLOBAL")
+      if (picked) {
+        return {
+          ...picked,
+          templateId: mappedGlobalTemplate.id,
+        }
       }
     }
   }
 
-  // PRIORITY 5: Final fallback - Use hardcoded default template
+  // PRIORITY 5: Final fallback - Use hardcoded default template(s)
   if (documentType === "receipt") {
     console.log(`⚠️ Using hardcoded fallback template for receipt`)
     const defaultTemplate = getDefaultReceiptTemplate()
@@ -567,8 +583,15 @@ export async function getTemplateForDocument(
     }
   }
 
-  // If no template found and not a receipt, throw error
-  throw new Error(`No template found for document type: ${documentType}`)
+  console.log(`⚠️ Using hardcoded generic fallback template for document type: ${documentType}`)
+  const generic = getDefaultGenericDocumentTemplate()
+  return {
+    html: generic.html,
+    css: generic.css,
+    templateId: null,
+    resolvedLanguage: "he",
+    didFallbackToHe: language === "en",
+  }
 }
 
 // ==================== DATA PREPARATION ====================
@@ -751,11 +774,12 @@ export async function prepareDocumentData(
 
   const formatCurrency = (amount: number) => {
     try {
-      return new Intl.NumberFormat(documentLanguage === "en" ? "en-US" : "he-IL", {
+      const formatted = new Intl.NumberFormat(documentLanguage === "en" ? "en-US" : "he-IL", {
         style: "currency",
         currency: currencyCode,
         currencyDisplay: documentLanguage === "en" ? "code" : "narrowSymbol",
       }).format(amount)
+      return formatted
     } catch {
       return `${amount.toFixed(2)} ${currencySymbol}`
     }
@@ -1586,9 +1610,6 @@ export async function generateDocumentPDF(
     }
 
     // 4. Validate template (optional - log warnings)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'lib/pdf-service.ts:1546',message:'validateTemplate call',data:{documentType:doc.document_type,templateType:resolveTemplateDocumentType(doc.document_type)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H5'})}).catch(()=>{});
-    // #endregion
     const validation = validateTemplate(
       template.html,
       resolveTemplateDocumentType(doc.document_type) as any
