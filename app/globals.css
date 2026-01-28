@@ -52,6 +52,7 @@
     --field-text: var(--fg);
     --field-border: var(--fg);
     --field-underline: var(--fg);
+    --field-border-focus: var(--fg);
     --field-label-color: var(--muted-fg);
     --field-placeholder-color: var(--muted-fg);
     /* ===== Field System - Unified ===== */
@@ -85,6 +86,13 @@
 --field-display: flex;
 --field-align-items: center;
 --field-justify-content: flex-end;
+
+/* Dropdown trigger interaction (tokenized) */
+--field-trigger-hover-bg: transparent;
+--field-trigger-hover-fg: var(--fg);
+--field-trigger-active-bg: transparent;
+--field-trigger-focus-bg: #FFFFFF;
+--field-trigger-focus-fg: var(--fg);
 
 /* Select specific */
 --field-select-height: 60px;
@@ -300,7 +308,7 @@
   }
 
   label {
-    color: var(--muted-fg);
+    color: var(--fg);
     font-size: 13px;
     line-height: 1.6;
   }
@@ -341,6 +349,218 @@ label.ui-date-label,
   grid-template-columns: var(--ti-items-grid-template);
   align-items: center;
   gap: var(--ti-items-field-gap);
+}
+
+/* Allow wrapping amount+currency in markup without breaking desktop grid */
+.ti-items-currency-amount {
+  display: contents;
+}
+
+/* Mobile behavior (<= 768px): keep UI usable without horizontal overflow */
+@media (max-width: 768px) {
+  /* Sticky page header (mobile only) */
+  .ui-page-header-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(8px);
+    padding: 14px 16px 10px 16px;
+    margin: 0 -16px 16px -16px;
+  }
+
+  /* Documents list tables: contain horizontal scroll inside the card */
+  .docs-table-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Tax-invoice / payments items grids: stack fields instead of squeezing */
+  .ui-item-grid {
+    grid-template-columns: 1fr !important;
+    align-items: stretch;
+  }
+
+  /* Items list: per-field labels (like payments); hide desktop header row */
+  .ui-item-grid.ui-item-label {
+    display: none;
+  }
+
+  .ti-items-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .ti-items-field::before {
+    content: attr(data-label);
+    font-size: var(--typography-item-label-size);
+    line-height: 1.2;
+    color: var(--ti-items-label-text);
+    text-align: right;
+    direction: rtl;
+  }
+
+  .ti-items-field.ti-items-field-empty::before {
+    content: "";
+    display: none;
+  }
+
+  /* Hide specific per-field labels in mobile */
+  .ti-items-field.ti-items-hide-label::before {
+    content: "";
+    display: none;
+  }
+
+  /* Groups to create "rows" of fields (items list only) */
+  .ti-items-group {
+    display: grid;
+    width: 100%;
+    gap: 12px;
+    align-items: start;
+  }
+
+  /* Row 1: SKU + Description + Quantity */
+  .ti-items-group--sku-desc {
+    grid-template-columns: 0.8fr 2fr 0.8fr;
+    align-items: flex-end;
+  }
+
+  /* Row 2: Unit Price + Currency (currency = 20%) */
+  .ti-items-group--qty-price-currency {
+    grid-template-columns: 1fr 0.5fr;
+    align-items: flex-end;
+  }
+  .ti-items-group--qty-price-currency .ti-items-currency-amount {
+    display: contents;
+  }
+
+  /* Row 3: VAT only (full width) */
+  .ti-items-group--vat-total {
+    grid-template-columns: 1fr;
+  }
+  .ti-items-group--vat-hidden {
+    display: none !important;
+  }
+
+  /* Row 4: Total (label + value) + Actions (confirm + trash) */
+  .ti-items-group--total-actions {
+    display: flex;
+    width: 100%;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .ti-items-group--total-actions .ti-items-total-display {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+  }
+
+  /* Buttons (confirm + trash): align to the right edge */
+  .ti-items-actions {
+    width: 100%;
+    justify-content: flex-end !important;
+  }
+  .ti-items-field.ti-items-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Helpers */
+  .ti-items-only-desktop {
+    display: none !important;
+  }
+
+  /* Reduce horizontal padding inside rows to fit mobile */
+  .ti-items-row {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  /* Force currency select to fit grid in mobile */
+  .ti-items-select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .ti-payments-currency {
+    width: 60px !important;
+    min-width: 0 !important;
+    flex: 0 0 60px !important;
+  }
+
+  /* FormSection: Title h3 no right padding, cards 100% width */
+  .ui-section-gap > div > h3 {
+    padding-right: 16px !important;
+  }
+  
+  .ui-section-gap > div > div[class*="px-[20px]"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+
+/* Desktop/default: wrappers shouldn't affect grid layout */
+@media (min-width: 769px) {
+  .ti-items-field {
+    display: contents;
+  }
+
+  .ti-items-group {
+    display: contents;
+  }
+  
+  /* Desktop header labels remain visible */
+  .ui-item-grid.ui-item-label {
+    display: grid;
+  }
+
+  /* Keep total+actions in the same grid row on desktop */
+  .ti-items-group--total-actions {
+    display: contents;
+  }
+
+  /* Desktop offsets: align actions 50px from left edge */
+  .ui-items-actions-label-offset {
+    padding-left: 0;
+    transform: none;
+    width: 140px;
+    text-align: right;
+    margin-right: 0;
+    margin-left: 0;
+    position: relative;
+    top: 20px;
+    left: 90px;
+  }
+  .ui-items-actions-offset {
+    margin-right: 0;
+    transform: none;
+    margin-left: 0;
+    position: relative;
+    left: 45px;
+  }
+  .ui-payments-actions-label-offset {
+    padding-left: 0;
+    transform: none;
+    width: 140px;
+    text-align: right;
+    margin-left: 0;
+    position: relative;
+    top: 20px;
+    
+    left: 100px;
+  }
+  .ti-items-field.ti-items-actions {
+    display: flex;
+    justify-content: flex-end;
+    width: 140px;
+  }
 }
 
 /* Documents list: shift actions label/icons to the right */
@@ -916,6 +1136,25 @@ input:not([type="checkbox"]):not([type="radio"]):not(.ti-items-input):not(.ti-it
 
   .ui-dd-trigger:focus-visible {
     @apply ring-2 ring-dropdown-ring ring-offset-2;
+  }
+
+  /* Docs filters: enforce field tokens for trigger interactions + underline */
+  .ui-docs-filters .ui-dd-trigger:hover {
+    background-color: var(--field-trigger-hover-bg) !important;
+    color: var(--field-trigger-hover-fg) !important;
+  }
+
+  .ui-docs-filters .ui-dd-trigger:active {
+    background-color: var(--field-trigger-active-bg) !important;
+  }
+
+  .ui-docs-filters .ui-dd-trigger:focus-visible {
+    background-color: var(--field-trigger-focus-bg) !important;
+    color: var(--field-trigger-focus-fg) !important;
+  }
+
+  .ui-docs-filters .ui-dd-trigger.border-b {
+    border-bottom-color: var(--field-underline) !important;
   }
 
   .ui-dd-content {

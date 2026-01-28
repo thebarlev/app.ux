@@ -85,7 +85,7 @@ export default function ReceiptFormClient({
   initial,
   footerText,
   editData,
-  draftId,
+  draftId: draftIdProp,
 }: {
   initial: InitialReceiptCreateData;
   footerText?: string;
@@ -93,13 +93,16 @@ export default function ReceiptFormClient({
     id: string;
     customerName: string;
     documentDate: string;
+    description?: string;
     total: number;
     currency: string;
     notes: string;
+    payments?: PaymentRow[];
   } | null;
   draftId?: string;
 }) {
   const searchParams = useSearchParams();
+  const draftId = draftIdProp ?? (initial.ok ? initial.draftId ?? undefined : undefined);
   const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -171,17 +174,32 @@ export default function ReceiptFormClient({
   }, [initial, draftId]);
 
   useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  useEffect(() => {
     if (editData) {
       setCustomerName(editData.customerName);
       setDocumentDate(editData.documentDate);
       setCurrency(editData.currency);
       setNotes(editData.notes);
+      if (typeof editData.description === "string") setDescription(editData.description);
+      if (editData.payments && editData.payments.length > 0) {
+        setPayments(editData.payments);
+      }
     }
   }, [editData]);
 
+
   // Optional prefill from URL params (UI only; no DB logic changes)
   useEffect(() => {
-    if (editData || draftId) return;
+    if (editData || (draftId && initial.ok && initial.draftOrigin === "existing")) return;
     const prefillCustomerId = searchParams.get("customerId");
     const prefillCustomerName = searchParams.get("customerName");
     const prefillNotes = searchParams.get("notes");
@@ -235,6 +253,7 @@ export default function ReceiptFormClient({
       });
     }
   }, [searchParams, editData, draftId, currency]);
+
 
   const previewNumber = initial.ok ? initial.previewNumber : null;
 
@@ -596,7 +615,7 @@ export default function ReceiptFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueReceiptAction(payload);
+      const result = await issueReceiptAction(payload, draftId);
 
       if (!result || !result.ok) {
         toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
@@ -604,9 +623,6 @@ export default function ReceiptFormClient({
         setIsFinalizing(false);
         return;
       }
-
-      setConfirmationModalOpen(false);
-      setBusy(null);
 
       if (chainSourceDocumentId) {
         // Fetch source document to check if we should create payment link
@@ -659,6 +675,8 @@ export default function ReceiptFormClient({
         language,
       });
       setSuccessModalOpen(true);
+      setConfirmationModalOpen(false);
+      setBusy(null);
     } catch (error: any) {
       toast.error(`שגיאה בהפקת המסמך: ${error?.message || String(error) || "שגיאה לא ידועה"}`);
       setBusy(null);
@@ -841,13 +859,15 @@ export default function ReceiptFormClient({
                 <div className="space-y-[20px]">
                   {/* Headers Row */}
                   <div className="px-[20px] sm:px-6 lg:px-8">
-                    <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center font-semibold">
+                    <div className="hidden md:grid md:grid-cols-[19.2%_13%_1fr_60px_minmax(150px,36%)_140px] gap-3 items-center font-semibold">
                       <div className="text-right pr-[12px] translate-y-[20px]">אמצעי תשלום</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">תאריך</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">סכום</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">מטבע</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">פרטים נוספים</div>
-                      <div className="text-right translate-y-[20px] pr-[30px]">פעולות</div>
+                      <div className="text-right pr-[12px] translate-y-[20px] ui-payments-actions-label-offset">
+                        פעולות
+                      </div>
                     </div>
                   </div>
 
@@ -860,7 +880,7 @@ export default function ReceiptFormClient({
                       >
                         <div className="min-w-0">
                           {/* Desktop View - Single Row Grid */}
-                          <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center">
+                          <div className="hidden md:grid md:grid-cols-[19.2%_13%_1fr_60px_minmax(150px,36%)_140px] gap-3 items-center">
                             {/* אמצעי תשלום - 24% */}
                             <div className="w-full min-w-0">
                               <Select
@@ -972,7 +992,7 @@ export default function ReceiptFormClient({
                             </div>
 
                             {/* כפתורים - 1fr */}
-                            <div className="flex items-center justify-center gap-2">
+                            <div className="flex items-center justify-end gap-2">
                               {confirmedPayments.has(i) ? (
                                 <Button
                                   type="button"
@@ -1067,56 +1087,98 @@ export default function ReceiptFormClient({
                             <div className="w-full">
                               <label className="block text-sm text-muted-fg mb-2">סכום</label>
                               <div className="flex gap-3 items-center">
-                                <MoneyInput
-                                  className={cn(
-                                    "flex-1 text-right",
-                                    paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
-                                    confirmedPayments.has(i) ? "pointer-events-none" : ""
-                                  )}
-                                  variant="items"
-                              allowNegative={isCancellationReceipt}
-                              displayValue={
-                                isCancellationReceipt
-                                  ? formatMoney(row.amount, currency, true)
-                                  : undefined
-                              }
-                              readOnly={isCancellationReceipt}
-                                  value={row.amount}
-                                  onChange={(v) => {
-                                const next = isCancellationReceipt ? -Math.abs(v) : v;
-                                updatePaymentRow(i, { amount: next });
-                                if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
-                                      const newErrors = { ...paymentErrors };
-                                      if (newErrors[i]) {
-                                        delete newErrors[i].amount;
-                                        if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
-                                      }
-                                      setPaymentErrors(newErrors);
+                                <div className="flex-1 min-w-0">
+                                  <MoneyInput
+                                    className={cn(
+                                      "w-full text-right",
+                                      paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
+                                      confirmedPayments.has(i) ? "pointer-events-none" : ""
+                                    )}
+                                    variant="items"
+                                    allowNegative={isCancellationReceipt}
+                                    displayValue={
+                                      isCancellationReceipt
+                                        ? formatMoney(row.amount, currency, true)
+                                        : undefined
                                     }
-                                  }}
-                                  currency={currency}
-                                />
+                                    readOnly={isCancellationReceipt}
+                                    value={row.amount}
+                                    onChange={(v) => {
+                                      const next = isCancellationReceipt ? -Math.abs(v) : v;
+                                      updatePaymentRow(i, { amount: next });
+                                      if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
+                                        const newErrors = { ...paymentErrors };
+                                        if (newErrors[i]) {
+                                          delete newErrors[i].amount;
+                                          if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                        }
+                                        setPaymentErrors(newErrors);
+                                      }
+                                    }}
+                                    currency={currency}
+                                  />
+                                </div>
 
-                                <Select
-                                  value={row.currency || currency}
-                                  disabled={currency !== "₪" || confirmedPayments.has(i)}
-                                  onValueChange={(v) => updatePaymentRow(i, { currency: v })}
-                                >
-                                  <SelectTrigger
-                                    variant="underline"
-                                    className="ti-items-select w-[80px] shrink-0"
-                                    aria-label="מטבע"
+                                <div className="w-[60px]">
+                                  <Select
+                                    value={row.currency || currency}
+                                    disabled={currency !== "₪" || confirmedPayments.has(i)}
+                                    onValueChange={(v) => updatePaymentRow(i, { currency: v })}
                                   >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {allowedCurrencies.map((c) => (
-                                      <SelectItem key={c} value={c}>
-                                        {c}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                    <SelectTrigger
+                                      variant="underline"
+                                      className="ti-items-select w-full"
+                                      aria-label="מטבע"
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {allowedCurrencies.map((c) => (
+                                        <SelectItem key={c} value={c}>
+                                          {c}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {/* כפתורים בשורה עם הסכום */}
+                                <div className="flex items-center justify-end gap-2 shrink-0">
+                                  {confirmedPayments.has(i) ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        setConfirmedPayments((prev) => {
+                                          const next = new Set(prev);
+                                          next.delete(i);
+                                          return next;
+                                        })
+                                      }
+                                      aria-label="עריכה"
+                                      className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  ) : (
+                                    <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                      אישור
+                                    </Button>
+                                  )}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removePaymentRow(i)}
+                                    disabled={payments.length === 1}
+                                    title={payments.length === 1 ? "חייב להיות לפחות תקבול אחד" : "מחיקה"}
+                                    aria-label="מחיקה"
+                                    className="text-danger hover:text-danger hover:bg-danger/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
 
@@ -1132,44 +1194,6 @@ export default function ReceiptFormClient({
                                 />
                               </div>
                             )}
-
-                            {/* כפתורים */}
-                            <div className="flex items-center justify-center gap-2 pt-2">
-                              {confirmedPayments.has(i) ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    setConfirmedPayments((prev) => {
-                                      const next = new Set(prev);
-                                      next.delete(i);
-                                      return next;
-                                    })
-                                  }
-                                  aria-label="עריכה"
-                                  className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              ) : (
-                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
-                                  אישור
-                                </Button>
-                              )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removePaymentRow(i)}
-                                disabled={payments.length === 1}
-                                title={payments.length === 1 ? "חייב להיות לפחות תקבול אחד" : "מחיקה"}
-                                aria-label="מחיקה"
-                                className="text-danger hover:text-danger hover:bg-danger/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1336,6 +1360,7 @@ export default function ReceiptFormClient({
             }}
             onConfirm={handleIssueConfirm}
             documentType="receipt"
+            titleOverride={isCancellationReceipt ? "אישור הפקת קבלה שלילית" : undefined}
             documentDate={documentDate}
             customerName={customerName}
             total={total}

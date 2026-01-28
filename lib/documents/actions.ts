@@ -5,8 +5,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getCompanyIdForUser,
   isSequenceLocked,
-  finalizeDocument,
   getNextDocumentNumberPreview,
+  finalizeDocument,
 } from "@/lib/document-helpers";
 import { getDocumentConfig } from "@/lib/documents/document-configs";
 import type {
@@ -66,6 +66,8 @@ export type InitialDocumentCreateData =
       companyName: string | null;
       sequenceLocked: boolean;
       previewNumber: string | null;
+      draftId?: string | null;
+      draftOrigin?: "existing" | "new";
       settings: ReceiptSettings;
       minAllowedDate: string | null;
       vatRate?: number;
@@ -406,8 +408,6 @@ export async function getInitialDocumentCreateData(
     const companyId = await getCompanyIdForUser();
 
     const { locked } = await isSequenceLocked({ companyId, documentType });
-    const { formatted: previewNumber } = await getNextDocumentNumberPreview(companyId, documentType);
-
     const minAllowedDate = await getMinAllowedDate(companyId, documentType);
 
     let companyName: string | null = null;
@@ -417,6 +417,141 @@ export async function getInitialDocumentCreateData(
       .eq("id", companyId)
       .maybeSingle();
     companyName = company?.company_name ?? null;
+
+    let previewNumber: string | null = null;
+    let draftId: string | null = null;
+    let draftOrigin: "existing" | "new" | undefined = undefined;
+
+    // For locked sequences (regulatory numbering), we MUST show a number that was
+    // actually reserved on the server and tied to a draft. This prevents stale
+    // numbers on back/forward navigation and guarantees consistency.
+    if (locked) {
+      const dbDocumentType = toDbDocumentType(documentType);
+
+      const { data: existingDraft, error: existingDraftError } = await supabase
+        .from("documents")
+        .select("id, document_number")
+        .eq("company_id", companyId)
+        .eq("document_type", dbDocumentType)
+        .eq("document_status", "draft")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingDraftError) {
+        return { ok: false, message: existingDraftError.message };
+      }
+
+      if (existingDraft?.id) {
+        draftId = existingDraft.id;
+        draftOrigin = "existing";
+        previewNumber = existingDraft.document_number ?? null;
+
+        // If an old draft exists with a stale/non-allocator number (e.g. created before lock flow),
+        // we must re-reserve a fresh number from the single allocator to avoid showing "fake" numbers.
+        if (previewNumber) {
+          const parseNumber = (raw: string, prefix: string) => {
+            const s = String(raw || "").trim();
+            if (!s) return null;
+            if (prefix && s.startsWith(prefix)) {
+              const n = parseInt(s.slice(prefix.length), 10);
+              return Number.isFinite(n) ? n : null;
+            }
+            // No prefix case (most common)
+            const n = parseInt(s, 10);
+            return Number.isFinite(n) ? n : null;
+          };
+
+          const { data: seqRow } = await supabase
+            .from("document_sequences")
+            .select("current_number, starting_number, prefix, is_locked")
+            .eq("company_id", companyId)
+            .eq("document_type", dbDocumentType)
+            .maybeSingle();
+
+          const prefix = typeof (seqRow as any)?.prefix === "string" ? String((seqRow as any).prefix) : "";
+          const currentNumber =
+            typeof (seqRow as any)?.current_number === "number" ? Number((seqRow as any).current_number) : null;
+          const parsedDraftNumber = parseNumber(previewNumber, prefix);
+
+          // If the draft number is < current_number, it's stale/already passed -> must re-reserve.
+          // NOTE: equality means "already reserved" for this draft and must be kept stable.
+          if (currentNumber !== null && parsedDraftNumber !== null && parsedDraftNumber < currentNumber) {
+            previewNumber = null; // force re-reserve below (same draft)
+          }
+        }
+      } else {
+        const baseDraftInsert: any = {
+          company_id: companyId,
+          document_type: dbDocumentType,
+          document_status: "draft",
+          document_number: null,
+          customer_id: null,
+          customer_name: "",
+          issue_date: todayYmd(),
+          total_amount: 0,
+          currency: "₪",
+          internal_notes: "",
+          language: "he",
+        };
+
+        if (isItemDocumentType(documentType)) {
+          baseDraftInsert.subtotal = 0;
+          baseDraftInsert.vat_rate = 0;
+          baseDraftInsert.vat_amount = 0;
+        }
+
+        const { data: createdDraft, error: createDraftError } = await supabase
+          .from("documents")
+          .insert(baseDraftInsert)
+          .select("id")
+          .single();
+
+        if (createDraftError) {
+          if (
+            createDraftError.code === "PGRST204" &&
+            String(createDraftError.message || "").includes("language")
+          ) {
+            return {
+              ok: false,
+              message:
+                "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
+            };
+          }
+          return { ok: false, message: createDraftError.message };
+        }
+
+        draftId = createdDraft?.id ?? null;
+        draftOrigin = "new";
+      }
+
+      // Ensure the draft has a reserved document number.
+      if (draftId && !previewNumber) {
+        const { data: generatedNumber, error: rpcError } = await supabase.rpc(
+          "generate_document_number",
+          {
+            p_company_id: companyId,
+            p_document_type: dbDocumentType,
+          }
+        );
+
+        if (rpcError) return { ok: false, message: rpcError.message };
+
+        const { error: updateError } = await supabase
+          .from("documents")
+          .update({ document_number: generatedNumber })
+          .eq("id", draftId)
+          .eq("company_id", companyId);
+
+        if (updateError) return { ok: false, message: updateError.message };
+
+        previewNumber = generatedNumber ?? null;
+      }
+    } else {
+      // Unlocked sequences: show a non-allocating preview number.
+      const { formatted } = await getNextDocumentNumberPreview(companyId, documentType);
+      previewNumber = formatted ?? null;
+    }
 
     const settings: ReceiptSettings = {
       allowedCurrencies: ["₪", "$", "€"],
@@ -442,6 +577,8 @@ export async function getInitialDocumentCreateData(
       companyName,
       sequenceLocked: locked,
       previewNumber,
+      draftId,
+      draftOrigin,
       settings,
       minAllowedDate,
       vatRate,
@@ -487,6 +624,39 @@ function validatePayload(p: DocumentDraftPayload, minAllowedDate?: string | null
   return null;
 }
 
+async function replaceDocumentLineItems(args: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  companyId: string;
+  documentType: DocumentIssueType;
+  documentId: string;
+  payload: DocumentDraftPayload;
+}) {
+  const { supabase, companyId, documentType, documentId, payload } = args;
+  const { error: deleteError } = await supabase
+    .from("document_line_items")
+    .delete()
+    .eq("document_id", documentId)
+    .eq("company_id", companyId);
+
+  if (deleteError) return deleteError;
+
+  if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
+    const lineItems = payload.items.map((item, idx) =>
+      itemRowToLineItem(item, documentId, companyId, idx + 1, payload.documentDate)
+    );
+    const { error: lineItemsError } = await supabase.from("document_line_items").insert(lineItems);
+    if (lineItemsError) return lineItemsError;
+  } else if (payload.payments && payload.payments.length > 0) {
+    const lineItems = payload.payments.map((payment, idx) =>
+      convertPayment(payment, documentId, companyId, idx + 1)
+    );
+    const { error: lineItemsError } = await supabase.from("document_line_items").insert(lineItems);
+    if (lineItemsError) return lineItemsError;
+  }
+
+  return null;
+}
+
 export async function saveDocumentDraftAction(
   documentType: DocumentIssueType,
   payload: DocumentDraftPayload
@@ -506,6 +676,70 @@ export async function saveDocumentDraftAction(
         vat_amount: payload.vatAmount ?? 0,
       }
     : {};
+
+  // If the sequence is locked (regulatory numbering), we must NOT create new drafts on "Save Draft".
+  // There should be at most one open draft per (company, document_type). Reuse it to preserve reserved numbers.
+  const { locked } = await isSequenceLocked({ companyId, documentType });
+  if (locked) {
+    const { data: existingDraft } = await supabase
+      .from("documents")
+      .select("id, document_number, document_status")
+      .eq("company_id", companyId)
+      .eq("document_type", dbDocumentType)
+      .eq("document_status", "draft")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingDraft?.id) {
+      const baseUpdate = {
+        customer_id: payload.customerId || null,
+        customer_name: payload.customerName,
+        issue_date: payload.documentDate,
+        payment_due_date: payload.paymentDueDate || null,
+        document_description: payload.description || null,
+        total_amount: payload.total,
+        currency: payload.currency,
+        internal_notes: payload.notes,
+        language: payload.language,
+        ...taxFields,
+      };
+
+      let { error: updateError } = await supabase
+        .from("documents")
+        .update(baseUpdate)
+        .eq("id", existingDraft.id)
+        .eq("company_id", companyId)
+        .eq("document_status", "draft");
+
+      if (updateError) {
+        const updateMessage = String(updateError.message || "");
+        if (updateError.code === "PGRST204" && updateMessage.includes("payment_due_date")) {
+          const { payment_due_date: _paymentDueDate, ...fallbackUpdate } = baseUpdate as any;
+          ({ error: updateError } = await supabase
+            .from("documents")
+            .update(fallbackUpdate)
+            .eq("id", existingDraft.id)
+            .eq("company_id", companyId)
+            .eq("document_status", "draft"));
+        }
+      }
+      if (updateError) return { ok: false as const, message: updateError.message };
+
+      const lineItemsError = await replaceDocumentLineItems({
+        supabase,
+        companyId,
+        documentType,
+        documentId: existingDraft.id,
+        payload,
+      });
+      if (lineItemsError) {
+        console.error("Failed to replace line items:", lineItemsError);
+      }
+
+      return { ok: true as const, draftId: existingDraft.id };
+    }
+  }
 
   const baseInsert = {
     company_id: companyId,
@@ -584,7 +818,8 @@ export async function saveDocumentDraftAction(
 
 export async function issueDocumentAction(
   documentType: DocumentIssueType,
-  payload: DocumentDraftPayload
+  payload: DocumentDraftPayload,
+  draftId?: string
 ) {
   const logPrefix = getLogPrefix(documentType);
   console.log(`${logPrefix} issueDocumentAction entry`, {
@@ -651,6 +886,119 @@ export async function issueDocumentAction(
             "נדרשת הסכמת מקבל למסמך ממוחשב לפני הפקה. סמן/י הסכמה בחלון האישור ואז נסה/י שוב.",
         };
       }
+    }
+
+    if (draftId) {
+      const { data: existing, error: fetchError } = await supabase
+        .from("documents")
+        .select("id, document_status")
+        .eq("id", draftId)
+        .eq("company_id", companyId)
+        .eq("document_type", dbDocumentType)
+        .maybeSingle();
+
+      if (fetchError) return { ok: false as const, message: fetchError.message };
+      if (!existing) return { ok: false as const, message: "Draft not found" };
+
+      if (existing.document_status !== "draft") {
+        return {
+          ok: false as const,
+          message: "Cannot edit final documents. Only drafts can be modified.",
+        };
+      }
+
+      const taxFields = isItemDocumentType(documentType)
+        ? {
+            subtotal: payload.subtotal ?? payload.total,
+            vat_rate: payload.vatRate ?? 0,
+            vat_amount: payload.vatAmount ?? 0,
+          }
+        : {};
+
+      const baseUpdate = {
+        customer_id: payload.customerId || null,
+        customer_name: payload.customerName,
+        issue_date: payload.documentDate,
+        payment_due_date: payload.paymentDueDate || null,
+        document_description: payload.description || null,
+        total_amount: payload.total,
+        currency: payload.currency,
+        internal_notes: payload.notes,
+        language: payload.language,
+        ...taxFields,
+      };
+
+      let { error: updateError } = await supabase
+        .from("documents")
+        .update(baseUpdate)
+        .eq("id", draftId)
+        .eq("company_id", companyId);
+
+      if (updateError) {
+        const updateMessage = String(updateError.message || "");
+        if (updateError.code === "PGRST204" && updateMessage.includes("payment_due_date")) {
+          const { payment_due_date: _paymentDueDate, ...fallbackUpdate } = baseUpdate;
+          ({ error: updateError } = await supabase
+            .from("documents")
+            .update(fallbackUpdate)
+            .eq("id", draftId)
+            .eq("company_id", companyId));
+        }
+        if (updateError && updateError.code === "PGRST204" && String(updateError.message || "").includes("language")) {
+          return {
+            ok: false as const,
+            message:
+              "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
+          };
+        }
+        if (updateError) return { ok: false as const, message: updateError.message };
+      }
+
+      const lineItemsError = await replaceDocumentLineItems({
+        supabase,
+        companyId,
+        documentType,
+        documentId: draftId,
+        payload,
+      });
+
+      if (lineItemsError) {
+        console.error(`${logPrefix} Failed to replace line items`, lineItemsError);
+      }
+
+      console.log(`${logPrefix} Calling finalizeDocument`, {
+        draftId,
+        companyId: companyId?.substring(0, 8),
+        documentType,
+      });
+
+      const result = await finalizeDocument(draftId, companyId, documentType);
+      console.log(`${logPrefix} finalizeDocument result`, {
+        ok: result.ok,
+        documentNumber: result.documentNumber,
+      });
+
+      if (!result.ok) {
+        console.error(`${logPrefix} finalizeDocument failed`, {
+          message: result.message,
+          draftId,
+        });
+        return { ok: false as const, message: result.message || "Failed to issue document" };
+      }
+
+      const { data: company } = await supabase
+        .from("companies")
+        .select("company_name")
+        .eq("id", companyId)
+        .maybeSingle();
+
+      return {
+        ok: true as const,
+        documentId: draftId,
+        documentNumber: result.documentNumber,
+        companyName: company?.company_name || "העסק שלי",
+        payload,
+      };
     }
 
     console.log(`${logPrefix} Creating draft document`, {
@@ -848,7 +1196,7 @@ export async function updateDocumentDraftAction(
 
   const { data: existing, error: fetchError } = await supabase
     .from("documents")
-    .select("id, document_status")
+    .select("id, document_status, document_number")
     .eq("id", draftId)
     .eq("company_id", companyId)
     .eq("document_type", dbDocumentType)
@@ -873,9 +1221,11 @@ export async function updateDocumentDraftAction(
     : {};
 
   const baseUpdate = {
+    customer_id: payload.customerId || null,
     customer_name: payload.customerName,
     issue_date: payload.documentDate,
     payment_due_date: payload.paymentDueDate || null,
+    document_description: payload.description || null,
     total_amount: payload.total,
     currency: payload.currency,
     internal_notes: payload.notes,
@@ -909,6 +1259,18 @@ export async function updateDocumentDraftAction(
     if (updateError) return { ok: false as const, message: updateError.message };
   }
 
+  const lineItemsError = await replaceDocumentLineItems({
+    supabase,
+    companyId,
+    documentType,
+    documentId: draftId,
+    payload,
+  });
+
+  if (lineItemsError) {
+    console.error("Failed to replace line items:", lineItemsError);
+  }
+
   return { ok: true as const };
 }
 
@@ -936,6 +1298,57 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
       };
     }
 
+    const { data: lineItems } = await supabase
+      .from("document_line_items")
+      .select("*")
+      .eq("document_id", draftId)
+      .eq("company_id", companyId)
+      .order("line_number");
+
+    let items: TaxInvoiceItemRow[] = [];
+    let payments: PaymentRow[] = [];
+    if (lineItems && lineItems.length > 0) {
+      items = lineItems.map((item: any) => {
+        const metadata = item.payment_metadata || {};
+        return {
+          label: metadata.label || item.description || "",
+          sku: metadata.sku || item.item_sku || "",
+          description: metadata.details || item.description || "",
+          quantity: typeof item.quantity === "number" ? item.quantity : 1,
+          unitPrice: typeof item.unit_price === "number" ? item.unit_price : 0,
+          currency: item.currency || data.currency || "₪",
+          vatMode: metadata.vatMode || "before",
+          lineTotal: typeof item.line_total === "number" ? item.line_total : 0,
+        };
+      });
+      payments = lineItems.map((item: any) => {
+        const metadata = item.payment_metadata || {};
+        return {
+          method: item.description || "תשלום",
+          date: item.item_date || data.issue_date || new Date().toISOString().split("T")[0],
+          amount: typeof item.line_total === "number" ? item.line_total : Number(item.line_total || 0),
+          currency: item.currency || data.currency || "₪",
+          bankName: item.bank_name || metadata.bankName || undefined,
+          branch: item.branch || metadata.bankBranch || metadata.branch || undefined,
+          accountNumber: item.account_number || metadata.bankAccount || metadata.accountNumber || undefined,
+          cardLastDigits: metadata.cardLastDigits || undefined,
+          cardType: metadata.cardType || undefined,
+          cardDealType: metadata.cardDealType || undefined,
+          cardInstallments: metadata.cardInstallments || undefined,
+          checkBank: metadata.checkBank || undefined,
+          checkBranch: metadata.checkBranch || undefined,
+          checkAccount: metadata.checkAccount || undefined,
+          checkNumber: metadata.checkNumber || undefined,
+          payerAccount: metadata.payerAccount || undefined,
+          transactionReference: metadata.transactionReference || undefined,
+          description: metadata.description || undefined,
+          reference_number: metadata.reference_number || undefined,
+          reference: metadata.reference || undefined,
+          notes: metadata.notes || undefined,
+        };
+      });
+    }
+
     return {
       ok: true as const,
       draft: {
@@ -943,6 +1356,7 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
         customerName: data.customer_name ?? "",
         documentDate: data.issue_date ?? todayYmd(),
         paymentDueDate: (data as any).payment_due_date ?? null,
+        description: data.document_description ?? "",
         total: data.total_amount ?? 0,
         currency: data.currency ?? "₪",
         notes: data.internal_notes ?? "",
@@ -954,6 +1368,8 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
           typeof (data as any).vat_rate === "number" && (data as any).vat_rate > 0
             ? "regular"
             : "no_vat",
+        items,
+        payments,
       },
     };
   } catch (e: any) {

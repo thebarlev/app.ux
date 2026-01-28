@@ -100,6 +100,8 @@ export async function getAllDocumentsListAction(
         document_type,
         issue_date,
         created_at,
+        finalized_at,
+        updated_at,
         customer_id,
         customer_name,
         document_description,
@@ -188,8 +190,13 @@ export async function getAllDocumentsListAction(
       query = query.or(orParts.join(","));
     }
 
-    // Sorting: newest first (by created_at desc)
-    query = query.order("created_at", { ascending: false });
+    // Sorting: newest first by *finalization time*.
+    // Why: a document may be finalized from an older draft (created_at old), but the UX expects
+    // the last-issued document to appear first. finalized_at is set on issuance.
+    // Fallback: created_at for rows missing finalized_at (older legacy rows).
+    query = query
+      .order("finalized_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
 
     // Pagination
     const from = (page - 1) * pageSize;

@@ -222,39 +222,56 @@ export async function finalizeDocument(
   const supabase = await createClient()
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
-  // Generate number atomically - this is the moment allocation happens
-  const { data: docNumber, error: rpcError } = await supabase.rpc(
-    "generate_document_number",
-    {
-      p_company_id: companyId,
-      p_document_type: sequenceDocumentType,
-    }
-  )
-
-  if (rpcError) {
-    return { ok: false, message: rpcError.message }
-  }
-
-  // CRITICAL: Update document_number BEFORE generating PDF
-  // This ensures document_number is available in prepareDocumentData when rendering the template
-  // Order: Generate number → Update document_number (still draft) → Generate PDF → Set status to 'final'
-  console.log(`[finalizeDocument] Updating document ${draftId} with document_number: ${docNumber} (before PDF generation)...`)
-  
-  const { error: updateNumberError } = await supabase
+  const { data: existingDoc, error: existingError } = await supabase
     .from("documents")
-    .update({
-      document_number: docNumber,
-    })
+    .select("document_number")
     .eq("id", draftId)
     .eq("company_id", companyId)
-    .eq("document_status", "draft") // Only drafts can be updated
-  
-  if (updateNumberError) {
-    console.error(`[finalizeDocument] Failed to update document_number for document ${draftId}:`, updateNumberError)
-    return { ok: false, message: `Failed to update document number: ${updateNumberError.message}` }
+    .maybeSingle()
+
+  if (existingError) {
+    return { ok: false, message: existingError.message }
   }
-  
-  console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
+
+  let docNumber = existingDoc?.document_number ?? null
+
+  if (!docNumber) {
+    // Generate number atomically - this is the moment allocation happens
+    const { data: generatedNumber, error: rpcError } = await supabase.rpc(
+      "generate_document_number",
+      {
+        p_company_id: companyId,
+        p_document_type: sequenceDocumentType,
+      }
+    )
+
+    if (rpcError) {
+      return { ok: false, message: rpcError.message }
+    }
+
+    docNumber = generatedNumber
+
+    // CRITICAL: Update document_number BEFORE generating PDF
+    // This ensures document_number is available in prepareDocumentData when rendering the template
+    // Order: Generate number → Update document_number (still draft) → Generate PDF → Set status to 'final'
+    console.log(`[finalizeDocument] Updating document ${draftId} with document_number: ${docNumber} (before PDF generation)...`)
+    
+    const { error: updateNumberError } = await supabase
+      .from("documents")
+      .update({
+        document_number: docNumber,
+      })
+      .eq("id", draftId)
+      .eq("company_id", companyId)
+      .eq("document_status", "draft") // Only drafts can be updated
+    
+    if (updateNumberError) {
+      console.error(`[finalizeDocument] Failed to update document_number for document ${draftId}:`, updateNumberError)
+      return { ok: false, message: `Failed to update document number: ${updateNumberError.message}` }
+    }
+    
+    console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
+  }
 
   // CRITICAL: Generate PDF AFTER updating document_number but BEFORE finalizing
   // This ensures PDF is uploaded to Storage before the document becomes immutable

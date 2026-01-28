@@ -1,6 +1,6 @@
 import { getSystemText } from "@/lib/system-texts"
 import { RegistrationProvider } from "@/components/registration/registration-context"
-import { RegistrationFlowClient } from "./registration-flow-client"
+import { RegistrationFlowClient } from "@/components/registration/registration-flow-client"
 import { createClient } from "@/lib/supabase/server"
 
 export default async function RegisterPage() {

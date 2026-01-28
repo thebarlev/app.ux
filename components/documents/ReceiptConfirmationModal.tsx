@@ -26,6 +26,7 @@ type Props = {
   onClose: () => void;
   onConfirm: () => void;
   documentType?: keyof typeof DOCUMENT_TYPE_LABELS;
+  titleOverride?: string;
   documentDate: string;
   customerName: string;
   total: number;
@@ -49,6 +50,7 @@ export default function ReceiptConfirmationModal({
   onClose,
   onConfirm,
   documentType,
+  titleOverride,
   documentDate,
   customerName,
   total,
@@ -62,6 +64,7 @@ export default function ReceiptConfirmationModal({
   onRevokeConsent,
 }: Props) {
   const documentLabel = documentType ? DOCUMENT_TYPE_LABELS[documentType] : "מסמך";
+  const titleText = titleOverride || `אישור הפקת ${documentLabel}`;
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
@@ -209,7 +212,7 @@ export default function ReceiptConfirmationModal({
               id="confirmation-modal-title"
               className="receipt-confirmation-title"
             >
-              אישור הפקת {documentLabel}
+              {titleText}
             </h2>
 
             {/* Document Info - Horizontal row layout, centered, 18px font */}

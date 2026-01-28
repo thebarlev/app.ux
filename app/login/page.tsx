@@ -95,42 +95,44 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
-      <div className="w-full max-w-[420px]">
+    <div className="auth-shell min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
+      <div className="auth-container w-full max-w-[420px]">
         {/* Logo */}
         <div className="mb-10 flex justify-center">
           <RegistrationLogo titleSize="small" />
         </div>
 
         {/* Login Card */}
-        <Card className="shadow-ui-lg">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-right">
+        <Card className="auth-card shadow-ui-lg">
+          <CardHeader className="auth-header pb-4">
+            <CardTitle className="auth-title text-right">
               התחברות לחשבון
             </CardTitle>
-            <CardDescription className="text-muted-fg text-right">
+            <CardDescription className="auth-subtitle text-muted-fg text-right">
               הזן את פרטי ההתחברות שלך כדי להמשיך
             </CardDescription>
           </CardHeader>
 
           <CardContent>
-          <form onSubmit={handleLogin} className="space-y-5">
-              <FloatingInput
-                label="כתובת אימייל"
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                dir="ltr"
-                className="text-left"
-                aria-required="true"
-                aria-invalid={!!error}
-                aria-describedby={error ? "login-error" : undefined}
-              />
+          <form onSubmit={handleLogin} className="auth-form space-y-5">
+              <div className="auth-field">
+                <FloatingInput
+                  label="כתובת אימייל"
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  dir="ltr"
+                  className="auth-input text-left"
+                  aria-required="true"
+                  aria-invalid={!!error}
+                  aria-describedby={error ? "login-error" : undefined}
+                />
+              </div>
 
               {/* Password Field */}
-              <div className="relative">
+              <div className="auth-field relative">
                 <FloatingInput
                   label="סיסמה"
                   id="password"
@@ -140,7 +142,7 @@ function LoginForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   dir="ltr"
-                  className="text-left pr-12"
+                  className="auth-input text-left pr-12"
                   aria-required="true"
                   aria-invalid={!!error}
                   aria-describedby={error ? "login-error" : undefined}
@@ -156,10 +158,10 @@ function LoginForm() {
               </div>
 
               {/* Forgot Password Link - below password input, above submit, RTL right-aligned */}
-              <div className="flex justify-end mt-0 mb-1" dir="rtl">
+              <div className="flex justify-end mt-0 mb-1">
                 <Link
                   href="/forgot-password"
-                  className="text-[16px] text-muted-foreground hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui font-normal"
+                  className="auth-secondary-link text-[16px] text-muted-foreground hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui font-normal"
                   tabIndex={0}
                 >
                   שכחתי סיסמה
@@ -181,7 +183,7 @@ function LoginForm() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full"
+                className="auth-primary-button w-full"
                 variant="primary"
               >
                 {isLoading ? (
@@ -198,15 +200,17 @@ function LoginForm() {
         </Card>
 
         {/* Sign Up Link */}
-        <p className="mt-6 text-center">
-          אין לך חשבון?{" "}
-          <Link 
-            href="/register" 
-            className="text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
-          >
-            הרשמה לחשבון חדש
-          </Link>
-        </p>
+        <div className="auth-footer mt-6">
+          <p className="auth-footnote text-center">
+            אין לך חשבון?{" "}
+            <Link 
+              href="/register" 
+              className="auth-secondary-link text-primary hover:text-primary-hover font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui"
+            >
+              הרשמה לחשבון חדש
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -264,7 +264,7 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const day = String(date.getDate()).padStart(2, '0')
       onChange(`${year}-${month}-${day}`)
-      // Don't close automatically - let user close manually or click outside
+      setOpen(false)
     }
   }
 

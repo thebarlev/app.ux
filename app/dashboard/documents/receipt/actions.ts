@@ -34,8 +34,8 @@ export async function saveReceiptDraftAction(payload: ReceiptDraftPayload) {
   return saveDocumentDraftAction("receipt", payload);
 }
 
-export async function issueReceiptAction(payload: ReceiptDraftPayload) {
-  const result = await issueDocumentAction("receipt", payload);
+export async function issueReceiptAction(payload: ReceiptDraftPayload, draftId?: string) {
+  const result = await issueDocumentAction("receipt", payload, draftId);
   if (!result.ok) return result;
   return {
     ok: true as const,

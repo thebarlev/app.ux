@@ -140,7 +140,7 @@ function NavLink({
     const baseRowClass = `block flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer ${
       hasActiveSubItem
         ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium"
-        : "text-sidebar-fg hover:bg-sidebar-hover"
+        : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg"
     } ${expanded ? "" : "justify-center px-2"}`
 
     return (
@@ -176,7 +176,7 @@ function NavLink({
                     className={`block px-4 py-3 rounded-lg transition ${
                       isSubActive
                         ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium"
-                        : "text-sidebar-fg hover:bg-sidebar-hover"
+                        : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg"
                     }`}
                     style={{ fontSize: "18px", lineHeight: "1" }}
                   >
@@ -239,7 +239,7 @@ function NavLink({
       className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
         isActive
           ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium"
-          : "text-sidebar-fg hover:bg-sidebar-hover"
+          : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg"
       } ${expanded ? "" : "justify-center px-2"}`}
       style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
     >
@@ -394,7 +394,7 @@ function SidebarContent({
           className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
             pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/")
               ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium visited:text-sidebar-active-fg"
-              : "text-sidebar-fg hover:bg-sidebar-hover visited:text-sidebar-fg"
+              : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg visited:text-sidebar-fg"
           } ${expanded ? "" : "justify-center px-2"}`}
           style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
           onClick={() => {

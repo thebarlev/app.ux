@@ -6,10 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { Download, Eye, Link2 } from "lucide-react";
+import { Download, Eye } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
-import { createDocumentLinkAction } from "@/lib/documents/actions";
-import LinkDocumentsDialog, { type LinkDocumentsDialogLinkType } from "@/components/documents/LinkDocumentsDialog";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -165,8 +163,6 @@ export default function DocumentsQuickViewDrawer(props: {
 }) {
   const doc = props.initialDoc || null;
 
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-
   const [isMobile, setIsMobile] = useState(false);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
@@ -193,16 +189,6 @@ export default function DocumentsQuickViewDrawer(props: {
     const number = doc?.document_number || "—";
     return `${typeLabel} ${number}`;
   }, [doc?.document_number, doc?.document_type]);
-
-  function inferLinkTypeForSourceDocument(documentType: string): LinkDocumentsDialogLinkType {
-    const t = String(documentType || "").toLowerCase();
-    if (t === "receipt") return "payment";
-    if (t === "credit_note") return "credit";
-    if (t === "tax_invoice" || t === "invoice_receipt") return "conversion";
-    return "related";
-  }
-
-  const linkType = inferLinkTypeForSourceDocument(doc?.document_type || "");
 
   const uiStatus = useMemo<UIStatus>(() => {
     const links = linksState.status === "ready" ? linksState.links || [] : [];
@@ -250,45 +236,6 @@ export default function DocumentsQuickViewDrawer(props: {
       setLinksState({ status: "error", message: e?.message || "שגיאה בטעינת שיוכים" });
     }
   }, [props.open, props.documentId]);
-
-  async function handleCreateLinksFromDialog(selections: { documentId: string; amount: number }[]) {
-    if (!doc?.id) return;
-    if (!props.companyId) {
-      throw new Error("לא ניתן לחבר מסמכים: חסר מזהה חברה");
-    }
-    if (!doc.customer_id) {
-      throw new Error("לא ניתן לחבר מסמכים: אין לקוח משוייך למסמך");
-    }
-
-    const targetIsConversionAllowed = doc.document_type === "tax_invoice" || doc.document_type === "invoice_receipt";
-
-    for (const sel of selections) {
-      if (linkType === "conversion") {
-        if (!targetIsConversionAllowed) {
-          throw new Error("המרה מותרת רק לחשבונית מס / חשבונית מס-קבלה");
-        }
-        const res = await createDocumentLinkAction({
-          sourceDocumentId: sel.documentId, // transaction_invoice
-          targetDocumentId: doc.id, // current invoice (tax_invoice / invoice_receipt)
-          linkType: "conversion",
-          amount: 0,
-        });
-        if (!res.ok) throw new Error(res.message);
-        continue;
-      }
-
-      const amount = linkType === "payment" || linkType === "credit" ? sel.amount : 0;
-      const res = await createDocumentLinkAction({
-        sourceDocumentId: doc.id,
-        targetDocumentId: sel.documentId,
-        linkType,
-        amount,
-      });
-      if (!res.ok) throw new Error(res.message);
-    }
-
-    await reloadLinks();
-  }
 
   useEffect(() => {
     if (!props.open || !props.documentId) return;
@@ -571,47 +518,12 @@ export default function DocumentsQuickViewDrawer(props: {
                     </div>
                   </div>
                 ) : null}
-
-                {doc?.customer_id && props.companyId ? (
-                  <div className="relative group">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="חיבור מסמכים"
-                      onClick={() => setLinkDialogOpen(true)}
-                      disabled={
-                        (linkType === "payment" || linkType === "credit") &&
-                        !(typeof doc?.total_amount === "number" && doc.total_amount > 0)
-                      }
-                    >
-                      <Link2 className="h-5 w-5" />
-                    </Button>
-                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                        חיבור מסמכים
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
             </SheetFooter>
           </div>
         </SheetContent>
       </Sheet>
-
-      <LinkDocumentsDialog
-        open={linkDialogOpen}
-        onOpenChange={setLinkDialogOpen}
-        customerId={doc?.customer_id || ""}
-        companyId={props.companyId || ""}
-        sourceDocumentId={doc?.id || ""}
-        sourceTotal={typeof doc?.total_amount === "number" ? doc.total_amount : Number(doc?.total_amount || 0)}
-        sourceCurrency={doc?.currency || null}
-        linkType={linkType}
-        onConfirm={handleCreateLinksFromDialog}
-      />
     </>
   );
 }

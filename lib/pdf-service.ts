@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import path from "node:path"
+import { readFile } from "node:fs/promises"
 import { isPdfDebugEnabled, logPdfEvent, type PdfLogContext } from "@/lib/pdf-logger"
 import { 
   compileAndRender, 
@@ -18,6 +20,82 @@ import type {
   ReceiptTemplateData,
   PDFGenerationResult 
 } from "@/lib/types/template"
+
+// ==================== PDF CSS/FONT INLINING (for link-stripped HTML) ====================
+// NOTE: `generatePDFFromHTML` strips all <link rel="stylesheet" ...> from FULL HTML documents,
+// so templates that rely on link-based CSS/Google Fonts will lose styling/fonts in PDFs.
+// We compensate by folding known link-based assets into the returned `css` from `getTemplateForDocument`.
+
+let cachedReceiptStandardCss: string | null = null
+let cachedReceiptStandardCssLoadError: string | null = null
+
+async function loadReceiptStandardCss(): Promise<string> {
+  if (cachedReceiptStandardCss !== null) return cachedReceiptStandardCss
+  if (cachedReceiptStandardCssLoadError) return ""
+
+  try {
+    const cssPath = path.join(
+      process.cwd(),
+      "templates",
+      "receipt",
+      "standard",
+      "receipt-standard-styles.css"
+    )
+    cachedReceiptStandardCss = await readFile(cssPath, "utf8")
+    return cachedReceiptStandardCss
+  } catch (e: any) {
+    cachedReceiptStandardCssLoadError = e?.message || String(e)
+    console.warn("[TEMPLATE_FETCH] Failed to load receipt-standard-styles.css:", cachedReceiptStandardCssLoadError)
+    cachedReceiptStandardCss = ""
+    return ""
+  }
+}
+
+function htmlHasReceiptStandardStylesheetLink(html: string): boolean {
+  // Matches: href="receipt-standard-styles.css" or "./receipt-standard-styles.css" or "/receipt-standard-styles.css"
+  return /<link[^>]*rel=["']stylesheet["'][^>]*href=["'](?:\.\/|\/)?receipt-standard-styles\.css["'][^>]*>/i.test(
+    html
+  )
+}
+
+function htmlHasAssistantGoogleFontsStylesheetLink(html: string): boolean {
+  // Matches any stylesheet link that loads Assistant from Google Fonts.
+  return /<link[^>]*rel=["']stylesheet["'][^>]*href=["'][^"']*fonts\.googleapis\.com\/css2\?[^"']*family=Assistant/i.test(
+    html
+  )
+}
+
+function cssAlreadyImportsAssistant(css: string): boolean {
+  return /fonts\.googleapis\.com\/css2\?[^'")]*family=Assistant/i.test(css) || /font-family:\s*["']Assistant["']/i.test(css)
+}
+
+async function augmentCssForLinkStrippedPdf(html: string, css: string): Promise<string> {
+  let nextCss = css || ""
+  let prefix = ""
+
+  // 1) Google Fonts Assistant: convert <link rel="stylesheet" ...> into @import (must be at top of CSS).
+  if (htmlHasAssistantGoogleFontsStylesheetLink(html) && !cssAlreadyImportsAssistant(nextCss)) {
+    prefix += `@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');\n`
+  }
+
+  // 2) receipt-standard-styles.css: inline from repo so PDF keeps styling after <link> stripping.
+  if (htmlHasReceiptStandardStylesheetLink(html)) {
+    const marker = "/* __inlined:receipt-standard-styles.css */"
+    if (!nextCss.includes(marker)) {
+      const receiptCss = await loadReceiptStandardCss()
+      if (receiptCss.trim().length > 0) {
+        nextCss = `${nextCss}\n\n${marker}\n${receiptCss}\n/* __end_inlined:receipt-standard-styles.css */\n`
+      }
+    }
+  }
+
+  // Keep @import at the very top.
+  if (prefix) {
+    nextCss = `${prefix}${nextCss}`
+  }
+
+  return nextCss
+}
 
 const TAX_INVOICE_LIKE_TYPES = new Set([
   "tax_invoice",
@@ -249,6 +327,14 @@ export async function getTemplateForDocument(
     }
   }
 
+  const finalizePicked = async (
+    picked: { html: string; css: string; resolvedLanguage: "he" | "en"; didFallbackToHe: boolean },
+    templateId: string | null
+  ) => {
+    const augmentedCss = await augmentCssForLinkStrippedPdf(picked.html, picked.css || "")
+    return { ...picked, css: augmentedCss, templateId }
+  }
+
   // PRIORITY 0: User's explicit selection from settings (highest priority)
   const { data: userSelection } = await supabase
     .from("company_template_selections")
@@ -287,10 +373,7 @@ export async function getTemplateForDocument(
       }
       const picked = pickVariantChecked(selectedTemplate, "PRIORITY_0_USER_SELECTION")
       if (picked) {
-        return {
-          ...picked,
-          templateId: selectedTemplate.id,
-        }
+        return await finalizePicked(picked, selectedTemplate.id)
       }
     } else {
       // Selection exists but template is inactive or deleted - log warning and continue to fallbacks
@@ -328,10 +411,7 @@ export async function getTemplateForDocument(
     }
     const picked = pickVariantChecked(companyDefault, "PRIORITY_1_COMPANY_DEFAULT")
     if (picked) {
-      return {
-        ...picked,
-        templateId: companyDefault.id,
-      }
+      return await finalizePicked(picked, companyDefault.id)
     }
   }
 
@@ -473,10 +553,7 @@ export async function getTemplateForDocument(
     }
     const picked = pickVariantChecked(globalDefault, "PRIORITY_2_GLOBAL_DEFAULT")
     if (picked) {
-      return {
-        ...picked,
-        templateId: globalDefault.id,
-      }
+      return await finalizePicked(picked, globalDefault.id)
     }
   }
 
@@ -494,10 +571,7 @@ export async function getTemplateForDocument(
     console.log(`⚠️ Using fallback company template: ${anyCompanyTemplate.id}`)
     const picked = pickVariantChecked(anyCompanyTemplate, "PRIORITY_3_ANY_COMPANY")
     if (picked) {
-      return {
-        ...picked,
-        templateId: anyCompanyTemplate.id,
-      }
+      return await finalizePicked(picked, anyCompanyTemplate.id)
     }
   }
 
@@ -515,10 +589,7 @@ export async function getTemplateForDocument(
     console.log(`⚠️ Using fallback global template: ${anyGlobalTemplate.name} (${anyGlobalTemplate.id})`)
     const picked = pickVariantChecked(anyGlobalTemplate, "PRIORITY_4_ANY_GLOBAL")
     if (picked) {
-      return {
-        ...picked,
-        templateId: anyGlobalTemplate.id,
-      }
+      return await finalizePicked(picked, anyGlobalTemplate.id)
     }
   }
 
@@ -538,10 +609,7 @@ export async function getTemplateForDocument(
       console.log(`⚠️ Using mapped company template: ${mappedCompanyTemplate.id}`)
       const picked = pickVariantChecked(mappedCompanyTemplate, "PRIORITY_4_5_MAPPED_COMPANY")
       if (picked) {
-        return {
-          ...picked,
-          templateId: mappedCompanyTemplate.id,
-        }
+        return await finalizePicked(picked, mappedCompanyTemplate.id)
       }
     }
 
@@ -559,10 +627,7 @@ export async function getTemplateForDocument(
       console.log(`⚠️ Using mapped global template: ${mappedGlobalTemplate.name} (${mappedGlobalTemplate.id})`)
       const picked = pickVariantChecked(mappedGlobalTemplate, "PRIORITY_4_5_MAPPED_GLOBAL")
       if (picked) {
-        return {
-          ...picked,
-          templateId: mappedGlobalTemplate.id,
-        }
+        return await finalizePicked(picked, mappedGlobalTemplate.id)
       }
     }
   }
@@ -574,24 +639,25 @@ export async function getTemplateForDocument(
     if (language === "en" && !allowFallbackToHe) {
       throw new Error("TEMPLATE_MISSING_LANGUAGE:en")
     }
-    return {
+    return await finalizePicked({
       html: defaultTemplate.html,
       css: defaultTemplate.css,
-      templateId: null,
       resolvedLanguage: "he",
       didFallbackToHe: language === "en",
-    }
+    }, null)
   }
 
   console.log(`⚠️ Using hardcoded generic fallback template for document type: ${documentType}`)
   const generic = getDefaultGenericDocumentTemplate()
-  return {
-    html: generic.html,
-    css: generic.css,
-    templateId: null,
-    resolvedLanguage: "he",
-    didFallbackToHe: language === "en",
-  }
+  return await finalizePicked(
+    {
+      html: generic.html,
+      css: generic.css,
+      resolvedLanguage: "he",
+      didFallbackToHe: language === "en",
+    },
+    null
+  )
 }
 
 // ==================== DATA PREPARATION ====================

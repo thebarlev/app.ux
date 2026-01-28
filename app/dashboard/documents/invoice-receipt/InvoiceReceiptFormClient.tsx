@@ -91,7 +91,7 @@ function formatMoney(amount: number, currency: string) {
 export default function InvoiceReceiptFormClient({
   initial,
   editData,
-  draftId,
+  draftId: draftIdProp,
 }: {
   initial: InitialInvoiceReceiptCreateData;
   editData?: {
@@ -110,6 +110,7 @@ export default function InvoiceReceiptFormClient({
   draftId?: string;
 }) {
   const searchParams = useSearchParams();
+  const draftId = draftIdProp ?? (initial.ok ? initial.draftId ?? undefined : undefined);
   const documentConfig = useMemo(() => getDocumentConfig("invoiceReceipt"), []);
   const documentLabel = "חשבונית מס / קבלה";
   const basePath = "/dashboard/documents";
@@ -218,6 +219,14 @@ export default function InvoiceReceiptFormClient({
       if (editData.vatType) setVatType(editData.vatType);
     }
   }, [editData]);
+
+
+
+
+
+
+
+
 
   // Optional prefill from URL params (UI only; no DB logic changes)
   useEffect(() => {
@@ -779,7 +788,7 @@ export default function InvoiceReceiptFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueInvoiceReceiptAction(payload);
+      const result = await issueInvoiceReceiptAction(payload, draftId);
 
       if (!result || !result.ok) {
         toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
@@ -1026,14 +1035,16 @@ export default function InvoiceReceiptFormClient({
                       {vatRate > 0 ? (
                         <div className="text-right pr-[12px] translate-y-[20px]">מע״מ</div>
                       ) : (
-                        <div className="text-right opacity-0 pr-[12px] translate-y-[20px]" aria-hidden="true">
+                        <div className="ti-items-only-desktop text-right opacity-0 pr-[12px] translate-y-[20px]" aria-hidden="true">
                           מע״מ
                         </div>
                       )}
                       <div className="text-right pr-[12px] translate-y-[20px]" ref={headerTotalRef}>
                         סה״כ
                       </div>
-                      <div className="text-right pr-[-50px] translate-y-[20px]">אישור</div>
+                      <div className="text-right pr-[50px] translate-y-[20px] ui-items-actions-label-offset">
+                        אישור
+                      </div>
                     </div>
                   </div>
                   {items.map((row, i) => (
@@ -1045,167 +1056,199 @@ export default function InvoiceReceiptFormClient({
                       >
                         <div className="min-w-0">
                           <div className="ui-item-grid items-center">
-                            <Input
-                              value={row.sku}
-                              onChange={(e) => updateItemRow(i, { sku: e.target.value })}
-                              
-                              className="ti-items-input text-right min-w-0"
-                              disabled={confirmedRows.has(i)}
-                            />
-                            <Input
-                              value={row.description}
-                              onChange={(e) => {
-                                updateItemRow(i, { description: e.target.value });
-                                if (itemErrors[i]?.description && e.target.value.trim().length > 0) {
-                                  const next = { ...itemErrors };
-                                  if (next[i]) {
-                                    delete next[i].description;
-                                    if (Object.keys(next[i]).length === 0) delete next[i];
-                                  }
-                                  setItemErrors(next);
-                                }
-                              }}
-                              placeholder="פירוט"
-                              className={cn(
-                                "ti-items-input text-right min-w-0",
-                                itemErrors[i]?.description ? "border-danger focus-visible:ring-danger" : ""
-                              )}
-                              disabled={confirmedRows.has(i)}
-                            />
-                            <Input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={Number.isFinite(row.quantity) ? row.quantity : ""}
-                              onChange={(e) => {
-                                const value = Number(e.target.value || 0);
-                                updateItemRow(i, { quantity: value });
-                                if (itemErrors[i]?.quantity && value > 0) {
-                                  const next = { ...itemErrors };
-                                  if (next[i]) {
-                                    delete next[i].quantity;
-                                    if (Object.keys(next[i]).length === 0) delete next[i];
-                                  }
-                                  setItemErrors(next);
-                                }
-                              }}
-                              className={cn(
-                                "ti-items-input text-right min-w-0",
-                                itemErrors[i]?.quantity ? "border-danger focus-visible:ring-danger" : ""
-                              )}
-                              inputMode="numeric"
-                              disabled={confirmedRows.has(i)}
-                            />
-                            <MoneyInput
-                              className={cn(
-                                "w-full min-w-0 text-right",
-                                itemErrors[i]?.unitPrice ? "border-danger focus-visible:ring-danger" : "",
-                                confirmedRows.has(i) ? "pointer-events-none" : ""
-                              )}
-                              variant="items"
-                              value={row.unitPrice}
-                              onChange={(v) => {
-                                updateItemRow(i, { unitPrice: v });
-                                if (itemErrors[i]?.unitPrice && v > 0) {
-                                  const next = { ...itemErrors };
-                                  if (next[i]) {
-                                    delete next[i].unitPrice;
-                                    if (Object.keys(next[i]).length === 0) delete next[i];
-                                  }
-                                  setItemErrors(next);
-                                }
-                              }}
-                              currency={currency}
-                            />
-                            <Select
-                              value={row.currency || currency}
-                              disabled={currency !== "₪" || confirmedRows.has(i)}
-                              onValueChange={(v) => updateItemRow(i, { currency: v })}
-                            >
-                              <SelectTrigger
-                                variant="underline"
-                                className={cn(
-                                  "ti-items-select w-full min-w-0",
-                                  itemErrors[i]?.currency ? "border-danger focus:border-danger" : ""
-                                )}
-                                aria-label="מטבע"
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {allowedCurrencies.map((c) => (
-                                  <SelectItem key={c} value={c}>
-                                    {c}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            {vatRate > 0 ? (
-                              <Select
-                                value={row.vatMode}
-                                disabled={confirmedRows.has(i)}
-                                onValueChange={(v) => updateItemRow(i, { vatMode: v as any })}
-                              >
-                                <SelectTrigger
-                                  variant="underline"
-                                  className="ti-items-select w-full min-w-0"
-                                  aria-label="מע״מ"
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="before">לפני</SelectItem>
-                                  <SelectItem value="included">כולל</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <div className="h-[50px]" aria-hidden="true" />
-                            )}
-                            <div
-                              className="text-right text-[18px] font-regular"
-                              ref={(el) => {
-                                if (i === 0) itemTotalRef.current = el;
-                              }}
-                            >
-                              {formatMoney(getLineTotal(row), row.currency || currency)}
-                            </div>
-                            <div className="flex items-center justify-center gap-2">
-                              {confirmedRows.has(i) ? (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                      setConfirmedRows((prev) => {
-                                        const next = new Set(prev);
-                                        next.delete(i);
-                                        return next;
-                                      })
+                            <div className="ti-items-group ti-items-group--sku-desc">
+                              <div className="ti-items-field" data-label="מק״ט">
+                                <Input
+                                  value={row.sku}
+                                  onChange={(e) => updateItemRow(i, { sku: e.target.value })}
+                                  className="ti-items-input text-right min-w-0"
+                                  disabled={confirmedRows.has(i)}
+                                />
+                              </div>
+                              <div className="ti-items-field" data-label="פירוט">
+                                <Input
+                                  value={row.description}
+                                  onChange={(e) => {
+                                    updateItemRow(i, { description: e.target.value });
+                                    if (itemErrors[i]?.description && e.target.value.trim().length > 0) {
+                                      const next = { ...itemErrors };
+                                      if (next[i]) {
+                                        delete next[i].description;
+                                        if (Object.keys(next[i]).length === 0) delete next[i];
+                                      }
+                                      setItemErrors(next);
                                     }
-                                    aria-label="עריכה"
-                                    className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                  }}
+                                  placeholder="פירוט"
+                                  className={cn(
+                                    "ti-items-input text-right min-w-0",
+                                    itemErrors[i]?.description ? "border-danger focus-visible:ring-danger" : ""
+                                  )}
+                                  disabled={confirmedRows.has(i)}
+                                />
+                              </div>
+                              <div className="ti-items-field" data-label="כמות">
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={Number.isFinite(row.quantity) ? row.quantity : ""}
+                                  onChange={(e) => {
+                                    const value = Number(e.target.value || 0);
+                                    updateItemRow(i, { quantity: value });
+                                    if (itemErrors[i]?.quantity && value > 0) {
+                                      const next = { ...itemErrors };
+                                      if (next[i]) {
+                                        delete next[i].quantity;
+                                        if (Object.keys(next[i]).length === 0) delete next[i];
+                                      }
+                                      setItemErrors(next);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "ti-items-input text-right min-w-0",
+                                    itemErrors[i]?.quantity ? "border-danger focus-visible:ring-danger" : ""
+                                  )}
+                                  inputMode="numeric"
+                                  disabled={confirmedRows.has(i)}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="ti-items-group ti-items-group--qty-price-currency">
+                              <div className="ti-items-currency-amount">
+                                <div className="ti-items-field ti-items-amount min-w-0" data-label="מחיר ליחידה">
+                                  <MoneyInput
+                                    className={cn(
+                                      "w-full min-w-0 text-right",
+                                      itemErrors[i]?.unitPrice ? "border-danger focus-visible:ring-danger" : "",
+                                      confirmedRows.has(i) ? "pointer-events-none" : ""
+                                    )}
+                                    variant="items"
+                                    value={row.unitPrice}
+                                    onChange={(v) => {
+                                      updateItemRow(i, { unitPrice: v });
+                                      if (itemErrors[i]?.unitPrice && v > 0) {
+                                        const next = { ...itemErrors };
+                                        if (next[i]) {
+                                          delete next[i].unitPrice;
+                                          if (Object.keys(next[i]).length === 0) delete next[i];
+                                        }
+                                        setItemErrors(next);
+                                      }
+                                    }}
+                                    currency={currency}
+                                  />
+                                </div>
+                                <div className="ti-items-field ti-items-currency ti-items-hide-label min-w-0" data-label="מטבע">
+                                  <Select
+                                    value={row.currency || currency}
+                                    disabled={currency !== "₪" || confirmedRows.has(i)}
+                                    onValueChange={(v) => updateItemRow(i, { currency: v })}
                                   >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                </>
+                                    <SelectTrigger
+                                      variant="underline"
+                                      className={cn(
+                                        "ti-items-select w-full min-w-0",
+                                        itemErrors[i]?.currency ? "border-danger focus:border-danger" : ""
+                                      )}
+                                      aria-label="מטבע"
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {allowedCurrencies.map((c) => (
+                                        <SelectItem key={c} value={c}>
+                                          {c}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className={cn("ti-items-group ti-items-group--vat-total", vatRate === 0 ? "ti-items-group--vat-hidden" : "")}>
+                              {vatRate > 0 ? (
+                                <div className="ti-items-field" data-label="מע״מ">
+                                  <Select
+                                    value={row.vatMode}
+                                    disabled={confirmedRows.has(i)}
+                                    onValueChange={(v) => updateItemRow(i, { vatMode: v as any })}
+                                  >
+                                    <SelectTrigger
+                                      variant="underline"
+                                      className="ti-items-select w-full min-w-0"
+                                      aria-label="מע״מ"
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="before">לפני</SelectItem>
+                                      <SelectItem value="included">כולל</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               ) : (
-                                <Button type="button" variant="default" onClick={() => confirmItemRow(i)}>
-                                  אישור
-                                </Button>
+                                <div className="ti-items-field ti-items-field-empty ti-items-only-desktop" aria-hidden="true">
+                                  <div className="h-[50px]" />
+                                </div>
                               )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeItemRow(i)}
-                                disabled={items.length === 1}
-                                title={items.length === 1 ? "חייב להיות לפחות פריט אחד" : "מחיקה"}
-                                aria-label="מחיקה"
-                                className="text-danger hover:text-danger hover:bg-danger/10"
+                            </div>
+
+                            <div className="ti-items-group ti-items-group--total-actions">
+                              <div className="ti-items-field ti-items-total-display" data-label="סה״כ">
+                                <div
+                                  className="text-right text-[18px] font-regular whitespace-nowrap"
+                                  ref={(el) => {
+                                    if (i === 0) itemTotalRef.current = el;
+                                  }}
+                                >
+                                  {formatMoney(getLineTotal(row), row.currency || currency)}
+                                </div>
+                              </div>
+
+                              <div
+                                className="ti-items-field ti-items-actions ti-items-hide-label flex items-center justify-end gap-2 ui-items-actions-offset"
+                                data-label="אישור"
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                {confirmedRows.has(i) ? (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() =>
+                                        setConfirmedRows((prev) => {
+                                          const next = new Set(prev);
+                                          next.delete(i);
+                                          return next;
+                                        })
+                                      }
+                                      aria-label="עריכה"
+                                      className="text-fg hover:text-fg bg-transparent hover:bg-transparent"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button type="button" variant="default" onClick={() => confirmItemRow(i)}>
+                                    אישור
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeItemRow(i)}
+                                  disabled={items.length === 1}
+                                  title={items.length === 1 ? "חייב להיות לפחות פריט אחד" : "מחיקה"}
+                                  aria-label="מחיקה"
+                                  className="text-danger hover:text-danger hover:bg-danger/10"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1370,7 +1413,9 @@ export default function InvoiceReceiptFormClient({
                       <div className="text-right pr-[20px] translate-y-[20px]">סכום</div>
                       <div className="text-right pr-[20px] translate-y-[20px]">מטבע</div>
                       <div className="text-right pr-[20px] translate-y-[20px]">פרטים נוספים</div>
-                      <div className="text-right translate-y-[20px] pr-[30px]">פעולות</div>
+                      <div className="text-right pr-[105px] translate-y-[20px] ui-payments-actions-label-offset ml-[55px]">
+                        פעולות
+                      </div>
                     </div>
                   </div>
 
@@ -1584,7 +1629,7 @@ export default function InvoiceReceiptFormClient({
                               <div className="flex gap-3 items-center">
                                 <MoneyInput
                                   className={cn(
-                                    "flex-1 text-right",
+                                    "w-full text-right",
                                     paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
                                     confirmedPayments.has(i) ? "pointer-events-none" : ""
                                   )}
@@ -1611,7 +1656,7 @@ export default function InvoiceReceiptFormClient({
                                 >
                                   <SelectTrigger
                                     variant="underline"
-                                    className="ti-items-select w-[80px] shrink-0"
+                                    className="ti-items-select ti-payments-currency w-[80px] shrink-0"
                                     aria-label="מטבע"
                                   >
                                     <SelectValue />
@@ -1641,7 +1686,7 @@ export default function InvoiceReceiptFormClient({
                             )}
 
                             {/* כפתורים */}
-                            <div className="flex items-center justify-center gap-2 pt-2">
+                            <div className="flex items-center justify-end gap-2 pt-2">
                               {confirmedPayments.has(i) ? (
                                 <Button
                                   type="button"

@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import TemplateSelector from "@/components/dashboard/TemplateSelector";
-import SimpleTemplateSelector from "@/components/dashboard/SimpleTemplateSelector";
 import {
   updateBusinessDetailsAction,
   uploadLogoAction,
@@ -871,9 +869,14 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
           </FormSection>
 
           {/* Template Selection Section - Simple List */}
-          <FormSection title="בחירת תבניות מסמכים" description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים.">
-            <SimpleTemplateSelector />
-          </FormSection>
+          {false && (
+            <FormSection
+              title="בחירת תבניות מסמכים"
+              description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים."
+            >
+              <SimpleTemplateSelector />
+            </FormSection>
+          )}
 
           {/* Action Buttons */}
           <FormActions

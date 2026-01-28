@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
+import JSZip from "jszip";
 
 /**
  * Split date range into monthly segments
@@ -60,6 +61,71 @@ function formatMoney(amount: number): string {
   return `₪ ${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function csvEscape(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const raw = String(value);
+  if (raw.includes('"') || raw.includes(",") || raw.includes("\n") || raw.includes("\r")) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function buildCsv(columns: string[], rows: Array<Record<string, unknown>>): string {
+  const header = columns.join(",");
+  if (rows.length === 0) return `${header}\n`;
+  const lines = rows.map((row) => columns.map((c) => csvEscape(row[c])).join(","));
+  return [header, ...lines].join("\n") + "\n";
+}
+
+const ITEM_DOCUMENT_TYPES = new Set(["tax_invoice", "receipt_invoice", "credit_invoice"]);
+const PAYMENT_DOCUMENT_TYPES = new Set(["receipt", "donation_receipt", "donation_cancel"]);
+
+const INCOMES_COLUMNS = [
+  "document_id",
+  "document_type",
+  "document_number",
+  "document_date",
+  "customer_name",
+  "customer_id",
+  "subtotal_amount",
+  "vat_amount",
+  "total_amount",
+  "currency",
+  "document_status",
+  "original_document_id",
+  "created_at",
+  "closed_at",
+];
+
+const LINE_ITEMS_COLUMNS = [
+  "line_item_id",
+  "document_id",
+  "item_name",
+  "item_sku",
+  "description",
+  "quantity",
+  "unit_price",
+  "line_subtotal",
+  "vat_rate",
+  "vat_amount",
+  "line_total",
+  "income_account",
+];
+
+const PAYMENTS_COLUMNS = [
+  "payment_id",
+  "document_id",
+  "payment_date",
+  "payment_method",
+  "payment_amount",
+  "reference",
+  "bank_name",
+  "branch",
+  "account",
+  "check_number",
+  "notes",
+];
+
 /**
  * Get documents for date range
  */
@@ -75,14 +141,41 @@ async function getDocumentsForRange(
   let query = supabase
     .from('documents')
     .select(`
-      *,
+      id,
+      document_type,
+      document_number,
+      issue_date,
+      created_at,
+      finalized_at,
+      customer_id,
+      customer_name,
+      subtotal,
+      vat_rate,
+      vat_amount,
+      total_amount,
+      currency,
+      document_status,
+      accounting_status,
       customers (
         id,
         name,
         tax_id
       ),
       document_line_items (
-        *
+        id,
+        document_id,
+        line_number,
+        description,
+        quantity,
+        unit_price,
+        line_total,
+        currency,
+        item_date,
+        item_sku,
+        bank_name,
+        branch,
+        account_number,
+        payment_metadata
       )
     `)
     .eq('company_id', companyId)
@@ -197,6 +290,8 @@ export type GenerateIncomeReportResult =
       totalMonths: number;
       companyName: string;
       companyId: string;
+      documentCount?: number;
+      download?: { filename: string; base64: string };
     }
   | {
       ok: false;
@@ -226,6 +321,126 @@ export async function generateIncomeReportAction(params: {
     
     if (!company) {
       return { ok: false as const, error: 'Company not found' };
+    }
+
+    if (params.fileFormat === "csv") {
+      const documents = await getDocumentsForRange(
+        companyId,
+        params.startDate,
+        params.endDate,
+        params.documentTypes,
+        params.customerId
+      );
+
+      const docIds = documents.map((doc: any) => String(doc.id));
+      const originalDocMap = new Map<string, string>();
+      if (docIds.length > 0) {
+        const { data: links } = await supabase
+          .from("document_links")
+          .select("source_document_id, target_document_id")
+          .eq("company_id", companyId)
+          .in("link_type", ["credit", "cancellation"])
+          .in("target_document_id", docIds);
+        for (const link of links || []) {
+          const targetId = String((link as any).target_document_id);
+          const sourceId = String((link as any).source_document_id);
+          if (!originalDocMap.has(targetId)) originalDocMap.set(targetId, sourceId);
+        }
+      }
+
+      const incomesRows = documents.map((doc: any) => {
+        const customerTaxId =
+          String((doc?.customers as any)?.tax_id || "").trim() ||
+          String(doc.customer_id || "").trim() ||
+          "";
+        const customerName = String((doc?.customers as any)?.name || doc.customer_name || "").trim();
+        return {
+          document_id: doc.id,
+          document_type: doc.document_type,
+          document_number: doc.document_number || "",
+          document_date: doc.issue_date || "",
+          customer_name: customerName,
+          customer_id: customerTaxId,
+          subtotal_amount: doc.subtotal ?? "",
+          vat_amount: doc.vat_amount ?? "",
+          total_amount: doc.total_amount ?? "",
+          currency: doc.currency || "",
+          document_status: doc.accounting_status ?? doc.document_status ?? "",
+          original_document_id: originalDocMap.get(String(doc.id)) || "",
+          created_at: doc.created_at || "",
+          closed_at: doc.finalized_at || "",
+        };
+      });
+
+      const lineItemRows: Array<Record<string, unknown>> = [];
+      const paymentRows: Array<Record<string, unknown>> = [];
+      for (const doc of documents) {
+        const docType = doc.document_type;
+        const items = Array.isArray(doc.document_line_items) ? doc.document_line_items : [];
+        if (ITEM_DOCUMENT_TYPES.has(docType)) {
+          for (const item of items) {
+            const metadata = item.payment_metadata || {};
+            lineItemRows.push({
+              line_item_id: item.id || "",
+              document_id: item.document_id || doc.id,
+              item_name: metadata.label || item.description || "",
+              item_sku: metadata.sku || item.item_sku || "",
+              description: metadata.details || item.description || "",
+              quantity: item.quantity ?? "",
+              unit_price: item.unit_price ?? "",
+              line_subtotal: item.line_total ?? "",
+              vat_rate: doc.vat_rate ?? "",
+              vat_amount: "",
+              line_total: item.line_total ?? "",
+              income_account: metadata.incomeAccount || metadata.income_account || "",
+            });
+          }
+        }
+        if (PAYMENT_DOCUMENT_TYPES.has(docType)) {
+          for (const item of items) {
+            const metadata = item.payment_metadata || {};
+            paymentRows.push({
+              payment_id: item.id || "",
+              document_id: item.document_id || doc.id,
+              payment_date: item.item_date || doc.issue_date || "",
+              payment_method: item.description || metadata.label || "",
+              payment_amount: item.line_total ?? item.unit_price ?? "",
+              reference:
+                metadata.reference ||
+                metadata.reference_number ||
+                metadata.transactionReference ||
+                metadata.checkNumber ||
+                "",
+              bank_name: item.bank_name || metadata.bankName || "",
+              branch: item.branch || metadata.bankBranch || metadata.branch || "",
+              account: item.account_number || metadata.bankAccount || metadata.accountNumber || "",
+              check_number: metadata.checkNumber || "",
+              notes: metadata.description || metadata.notes || "",
+            });
+          }
+        }
+      }
+
+      const incomesCsv = buildCsv(INCOMES_COLUMNS, incomesRows);
+      const lineItemsCsv = buildCsv(LINE_ITEMS_COLUMNS, lineItemRows);
+      const paymentsCsv = buildCsv(PAYMENTS_COLUMNS, paymentRows);
+
+      const zip = new JSZip();
+      zip.file("incomes.csv", incomesCsv);
+      zip.file("line-items.csv", lineItemsCsv);
+      zip.file("payments.csv", paymentsCsv);
+      const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+      const zipFilename = `Income.${company.registration_number || companyId}.${formatDateFilename(params.startDate)}-${formatDateFilename(params.endDate)}.zip`;
+
+      return {
+        ok: true as const,
+        reports: [],
+        totalMonths: 1,
+        companyName: company.company_name,
+        companyId: company.registration_number || companyId,
+        documentCount: documents.length,
+        download: { filename: zipFilename, base64: zipBuffer.toString("base64") },
+      };
     }
     
     // Split date range into monthly segments

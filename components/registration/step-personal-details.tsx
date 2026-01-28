@@ -116,14 +116,14 @@ export function StepPersonalDetails({
   }
 
   return (
-    <Card className="p-8">
+    <Card className="auth-card p-8">
       <CardContent className="p-0">
-        <div className="mb-8">
-          <h2 className="text-right mb-2">פרטים אישיים</h2>
-          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>נתחיל עם הפרטים שלך</p>
+        <div className="auth-header mb-8">
+          <h2 className="auth-title text-right mb-2">פרטים אישיים</h2>
+          <p className="auth-subtitle text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>נתחיל עם הפרטים שלך</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="auth-form space-y-6" noValidate>
         {/* Form-level error announcement region */}
         {error && (
           <div 
@@ -137,28 +137,32 @@ export function StepPersonalDetails({
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <FloatingInput
-            label="שם פרטי"
-            id="firstName"
-            required
-            value={data.firstName}
-            onChange={(e) => updateData({ firstName: e.target.value })}
-            error={errors.firstName}
-            containerClassName="w-full min-w-0"
-          />
+          <div className="auth-field">
+            <FloatingInput
+              label="שם פרטי"
+              id="firstName"
+              required
+              value={data.firstName}
+              onChange={(e) => updateData({ firstName: e.target.value })}
+              error={errors.firstName}
+              containerClassName="w-full min-w-0"
+            />
+          </div>
 
-          <FloatingInput
-            label="שם משפחה"
-            id="lastName"
-            required
-            value={data.lastName}
-            onChange={(e) => updateData({ lastName: e.target.value })}
-            error={errors.lastName}
-            containerClassName="w-full min-w-0"
-          />
+          <div className="auth-field">
+            <FloatingInput
+              label="שם משפחה"
+              id="lastName"
+              required
+              value={data.lastName}
+              onChange={(e) => updateData({ lastName: e.target.value })}
+              error={errors.lastName}
+              containerClassName="w-full min-w-0"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="auth-field space-y-2">
           <FloatingInput
             label="כתובת אימייל"
             id="email"
@@ -173,7 +177,7 @@ export function StepPersonalDetails({
               }
             }}
             dir="ltr"
-            className="text-left"
+            className="auth-input text-left"
             helperText="נשתמש בכתובת זו להתחברות למערכת"
             error={errors.email}
             containerClassName="w-full min-w-0"
@@ -182,7 +186,7 @@ export function StepPersonalDetails({
             <div className="mt-2">
               <Link 
                 href="/login" 
-                className="inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
+                className="auth-secondary-link inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
                 style={{ color: 'var(--link)' }}
               >
                 ← חזרה להתחברות
@@ -191,7 +195,7 @@ export function StepPersonalDetails({
           )}
         </div>
 
-        <div className="space-y-2">
+        <div className="auth-field space-y-2">
           <FloatingInput
             label="טלפון נייד"
             id="phone"
@@ -200,14 +204,14 @@ export function StepPersonalDetails({
             value={data.phone}
             onChange={(e) => updateData({ phone: e.target.value })}
             dir="ltr"
-            className="text-left"
+            className="auth-input text-left"
             helperText="פורמט: 050-1234567"
             error={errors.phone}
             containerClassName="w-full min-w-0"
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="auth-field space-y-2">
           <div className="relative">
             <FloatingInput
               label="סיסמה"
@@ -217,7 +221,7 @@ export function StepPersonalDetails({
               value={data.password}
               onChange={(e) => updateData({ password: e.target.value })}
               dir="ltr"
-              className="text-left pr-12"
+              className="auth-input text-left pr-12"
               helperText="מינימום 8 תווים"
               error={errors.password}
               containerClassName="w-full min-w-0"
@@ -308,7 +312,7 @@ export function StepPersonalDetails({
         <Button 
           type="submit" 
           variant="primary"
-          className="w-full"
+          className="auth-primary-button w-full"
           disabled={
             isCheckingEmail || 
             (legalTermsRequired && !data.acceptedLegalTerms) ||

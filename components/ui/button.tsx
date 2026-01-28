@@ -92,6 +92,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={buttonVariants({ variant, size, className })}
         style={baseStyle}
         onMouseEnter={(e) => {
+          if (isUnderlineTrigger) return;
           if (isPrimary && !disabled && !loading) {
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#19183B";
             (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
@@ -104,6 +105,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           }
         }}
         onMouseLeave={(e) => {
+          if (isUnderlineTrigger) return;
           if (isPrimary && !disabled && !loading) {
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D868F";
             (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";

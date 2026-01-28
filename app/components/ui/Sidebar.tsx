@@ -11,7 +11,7 @@ function NavLink({ label, href }: NavItem) {
   return (
     <Link
       href={href}
-      className="block rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover transition"
+      className="block rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg transition"
     >
       {label}
     </Link>
@@ -34,7 +34,7 @@ export function Sidebar() {
 
       <div className="mt-3">
         <details className="group">
-          <summary className="list-none cursor-pointer rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover transition flex items-center justify-between">
+          <summary className="list-none cursor-pointer rounded-xl px-3 py-2 text-sm text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg transition flex items-center justify-between">
             <span>מסמכי Income</span>
             <span className="text-sidebar-fg group-open:rotate-180 transition">⌄</span>
           </summary>

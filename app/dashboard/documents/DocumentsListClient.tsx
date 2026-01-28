@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
-import { Eye, Download, Link2, GitBranchPlus, XCircle, X } from "lucide-react";
+import { Eye, Download, GitBranchPlus, XCircle, X } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
   DropdownMenu,
@@ -31,8 +31,6 @@ import { selectUnderline } from "@/components/ui/field-styles";
 import { cn } from "@/lib/utils";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import { getDocumentPreviewUrlAction, closeDocumentAction } from "@/lib/documents/actions";
-import { createDocumentLinkAction } from "@/lib/documents/actions";
-import LinkDocumentsDialog, { type LinkDocumentsDialogLinkType } from "@/components/documents/LinkDocumentsDialog";
 import ChainNewDocumentDialog, { type ChainNewDocumentKind } from "@/components/documents/ChainNewDocumentDialog";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
@@ -128,10 +126,21 @@ function truncateDescription(description: string | null): string {
     return "—";
   }
   const trimmed = description.trim();
-  if (trimmed.length <= 12) {
+  if (trimmed.length <= 30) {
     return trimmed;
   }
-  return trimmed.substring(0, 12) + " ...";
+  return trimmed.substring(0, 30) + " ...";
+}
+
+function truncateCustomerName(customerName: string | null): string {
+  if (!customerName || customerName.trim() === "") {
+    return "—";
+  }
+  const trimmed = customerName.trim();
+  if (trimmed.length <= 22) {
+    return trimmed;
+  }
+  return trimmed.substring(0, 22) + " ...";
 }
 
 export default function DocumentsListClient({ initialData, initialFilters }: Props) {
@@ -142,12 +151,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
+  const HIDDEN_DOC_TYPES = new Set(["invoiceReceipt", "invoice"]);
   const ALL_DOC_TYPES_FOR_TEST = [
     "receipt",
     "tax_invoice",
-    "invoiceReceipt",
     "credit_note",
-    "invoice",
     "quote",
     "proforma",
     "work_order",
@@ -179,16 +187,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   const [cancelConfirmSource, setCancelConfirmSource] = useState<any | null>(null);
   const lastClosedDocumentIdRef = useRef<string | null>(null);
   const statusLogOnceRef = useRef<Set<string>>(new Set());
-
-  type LinkSourceDoc = Pick<
-    DocumentsQuickViewDocumentSnapshot,
-    "id" | "customer_id" | "document_type" | "document_number" | "total_amount" | "currency"
-  >;
-  const [linkDialogState, setLinkDialogState] = useState<{
-    open: boolean;
-    source: LinkSourceDoc | null;
-    linkType: LinkDocumentsDialogLinkType;
-  }>({ open: false, source: null, linkType: "payment" });
 
   const [isMobile, setIsMobile] = useState(false);
   const [dateSheetOpen, setDateSheetOpen] = useState(false);
@@ -264,84 +262,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     return computeUiStatus(doc);
   }
 
-  function inferLinkTypeForSourceDocument(documentType: string): LinkDocumentsDialogLinkType {
-    const t = String(documentType || "").toLowerCase();
-    if (t === "receipt") return "payment";
-    if (t === "credit_note") return "credit";
-    if (t === "tax_invoice" || t === "invoice_receipt") return "conversion";
-    return "related";
-  }
-
-  function openLinkDocumentsDialog(source: any) {
-    const customerId = source?.customer_id ?? null;
-    const total = typeof source?.total_amount === "number" ? source.total_amount : Number(source?.total_amount || 0);
-    const linkType = inferLinkTypeForSourceDocument(source.document_type);
-    if (!companyId) {
-      alert("לא ניתן לחבר מסמכים: חסר מזהה חברה");
-      return;
-    }
-    if (!customerId) {
-      alert("לא ניתן לחבר מסמכים: אין לקוח משוייך למסמך");
-      return;
-    }
-    if ((linkType === "payment" || linkType === "credit") && (!Number.isFinite(total) || total <= 0)) {
-      alert("לא ניתן לחבר מסמכים: סכום מסמך מקור לא תקין");
-      return;
-    }
-
-    setLinkDialogState({
-      open: true,
-      source: {
-        id: source.id,
-        customer_id: customerId,
-        document_type: source.document_type,
-        document_number: source.document_number ?? null,
-        total_amount: total,
-        currency: source.currency ?? null,
-      },
-      linkType,
-    });
-  }
-
-  async function handleCreateLinksFromDialog(selections: { documentId: string; amount: number }[]) {
-    const source = linkDialogState.source;
-    if (!source) return;
-    if (!companyId) return;
-
-    const linkType = linkDialogState.linkType;
-
-    // Guard: conversion direction MUST be source=transaction_invoice -> target=tax_invoice/invoice_receipt
-    const targetIsConversionAllowed =
-      source.document_type === "tax_invoice" || source.document_type === "invoice_receipt";
-
-    for (const sel of selections) {
-      if (linkType === "conversion") {
-        if (!targetIsConversionAllowed) {
-          throw new Error("המרה מותרת רק לחשבונית מס / חשבונית מס-קבלה");
-        }
-        const res = await createDocumentLinkAction({
-          sourceDocumentId: sel.documentId, // transaction_invoice
-          targetDocumentId: source.id, // current invoice (tax_invoice / invoice_receipt)
-          linkType: "conversion",
-          amount: 0,
-        });
-        if (!res.ok) throw new Error(res.message);
-        continue;
-      }
-
-      const amount = linkType === "payment" || linkType === "credit" ? sel.amount : 0;
-      const res = await createDocumentLinkAction({
-        sourceDocumentId: source.id,
-        targetDocumentId: sel.documentId,
-        linkType,
-        amount,
-      });
-      if (!res.ok) throw new Error(res.message);
-    }
-
-    router.refresh();
-  }
-
   function goToCreditNoteForDocument(source: any) {
     if (!source?.customer_id) {
       alert("לא ניתן ליצור זיכוי: אין לקוח משוייך למסמך");
@@ -363,6 +283,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   function startCancellationFlow(source: any) {
     if (!source?.id) {
       alert("לא ניתן לבצע ביטול: חסר מזהה מסמך");
+      return;
+    }
+    const status = computeUiStatus(source);
+    if (status === "canceled" || status === "canceling") {
+      alert("לא ניתן לבצע ביטול למסמך מבוטל או מבטל.");
       return;
     }
     const docType = String(source.document_type || "").toLowerCase();
@@ -499,9 +424,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     router.push(`/business/documents/new/deliveryNote?${params.toString()}`);
   }
 
-  function shouldShowCancelFlowButton(documentType: string): boolean {
-    const t = String(documentType || "").toLowerCase();
-    return t === "tax_invoice" || t === "invoice_receipt" || t === "receipt";
+  function shouldShowCancelFlowButton(doc: any): boolean {
+    const t = String(doc?.document_type || "").toLowerCase();
+    if (!(t === "tax_invoice" || t === "invoice_receipt" || t === "receipt")) return false;
+    const status = computeUiStatus(doc);
+    return status !== "canceled" && status !== "canceling";
   }
 
   function shouldShowCloseButton(documentType: string): boolean {
@@ -529,7 +456,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     setCloseConfirmLoading(false);
 
     if (result.ok) {
-      alert("המסמך נסגר בהצלחה");
       lastClosedDocumentIdRef.current = closeConfirmDocumentId;
       setCloseConfirmDocumentId(null);
       const df = "dateFrom" in dateFilter ? (dateFilter as any).dateFrom : null;
@@ -557,7 +483,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     router.push("/business/documents/new/deliveryNote");
   }
   const totalPages = Math.ceil(totalCount / pageSize);
-  const tableFontSize = "clamp(14px, 1.1vw, 18px)";
+  const tableFontSize = "clamp(12px,1.2vw, 16px)";
   const tableHeaderColor = "#1D868F";
   const tableHeaderBorder = "1px solid #EDF1F5";
 
@@ -566,13 +492,19 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     // but always include receipts so the option remains available even when list is empty.
     const set = new Set<string>(["receipt"]);
     for (const d of documents) {
-      if (d?.document_type) set.add(d.document_type);
+      if (d?.document_type && !HIDDEN_DOC_TYPES.has(d.document_type)) {
+        set.add(d.document_type);
+      }
     }
     if (SHOW_ALL_DOC_TYPES_FOR_TEST) {
-      for (const t of ALL_DOC_TYPES_FOR_TEST) set.add(t);
+      for (const t of ALL_DOC_TYPES_FOR_TEST) {
+        if (!HIDDEN_DOC_TYPES.has(t)) set.add(t);
+      }
     }
     // Keep selected options visible even if current list is filtered and doesn't include them.
-    for (const t of selectedDocTypes) set.add(t);
+    for (const t of selectedDocTypes) {
+      if (!HIDDEN_DOC_TYPES.has(t)) set.add(t);
+    }
     return Array.from(set);
   }, [documents, selectedDocTypes, SHOW_ALL_DOC_TYPES_FOR_TEST]);
 
@@ -818,11 +750,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
   return (
     <div
-      className="ui-container pt-6 sm:pt-10 max-w-full sm:max-w-[1200px] px-0 sm:px-[2px]"
+      className="ui-container pt-6 sm:pt-10 max-w-full sm:max-w-[1200px] px-0 sm:px-[2px] overflow-x-hidden"
       style={{ minHeight: "100vh" }}
     >
       {/* Page Header */}
-      <div className="mb-8 sm:mb-[20px]">
+      <div className="ui-page-header-sticky mb-8 sm:mb-[20px]">
         <h1 className="text-right mb-2 sm:mb-4">מסמכים</h1>
         <p className="text-right">{totalCount} מסמכים סה״כ</p>
       </div>
@@ -831,7 +763,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
       <FormSection title="חיפוש וסינון">
         <div
           ref={searchFiltersCardRef}
-          className="relative w-full max-w-full px-0 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
+          className="ui-docs-filters relative w-full max-w-full px-4 sm:px-6 lg:px-8 py-6 [&_input#search:focus]:bg-[var(--input)]"
           style={{
             backgroundColor: "white",
             borderRadius: "20px",
@@ -847,6 +779,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               <FloatingInput
                 label="חיפוש לפי מספר מסמך או שם לקוח"
                 id="search"
+                className="pt-0 pb-0 leading-[var(--field-line-height)]"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -862,7 +795,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               <FieldWrapper
                 label="סוג מסמך"
                 id="documentType"
-                className="w-full min-w-0"
+                className="ui-field-block w-full min-w-0 -translate-y-[4px]"
                 labelClassName="ui-select-label"
               >
                 <DropdownMenu>
@@ -928,7 +861,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
               <FieldWrapper
                 label="טווח תאריכים"
                 id="dateRange"
-                className="w-full min-w-0"
+                className="ui-field-block w-full min-w-0 -translate-y-[4px]"
                 labelClassName="ui-select-label"
               >
                 {isMobile ? (
@@ -1321,7 +1254,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
             </div>
           ) : null}
           {/* Bulk Actions Bar */}
-          <div style={{ overflowX: "auto" }}>
+          <div className="docs-table-scroll">
             {/* Column headers (single header row for the whole list) */}
             <table
               style={{
@@ -1336,17 +1269,17 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                 {/* checkbox */}
                 <col style={{ width: "36px" }} />
                 {/* status */}
-                <col style={{ width: "clamp(50px, 8vw, 44px)" }} />
+                <col style={{ width: "clamp(60px, 8vw, 44px)" }} />
                 {/* number */}
-                <col style={{ width: "clamp(45px, 7vw, 45px)" }} />
+                <col style={{ width: "clamp(55px, 7vw, 45px)" }} />
                 {/* date */}
-                <col style={{ width: "clamp(70px, 10vw, 80px)" }} />
+                <col style={{ width: "clamp(90px, 10vw, 80px)" }} />
                 {/* doc type (narrower) */}
-                <col style={{ width: "clamp(130px, 9vw, 120px)" }} />
+                <col style={{ width: "clamp(150px, 9vw, 120px)" }} />
                 {/* customer (narrower) */}
-                <col style={{ width: "clamp(170px, 16vw, 60px)" }} />
+                <col style={{ width: "clamp(190px, 16vw, 60px)" }} />
                 {/* description (wider) */}
-                <col style={{ width: "clamp(200px, 30vw, 190px)" }} />
+                <col style={{ width: "clamp(211px, 30vw, 210px)" }} />
                 {/* amount */}
                 <col style={{ width: "clamp(50px, 10vw, 140px)" }} />
                 {/* actions */}
@@ -1487,41 +1420,42 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       </h4>
                     </div>
 
-                    <table style={{ width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: tableFontSize, tableLayout: "fixed" }}>
-                      <colgroup>
-                        {/* checkbox */}
-                        <col style={{ width: "36px" }} />
-                        {/* status */}
-                        <col style={{ width: "clamp(50px, 8vw, 44px)" }} />
-                        {/* number */}
-                        <col style={{ width: "clamp(45px, 7vw, 45px)" }} />
-                        {/* date */}
-                        <col style={{ width: "clamp(70px, 10vw, 80px)" }} />
-                        {/* doc type (narrower) */}
-                        <col style={{ width: "clamp(130px, 9vw, 120px)" }} />
-                        {/* customer (narrower) */}
-                        <col style={{ width: "clamp(170px, 16vw, 60px)" }} />
-                        {/* description (wider) */}
-                        <col style={{ width: "clamp(200px, 30vw, 190px)" }} />
-                        {/* amount */}
-                        <col style={{ width: "clamp(50px, 10vw, 140px)" }} />
-                        {/* actions */}
-                        <col style={{ width: "260px" }} />
-                      </colgroup>
+                    <div className="docs-table-scroll">
+                      <table style={{ width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: tableFontSize, tableLayout: "fixed" }}>
+                        <colgroup>
+                          {/* checkbox */}
+                          <col style={{ width: "36px" }} />
+                          {/* status */}
+                          <col style={{ width: "clamp(60px, 8vw, 44px)" }} />
+                          {/* number */}
+                          <col style={{ width: "clamp(55px, 7vw, 55px)" }} />
+                          {/* date */}
+                          <col style={{ width: "clamp(90px, 10vw, 80px)" }} />
+                          {/* doc type (narrower) */}
+                          <col style={{ width: "clamp(150px, 9vw, 120px)" }} />
+                          {/* customer (narrower) */}
+                          <col style={{ width: "clamp(190px, 40vw, 60px)" }} />
+                          {/* description (wider) */}
+                          <col style={{ width: "clamp(211px, 50vw, 210px)" }} />
+                          {/* amount */}
+                          <col style={{ width: "clamp(50px, 10vw, 140px)" }} />
+                          {/* actions */}
+                          <col style={{ width: "260px" }} />
+                        </colgroup>
 
-                      <tbody>
-                        {group.docs.map((doc, index) => (
-                          <tr
-                            className="docs-row-fixed"
-                            key={doc.id}
-                            style={{
-                              backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#EDF1F5',
-                              borderBottom: '1px solid #EDF1F5',
-                              position: 'relative',
-                            }}
-                            onMouseEnter={() => setHoveredRowId(doc.id)}
-                            onMouseLeave={() => setHoveredRowId(null)}
-                          >
+                        <tbody>
+                          {group.docs.map((doc, index) => (
+                            <tr
+                              className="docs-row-fixed"
+                              key={doc.id}
+                              style={{
+                                backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#EDF1F5',
+                                borderBottom: '1px solid #EDF1F5',
+                                position: 'relative',
+                              }}
+                              onMouseEnter={() => setHoveredRowId(doc.id)}
+                              onMouseLeave={() => setHoveredRowId(null)}
+                            >
                       {/* Checkbox */}
                       <td style={{ padding: '5px 3px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                         <input
@@ -1560,7 +1494,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 display: "inline-block",
                                 padding: "2px 6px",
                                 borderRadius: "999px",
-                                fontSize: "14px",
+                                fontSize: "13px",
                                 fontWeight: 400,
                                 ...badge.style,
                               }}
@@ -1639,10 +1573,10 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                             }}
                             title="לעמוד הלקוח"
                           >
-                            {doc.customer_name || "—"}
+                            <span title={doc.customer_name || ""}>{truncateCustomerName(doc.customer_name)}</span>
                           </button>
                         ) : (
-                          doc.customer_name || "—"
+                          <span title={doc.customer_name || ""}>{truncateCustomerName(doc.customer_name)}</span>
                         )}
                       </td>
                       
@@ -1694,16 +1628,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                             >
                               <Download className="h-5 w-5" />
                             </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label="חיבור מסמכים"
-                              onClick={() => openLinkDocumentsDialog(doc)}
-                              disabled={!doc.customer_id || !companyId}
-                            >
-                              <Link2 className="h-5 w-5" />
-                            </Button>
                             <ChainNewDocumentDialog
                               onSelect={(kind) => chainToNewDocument(kind, doc)}
                               sourceDocumentType={doc.document_type}
@@ -1717,7 +1641,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                                 <GitBranchPlus className="h-5 w-5" />
                               </Button>
                             </ChainNewDocumentDialog>
-                            {shouldShowCancelFlowButton(doc.document_type) && (
+                            {shouldShowCancelFlowButton(doc) && (
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -1745,8 +1669,9 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                       </td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1942,25 +1867,6 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
           </div>
         </div>
       )}
-
-      <LinkDocumentsDialog
-        open={linkDialogState.open}
-        onOpenChange={(open) => setLinkDialogState((prev) => ({ ...prev, open }))}
-        customerId={linkDialogState.source?.customer_id || ""}
-        companyId={companyId}
-        sourceDocumentId={linkDialogState.source?.id || ""}
-        sourceTotal={linkDialogState.source?.total_amount || 0}
-        sourceCurrency={linkDialogState.source?.currency || null}
-        linkType={linkDialogState.linkType}
-        onConfirm={async (selections) => {
-          try {
-            await handleCreateLinksFromDialog(selections);
-          } catch (e: any) {
-            alert(e?.message || "שגיאה ביצירת שיוך");
-            throw e;
-          }
-        }}
-      />
     </div>
   );
 }

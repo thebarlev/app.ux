@@ -50,7 +50,14 @@ export function MoneyInput({
         : fieldStateBorders.default;
 
   return (
-    <div className="relative" style={{ width: style?.width || '100%' }}>
+    <div
+      className={cn(
+        "relative",
+        variant === "items" ? "w-full min-w-0" : "",
+        className?.includes("w-full") ? "w-full" : ""
+      )}
+      style={{ width: style?.width }}
+    >
       <input
         id={id}
         type={displayValue ? "text" : "number"}

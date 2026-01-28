@@ -205,14 +205,14 @@ export function StepBusinessProfile() {
   }
 
   return (
-    <Card className="p-8">
+    <Card className="auth-card p-8">
       <CardContent className="p-0">
-        <div className="mb-8">
-          <h2 className="text-right mb-2">פרופיל עסקי</h2>
-          <p className="text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>ספר לנו על העסק שלך</p>
+        <div className="auth-header mb-8">
+          <h2 className="auth-title text-right mb-2">פרופיל עסקי</h2>
+          <p className="auth-subtitle text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>ספר לנו על העסק שלך</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="auth-form space-y-6">
           {error && (
             <div
               className="p-4 rounded-[5px]"
@@ -223,17 +223,19 @@ export function StepBusinessProfile() {
               {error}
             </div>
           )}
-          <FloatingInput
-            label="שם העסק"
-            id="businessName"
-            required
-            value={data.businessName}
-            onChange={(e) => updateData({ businessName: e.target.value })}
-            error={errors.businessName}
-            containerClassName="w-full min-w-0"
-          />
+          <div className="auth-field">
+            <FloatingInput
+              label="שם העסק"
+              id="businessName"
+              required
+              value={data.businessName}
+              onChange={(e) => updateData({ businessName: e.target.value })}
+              error={errors.businessName}
+              containerClassName="w-full min-w-0"
+            />
+          </div>
 
-          <div className="space-y-2">
+          <div className="auth-field space-y-2">
             <Label htmlFor="businessType" className="text-right">
               סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
@@ -263,19 +265,21 @@ export function StepBusinessProfile() {
             )}
           </div>
 
-          <FloatingInput
-            label="מספר חברה / תעודת זהות"
-            id="companyNumber"
-            required
-            value={data.companyNumber}
-            onChange={(e) => updateData({ companyNumber: e.target.value })}
-            dir="ltr"
-            className="text-left"
-            error={errors.companyNumber}
-            containerClassName="w-full min-w-0"
-          />
+          <div className="auth-field">
+            <FloatingInput
+              label="מספר חברה / תעודת זהות"
+              id="companyNumber"
+              required
+              value={data.companyNumber}
+              onChange={(e) => updateData({ companyNumber: e.target.value })}
+              dir="ltr"
+              className="auth-input text-left"
+              error={errors.companyNumber}
+              containerClassName="w-full min-w-0"
+            />
+          </div>
 
-          <div className="space-y-2">
+          <div className="auth-field space-y-2">
             <Label htmlFor="industry" className="text-right">
               תחום פעילות
             </Label>
@@ -304,7 +308,7 @@ export function StepBusinessProfile() {
               type="button" 
               onClick={prevStep} 
               variant="secondary"
-              className="flex-1"
+              className="auth-secondary-link flex-1"
               disabled={isLoading}
             >
               חזור
@@ -312,7 +316,7 @@ export function StepBusinessProfile() {
             <Button 
               type="submit" 
               variant="primary"
-              className="flex-1"
+              className="auth-primary-button flex-1"
               disabled={isLoading}
               loading={isLoading}
             >

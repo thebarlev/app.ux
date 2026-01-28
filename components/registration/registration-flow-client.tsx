@@ -59,8 +59,8 @@ export function RegistrationFlowClient({
   }, [currentStep, legalTermsText, marketingText, requireLegalTermsRequired, requireMarketingRequired])
 
   return (
-    <div className="min-h-svh w-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }} dir="rtl">
-      <div className="w-full max-w-[600px] px-4">
+    <div className="auth-shell min-h-svh w-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }}>
+      <div className="auth-container w-full max-w-[600px] px-4">
         {/* Logo */}
         <div className="mb-10 flex justify-center">
           <RegistrationLogo />
@@ -90,16 +90,18 @@ export function RegistrationFlowClient({
         </AnimatePresence>
 
         {/* Sign In Link */}
-        <p className="mt-8 text-center" style={{ color: 'var(--muted-fg)', fontSize: '14px' }}>
-          כבר יש לך חשבון?{" "}
-          <Link 
-            href="/login" 
-            className="font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-[5px]"
-            style={{ color: 'var(--link)' }}
-          >
-            התחברות לחשבון
-          </Link>
-        </p>
+        <div className="auth-footer mt-8">
+          <p className="auth-footnote text-center" style={{ color: 'var(--muted-fg)', fontSize: '14px' }}>
+            כבר יש לך חשבון?{" "}
+            <Link 
+              href="/login" 
+              className="auth-secondary-link font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-[5px]"
+              style={{ color: 'var(--link)' }}
+            >
+              התחברות לחשבון
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   )
