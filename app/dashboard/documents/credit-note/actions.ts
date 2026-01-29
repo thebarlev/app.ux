@@ -112,6 +112,7 @@ export async function issueNegativeReceiptForInvoiceReceiptAction(args: {
     const customerName = (args.customerName ?? source.customer_name ?? "").toString();
     const description = noteText;
 
+    const round2 = (n: number) => Number(n.toFixed(2));
 
     let payments: ReceiptDraftPayload["payments"] = [
       {
@@ -129,13 +130,37 @@ export async function issueNegativeReceiptForInvoiceReceiptAction(args: {
       .order("line_number");
 
     if (lineItems && lineItems.length > 0) {
-      payments = lineItems.map((item: any) => {
-        const metadata = item.payment_metadata || {};
+      // NOTE:
+      // For invoice_receipt documents, document_line_items are *items* (net/subtotal before VAT),
+      // not payment rows. We still reuse them to preserve the current receipt "rows" shape,
+      // but we scale amounts so the negative receipt total matches the source TOTAL כולל מע״מ.
+      const absLineTotals = lineItems.map((item: any) => {
         const amt = typeof item.line_total === "number" ? item.line_total : Number(item.line_total || 0);
+        return Math.abs(Number.isFinite(amt) ? amt : 0);
+      });
+      const sumAbs = absLineTotals.reduce((acc: number, n: number) => acc + n, 0);
+      const ratio = sumAbs > 0 ? amountAbs / sumAbs : 0;
+
+      let allocatedAbs = 0;
+      payments = lineItems.map((item: any, idx: number) => {
+        const metadata = item.payment_metadata || {};
+        const amtRaw = typeof item.line_total === "number" ? item.line_total : Number(item.line_total || 0);
+        const baseAbs = Math.abs(Number.isFinite(amtRaw) ? amtRaw : 0);
+
+        let scaledAbs = 0;
+        if (sumAbs > 0) {
+          const isLast = idx === lineItems.length - 1;
+          if (isLast) {
+            scaledAbs = round2(Math.max(0, amountAbs - allocatedAbs));
+          } else {
+            scaledAbs = round2(baseAbs * ratio);
+            allocatedAbs += scaledAbs;
+          }
+        }
         return {
           method: item.description || "מזומן",
           date: item.item_date || documentDate,
-          amount: -Math.abs(amt),
+          amount: -Math.abs(scaledAbs),
           currency: item.currency || currency,
           bankName: item.bank_name || metadata.bankName || undefined,
           branch: item.branch || metadata.bankBranch || metadata.branch || undefined,
@@ -168,9 +193,8 @@ export async function issueNegativeReceiptForInvoiceReceiptAction(args: {
       payments,
       notes: noteText,
       currency,
-      total: -Math.abs(
-        payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0)
-      ),
+      // Must match TOTAL כולל מע״מ for invoiceReceipt cancellations
+      total: negativeAmount,
       roundTotals: args.roundTotals,
       language: args.language,
       allowNegativePayments: true,

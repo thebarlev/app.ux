@@ -6,7 +6,7 @@ import { useRegistration } from "@/components/registration/registration-context"
 import { StepProgress } from "@/components/registration/step-progress"
 import { StepPersonalDetails } from "@/components/registration/step-personal-details"
 import { StepBusinessProfile } from "@/components/registration/step-business-profile"
-import { RegistrationLogo } from "@/components/registration/registration-logo"
+import Image from "next/image"
 import Link from "next/link"
 
 const STEPS = [
@@ -59,24 +59,21 @@ export function RegistrationFlowClient({
   }, [currentStep, legalTermsText, marketingText, requireLegalTermsRequired, requireMarketingRequired])
 
   return (
-    <div className="auth-shell min-h-svh w-full flex items-center justify-center" style={{ backgroundColor: 'var(--bg)' }}>
-      <div className="auth-container w-full max-w-[600px] px-4">
-        {/* Logo */}
-        <div className="mb-10 flex justify-center">
-          <RegistrationLogo />
+    <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
+      <div className="w-full max-w-[420px]">
+        <div className="mb-[70px] -mt-[-30px] flex justify-center">
+          <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
         </div>
 
-        {/* Step Indicator */}
         <div className="mb-8">
-          <StepProgress 
-            steps={STEPS} 
+          <StepProgress
+            steps={STEPS}
             currentStep={currentStep}
             onStepClick={handleStepChange}
             allowBackNavigation={true}
           />
         </div>
 
-        {/* Step Content */}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
@@ -89,20 +86,15 @@ export function RegistrationFlowClient({
           </motion.div>
         </AnimatePresence>
 
-        {/* Sign In Link */}
-        <div className="auth-footer mt-8">
-          <p className="auth-footnote text-center" style={{ color: 'var(--muted-fg)', fontSize: '14px' }}>
+        <div className="mt-6 pt-5">
+          <p className="text-center">
             כבר יש לך חשבון?{" "}
-            <Link 
-              href="/login" 
-              className="auth-secondary-link font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-[5px]"
-              style={{ color: 'var(--link)' }}
-            >
+            <Link href="/login" className="auth-link">
               התחברות לחשבון
             </Link>
           </p>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

@@ -1,0 +1,123 @@
+.auth-scope {
+  /* Auth-only field tokens (labels above inputs) */
+  --auth-input-padding-x: 0px;
+  --field-bg: #ffffff;
+  --field-border: rgba(24, 24, 27, 0.12);
+  --field-border-hover: rgba(24, 24, 27, 0.18);
+  --field-border-focus: rgba(99, 102, 241, 0.4);
+
+  /* Typography – auth titles (size/weight only) */
+  --auth-title-size: 42px;
+  --auth-title-weight: 600;
+  --auth-title-tracking: 0.002em;
+
+  /* Auth-only link tokens */
+  --auth-link-font-size: 18px;
+  --auth-link-font-weight: 400;
+  --auth-link-color: var(--fg); /* keep global FG */
+  --auth-link-underline-offset: 3px;
+}
+
+.auth-scope .auth-label {
+  display: block;
+  margin: 0;
+
+  font-size: 18px !important;
+  font-weight: 500 !important;
+  margin-inline: 0 !important;
+  margin-left: 0 !important;
+}
+
+.auth-scope .auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding-inline: var(--auth-input-padding-x);
+}
+
+.auth-scope .auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+.auth-scope .auth-field .auth-input {
+  margin-inline: calc(-1 * var(--auth-input-padding-x));
+  width: calc(100% + (2 * var(--auth-input-padding-x)));
+}
+
+.auth-scope .auth-card {
+  border-radius: 10px;
+}
+
+.auth-scope .auth-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 16px;
+
+  background-color: var(--field-bg) !important;
+
+  border: 1px solid var(--field-border) !important;
+  border-radius: 12px !important;
+
+  font-size: 14px;
+  font-weight: 500;
+
+  outline: none;
+  box-shadow: none;
+
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.auth-scope .auth-input:hover {
+  border-color: var(--field-border-hover) !important;
+}
+
+.auth-scope .auth-input:focus,
+.auth-scope .auth-input:focus-visible {
+  border-color: var(--field-border-focus) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.auth-scope .auth-link,
+.auth-scope a {
+  font-size: var(--auth-link-font-size) !important;
+  font-weight: var(--auth-link-font-weight) !important;
+  color: var(--auth-link-color) !important;
+  text-decoration: none !important;
+  text-underline-offset: var(--auth-link-underline-offset);
+}
+
+.auth-scope .auth-link:hover,
+.auth-scope a:hover {
+  text-decoration: underline !important;
+}
+
+.auth-scope .auth-link:visited,
+.auth-scope a:visited {
+  color: var(--auth-link-color) !important;
+}
+
+.auth-scope .auth-link:focus-visible,
+.auth-scope a:focus-visible {
+  outline: none;
+  text-decoration: underline !important;
+  text-decoration-color: var(--link-focus);
+  text-decoration-thickness: 2px;
+}
+.auth-scope {
+  --auth-label-font-size: 18px;
+  --auth-label-font-weight: 500;
+}
+
+.auth-scope .auth-label {
+  font-size: var(--auth-label-font-size) !important;
+  font-weight: var(--auth-label-font-weight) !important;
+}
+
+/* Checkbox labels (legal terms / marketing) — auth only */
+.auth-scope .auth-checkbox-label {
+  font-size: 18px !important;
+  font-weight: 400 !important;
+}

@@ -116,14 +116,16 @@ export function StepPersonalDetails({
   }
 
   return (
-    <Card className="auth-card p-8">
-      <CardContent className="p-0">
-        <div className="auth-header mb-8">
-          <h2 className="auth-title text-right mb-2">פרטים אישיים</h2>
-          <p className="auth-subtitle text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>נתחיל עם הפרטים שלך</p>
+    <Card className="shadow-ui-lg auth-card">
+      <CardContent>
+        <div className="pb-4 mb-[15px]">
+          <h2 className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
+            פרטים אישיים
+          </h2>
+          <p className="mr-6 text-right">נתחיל עם הפרטים שלך</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form space-y-6" noValidate>
+        <form onSubmit={handleSubmit} className="auth-form" noValidate>
         {/* Form-level error announcement region */}
         {error && (
           <div 
@@ -136,37 +138,44 @@ export function StepPersonalDetails({
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="auth-field">
-            <FloatingInput
-              label="שם פרטי"
-              id="firstName"
-              required
-              value={data.firstName}
-              onChange={(e) => updateData({ firstName: e.target.value })}
-              error={errors.firstName}
-              containerClassName="w-full min-w-0"
-            />
-          </div>
-
-          <div className="auth-field">
-            <FloatingInput
-              label="שם משפחה"
-              id="lastName"
-              required
-              value={data.lastName}
-              onChange={(e) => updateData({ lastName: e.target.value })}
-              error={errors.lastName}
-              containerClassName="w-full min-w-0"
-            />
-          </div>
+        <div className="auth-field">
+          <FloatingInput
+            label="שם פרטי"
+            id="firstName"
+            placeholder="ישראל"
+            required
+            value={data.firstName}
+            onChange={(e) => updateData({ firstName: e.target.value })}
+            error={errors.firstName}
+            containerClassName="w-full min-w-0"
+            className="auth-input"
+            labelClassName="auth-label"
+            labelPlacement="above"
+          />
         </div>
 
-        <div className="auth-field space-y-2">
+        <div className="auth-field">
+          <FloatingInput
+            label="שם משפחה"
+            id="lastName"
+            placeholder="ישראלי"
+            required
+            value={data.lastName}
+            onChange={(e) => updateData({ lastName: e.target.value })}
+            error={errors.lastName}
+            containerClassName="w-full min-w-0"
+            className="auth-input"
+            labelClassName="auth-label"
+            labelPlacement="above"
+          />
+        </div>
+
+        <div className="auth-field">
           <FloatingInput
             label="כתובת אימייל"
             id="email"
             type="email"
+            placeholder="name@example.com"
             required
             value={data.email}
             onChange={(e) => {
@@ -178,7 +187,9 @@ export function StepPersonalDetails({
             }}
             dir="ltr"
             className="auth-input text-left"
-            helperText="נשתמש בכתובת זו להתחברות למערכת"
+            labelClassName="auth-label"
+            labelPlacement="above"
+
             error={errors.email}
             containerClassName="w-full min-w-0"
           />
@@ -186,8 +197,7 @@ export function StepPersonalDetails({
             <div className="mt-2">
               <Link 
                 href="/login" 
-                className="auth-secondary-link inline-flex items-center gap-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
-                style={{ color: 'var(--link)' }}
+                className="auth-link inline-flex items-center gap-1"
               >
                 ← חזרה להתחברות
               </Link>
@@ -195,33 +205,38 @@ export function StepPersonalDetails({
           )}
         </div>
 
-        <div className="auth-field space-y-2">
+        <div className="auth-field">
           <FloatingInput
             label="טלפון נייד"
             id="phone"
             type="tel"
+            placeholder="050-1234567"
             required
             value={data.phone}
             onChange={(e) => updateData({ phone: e.target.value })}
             dir="ltr"
             className="auth-input text-left"
-            helperText="פורמט: 050-1234567"
+            labelClassName="auth-label"
+            labelPlacement="above"
             error={errors.phone}
             containerClassName="w-full min-w-0"
           />
         </div>
 
-        <div className="auth-field space-y-2">
+        <div className="auth-field">
           <div className="relative">
             <FloatingInput
               label="סיסמה"
               id="password"
               type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
               required
               value={data.password}
               onChange={(e) => updateData({ password: e.target.value })}
               dir="ltr"
               className="auth-input text-left pr-12"
+              labelClassName="auth-label"
+              labelPlacement="above"
               helperText="מינימום 8 תווים"
               error={errors.password}
               containerClassName="w-full min-w-0"
@@ -231,8 +246,7 @@ export function StepPersonalDetails({
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
               aria-pressed={showPassword}
-              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-[5px]"
-              style={{ color: 'var(--muted-fg)' }}
+              className="absolute left-4 top-[calc(50%+1px)] -translate-y-1/2 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
@@ -263,7 +277,7 @@ export function StepPersonalDetails({
             <label
               htmlFor="legal-terms"
               className={cn(
-                "text-sm cursor-pointer",
+                "auth-checkbox-label cursor-pointer",
                 errors.acceptedLegalTerms && "text-danger"
               )}
               dangerouslySetInnerHTML={{ __html: legalTermsText + (legalTermsRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
@@ -298,7 +312,7 @@ export function StepPersonalDetails({
             <label 
               htmlFor="marketing" 
               className={cn(
-                "text-sm cursor-pointer",
+                "auth-checkbox-label cursor-pointer",
                 errors.acceptedMarketing && "text-danger"
               )}
               dangerouslySetInnerHTML={{ __html: marketingText + (marketingRequired ? ' <span style="color: #B91C1C">*</span>' : '') }}
@@ -312,7 +326,7 @@ export function StepPersonalDetails({
         <Button 
           type="submit" 
           variant="primary"
-          className="auth-primary-button w-full"
+          className="w-full auth-primary-button"
           disabled={
             isCheckingEmail || 
             (legalTermsRequired && !data.acceptedLegalTerms) ||
@@ -323,7 +337,7 @@ export function StepPersonalDetails({
         >
           {isCheckingEmail ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin ml-2" aria-hidden="true" />
+              <Loader2 size={19} className="shrink-0 animate-spin ml-2" aria-hidden="true" />
               בודק זמינות אימייל...
             </>
           ) : (

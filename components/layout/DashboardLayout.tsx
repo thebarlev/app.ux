@@ -3,6 +3,7 @@
 import { useState } from "react"
 import * as React from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import {
   Menu,
@@ -54,33 +55,21 @@ const navItems: NavItem[] = [
       { href: "/dashboard/customers", label: "הלקוחות שלי" },
     ],
   },
+
   {
-    label: "מסמכים",
-    icon: FileText,
-    subItems: [{ href: "/dashboard/documents", label: "כל המסמכים" }],
-  },
-  {
-    label: "מסמכי Income",
-    icon: FileText,
+    label: "הכנסות",
+    icon: BarChart,
     subItems: [
-      { href: "/dashboard/incomes/documents/new/invoice", label: "חשבונית מס" },
-      { href: "/dashboard/incomes/documents/new/invoiceReceipt", label: "חשבונית מס / קבלה" },
-      { href: "/dashboard/incomes/documents/new/receipt", label: "קבלה" },
-      { href: "/dashboard/incomes/documents/new/creditNote", label: "חשבונית זיכוי" },
+      { href: "/dashboard/documents/income", label: "מסמכי הכנסות" },
+      { href: "/dashboard/documents/income/drafts", label: "טיוטות מסמכי הכנסות" },
     ],
   },
   {
     label: "ניהול שוטף",
     icon: FileText,
     subItems: [
-      { href: "/business/documents/new/quote", label: "הצעת מחיר" },
-      { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)" },
-      { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
-      { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
-      { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
-      { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
-      { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
-      { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
+      { href: "/dashboard/documents/ongoing", label: "מסמכי ניהול שוטף" },
+      { href: "/dashboard/documents/ongoing/drafts", label: "טיוטות ניהול שוטף" },
     ],
   },
 ]
@@ -281,13 +270,33 @@ function SidebarContent({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="mb-8 px-4 pt-6">
-        {expanded ? (
-          <>
-            <div className="text-xl font-bold text-sidebar-fg">מערכת ניהול</div>
-            <div className="text-xs text-sidebar-fg mt-1">Dashboard</div>
-          </>
-        ) : null}
+      <div
+        className={`mb-8 pt-6 ${expanded ? "px-4" : "px-0 flex justify-center"}`}
+      >
+        <Link
+          href="/dashboard"
+          onClick={onNavigate}
+          aria-label="דשבורד"
+          className={expanded ? "block" : "block"}
+        >
+          {expanded ? (
+            <Image
+              src="/brand/vow_black.svg"
+              alt="Vow"
+              width={120}
+              height={42}
+              priority
+            />
+          ) : (
+            <Image
+              src="/brand/icon.svg"
+              alt="Vow"
+              width={42}
+              height={42}
+              priority
+            />
+          )}
+        </Link>
       </div>
 
       {/* Navigation */}
@@ -393,8 +402,8 @@ function SidebarContent({
           href="/dashboard/settings"
           className={`block flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
             pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/")
-              ? "ui-sidebar-current bg-sidebar-active text-sidebar-active-fg font-medium visited:text-sidebar-active-fg"
-              : "text-sidebar-fg hover:bg-sidebar-hover hover:text-sidebar-fg visited:text-sidebar-fg"
+              ? "ui-sidebar-current bg-sidebar-active font-medium visited:text-[color:var(--neutral-white)] text-[color:var(--neutral-white)]"
+              : "hover:bg-sidebar-hover visited:text-[color:var(--neutral-white)] text-[color:var(--neutral-white)]"
           } ${expanded ? "" : "justify-center px-2"}`}
           style={{ fontSize: "18px", lineHeight: "1", margin: 0 }}
           onClick={() => {
@@ -421,7 +430,7 @@ function SidebarContent({
           onClick={handleLogout}
           disabled={isLoggingOut}
           aria-label={isLoggingOut ? "מתנתק..." : "התנתק מהמערכת"}
-          className={`ui-sidebar-item text-sidebar-fg hover:text-sidebar-fg disabled:opacity-50 disabled:cursor-not-allowed w-full ${
+          className={`ui-sidebar-item ui-sidebar-logout text-[color:var(--neutral-white)] hover:text-[color:var(--neutral-white)] disabled:opacity-50 disabled:cursor-not-allowed w-full ${
             expanded ? "" : "justify-start px-0 pr-[20px] gap-0"
           }`}
           style={{
@@ -438,11 +447,13 @@ function SidebarContent({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border border-sidebar-border h-10 hover:bg-sidebar-hover transition"
+          className={`mt-2 w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all cursor-pointer text-[color:var(--neutral-white)] ${
+            expanded ? "" : "justify-center px-2"
+          }`}
           aria-label={pinnedCollapsed ? "הרחב תפריט" : "כווץ תפריט"}
         >
-          {pinnedCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-          {expanded ? <span className="text-sm text-sidebar-fg">{pinnedCollapsed ? "הרחב" : "כווץ"}</span> : null}
+          {pinnedCollapsed ? <ChevronRight className="h-5 w-5 text-current" /> : <ChevronLeft className="h-5 w-5 text-current" />}
+          {expanded ? <span className="text-sm text-[color:var(--neutral-white)]">{pinnedCollapsed ? "" : ""}</span> : null}
         </button>
       </div>
     </div>

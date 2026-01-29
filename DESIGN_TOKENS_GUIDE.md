@@ -36,12 +36,12 @@ Unified design system using CSS Variables (Design Tokens) mapped to Tailwind uti
 
 ### Actions (Buttons)
 ```css
---primary: #1D868F          /* Primary button */
+--primary: #5389BB          /* Primary button */
 --primary-fg: #FFFFFF       /* Primary text */
 --primary-hover: #19183B    /* Primary hover state */
 
 --secondary: #F5FBF9        /* Secondary button */
---secondary-fg: #1D868F     /* Secondary text */
+--secondary-fg: #5389BB     /* Secondary text */
 
 --danger: #9B0003           /* Danger/delete actions */
 --danger-fg: #FFFFFF        /* Danger text */
@@ -50,10 +50,10 @@ Unified design system using CSS Variables (Design Tokens) mapped to Tailwind uti
 ### Forms
 ```css
 --input: #F5FBF9            /* Input background */
---input-fg: #1D868F         /* Input text */
+--input-fg: #5389BB         /* Input text */
 --placeholder: #708993      /* Placeholder text */
 
---success: #1D868F          /* Success state */
+--success: #5389BB          /* Success state */
 --success-fg: #19183B       /* Success text */
 
 --warning: #9B0003          /* Warning state */
@@ -65,11 +65,11 @@ Unified design system using CSS Variables (Design Tokens) mapped to Tailwind uti
 --sidebar-bg: #19183B           /* Dark background */
 --sidebar-fg: #E7F2EF           /* Light text */
 --sidebar-muted-fg: #FFFFFF     /* Muted text */
---sidebar-muted-bg: #1D868F     /* Muted background */
+--sidebar-muted-bg: #5389BB     /* Muted background */
 
---sidebar-border: #1D868F       /* Borders */
---sidebar-hover: #1D868F        /* Hover state */
---sidebar-active: #1D868F       /* Active item */
+--sidebar-border: #5389BB       /* Borders */
+--sidebar-hover: #5389BB        /* Hover state */
+--sidebar-active: #5389BB       /* Active item */
 --sidebar-active-fg: #FFFFFF    /* Active text */
 --sidebar-ring: #E7F2EF         /* Focus ring */
 ```
@@ -296,7 +296,7 @@ Edit CSS variables in [app/globals.css](app/globals.css):
 ```css
 :root {
   /* Change primary color system-wide */
-  --primary: #1D868F;           /* Your brand color */
+  --primary: #5389BB;           /* Your brand color */
   --primary-fg: #FFFFFF;        /* Ensure WCAG contrast */
   --primary-hover: #19183B;     /* Darker variant */
 }

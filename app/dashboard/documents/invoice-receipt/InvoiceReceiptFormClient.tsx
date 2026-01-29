@@ -154,16 +154,19 @@ export default function InvoiceReceiptFormClient({
 
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLDivElement>(null);
+  const itemsTableRef = useRef<HTMLDivElement>(null);
   const paymentsTableRef = useRef<HTMLDivElement>(null);
 
   const [items, setItems] = useState<ItemRow[]>([
     { label: "", sku: "", description: "", quantity: 1, unitPrice: 0, currency, vatMode: "before" },
   ]);
   const [confirmedRows, setConfirmedRows] = useState<Set<number>>(new Set());
+  const [showItemsApprovalWarning, setShowItemsApprovalWarning] = useState(false);
 
   // Payment rows state (from Receipt)
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "", date: todayYmd(), amount: 0, currency }]);
   const [confirmedPayments, setConfirmedPayments] = useState<Set<number>>(new Set());
+  const [showPaymentsApprovalWarning, setShowPaymentsApprovalWarning] = useState(false);
   const [paymentErrors, setPaymentErrors] = useState<Record<number, { method?: string; amount?: string }>>({});
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
@@ -318,6 +321,30 @@ export default function InvoiceReceiptFormClient({
   }, [subtotal, vatAmount, vatRate, roundTotals]);
   const hasConfirmedItems = confirmedRows.size > 0;
   const hasConfirmedPayments = confirmedPayments.size > 0;
+  const unconfirmedItemRowIndices = useMemo(() => {
+    const out: number[] = [];
+    items.forEach((_, idx) => {
+      if (!confirmedRows.has(idx)) out.push(idx);
+    });
+    return out;
+  }, [items, confirmedRows]);
+  const unconfirmedPaymentRowIndices = useMemo(() => {
+    const out: number[] = [];
+    payments.forEach((_, idx) => {
+      if (!confirmedPayments.has(idx)) out.push(idx);
+    });
+    return out;
+  }, [payments, confirmedPayments]);
+  const allItemsConfirmed = items.length > 0 && unconfirmedItemRowIndices.length === 0;
+  const allPaymentsConfirmed = payments.length > 0 && unconfirmedPaymentRowIndices.length === 0;
+
+  useEffect(() => {
+    if (unconfirmedItemRowIndices.length === 0) setShowItemsApprovalWarning(false);
+  }, [unconfirmedItemRowIndices.length]);
+
+  useEffect(() => {
+    if (unconfirmedPaymentRowIndices.length === 0) setShowPaymentsApprovalWarning(false);
+  }, [unconfirmedPaymentRowIndices.length]);
 
   const payload: InvoiceReceiptDraftPayload = useMemo(() => {
     return {
@@ -541,7 +568,15 @@ export default function InvoiceReceiptFormClient({
     });
     if (Object.keys(previewErrors).length > 0) {
       setItemErrors(previewErrors);
-      focusFieldWithError(paymentsTableRef);
+      focusFieldWithError(itemsTableRef);
+      return;
+    }
+
+    if (!allItemsConfirmed || !allPaymentsConfirmed) {
+      if (!allItemsConfirmed) setShowItemsApprovalWarning(true);
+      if (!allPaymentsConfirmed) setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני תצוגה מקדימה");
+      focusFieldWithError(!allItemsConfirmed ? itemsTableRef : paymentsTableRef);
       return;
     }
 
@@ -632,6 +667,13 @@ export default function InvoiceReceiptFormClient({
   }
 
   function handleIssueConfirmation() {
+    if (!allItemsConfirmed || !allPaymentsConfirmed) {
+      if (!allItemsConfirmed) setShowItemsApprovalWarning(true);
+      if (!allPaymentsConfirmed) setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני הפקת מסמך");
+      focusFieldWithError(!allItemsConfirmed ? itemsTableRef : paymentsTableRef);
+      return;
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -694,6 +736,7 @@ export default function InvoiceReceiptFormClient({
     setDescriptionError(null);
     setCustomerNameError(null);
     setItemErrors({});
+    setPaymentErrors({});
 
     if (!sequenceLocked) {
       toast.error("נדרש לבחור מספר התחלתי לפני הפקת מסמכים");
@@ -732,6 +775,16 @@ export default function InvoiceReceiptFormClient({
       return;
     }
 
+    if (!allItemsConfirmed || !allPaymentsConfirmed) {
+      if (!allItemsConfirmed) setShowItemsApprovalWarning(true);
+      if (!allPaymentsConfirmed) setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני הפקת מסמך");
+      focusFieldWithError(!allItemsConfirmed ? itemsTableRef : paymentsTableRef);
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+      return;
+    }
+
     const errors: { [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string } } =
       {};
     items.forEach((item, i) => {
@@ -741,7 +794,7 @@ export default function InvoiceReceiptFormClient({
 
     if (Object.keys(errors).length > 0) {
       setItemErrors(errors);
-      focusFieldWithError(paymentsTableRef);
+      focusFieldWithError(itemsTableRef);
       setIsFinalizing(false);
       setConfirmationModalOpen(false);
       return;
@@ -1005,8 +1058,9 @@ export default function InvoiceReceiptFormClient({
             </FormSection>
 
             <FormSection title="רשימת פריטים" description="">
-              <div ref={paymentsTableRef} className="space-y-[10px]">
-                {Object.keys(itemErrors).length > 0 && (
+              <div ref={itemsTableRef} className="space-y-[10px]">
+                {(Object.keys(itemErrors).length > 0 ||
+                  (showItemsApprovalWarning && unconfirmedItemRowIndices.length > 0)) && (
                   <div
                     style={{
                       backgroundColor: "#FEF2F2",
@@ -1018,9 +1072,16 @@ export default function InvoiceReceiptFormClient({
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <span style={{ fontSize: "20px" }}>⚠️</span>
                       <span style={{ fontSize: "16px", fontWeight: 600, color: "#9B0003" }}>
-                        יש לתקן את השדות המסומנים באדום
+                        {Object.keys(itemErrors).length > 0
+                          ? "יש לתקן את השדות המסומנים באדום"
+                          : "יש לאשר את השורות לפני המשך"}
                       </span>
                     </div>
+                    {showItemsApprovalWarning && unconfirmedItemRowIndices.length > 0 ? (
+                      <div style={{ marginTop: "8px", fontSize: "14px", color: "#9B0003" }}>
+                        יש {unconfirmedItemRowIndices.length} שורות שלא אושרו — לחץ/י על &quot;אישור&quot; בכל שורה
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -1386,7 +1447,8 @@ export default function InvoiceReceiptFormClient({
 
             <FormSection title="פירוט תקבולים" description="">
               <div ref={paymentsTableRef} className="space-y-[10px]">
-                {Object.keys(paymentErrors).length > 0 && (
+                {(Object.keys(paymentErrors).length > 0 ||
+                  (showPaymentsApprovalWarning && unconfirmedPaymentRowIndices.length > 0)) && (
                   <div
                     style={{
                       backgroundColor: "#FEF2F2",
@@ -1398,9 +1460,16 @@ export default function InvoiceReceiptFormClient({
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <span style={{ fontSize: "20px" }}>⚠️</span>
                       <span style={{ fontSize: "16px", fontWeight: 600, color: "#9B0003" }}>
-                        יש לתקן את השדות המסומנים באדום
+                        {Object.keys(paymentErrors).length > 0
+                          ? "יש לתקן את השדות המסומנים באדום"
+                          : "יש לאשר את התקבולים לפני המשך"}
                       </span>
                     </div>
+                    {showPaymentsApprovalWarning && unconfirmedPaymentRowIndices.length > 0 ? (
+                      <div style={{ marginTop: "8px", fontSize: "14px", color: "#9B0003" }}>
+                        יש {unconfirmedPaymentRowIndices.length} תקבולים שלא אושרו — לחץ/י על &quot;אישור&quot; בכל שורה
+                      </div>
+                    ) : null}
                   </div>
                 )}
 

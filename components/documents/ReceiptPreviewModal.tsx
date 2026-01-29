@@ -96,7 +96,7 @@ export default function ReceiptPreviewModal({
     >
       <div
         ref={modalRef}
-        className="w-[95vw] sm:w-fit max-w-[95vw] max-h-[90vh] bg-modal rounded-[20px] shadow-xl relative text-modal-fg overflow-hidden"
+        className="w-[95vw] max-w-[1200px] max-h-[92vh] bg-modal rounded-[20px] shadow-xl relative text-modal-fg overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-labelledby="preview-modal-title"
@@ -125,7 +125,7 @@ export default function ReceiptPreviewModal({
           </h2>
 
           {/* PDF Container with Watermark Overlay */}
-          <div className="relative bg-white rounded-lg overflow-hidden w-fit mx-auto">
+          <div className="relative bg-white rounded-lg overflow-hidden mx-auto w-[92vw] max-w-[1100px] h-[70vh] max-h-[75vh]">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-20">
                 <div className="text-center">

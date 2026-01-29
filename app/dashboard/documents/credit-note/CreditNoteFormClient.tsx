@@ -123,12 +123,13 @@ export default function CreditNoteFormClient({
 
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLDivElement>(null);
-  const paymentsTableRef = useRef<HTMLDivElement>(null);
+  const itemsTableRef = useRef<HTMLDivElement>(null);
 
   const [items, setItems] = useState<ItemRow[]>([
     { label: "", sku: "", description: "", quantity: 1, unitPrice: 0, currency, vatMode: "before" },
   ]);
   const [confirmedRows, setConfirmedRows] = useState<Set<number>>(new Set());
+  const [showItemsApprovalWarning, setShowItemsApprovalWarning] = useState(false);
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -286,6 +287,18 @@ export default function CreditNoteFormClient({
     return Math.round(sum);
   }, [subtotal, vatAmount, vatRate, roundTotals]);
   const hasConfirmedItems = confirmedRows.size > 0;
+  const unconfirmedItemRowIndices = useMemo(() => {
+    const out: number[] = [];
+    items.forEach((_, idx) => {
+      if (!confirmedRows.has(idx)) out.push(idx);
+    });
+    return out;
+  }, [items, confirmedRows]);
+  const allItemsConfirmed = items.length > 0 && unconfirmedItemRowIndices.length === 0;
+
+  useEffect(() => {
+    if (unconfirmedItemRowIndices.length === 0) setShowItemsApprovalWarning(false);
+  }, [unconfirmedItemRowIndices.length]);
 
   useEffect(() => {
     if (!sourceDocumentId) return;
@@ -457,7 +470,14 @@ export default function CreditNoteFormClient({
     });
     if (Object.keys(previewErrors).length > 0) {
       setItemErrors(previewErrors);
-      focusFieldWithError(paymentsTableRef);
+      focusFieldWithError(itemsTableRef);
+      return;
+    }
+
+    if (!allItemsConfirmed) {
+      setShowItemsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני תצוגה מקדימה");
+      focusFieldWithError(itemsTableRef);
       return;
     }
 
@@ -537,6 +557,12 @@ export default function CreditNoteFormClient({
   }
 
   function handleIssueConfirmation() {
+    if (!allItemsConfirmed) {
+      setShowItemsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני הפקת מסמך");
+      focusFieldWithError(itemsTableRef);
+      return;
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -637,6 +663,15 @@ export default function CreditNoteFormClient({
       return;
     }
 
+    if (!allItemsConfirmed) {
+      setShowItemsApprovalWarning(true);
+      toast.error("יש לאשר את כל השורות לפני הפקת מסמך");
+      focusFieldWithError(itemsTableRef);
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+      return;
+    }
+
     const errors: { [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string } } =
       {};
     items.forEach((item, i) => {
@@ -646,7 +681,7 @@ export default function CreditNoteFormClient({
 
     if (Object.keys(errors).length > 0) {
       setItemErrors(errors);
-      focusFieldWithError(paymentsTableRef);
+      focusFieldWithError(itemsTableRef);
       setIsFinalizing(false);
       setConfirmationModalOpen(false);
       return;
@@ -910,8 +945,9 @@ export default function CreditNoteFormClient({
             </FormSection>
 
             <FormSection title="רשימת פריטים" description="">
-              <div ref={paymentsTableRef} className="space-y-[10px]">
-                {Object.keys(itemErrors).length > 0 && (
+              <div ref={itemsTableRef} className="space-y-[10px]">
+                {(Object.keys(itemErrors).length > 0 ||
+                  (showItemsApprovalWarning && unconfirmedItemRowIndices.length > 0)) && (
                   <div
                     style={{
                       backgroundColor: "#FEF2F2",
@@ -923,9 +959,16 @@ export default function CreditNoteFormClient({
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <span style={{ fontSize: "20px" }}>⚠️</span>
                       <span style={{ fontSize: "16px", fontWeight: 600, color: "#9B0003" }}>
-                        יש לתקן את השדות המסומנים באדום
+                        {Object.keys(itemErrors).length > 0
+                          ? "יש לתקן את השדות המסומנים באדום"
+                          : "יש לאשר את השורות לפני המשך"}
                       </span>
                     </div>
+                    {showItemsApprovalWarning && unconfirmedItemRowIndices.length > 0 ? (
+                      <div style={{ marginTop: "8px", fontSize: "14px", color: "#9B0003" }}>
+                        יש {unconfirmedItemRowIndices.length} שורות שלא אושרו — לחץ/י על &quot;אישור&quot; בכל שורה
+                      </div>
+                    ) : null}
                   </div>
                 )}
 

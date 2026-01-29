@@ -199,7 +199,7 @@ export default function CustomersListClient({ initialCustomers }: Props) {
                             }}
                             style={{
                               padding: '8px 18px',
-                              background: '#1D868F',
+                              background: '#5389BB',
                               color: '#FFF',
                               border: 'none',
                               borderRadius: 8,

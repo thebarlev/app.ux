@@ -51,7 +51,7 @@ export default function DashboardCard({ href, icon: Icon, title, description }: 
                 <Icon 
                   size={32} 
                   style={{ 
-                    color: '#1D868F',
+                    color: '#5389BB',
                     position: 'absolute',
                     top: 0,
                     left: 0,

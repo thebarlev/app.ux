@@ -317,7 +317,7 @@ export default function CustomerAutocomplete({
                 paddingLeft: 12,
                 paddingRight: 12,
                 cursor: "pointer",
-                background: index === selectedIndex ? "#1D868F" : "transparent",
+                background: index === selectedIndex ? "#5389BB" : "transparent",
                 borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
                 transition: "background 150ms",
               }}
@@ -367,7 +367,7 @@ export default function CustomerAutocomplete({
                 paddingLeft: 12,
                 paddingRight: 12,
                 cursor: "pointer",
-                background: "#1D868F",
+                background: "#5389BB",
                 borderTop: suggestions.length > 0 ? "2px solid rgba(255, 255, 255, 0.1)" : "none",
                 color: "white",
                 fontWeight: 600,

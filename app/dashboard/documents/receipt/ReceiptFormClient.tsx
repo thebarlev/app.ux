@@ -139,6 +139,7 @@ export default function ReceiptFormClient({
 
   const [payments, setPayments] = useState<PaymentRow[]>([{ method: "", date: todayYmd(), amount: 0, currency }]);
   const [confirmedPayments, setConfirmedPayments] = useState<Set<number>>(new Set());
+  const [showPaymentsApprovalWarning, setShowPaymentsApprovalWarning] = useState(false);
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -263,6 +264,18 @@ export default function ReceiptFormClient({
     return Math.round(sum);
   }, [payments, roundTotals]);
   const hasConfirmedPayments = confirmedPayments.size > 0;
+  const unconfirmedPaymentRowIndices = useMemo(() => {
+    const out: number[] = [];
+    payments.forEach((_, idx) => {
+      if (!confirmedPayments.has(idx)) out.push(idx);
+    });
+    return out;
+  }, [payments, confirmedPayments]);
+  const allPaymentsConfirmed = payments.length > 0 && unconfirmedPaymentRowIndices.length === 0;
+
+  useEffect(() => {
+    if (unconfirmedPaymentRowIndices.length === 0) setShowPaymentsApprovalWarning(false);
+  }, [unconfirmedPaymentRowIndices.length]);
   useEffect(() => {
     if (!isCancellationReceipt) return;
   }, [isCancellationReceipt, chainSourceDocumentId, payments.length, total]);
@@ -375,6 +388,13 @@ export default function ReceiptFormClient({
       return;
     }
 
+    if (!allPaymentsConfirmed) {
+      setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל התקבולים לפני תצוגה מקדימה");
+      focusFieldWithError(paymentsTableRef);
+      return;
+    }
+
     setPreviewModalOpen(true);
     setBusy("preview");
     setPreviewError(null);
@@ -465,6 +485,12 @@ export default function ReceiptFormClient({
   }
 
   function handleIssueConfirmation() {
+    if (!allPaymentsConfirmed) {
+      setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל התקבולים לפני הפקת מסמך");
+      focusFieldWithError(paymentsTableRef);
+      return;
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -611,6 +637,15 @@ export default function ReceiptFormClient({
           recipientIdentifier: consentResult.recipientIdentifier,
         }));
       }
+    }
+
+    if (!allPaymentsConfirmed) {
+      setShowPaymentsApprovalWarning(true);
+      toast.error("יש לאשר את כל התקבולים לפני הפקת מסמך");
+      focusFieldWithError(paymentsTableRef);
+      setIsFinalizing(false);
+      setConfirmationModalOpen(false);
+      return;
     }
 
     setBusy("issue");
@@ -838,7 +873,8 @@ export default function ReceiptFormClient({
             {/* Payments Section (UPDATED LAYOUT) */}
             <FormSection title="פירוט תקבולים" description="">
               <div ref={paymentsTableRef} className="space-y-[10px]">
-                {Object.keys(paymentErrors).length > 0 && (
+                {(Object.keys(paymentErrors).length > 0 ||
+                  (showPaymentsApprovalWarning && unconfirmedPaymentRowIndices.length > 0)) && (
                   <div
                     style={{
                       backgroundColor: "#FEF2F2",
@@ -850,9 +886,16 @@ export default function ReceiptFormClient({
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       <span style={{ fontSize: "20px" }}>⚠️</span>
                       <span style={{ fontSize: "16px", fontWeight: 600, color: "#9B0003" }}>
-                        יש לתקן את השדות המסומנים באדום
+                        {Object.keys(paymentErrors).length > 0
+                          ? "יש לתקן את השדות המסומנים באדום"
+                          : "יש לאשר את התקבולים לפני המשך"}
                       </span>
                     </div>
+                    {showPaymentsApprovalWarning && unconfirmedPaymentRowIndices.length > 0 ? (
+                      <div style={{ marginTop: "8px", fontSize: "14px", color: "#9B0003" }}>
+                        יש {unconfirmedPaymentRowIndices.length} תקבולים שלא אושרו — לחץ/י על &quot;אישור&quot; בכל שורה
+                      </div>
+                    ) : null}
                   </div>
                 )}
 

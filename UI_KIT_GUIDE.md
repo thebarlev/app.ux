@@ -74,12 +74,12 @@
 
 ### Buttons
 ```css
---primary: #1D868F          /* Primary button */
+--primary: #5389BB          /* Primary button */
 --primary-fg: #FFFFFF       /* Primary text */
 --primary-hover: #19183B    /* Primary hover state */
 --secondary: #F5FBF9        /* Secondary button */
---secondary-fg: #1D868F     /* Secondary text */
---secondary-border: #1D868F /* Secondary border */
+--secondary-fg: #5389BB     /* Secondary text */
+--secondary-border: #5389BB /* Secondary border */
 --danger: #9B0003           /* Danger/delete actions */
 --danger-fg: #FFFFFF        /* Danger text */
 ```
@@ -96,9 +96,9 @@
 --sidebar-bg: #19183B           /* Dark background */
 --sidebar-fg: #EDF1F5          /* Light text */
 --sidebar-muted-fg: #EDF1F5    /* Muted text */
---sidebar-muted-bg: #1D868F    /* Muted background */
---sidebar-hover: #1D868F       /* Hover state */
---sidebar-active: #1D868F      /* Active item */
+--sidebar-muted-bg: #5389BB    /* Muted background */
+--sidebar-hover: #5389BB       /* Hover state */
+--sidebar-active: #5389BB      /* Active item */
 --sidebar-active-fg: #FFFFFF   /* Active text */
 --sidebar-ring: #EDF1F5        /* Focus ring */
 ```
@@ -109,7 +109,7 @@
 --table-header-fg: #FFFFFF      /* Header text */
 --table-row-hover: #A1C2BD      /* Row hover */
 --table-stripe: #EDF1F5         /* Striped rows */
---table-positive: #1D868F       /* Positive values */
+--table-positive: #5389BB       /* Positive values */
 --table-negative: #9B0003        /* Negative values */
 ```
 

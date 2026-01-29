@@ -202,7 +202,7 @@ export default function ReceiptConfirmationModal({
               <div className="receipt-confirmation-warning">
                 <AlertTriangle className="receipt-confirmation-warning-icon" aria-hidden="true" />
                 <p className="receipt-confirmation-warning-text">
-                  רגע לפני שמאשרים שווה לעבור פעם נוספת על הפרטים ולוודא שהם נכונים, כי אחרי הפקת המסמך אי אפשר יהיה לתקן אותו.
+                  לפני האישור, מומלץ לבדוק שוב את הפרטים - לאחר הפקת המסמך לא ניתן לתקן.
                 </p>
               </div>
             </div>

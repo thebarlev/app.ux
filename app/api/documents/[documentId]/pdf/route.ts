@@ -96,7 +96,13 @@ export async function GET(
     }
 
     // Allow draft previews; finalized/pdf_ready serve immutable stored PDFs.
-    if (doc.document_status !== "final" && doc.document_status !== "pdf_ready" && doc.document_status !== "draft") {
+    // NOTE: cancelled documents must remain downloadable (original PDF is immutable).
+    const allowedByStatus =
+      doc.document_status === "final" ||
+      doc.document_status === "pdf_ready" ||
+      doc.document_status === "draft" ||
+      doc.document_status === "cancelled"
+    if (!allowedByStatus) {
       return NextResponse.json(
         { error: "PDF can only be downloaded for finalized documents" },
         { status: 400 }

@@ -38,7 +38,7 @@ export default async function TemplatesPage() {
         <Suspense
           fallback={
             <div className="flex items-center justify-center h-[50vh]">
-              <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#1D868F' }} />
+              <Loader2 className="h-8 w-8 animate-spin" style={{ color: '#5389BB' }} />
             </div>
           }
         >

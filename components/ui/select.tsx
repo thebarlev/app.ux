@@ -156,7 +156,7 @@ function SelectItem({
         backgroundColor: "transparent",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "#1D868F";
+        e.currentTarget.style.backgroundColor = "#5389BB";
         e.currentTarget.style.color = "#FFFFFF"; // 👈 זו השורה שהוספנו
         e.currentTarget.style.height = "50px";
         e.currentTarget.style.minHeight = "50px";

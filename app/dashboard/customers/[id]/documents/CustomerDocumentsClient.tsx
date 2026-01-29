@@ -53,7 +53,7 @@ const getDocumentPath = (docType: string, docId: string) => {
 const getStatusBadge = (status: string) => {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
     draft: { bg: "#EDF1F5", text: "#19183B", label: "טיוטה" },
-    final: { bg: "#1D868F", text: "#FFFFFF", label: "סופי" },
+    final: { bg: "#5389BB", text: "#FFFFFF", label: "סופי" },
     cancelled: { bg: "#9B0003", text: "#FFFFFF", label: "בוטל" },
     voided: { bg: "#F39600", text: "#19183B", label: "מבוטל" },
   };

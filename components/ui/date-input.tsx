@@ -381,7 +381,7 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
           <style jsx global>{`
             .rdp {
               --rdp-cell-size: 45px;
-              --rdp-accent-color: #1D868F;
+              --rdp-accent-color: #5389BB;
               --rdp-background-color: #EDF1F5;
               --rdp-accent-color-dark: #19183B;
               --rdp-background-color-dark: #EDF1F5;
@@ -411,16 +411,16 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
             .rdp-day_selected,
             .rdp-day_selected:focus-visible,
             .rdp-day_selected:hover {
-              background-color: #1D868F !important;
+              background-color: #5389BB !important;
               color: #FFFFFF !important;
               font-weight: 600;
             }
             .rdp-day_today:not(.rdp-day_outside):not(.rdp-day_selected) {
               font-weight: 700;
-              color: #1D868F !important;
+              color: #5389BB !important;
             }
             .rdp-day_today.rdp-day_selected {
-              background-color: #1D868F !important;
+              background-color: #5389BB !important;
               color: #FFFFFF !important;
             }
             .rdp-day_disabled,
@@ -460,9 +460,9 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
             .rdp-nav_button *,
             .rdp-nav_button svg,
             .rdp-nav_button svg * {
-              color: #1D868F !important;
-              fill: #1D868F !important;
-              stroke: #1D868F !important;
+              color: #5389BB !important;
+              fill: #5389BB !important;
+              stroke: #5389BB !important;
             }
             .rdp-nav_button:hover {
               background-color: #EDF1F5;
@@ -471,9 +471,9 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
             .rdp-nav_button:hover *,
             .rdp-nav_button:hover svg,
             .rdp-nav_button:hover svg * {
-              color: #1D868F !important;
-              fill: #1D868F !important;
-              stroke: #1D868F !important;
+              color: #5389BB !important;
+              fill: #5389BB !important;
+              stroke: #5389BB !important;
             }
             .rdp-head_cell {
               font-size: 16px;
@@ -494,7 +494,7 @@ export function DateInput({ value, onChange, min, max, variant = "default", ...p
             }
             .rdp-day_range_start,
             .rdp-day_range_end {
-              background-color: #1D868F !important;
+              background-color: #5389BB !important;
               color: #FFFFFF !important;
             }
           `}</style>

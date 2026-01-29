@@ -167,7 +167,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
                 type="button"
                 className={cn(
                   "w-14 h-7 rounded-full flex items-center transition-colors relative",
-                  settings.roundTotals ? "bg-[#1D868F]" : "bg-muted"
+                  settings.roundTotals ? "bg-[#5389BB]" : "bg-muted"
                 )}
                 style={{ border: 'none', padding: 0 }}
                 onClick={() => onChange({ roundTotals: !settings.roundTotals })}

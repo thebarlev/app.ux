@@ -40,6 +40,8 @@ const DOCUMENT_CONFIGS_BY_DB = new Map(
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
   initialFilters: DocumentsListFilters;
+  listPathBase?: string;
+  pageTitle?: string;
 };
 
 function formatDate(dateStr: string | null): string {
@@ -143,11 +145,13 @@ function truncateCustomerName(customerName: string | null): string {
   return trimmed.substring(0, 22) + " ...";
 }
 
-export default function DocumentsListClient({ initialData, initialFilters }: Props) {
+export default function DocumentsListClient({ initialData, initialFilters, listPathBase, pageTitle }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const openDocumentId = searchParams.get("open");
   const lastOpenedRef = useRef<string | null>(null);
+  const effectiveListPathBase = listPathBase || "/dashboard/documents";
+  const effectivePageTitle = pageTitle || "מסמכים";
 
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
@@ -484,7 +488,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
   }
   const totalPages = Math.ceil(totalCount / pageSize);
   const tableFontSize = "clamp(12px,1.2vw, 16px)";
-  const tableHeaderColor = "#1D868F";
+  const tableHeaderColor = "#5389BB";
   const tableHeaderBorder = "1px solid #EDF1F5";
 
   const documentTypeOptions = useMemo(() => {
@@ -654,10 +658,43 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
 
   async function downloadDocumentPdf(documentId: string, fileName: string) {
     const pdfUrl = `/api/documents/${documentId}/pdf`;
-    const response = await fetch(pdfUrl);
+    const response = await fetch(pdfUrl, {
+      headers: {
+        Accept: "application/pdf",
+      },
+    });
 
     if (!response.ok) {
-      throw new Error("שגיאה בהורדת המסמך");
+      const status = response.status;
+      const contentType = response.headers.get("content-type") || "";
+      let details: string | null = null;
+
+      try {
+        if (contentType.includes("application/json")) {
+          const data = (await response.json()) as any;
+          details =
+            (typeof data?.message === "string" && data.message) ||
+            (typeof data?.details === "string" && data.details) ||
+            (typeof data?.error === "string" && data.error) ||
+            null;
+        } else {
+          const text = await response.text();
+          details = text?.trim() ? text.trim().slice(0, 200) : null;
+        }
+      } catch {
+        // ignore parsing errors
+      }
+
+      const hint =
+        status === 401
+          ? " (אין הרשאה / ייתכן שפג תוקף ההתחברות)"
+          : status === 404
+            ? " (מסמך לא נמצא / PDF חסר)"
+            : status === 400
+              ? " (בקשה לא תקינה)"
+              : "";
+
+      throw new Error(details || `שגיאה בהורדת המסמך (${status})${hint}`);
     }
     // Prefer server-provided filename (already <documentNumber>-<lang>.pdf)
     const contentDisposition = response.headers.get("content-disposition") || "";
@@ -690,7 +727,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     if (documentType && documentType !== "all") params.set("documentType", documentType);
     params.set("page", "1");
 
-    router.push(`/dashboard/documents?${params.toString()}`);
+    router.push(`${effectiveListPathBase}?${params.toString()}`);
   }
 
   function resetFilters() {
@@ -702,7 +739,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     setClientData(null);
     setClientError(null);
     setClientLoading(false);
-    router.push("/dashboard/documents");
+    router.push(effectiveListPathBase);
   }
 
   function goToPage(newPage: number) {
@@ -717,7 +754,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     if (documentType && documentType !== "all") params.set("documentType", documentType);
     params.set("page", newPage.toString());
 
-    router.push(`/dashboard/documents?${params.toString()}`);
+    router.push(`${effectiveListPathBase}?${params.toString()}`);
   }
 
   function closeDatePickerUi() {
@@ -755,7 +792,7 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
     >
       {/* Page Header */}
       <div className="ui-page-header-sticky mb-8 sm:mb-[20px]">
-        <h1 className="text-right mb-2 sm:mb-4">מסמכים</h1>
+        <h1 className="text-right mb-2 sm:mb-4">{effectivePageTitle}</h1>
         <p className="text-right">{totalCount} מסמכים סה״כ</p>
       </div>
 
@@ -1623,7 +1660,11 @@ export default function DocumentsListClient({ initialData, initialFilters }: Pro
                               size="icon"
                               aria-label="הורדה"
                               onClick={async () => {
-                                await downloadDocumentPdf(doc.id, `document-${doc.document_number || doc.id}.pdf`);
+                                try {
+                                  await downloadDocumentPdf(doc.id, `document-${doc.document_number || doc.id}.pdf`);
+                                } catch (e: any) {
+                                  alert(e?.message || "שגיאה בהורדת המסמך");
+                                }
                               }}
                             >
                               <Download className="h-5 w-5" />

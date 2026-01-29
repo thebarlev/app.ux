@@ -34,9 +34,9 @@ export function buttonVariants(opts?: { variant?: ButtonVariant; size?: ButtonSi
     primary: "text-white hover:opacity-100 active:opacity-100",
     default: "text-white hover:opacity-100 active:opacity-100",
     secondary:
-      "bg-[#EDF1F5] text-[#19183B] border border-[#1D868F] hover:bg-[#1D868F] hover:text-white active:bg-[#1D868F] active:text-white",
+      "bg-[#EDF1F5] text-[#19183B] border border-[#5389BB] hover:bg-[#5389BB] hover:text-white active:bg-[#5389BB] active:text-white",
     outline:
-      "bg-[#EDF1F5] text-[#19183B] border border-[#1D868F] hover:bg-[#1D868F] hover:text-white active:bg-[#1D868F] active:text-white",
+      "bg-[#EDF1F5] text-[#19183B] border border-[#5389BB] hover:bg-[#5389BB] hover:text-white active:bg-[#5389BB] active:text-white",
     danger: "bg-danger text-danger-fg hover:opacity-90 active:opacity-80",
     destructive: "bg-danger text-danger-fg hover:opacity-90 active:opacity-80",
     ghost: "bg-transparent text-fg hover:bg-muted active:bg-muted",
@@ -61,7 +61,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     
     const baseStyle = isPrimary
       ? {
-          backgroundColor: "#1D868F",
+          backgroundColor: "#5389BB",
           color: "#FFFFFF",
           ...style,
         }
@@ -73,7 +73,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             : {
                 backgroundColor: "#EDF1F5",
                 color: "#19183B",
-                border: "1px solid #1D868F",
+                border: "1px solid #5389BB",
                 ...style,
               })
         : isDanger
@@ -97,7 +97,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#19183B";
             (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
           } else if (isSecondary && !disabled && !loading) {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D868F";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#5389BB";
             (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
           } else if (isDanger && !disabled && !loading) {
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#7A0002";
@@ -107,7 +107,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         onMouseLeave={(e) => {
           if (isUnderlineTrigger) return;
           if (isPrimary && !disabled && !loading) {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1D868F";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#5389BB";
             (e.currentTarget as HTMLButtonElement).style.color = "#FFFFFF";
           } else if (isSecondary && !disabled && !loading) {
             (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#EDF1F5";

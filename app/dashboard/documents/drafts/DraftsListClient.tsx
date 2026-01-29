@@ -72,7 +72,7 @@ export default function DraftsListClient({ initialData }: Props) {
   const { documents } = initialData.data!;
 
   const tableFontSize = "clamp(14px, 1.1vw, 18px)";
-  const tableHeaderColor = "#1D868F";
+  const tableHeaderColor = "#5389BB";
   const tableHeaderBorder = "1px solid #EDF1F5";
 
   const monthGroups = useMemo(() => {

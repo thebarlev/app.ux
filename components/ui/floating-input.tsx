@@ -18,6 +18,7 @@ export interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputE
   fieldSize?: "default" | "sm";
   containerClassName?: string;
   labelClassName?: string;
+  labelPlacement?: "floating" | "above";
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
@@ -32,6 +33,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
       className,
       containerClassName,
       labelClassName,
+      labelPlacement = "floating",
       required,
       ...props
     },
@@ -56,7 +58,19 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
       : labelStates.default;
 
     return (
-      <div className={cn("relative w-full min-w-0 ui-field-block", containerClassName)}>
+      <div
+        className={cn(
+          "w-full min-w-0",
+          labelPlacement === "floating" && "relative ui-field-block",
+          containerClassName
+        )}
+      >
+        {labelPlacement === "above" && (
+          <label htmlFor={inputId} className={cn("block text-right", labelClassName)}>
+            {label}
+            {required && <span className="ms-1">*</span>}
+          </label>
+        )}
         <input
           ref={(node) => {
             if (typeof ref === "function") ref(node);
@@ -68,21 +82,23 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           aria-describedby={describedBy}
           required={required}
           {...props}
-          placeholder=" "
+          placeholder={labelPlacement === "above" ? props.placeholder : " "}
         />
-        <label
-          htmlFor={inputId}
-          className={cn(
-            labelBase,
-            "peer-disabled:text-muted-fg",
-            fieldSizes[fieldSize].label,
-            labelStateClasses,
-            labelClassName
-          )}
-        >
-          {label}
-          {required && <span className="ms-1">*</span>}
-        </label>
+        {labelPlacement === "floating" && (
+          <label
+            htmlFor={inputId}
+            className={cn(
+              labelBase,
+              "peer-disabled:text-muted-fg",
+              fieldSizes[fieldSize].label,
+              labelStateClasses,
+              labelClassName
+            )}
+          >
+            {label}
+            {required && <span className="ms-1">*</span>}
+          </label>
+        )}
         {helperText && !error && (
           <p id={helperId} className={helperTextBase}>
             {helperText}

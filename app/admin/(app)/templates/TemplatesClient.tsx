@@ -276,7 +276,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                         fontSize: '14px',
                         fontWeight: 500,
                         ...(template.company_id ? {
-                          background: '#1D868F',
+                          background: '#5389BB',
                           color: '#FFFFFF',
                           border: 'none'
                         } : {
@@ -311,7 +311,7 @@ export default function TemplatesClient({ initialTemplates }: Props) {
                         fontSize: '14px',
                         fontWeight: 500,
                         ...(template.is_active ? {
-                          background: '#1D868F',
+                          background: '#5389BB',
                           color: '#FFFFFF',
                           border: 'none'
                         } : {

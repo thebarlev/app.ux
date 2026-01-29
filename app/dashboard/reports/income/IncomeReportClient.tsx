@@ -618,7 +618,7 @@ export default function IncomeReportClient() {
 
                   {/* Info Message */}
                   {fileFormat === "pdf" && (
-                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#1D868F', borderRadius: '8px', display: 'flex', alignItems: 'start', gap: '8px' }}>
+                    <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#5389BB', borderRadius: '8px', display: 'flex', alignItems: 'start', gap: '8px' }}>
                       <AlertCircle className="h-4 w-4" style={{ color: '#FFFFFF', marginTop: '2px', flexShrink: 0 }} />
                       <p style={{ fontSize: '14px', color: '#FFFFFF' }}>
                         בהפקת דוח PDF שעולה מעל 300 מסמכים, יופק רק עמוד סיכום ללא פירוט המסמכים

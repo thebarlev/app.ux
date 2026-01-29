@@ -517,7 +517,7 @@ export default function QuickAddCustomerModal({
               cursor: isSaving ? "not-allowed" : "pointer",
               opacity: isSaving ? 0.6 : 1,
               height: '50px',
-              backgroundColor: '#1D868F',
+              backgroundColor: '#5389BB',
               color: 'white',
             }}
           >

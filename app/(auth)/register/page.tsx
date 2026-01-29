@@ -38,13 +38,16 @@ export default async function RegisterPage() {
   const requireMarketingRequired = marketingSetting?.setting_value === "true"
 
   return (
-    <RegistrationProvider>
-      <RegistrationFlowClient 
-        legalTermsText={legalTermsText}
-        marketingText={marketingText}
-        requireLegalTermsRequired={requireLegalTermsRequired}
-        requireMarketingRequired={requireMarketingRequired}
-      />
-    </RegistrationProvider>
+    <div className="auth-scope">
+      <RegistrationProvider>
+        <RegistrationFlowClient
+          legalTermsText={legalTermsText}
+          marketingText={marketingText}
+          requireLegalTermsRequired={requireLegalTermsRequired}
+          requireMarketingRequired={requireMarketingRequired}
+        />
+      </RegistrationProvider>
+    </div>
   )
 }
+

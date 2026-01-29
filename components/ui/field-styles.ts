@@ -32,7 +32,7 @@ export const labelStates = {
 } as const;
 
 export const helperTextBase = "mt-1 text-[14px] text-muted-fg text-right";
-export const helperTextError = "text-danger";
+export const helperTextError = "text-danger"; 
 
 export const selectBase =
   "w-full flex items-center justify-between gap-2 whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:text-muted-fg transition-colors data-[placeholder]:text-placeholder text-right text-[color:var(--field-text)]";

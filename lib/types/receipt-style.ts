@@ -67,14 +67,14 @@ export const DEFAULT_RECEIPT_STYLE: ReceiptStyleSettings = {
   colors: {
     background: "#F5FBF9",           // --bg
     text: "#19183B",                 // --fg
-    accent: "#1D868F",               // --primary
+    accent: "#5389BB",               // --primary
     headerBackground: "#E7F2EF",     // --card
     headerText: "#19183B",           // --card-fg
     tableHeaderBackground: "#19183B", // --table-header-bg
     tableHeaderText: "#FFFFFF",      // --table-header-fg
     tableRowBorder: "#A1C2BD",       // --border
     totalBoxBackground: "#E7F2EF",   // --card
-    totalBoxBorder: "#1D868F",       // --primary
+    totalBoxBorder: "#5389BB",       // --primary
   },
   layout: {
     pagePaddingTop: 20,

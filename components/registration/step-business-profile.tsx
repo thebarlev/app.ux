@@ -205,14 +205,16 @@ export function StepBusinessProfile() {
   }
 
   return (
-    <Card className="auth-card p-8">
-      <CardContent className="p-0">
-        <div className="auth-header mb-8">
-          <h2 className="auth-title text-right mb-2">פרופיל עסקי</h2>
-          <p className="auth-subtitle text-right" style={{ color: 'var(--muted-fg)', fontSize: '16px' }}>ספר לנו על העסק שלך</p>
+    <Card className="shadow-ui-lg auth-card">
+      <CardContent>
+        <div className="pb-4 mb-[15px]">
+          <h2 className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
+            פרופיל עסקי
+          </h2>
+          <p className="mr-6 text-right">ספר לנו על העסק שלך</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form space-y-6">
+        <form onSubmit={handleSubmit} className="auth-form">
           {error && (
             <div
               className="p-4 rounded-[5px]"
@@ -227,16 +229,20 @@ export function StepBusinessProfile() {
             <FloatingInput
               label="שם העסק"
               id="businessName"
+              placeholder="שם העסק"
               required
               value={data.businessName}
               onChange={(e) => updateData({ businessName: e.target.value })}
               error={errors.businessName}
               containerClassName="w-full min-w-0"
+              className="auth-input"
+              labelClassName="auth-label"
+              labelPlacement="above"
             />
           </div>
 
-          <div className="auth-field space-y-2">
-            <Label htmlFor="businessType" className="text-right">
+          <div className="auth-field">
+            <Label htmlFor="businessType" className="auth-label text-right">
               סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Select
@@ -246,7 +252,7 @@ export function StepBusinessProfile() {
               <SelectTrigger 
                 id="businessType"
                 variant="underline"
-                className={errors.businessType ? "border-danger focus:border-danger" : ""}
+                className={errors.businessType ? "auth-input border-danger focus:border-danger" : "auth-input"}
               >
                 <SelectValue placeholder="בחר סוג עסק" />
               </SelectTrigger>
@@ -269,25 +275,28 @@ export function StepBusinessProfile() {
             <FloatingInput
               label="מספר חברה / תעודת זהות"
               id="companyNumber"
+              placeholder="123456789"
               required
               value={data.companyNumber}
               onChange={(e) => updateData({ companyNumber: e.target.value })}
               dir="ltr"
               className="auth-input text-left"
+              labelClassName="auth-label"
+              labelPlacement="above"
               error={errors.companyNumber}
               containerClassName="w-full min-w-0"
             />
           </div>
 
-          <div className="auth-field space-y-2">
-            <Label htmlFor="industry" className="text-right">
+          <div className="auth-field">
+            <Label htmlFor="industry" className="auth-label text-right">
               תחום פעילות
             </Label>
             <Select
               value={data.industry ? data.industry : undefined}
               onValueChange={(value) => updateData({ industry: value, customIndustry: "" })}
             >
-              <SelectTrigger id="industry" variant="underline">
+              <SelectTrigger id="industry" variant="underline" className="auth-input">
                 <SelectValue placeholder="בחר תחום פעילות (אופציונלי)" />
               </SelectTrigger>
               <SelectContent>
@@ -308,7 +317,7 @@ export function StepBusinessProfile() {
               type="button" 
               onClick={prevStep} 
               variant="secondary"
-              className="auth-secondary-link flex-1"
+              className="flex-1"
               disabled={isLoading}
             >
               חזור
@@ -316,7 +325,7 @@ export function StepBusinessProfile() {
             <Button 
               type="submit" 
               variant="primary"
-              className="auth-primary-button flex-1"
+              className="flex-1 auth-primary-button"
               disabled={isLoading}
               loading={isLoading}
             >
