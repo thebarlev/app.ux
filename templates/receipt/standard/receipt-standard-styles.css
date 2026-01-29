@@ -22,7 +22,7 @@ body {
   min-height: 297mm;
   margin: 0 auto;
   background: #ffffff;
-  padding: 18mm 16mm 22mm;
+  padding: 0mm 0mm 0mm;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -67,8 +67,8 @@ body {
 }
 
 .header-card {
-  background: #5b6c57;
-  color: #ffffff;
+  background: #e6e6e6;
+  color: #000000;
   border-radius: 10px;
   padding: 18px;
   display: flex;

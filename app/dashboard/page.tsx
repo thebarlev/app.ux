@@ -1,37 +1,32 @@
 "use client";
 
-import { FileText, Users, Settings, PlusCircle, BarChart } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { FormSection } from "@/components/ui/form-section";
+import { FileText, Users, Settings, Receipt, UserPlus, BarChart } from "lucide-react";
 import DashboardCard from "./DashboardCard";
 import NewDocumentFab from "@/components/dashboard/NewDocumentFab";
 
 export default function DashboardPage() {
   return (
     <main dir="rtl" className="min-h-screen bg-bg">
-      <div className="ui-container pt-10">
-        {/* Page Header */}
-        <div className="mb-[50px]">
-          <h1 className="text-right mb-4">
-            לוח בקרה
-          </h1>
-          <p className="text-right">
-            ברוכים הבאים למערכת הניהול
-          </p>
+      <div className="ui-container py-8 space-y-8">
+        {/* Page Header (aligned to /dashboard/documents/new) */}
+        <div className="space-y-2">
+          <h1 className="ui-page-title">לוח בקרה</h1>
+          <p className="ui-page-subtitle">ברוכים הבאים למערכת הניהול</p>
         </div>
 
-        {/* Quick Actions */}
-        <FormSection title="פעולות מהירות">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-[1120px] mx-auto w-full px-4 sm:px-6 lg:px-10">
+        {/* Quick Actions Grid */}
+        <section className="space-y-4">
+          <h2 className="text-right text-lg font-semibold text-fg">פעולות מהירות</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <DashboardCard
               href="/dashboard/incomes/documents/new/receipt"
-              icon={PlusCircle}
+              icon={Receipt}
               title="קבלה חדשה"
               description="צור קבלה חדשה ללקוח"
             />
             <DashboardCard
               href="/dashboard/customers/new"
-              icon={Users}
+              icon={UserPlus}
               title="לקוח חדש"
               description="הוסף לקוח חדש למערכת"
             />
@@ -60,10 +55,7 @@ export default function DashboardPage() {
               description="הגדרות העסק והמערכת"
             />
           </div>
-        </FormSection>
-
-        {/* Recent Activity */}
-
+        </section>
       </div>
 
       <NewDocumentFab />

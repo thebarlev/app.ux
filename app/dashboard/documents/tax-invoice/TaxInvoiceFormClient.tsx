@@ -1517,7 +1517,13 @@ export default function TaxInvoiceFormClient({
             <ReceiptSuccessModal
               isOpen={successModalOpen}
               onClose={() => {
-                window.location.href = basePath === "/dashboard/documents" ? "/dashboard" : basePath;
+                const target =
+                  basePath === "/dashboard/documents"
+                    ? "/dashboard"
+                    : basePath === "/business/documents"
+                      ? "/business/documents/new"
+                      : basePath;
+                window.location.href = target;
               }}
               documentNumber={successModalData.documentNumber}
               companyName={successModalData.companyName}
@@ -1526,7 +1532,8 @@ export default function TaxInvoiceFormClient({
               baseLanguage={successModalData.language}
               onViewDocument={async () => {
                 const routeSegment = documentConfig?.routeSegment || "tax-invoice";
-                window.location.href = `${basePath}/${routeSegment}/${successModalData.documentId}/summary`;
+                const target = `${basePath}/${routeSegment}/${successModalData.documentId}/summary`;
+                window.location.href = target;
               }}
               onDownloadHebrew={async (opts) => {
                 try {

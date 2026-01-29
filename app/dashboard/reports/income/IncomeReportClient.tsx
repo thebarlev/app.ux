@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { DateInput } from "@/components/ui/date-input";
+import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,11 +42,7 @@ const DOCUMENT_TYPES = [
 ];
 
 const FILE_FORMATS = [
-  { value: "pdf", label: "PDF" },
   { value: "csv", label: "CSV" },
-  { value: "hashavshevet", label: "שבשבת" },
-  { value: "priority", label: "פריוריטי" },
-  { value: "sap", label: "SAP" },
 ];
 
 export default function IncomeReportClient() {
@@ -63,6 +60,7 @@ export default function IncomeReportClient() {
   const [customTo, setCustomTo] = useState("");
   const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [fileFormat, setFileFormat] = useState("pdf");
   const [dataScope, setDataScope] = useState<"10000" | "500000">("10000");
   const [emailInput, setEmailInput] = useState("");
@@ -188,7 +186,12 @@ export default function IncomeReportClient() {
         endDate: dateTo,
         documentTypes:
           selectedDocTypes.size === 0 || isAllDocTypesSelected ? [] : Array.from(selectedDocTypes),
-        customerName: customerSearch || undefined,
+        // Keep behavior:
+        // - If field is empty => no customer filter (all customers)
+        // - If a customer was selected from the list => filter by customerId
+        // - If user typed free text (no selection) => allow name filter as before
+        customerId: customerId || undefined,
+        customerName: !customerId && customerSearch ? customerSearch : undefined,
         fileFormat,
         scope: dataScope,
         emails: emails.length > 0 ? emails : undefined,
@@ -546,11 +549,27 @@ export default function IncomeReportClient() {
           <FormSection title="סינון לפי לקוח">
             <div className="relative w-full max-w-full px-[20px] sm:px-6 lg:px-8 py-6 bg-white rounded-[20px] border-0 [&_input:focus]:bg-[var(--input)] [&_textarea:focus]:bg-[var(--input)]">
               <div className="grid grid-cols-1 gap-6 sm:[grid-template-columns:repeat(auto-fit,minmax(260px,1fr))] lg:gap-[50px]">
-                <FloatingInput
-                  label="דוח לפי לקוח"
+                <CustomerAutocomplete
                   id="customerSearch"
+                  label="דוח לפי לקוח"
                   value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  onChange={(value) => {
+                    setCustomerSearch(value);
+                    // If user edits/clears the field, treat it as no longer a fixed selected customer.
+                    if (!value.trim()) {
+                      setCustomerId(null);
+                    } else if (customerId) {
+                      setCustomerId(null);
+                    }
+                  }}
+                  onSelectCustomer={(customer) => {
+                    if (!customer) {
+                      setCustomerId(null);
+                      return;
+                    }
+                    setCustomerId(customer.id);
+                  }}
+                  onAddNewCustomer={() => router.push("/dashboard/customers/new")}
                   helperText="אם השדה ריק, הדוח יופק עבור כל הלקוחות"
                   containerClassName="w-full min-w-0"
                 />

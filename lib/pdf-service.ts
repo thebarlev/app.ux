@@ -84,7 +84,11 @@ async function augmentCssForLinkStrippedPdf(html: string, css: string): Promise<
     if (!nextCss.includes(marker)) {
       const receiptCss = await loadReceiptStandardCss()
       if (receiptCss.trim().length > 0) {
-        nextCss = `${nextCss}\n\n${marker}\n${receiptCss}\n/* __end_inlined:receipt-standard-styles.css */\n`
+        // IMPORTANT:
+        // The template's own CSS (`css` argument) must remain the source of truth.
+        // So if a template includes the standard stylesheet link, we inline it *before*
+        // the template CSS, allowing the template to override layout/margins/paddings.
+        nextCss = `${marker}\n${receiptCss}\n/* __end_inlined:receipt-standard-styles.css */\n\n${nextCss}`
       }
     }
   }

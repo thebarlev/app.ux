@@ -144,7 +144,7 @@ export async function generatePDFFromHTML(
   
   const {
     format = "A4",
-    margin = { top: "20mm", right: "15mm", bottom: "20mm", left: "15mm" },
+    margin = { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
     printBackground = true,
   } = options
   
@@ -658,6 +658,12 @@ export async function generatePDFFromHTML(
     // Measure page height before generating PDF to check if it fits on one page
     const pageMetrics = await page.evaluate(() => {
       const body = document.body;
+      const main = (document.querySelector('main.page') ||
+        document.querySelector('.page') ||
+        document.querySelector('.receipt-document')) as HTMLElement | null
+      const mainRect = main?.getBoundingClientRect()
+      const bodyRect = body?.getBoundingClientRect()
+      const mainStyles = main ? window.getComputedStyle(main) : null
       return {
         bodyHeight: body?.scrollHeight || 0,
         bodyClientHeight: body?.clientHeight || 0,
@@ -666,6 +672,18 @@ export async function generatePDFFromHTML(
         documentHeight: document.documentElement.scrollHeight,
         a4HeightPx: 1123, // A4 height in pixels at 96 DPI (297mm)
         wouldFitOnOnePage: (body?.scrollHeight || 0) < 1123,
+        dir: document?.documentElement?.getAttribute('dir') || (document as any).dir || null,
+        mainExists: !!main,
+        mainRect: mainRect
+          ? { left: Math.round(mainRect.left), right: Math.round(mainRect.right), top: Math.round(mainRect.top), width: Math.round(mainRect.width) }
+          : null,
+        bodyRect: bodyRect
+          ? { left: Math.round(bodyRect.left), right: Math.round(bodyRect.right), top: Math.round(bodyRect.top), width: Math.round(bodyRect.width) }
+          : null,
+        mainPaddingLeft: mainStyles ? mainStyles.paddingLeft : null,
+        mainPaddingRight: mainStyles ? mainStyles.paddingRight : null,
+        mainMarginLeft: mainStyles ? mainStyles.marginLeft : null,
+        mainMarginRight: mainStyles ? mainStyles.marginRight : null,
       };
     });
     // Generate PDF (optional header/footer if provided in options)
@@ -674,9 +692,9 @@ export async function generatePDFFromHTML(
       landscape,
       margin: {
         top: margin?.top || "3mm",     // Minimal top margin to start content higher
-        right: margin?.right || "8mm",   // Minimal side margins
+        right: margin?.right || "3mm",   // Minimal side margins
         bottom: margin?.bottom || "3mm", // Minimal bottom margin to prevent footer from causing 2nd page
-        left: margin?.left || "8mm",    // Minimal side margins
+        left: margin?.left || "3mm",    // Minimal side margins
       },
       printBackground,
       scale,

@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getTaxInvoicePreviewUrlAction } from "@/app/dashboard/documents/tax-invoice/actions";
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+
+const DOC_LABEL_BY_DB_VALUE = new Map(getAllDocumentConfigs().map((c) => [c.dbValue, c.label]));
 
 type TaxInvoiceRow = {
   id: string;
@@ -129,8 +132,10 @@ export default function TaxInvoiceSummaryClient(props: {
 
   const title = useMemo(() => {
     const n = props.taxInvoice.document_number || "—";
-    return `חשבונית מס ${n}`;
-  }, [props.taxInvoice.document_number]);
+    const dbType = String(props.taxInvoice.document_type || "").toLowerCase();
+    const label = DOC_LABEL_BY_DB_VALUE.get(dbType) || "מסמך";
+    return `${label} ${n}`;
+  }, [props.taxInvoice.document_number, props.taxInvoice.document_type]);
 
   const documentDescription = useMemo(() => {
     const desc = typeof props.taxInvoice.document_description === "string" ? props.taxInvoice.document_description.trim() : "";

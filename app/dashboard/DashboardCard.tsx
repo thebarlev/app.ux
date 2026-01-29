@@ -13,75 +13,22 @@ interface DashboardCardProps {
 
 export default function DashboardCard({ href, icon: Icon, title, description }: DashboardCardProps) {
   return (
-    <Link href={href} style={{ textDecoration: 'none' }} className="h-full block">
-      <Card
-        className="h-full flex items-center"
-        style={{
-          backgroundColor: 'white',
-          border: 'none',
-          borderRadius: '20px',
-          boxShadow: '0 0 13px 0 rgba(0,0,0,0.10)',
-          cursor: 'pointer',
-          transition: 'transform 0.2s, box-shadow 0.2s',
-          height: '160px',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 4px 20px 0 rgba(0,0,0,0.15)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 0 13px 0 rgba(0,0,0,0.10)';
-        }}
-      >
-        <CardContent style={{ padding: '30px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              width: '48px',
-              height: '48px',
-              position: 'relative',
-              flexShrink: 0,
-            }}>
-              {/* Icon with two-tone gradient effect */}
-              <div style={{ position: 'relative', width: '32px', height: '32px' }}>
-                {/* Base layer - primary teal color */}
-                <Icon 
-                  size={32} 
-                  style={{ 
-                    color: '#5389BB',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                  }} 
-                />
-                {/* Overlay layer - orange, clipped to show gradient effect */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '32px',
-                  height: '32px',
-                  clipPath: 'inset(0 0 0 50%)',
-                }}>
-                  <Icon 
-                    size={32} 
-                    style={{ 
-                      color: '#F39600',
-                    }} 
-                  />
-                </div>
+    <Link href={href} className="group h-full block">
+      <Card className="h-full transition-all hover:shadow-lg hover:border-primary cursor-pointer">
+        <CardContent className="p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 p-3 bg-primary/10 group-hover:bg-primary/20 rounded-ui transition-colors">
+              <div className="text-primary">
+                <Icon className="h-6 w-6" />
               </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <div style={{ fontSize: '20px', fontWeight: 700, color: '#19183B', marginBottom: '8px' }} className="truncate">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-card-fg mb-1.5 group-hover:text-primary transition-colors">
                 {title}
-              </div>
-              <div style={{ fontSize: '18px', color: '#708993' }} className="truncate">
+              </h3>
+              <p className="text-sm text-muted-fg leading-relaxed">
                 {description}
-              </div>
+              </p>
             </div>
           </div>
         </CardContent>
