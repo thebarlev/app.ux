@@ -149,12 +149,6 @@ export default function ReceiptConfirmationModal({
     return `${curr}${amount.toLocaleString("he-IL", { maximumFractionDigits: 2 })}`;
   };
 
-  const consentRequired = consentState?.status === "ready" && !consentState.hasConsent;
-  const consentBlocking =
-    consentState?.status === "loading" ||
-    consentState?.status === "error" ||
-    (consentRequired && !consentChecked);
-
   return (
     <div
       className="receipt-confirmation-overlay fixed inset-0 flex items-center justify-center"
@@ -230,63 +224,6 @@ export default function ReceiptConfirmationModal({
                 <span className="receipt-confirmation-summary-value">{formatMoney(total, currency)}</span>
               </div>
             </div>
-
-            {consentState && (
-              <div className="receipt-confirmation-consent">
-                {consentState.status === "loading" && (
-                <div className="receipt-confirmation-consent-loading">
-                  <p className="receipt-confirmation-consent-text">
-                    טוען סטטוס הסכמה…
-                  </p>
-                </div>
-                )}
-
-                {consentState.status === "error" && (
-                <div className="receipt-confirmation-consent-error">
-                  <p className="receipt-confirmation-consent-error-text">
-                    {consentState.message || "שגיאה בבדיקת הסכמה"}
-                  </p>
-                </div>
-                )}
-
-                {consentState.status === "ready" && (
-                <div className="receipt-confirmation-consent-ready">
-                  <div className="receipt-confirmation-consent-row">
-                    {consentRequired ? (
-                      <Checkbox
-                        checked={consentChecked}
-                        onCheckedChange={(v) => onConsentCheckedChange?.(v === true)}
-                        className="mt-1"
-                      />
-                    ) : (
-                      <Checkbox checked disabled className="mt-1" />
-                    )}
-
-                    <div className="receipt-confirmation-consent-body">
-                      <p className="receipt-confirmation-consent-text">
-                        אני מאשר/ת שקיבלתי הסכמה מפורשת מהמקבל לקבלת מסמך ממוחשב (חתום) באמצעים דיגיטליים.
-                      </p>
-                      {consentState.recipientIdentifier && (
-                        <p className="receipt-confirmation-recipient" dir="ltr">
-                          Recipient: {consentState.recipientIdentifier}
-                        </p>
-                      )}
-                      {!consentRequired && onRevokeConsent && (
-                        <button
-                          type="button"
-                          onClick={onRevokeConsent}
-                          className="receipt-confirmation-revoke"
-                          disabled={isLoading || isFinalizing}
-                        >
-                          ביטול הסכמה
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Action Buttons - Footer at bottom, RTL aligned */}
@@ -315,7 +252,7 @@ export default function ReceiptConfirmationModal({
                   });
                 }
               }}
-              disabled={isLoading || isFinalizing || consentBlocking}
+              disabled={isLoading || isFinalizing}
               loading={isLoading || isFinalizing}
               className="w-full max-w-[300px]"
             >

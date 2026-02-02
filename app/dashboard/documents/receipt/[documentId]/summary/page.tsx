@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import ReceiptSummaryClient from "./ReceiptSummaryClient";
+import { appendFileSync } from "fs";
 
 export default async function ReceiptSummaryPage({
   params,
@@ -42,7 +43,7 @@ export default async function ReceiptSummaryPage({
   const companyId = (receipt as any).company_id as string | null;
   const customerId = (receipt as any).customer_id as string | null;
 
-  const [companyRes, customerRes, paymentsRes] = await Promise.all([
+  const [companyRes, customerRes, paymentsRes, signingInfoRes] = await Promise.all([
     companyId
       ? supabase
           .from("companies")
@@ -62,11 +63,48 @@ export default async function ReceiptSummaryPage({
       .select("description, item_date, line_total, unit_price, currency, payment_metadata")
       .eq("document_id", documentId)
       .order("line_number", { ascending: true }),
+    supabase
+      .from("document_events")
+      .select("event_data, performed_at, performed_by")
+      .eq("document_id", documentId)
+      .eq("event_type", "signed")
+      .order("performed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const company = companyRes.data || null;
   const customer = customerRes.data || null;
   const paymentsRaw = paymentsRes.data || [];
+  const signingInfo = signingInfoRes.data || null;
+
+  // #region agent log - Server component logging to file
+  try {
+    appendFileSync('/Users/uxellent/v0-system-owner-admin-panel/.cursor/debug.log', JSON.stringify({
+      location: 'summary/page.tsx:78',
+      message: 'Signing info fetched for display',
+      data: {
+        hasSigningInfo: !!signingInfo,
+        signingInfoType: signingInfo ? typeof signingInfo : 'null',
+        performedAt: signingInfo?.performed_at,
+        performedBy: signingInfo?.performed_by,
+        eventDataType: signingInfo?.event_data ? typeof signingInfo.event_data : 'null',
+        eventDataKeys: signingInfo?.event_data ? Object.keys(signingInfo.event_data) : [],
+        businessName: signingInfo?.event_data?.business_name,
+        businessTaxId: signingInfo?.event_data?.business_tax_id,
+        businessContactName: signingInfo?.event_data?.business_contact_name,
+        createdByName: signingInfo?.event_data?.created_by_name,
+        createdByEmail: signingInfo?.event_data?.created_by_email,
+      },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'verification',
+      hypothesisId: 'E'
+    }) + '\n');
+  } catch (e) {
+    // ignore
+  }
+  // #endregion
 
   const payments = (paymentsRaw as any[]).map((item) => {
     const meta = item?.payment_metadata || {};
@@ -85,6 +123,7 @@ export default async function ReceiptSummaryPage({
       company={company as any}
       customer={customer as any}
       payments={payments as any}
+      signingInfo={signingInfo as any}
     />
   );
 }

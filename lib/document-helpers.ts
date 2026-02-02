@@ -186,7 +186,8 @@ export async function getNextDocumentNumberPreview(
 export async function finalizeDocument(
   draftId: string,
   companyId: string,
-  documentType: string
+  documentType: string,
+  opts?: { createdByName?: string | null; createdByEmail?: string | null }
 ): Promise<{
   ok: boolean
   documentNumber?: string
@@ -274,9 +275,23 @@ export async function finalizeDocument(
   // Fetch company data for signing
   const { data: companyData } = await adminClient
     .from("companies")
-    .select("name, tax_id, email")
+    .select("company_name, tax_id, registration_number, company_number, email, contact_full_name")
     .eq("id", companyId)
     .single();
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:277',message:'Company data fetched from DB',data:{companyId:companyId.substring(0,8),companyName:companyData?.company_name,taxId:companyData?.tax_id,registrationNumber:companyData?.registration_number,companyNumber:companyData?.company_number,contactFullName:companyData?.contact_full_name,email:companyData?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+
+  // Determine the business tax ID from available fields
+  const businessTaxId = companyData?.tax_id || companyData?.registration_number || companyData?.company_number || null;
+  const businessContactName = companyData?.contact_full_name || null;
+
+  // Get current user for event logging
+  const { data: { user } } = await supabase.auth.getUser();
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:293',message:'User data for signing',data:{userId:user?.id?.substring(0,8),userEmail:user?.email,userName:user?.user_metadata?.full_name||user?.user_metadata?.name,createdByName:opts?.createdByName,createdByEmail:opts?.createdByEmail,resolvedTaxId:businessTaxId,resolvedContactName:businessContactName},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A,B'})}).catch(()=>{});
 
   const nowIso = new Date().toISOString()
 
@@ -327,49 +342,82 @@ export async function finalizeDocument(
     if (!rendered.ok) return { ok: false as const, message: rendered.message }
 
     const externalDocId = `${draftId}:${args.variant}:${args.language}`
+    
+    // #region agent log
+    const metadataToSend = {
+      document_id: draftId,
+      document_number: docNumber,
+      document_type: dbDocumentType,
+      issue_date: issueDate,
+      variant: args.variant,
+      language: args.language,
+      unsigned_pdf_sha256: rendered.pdfSha256,
+      template_version_id: rendered.templateVersionId,
+      pdf_generated_at: rendered.frozenNowIso,
+      created_by: opts?.createdByName || businessContactName || null,
+      creator_email: opts?.createdByEmail || companyData?.email || null,
+      business_tax_id: businessTaxId,
+      business_contact_name: businessContactName,
+    };
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:343',message:'Metadata being sent to dsign',data:{businessName:companyData?.company_name?.trim()||companyId,businessTaxId:businessTaxId,metadata:metadataToSend},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    
     const signing = await createSigningRequest({
       businessId: companyId,
       externalDocId,
-      businessName: companyData?.name || "Unknown Business",
-      businessTaxId: companyData?.tax_id || null,
+    
+      // ✅ תיקון שם העסק (לא name!)
+      businessName:
+        (companyData?.company_name && companyData.company_name.trim())
+          ? companyData.company_name.trim()
+          : companyId,
+    
+      businessTaxId: businessTaxId,
+      businessContactName: businessContactName,
+      businessEmail: companyData?.email || null,
       supplierName: "VOW System",
-      metadata: {
-        document_id: draftId,
-        document_number: docNumber,
-        document_type: dbDocumentType,
-        issue_date: issueDate,
-        variant: args.variant,
-        language: args.language,
-        unsigned_pdf_sha256: rendered.pdfSha256,
-        template_version_id: rendered.templateVersionId,
-        pdf_generated_at: rendered.frozenNowIso,
-        email: companyData?.email,
-      },
+    
+      metadata: metadataToSend,
+    
       pdfBytes: rendered.pdfBytes,
     })
-    if (!signing.ok) {
+        if (!signing.ok) {
       return { ok: false as const, message: `Signing failed (${signing.code}): ${signing.message}` }
     }
 
     try {
+      const eventDataToSave = {
+        provider: "secure_signature",
+        request_id: signing.requestId,
+        variant: args.variant,
+        language: args.language,
+        unsigned_pdf_sha256: rendered.pdfSha256,
+        signed_pdf_sha256: signing.signedPdfSha256,
+        cert_info: signing.certInfo,
+        hashes: signing.hashes,
+        events: signing.events,
+        created_by_name: opts?.createdByName || businessContactName || null,
+        created_by_email: opts?.createdByEmail || companyData?.email || null,
+        business_name: companyData?.company_name || null,
+        business_tax_id: businessTaxId,
+        business_contact_name: businessContactName,
+      };
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:398',message:'Saving to document_events',data:{performedBy:user?.id?.substring(0,8),eventData:eventDataToSave},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      
       await adminClient.from("document_events").insert({
         document_id: draftId,
         company_id: companyId,
         event_type: "signed",
-        performed_by: null,
-        event_data: {
-          provider: "secure_signature",
-          request_id: signing.requestId,
-          variant: args.variant,
-          language: args.language,
-          unsigned_pdf_sha256: rendered.pdfSha256,
-          signed_pdf_sha256: signing.signedPdfSha256,
-          cert_info: signing.certInfo,
-          hashes: signing.hashes,
-          events: signing.events,
-        },
+        performed_by: user?.id || null,
+        event_data: eventDataToSave,
       })
-    } catch {
+    } catch (e: any) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:414',message:'Error saving document_events',data:{error:e?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       // ignore
     }
 

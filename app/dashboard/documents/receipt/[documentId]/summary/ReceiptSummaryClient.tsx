@@ -45,6 +45,28 @@ type PaymentRow = {
   currency: string | null;
 };
 
+type SigningInfoRow = {
+  event_data: {
+    provider?: string;
+    request_id?: string;
+    created_by_name?: string | null;
+    created_by_email?: string | null;
+    business_name?: string | null;
+    business_tax_id?: string | null;
+    business_contact_name?: string | null;
+    cert_info?: {
+      subject?: string;
+      issuer?: string;
+      valid_from?: string;
+      valid_to?: string;
+      fingerprint_sha256?: string;
+    };
+    signed_pdf_sha256?: string;
+  };
+  performed_at: string;
+  performed_by?: string | null;
+} | null;
+
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
   try {
@@ -192,7 +214,13 @@ export default function ReceiptSummaryClient(props: {
   company: CompanyRow;
   customer: CustomerRow;
   payments: PaymentRow[];
+  signingInfo: SigningInfoRow | null;
 }) {
+  // #region agent log
+  if (typeof window !== 'undefined') {
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptSummaryClient.tsx:219',message:'Component props received',data:{hasSigningInfo:!!props.signingInfo,signingInfoKeys:props.signingInfo?Object.keys(props.signingInfo):[],eventDataKeys:props.signingInfo?.event_data?Object.keys(props.signingInfo.event_data):[],businessName:props.signingInfo?.event_data?.business_name,businessTaxId:props.signingInfo?.event_data?.business_tax_id,businessContactName:props.signingInfo?.event_data?.business_contact_name},timestamp:Date.now(),sessionId:'debug-session',runId:'verification',hypothesisId:'F'})}).catch(()=>{});
+  }
+  // #endregion
   const [busy, setBusy] = useState<null | "view" | "download">(null);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
@@ -533,6 +561,67 @@ export default function ReceiptSummaryClient(props: {
               </Card>
             </div>
           ) : null}
+
+          {props.signingInfo && (
+            <div className="mt-6">
+              <h4 className="text-right text-base font-semibold mb-2">פרטי חתימה דיגיטלית</h4>
+              <Card>
+                <CardContent className="p-4 pr-0 text-right">
+                  <div className="text-sm space-y-2">
+                    {props.signingInfo.performed_at && (
+                      <div>
+                        <span className="font-semibold">נחתם בתאריך:</span>{" "}
+                        {formatDateTime(props.signingInfo.performed_at)}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.business_name && (
+                      <div>
+                        <span className="font-semibold">שם החברה:</span>{" "}
+                        {props.signingInfo.event_data.business_name}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.business_tax_id && (
+                      <div>
+                        <span className="font-semibold">מספר חברה / ח.פ:</span>{" "}
+                        {props.signingInfo.event_data.business_tax_id}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.business_contact_name && (
+                      <div>
+                        <span className="font-semibold">איש קשר:</span>{" "}
+                        {props.signingInfo.event_data.business_contact_name}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.created_by_name && (
+                      <div>
+                        <span className="font-semibold">נוצר על ידי:</span>{" "}
+                        {props.signingInfo.event_data.created_by_name}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.created_by_email && (
+                      <div>
+                        <span className="font-semibold">מייל:</span>{" "}
+                        {props.signingInfo.event_data.created_by_email}
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.signed_pdf_sha256 && (
+                      <div>
+                        <span className="font-semibold">חתימת PDF (SHA256):</span>{" "}
+                        <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                          {props.signingInfo.event_data.signed_pdf_sha256.substring(0, 16)}...
+                        </code>
+                      </div>
+                    )}
+                    {props.signingInfo.event_data?.cert_info?.valid_to && (
+                      <div className="text-xs text-muted-foreground mt-2">
+                        תעודת החתימה תקפה עד: {new Date(props.signingInfo.event_data.cert_info.valid_to).toLocaleDateString("he-IL")}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
     </main>

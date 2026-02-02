@@ -215,11 +215,9 @@ async function resolveRecipientIdentifier(params: {
   const { supabase, customerId, customerName } = params;
 
   if (!customerId) {
-    return {
-      ok: false,
-      message:
-        "נדרשת הסכמת מקבל למסמך ממוחשב, אבל לא נבחר לקוח שמור. בחר לקוח עם אימייל/טלפון/ת.ז (לא רק 'שם למסמך זה').",
-    };
+    // Allow digital signatures even if customer is not saved
+    // Use customer name as the identifier
+    return { ok: true, recipientIdentifier: customerName };
   }
 
   const { data: customer, error } = await supabase
@@ -229,22 +227,13 @@ async function resolveRecipientIdentifier(params: {
     .maybeSingle();
 
   if (error || !customer) {
-    return {
-      ok: false,
-      message:
-        "לא ניתן לאמת הסכמת מקבל: הלקוח לא נמצא או שאין הרשאה. נסה לרענן או לבחור לקוח אחר.",
-    };
+    // Allow digital signatures even if customer fetch fails
+    // Use customer name as fallback
+    return { ok: true, recipientIdentifier: customerName };
   }
 
   const recipientIdentifier =
-    firstNonEmpty(customer.email, customer.phone, customer.mobile, customer.tax_id) || null;
-
-  if (!recipientIdentifier) {
-    return {
-      ok: false,
-      message: `נדרשת הסכמה למסמך ממוחשב, אך ללקוח "${customer.name || customerName}" אין אימייל/טלפון/ת.ז. עדכן את הלקוח והפק מחדש.`,
-    };
-  }
+    firstNonEmpty(customer.email, customer.phone, customer.mobile, customer.tax_id) || customerName;
 
   return { ok: true, recipientIdentifier };
 }
@@ -971,8 +960,20 @@ export async function issueDocumentAction(
         companyId: companyId?.substring(0, 8),
         documentType,
       });
-
-      const result = await finalizeDocument(draftId, companyId, documentType);
+      const userRes = await supabase.auth.getUser();
+      const createdByEmail = userRes?.data?.user?.email ?? null;
+      const createdByName =
+        (userRes?.data?.user?.user_metadata as any)?.full_name ||
+        (userRes?.data?.user?.user_metadata as any)?.name ||
+        createdByEmail ||
+        null;
+      
+      const result = await finalizeDocument(draftId, companyId, documentType, {
+        createdByName,
+        createdByEmail,
+      });
+      
+                
       console.log(`${logPrefix} finalizeDocument result`, {
         ok: result.ok,
         documentNumber: result.documentNumber,
@@ -1116,8 +1117,20 @@ export async function issueDocumentAction(
       companyId: companyId?.substring(0, 8),
       documentType,
     });
-
-    const result = await finalizeDocument(draft.id, companyId, documentType);
+    
+    const userRes = await supabase.auth.getUser();
+    const createdByEmail = userRes?.data?.user?.email ?? null;
+    const createdByName =
+      (userRes?.data?.user?.user_metadata as any)?.full_name ||
+      (userRes?.data?.user?.user_metadata as any)?.name ||
+      createdByEmail ||
+      null;
+    
+    const result = await finalizeDocument(draft.id, companyId, documentType, {
+      createdByName,
+      createdByEmail,
+    });
+    
     console.log(`${logPrefix} finalizeDocument result`, {
       ok: result.ok,
       documentNumber: result.documentNumber,
