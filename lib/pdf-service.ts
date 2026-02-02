@@ -15,6 +15,7 @@ import { getDefaultGenericDocumentTemplate, getDefaultReceiptTemplate } from "@/
 import { getPageTexts } from "@/lib/system-texts"
 import { signPdfWithEnvP12 } from "@/lib/documents/signing/p12-signer"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
+import { sha256Hex as sha256HexFromSigningClient } from "@/lib/documents/signing/secure-signature-client"
 import type { 
   TemplateDefinition, 
   ReceiptTemplateData,
@@ -71,12 +72,6 @@ function cssAlreadyImportsAssistant(css: string): boolean {
 
 async function augmentCssForLinkStrippedPdf(html: string, css: string): Promise<string> {
   let nextCss = css || ""
-  let prefix = ""
-
-  // 1) Google Fonts Assistant: convert <link rel="stylesheet" ...> into @import (must be at top of CSS).
-  if (htmlHasAssistantGoogleFontsStylesheetLink(html) && !cssAlreadyImportsAssistant(nextCss)) {
-    prefix += `@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap');\n`
-  }
 
   // 2) receipt-standard-styles.css: inline from repo so PDF keeps styling after <link> stripping.
   if (htmlHasReceiptStandardStylesheetLink(html)) {
@@ -93,12 +88,175 @@ async function augmentCssForLinkStrippedPdf(html: string, css: string): Promise<
     }
   }
 
-  // Keep @import at the very top.
-  if (prefix) {
-    nextCss = `${prefix}${nextCss}`
+  return nextCss
+}
+
+let cachedAssistantTtfBase64: string | null = null
+let cachedAssistantTtfBase64Error: string | null = null
+
+async function loadAssistantTtfBase64(): Promise<string> {
+  if (cachedAssistantTtfBase64 !== null) return cachedAssistantTtfBase64
+  if (cachedAssistantTtfBase64Error) return ""
+  try {
+    const ttfPath = path.join(process.cwd(), "public", "AssistantRegular.ttf")
+    const buf = await readFile(ttfPath)
+    cachedAssistantTtfBase64 = buf.toString("base64")
+    return cachedAssistantTtfBase64
+  } catch (e: any) {
+    cachedAssistantTtfBase64Error = e?.message || String(e)
+    cachedAssistantTtfBase64 = ""
+    return ""
+  }
+}
+
+async function buildDeterministicFontCssPrefix(): Promise<string> {
+  const ttf = await loadAssistantTtfBase64()
+  if (!ttf) return ""
+  // Determinism requirement: no network fonts. Provide both family names used in templates/footers.
+  return `
+/* __deterministic_fonts__ */
+@font-face {
+  font-family: 'Assistant';
+  font-style: normal;
+  font-weight: 400;
+  src: url(data:font/ttf;base64,${ttf}) format('truetype');
+}
+@font-face {
+  font-family: 'Heebo';
+  font-style: normal;
+  font-weight: 400;
+  src: url(data:font/ttf;base64,${ttf}) format('truetype');
+}
+/* __end_deterministic_fonts__ */
+`
+}
+
+async function loadTemplateById(params: {
+  templateId: string
+  language: "he" | "en"
+}): Promise<{ html: string; css: string; templateId: string } | null> {
+  const admin = createAdminClient()
+  const { data: row, error } = await admin
+    .from("templates")
+    .select("id, html_template, css, html_en, css_en, html_he, css_he")
+    .eq("id", params.templateId)
+    .maybeSingle()
+
+  if (error || !row) return null
+
+  // Prefer bilingual fields if present; fallback to legacy.
+  const heHtml: string | null = (row as any).html_he ?? (row as any).html_template ?? null
+  const heCss: string | null = (row as any).css_he ?? (row as any).css ?? null
+  const enHtml: string | null = (row as any).html_en ?? null
+  const enCss: string | null = (row as any).css_en ?? null
+
+  if (params.language === "en") {
+    if (typeof enHtml === "string" && enHtml.trim().length > 0) {
+      const css = typeof enCss === "string" && enCss.trim().length > 0 ? enCss : (heCss || "")
+      return { html: enHtml, css: css || "", templateId: row.id }
+    }
+    return null
   }
 
-  return nextCss
+  if (typeof heHtml === "string" && heHtml.trim().length > 0) {
+    return { html: heHtml, css: heCss || "", templateId: row.id }
+  }
+  return null
+}
+
+export async function renderDeterministicPdfBytes(params: {
+  documentId: string
+  language: "he" | "en"
+  documentCopyLabel: string
+  /**
+   * If provided, render using this specific template snapshot.
+   * Otherwise, will use documents.template_version_id or fall back to runtime selection.
+   */
+  templateVersionId?: string | null
+}): Promise<
+  | {
+      ok: true
+      pdfBytes: Buffer
+      pdfSha256: string
+      frozenNowIso: string
+      templateVersionId: string | null
+    }
+  | { ok: false; message: string }
+> {
+  const admin = createAdminClient()
+  const { data: doc, error: docError } = await admin
+    .from("documents")
+    .select("id, company_id, document_type, pdf_generated_at, finalized_at, template_version_id, document_number")
+    .eq("id", params.documentId)
+    .single()
+  if (docError || !doc) return { ok: false, message: "DOCUMENT_NOT_FOUND" }
+
+  const frozenNowIsoRaw: string | null =
+    (doc as any)?.pdf_generated_at ? String((doc as any).pdf_generated_at) :
+    (doc as any)?.finalized_at ? String((doc as any).finalized_at) :
+    null
+  if (!frozenNowIsoRaw) {
+    return { ok: false, message: "FROZEN_TIMESTAMP_MISSING: pdf_generated_at/finalized_at is required for deterministic issuance" }
+  }
+  const frozenNowIso = frozenNowIsoRaw
+
+  const desiredTemplateId = params.templateVersionId || (doc as any)?.template_version_id || null
+  const loaded =
+    desiredTemplateId ? await loadTemplateById({ templateId: desiredTemplateId, language: params.language }) : null
+
+  const fallbackTemplate =
+    !loaded
+      ? await (async () => {
+          const t = await getTemplateForDocument((doc as any).company_id, (doc as any).document_type as any, {
+            language: params.language,
+            allowFallbackToHe: false,
+          })
+          return { html: t.html, css: t.css, templateId: t.templateId }
+        })()
+      : null
+
+  const template = loaded || fallbackTemplate
+  if (!template) return { ok: false, message: "TEMPLATE_NOT_FOUND" }
+
+  const templateData = await prepareDocumentData(params.documentId, params.language, {
+    documentCopyLabel: params.documentCopyLabel,
+    frozenNowIso,
+    embedAssetsAsDataUrls: true,
+  })
+
+  const renderedHtml = compileAndRender(template.html, templateData)
+  const augmentedCss = await augmentCssForLinkStrippedPdf(template.html, template.css || "")
+  const fontsCss = await buildDeterministicFontCssPrefix()
+  const finalCss = `${fontsCss}\n${augmentedCss || ""}`
+
+  const footerDateTime = (templateData as any)?.CURRENT_DATE_TIME || ""
+  const footerTemplate = `
+    <div style="font-family: Heebo, Assistant, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 3mm; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
+        <span style="justify-self: start; text-align: right;">הופק ב-${footerDateTime}</span>
+        <span style="justify-self: center;">עמוד <span class=\"pageNumber\"></span> מתוך <span class=\"totalPages\"></span></span>
+        <span style="justify-self: end; text-align: left; direction: rtl; unicode-bidi: plaintext;">מסמך ממוחשב הופק על ידי thebarlev</span>
+      </div>
+    </div>
+  `
+
+  const pdfResult = await generatePDFFromHTML(renderedHtml, finalCss, {
+    format: "A4",
+    printBackground: true,
+    margin: { top: "3mm", right: "8mm", bottom: "15mm", left: "8mm" },
+    displayHeaderFooter: true,
+    headerTemplate: "<div></div>",
+    footerTemplate,
+    blockNetwork: true,
+  })
+
+  if (!pdfResult.success || !pdfResult.buffer) {
+    return { ok: false, message: pdfResult.error || "PDF_GENERATION_FAILED" }
+  }
+
+  const pdfBytes = Buffer.from(pdfResult.buffer as any)
+  const pdfSha256 = sha256HexFromSigningClient(pdfBytes)
+  return { ok: true, pdfBytes, pdfSha256, frozenNowIso, templateVersionId: template.templateId || null }
 }
 
 const TAX_INVOICE_LIKE_TYPES = new Set([
@@ -674,6 +832,16 @@ export async function prepareDocumentData(
   languageOverride?: "he" | "en",
   options?: {
     documentCopyLabel?: string;
+    /**
+     * Deterministic timestamp (ISO) to use for any “now” placeholders in PDFs.
+     * If provided, CURRENT_DATE_TIME/TIME are derived from this value.
+     */
+    frozenNowIso?: string;
+    /**
+     * If true, embed logo/signature as data: URLs (no signed/public URLs).
+     * Required for deterministic issuance (no network).
+     */
+    embedAssetsAsDataUrls?: boolean;
   }
 ): Promise<ReceiptTemplateData> {
   const supabase = await createClient()
@@ -1109,27 +1277,45 @@ export async function prepareDocumentData(
   if (doc.company?.logo_url) {
     const storagePath = getStoragePathFromUrl(doc.company.logo_url)
     if (storagePath) {
-      // Try to create signed URL (works for private buckets)
-      try {
-        const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-          .from("business-assets")
-          .createSignedUrl(storagePath, 3600) // 1 hour expiry
-        
-        if (!signedUrlError && signedUrlData?.signedUrl) {
-          logoUrl = signedUrlData.signedUrl
-          console.log(`[prepareDocumentData] Created signed URL for logo: ${storagePath}`)
-        } else {
-          // If signed URL fails, try public URL (bucket might be public)
-          const { data: publicUrlData } = adminClient.storage
+      if (options?.embedAssetsAsDataUrls) {
+        try {
+          const { data: blob, error } = await adminClient.storage
             .from("business-assets")
-            .getPublicUrl(storagePath)
-          logoUrl = publicUrlData.publicUrl || doc.company.logo_url
-          console.log(`[prepareDocumentData] Using public URL for logo: ${publicUrlData.publicUrl || doc.company.logo_url}`)
+            .download(storagePath)
+          if (!error && blob) {
+            const ab = await (blob as any).arrayBuffer()
+            const buf = Buffer.from(ab)
+            const ext = storagePath.split(".").pop()?.toLowerCase() || "png"
+            const mime =
+              ext === "svg" ? "image/svg+xml" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png"
+            logoUrl = `data:${mime};base64,${buf.toString("base64")}`
+          }
+        } catch {
+          // keep null
         }
-      } catch (error) {
-        // Fallback to original URL
-        logoUrl = doc.company.logo_url
-        console.warn(`[prepareDocumentData] Failed to create signed URL for logo, using original:`, error)
+      } else {
+        // Try to create signed URL (works for private buckets)
+        try {
+          const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+            .from("business-assets")
+            .createSignedUrl(storagePath, 3600) // 1 hour expiry
+          
+          if (!signedUrlError && signedUrlData?.signedUrl) {
+            logoUrl = signedUrlData.signedUrl
+            console.log(`[prepareDocumentData] Created signed URL for logo: ${storagePath}`)
+          } else {
+            // If signed URL fails, try public URL (bucket might be public)
+            const { data: publicUrlData } = adminClient.storage
+              .from("business-assets")
+              .getPublicUrl(storagePath)
+            logoUrl = publicUrlData.publicUrl || doc.company.logo_url
+            console.log(`[prepareDocumentData] Using public URL for logo: ${publicUrlData.publicUrl || doc.company.logo_url}`)
+          }
+        } catch (error) {
+          // Fallback to original URL
+          logoUrl = doc.company.logo_url
+          console.warn(`[prepareDocumentData] Failed to create signed URL for logo, using original:`, error)
+        }
       }
     } else {
       // If we can't extract storage path, use original URL (might be external URL)
@@ -1141,27 +1327,45 @@ export async function prepareDocumentData(
   if (doc.company?.signature_url) {
     const storagePath = getStoragePathFromUrl(doc.company.signature_url)
     if (storagePath) {
-      // Try to create signed URL (works for private buckets)
-      try {
-        const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-          .from("business-assets")
-          .createSignedUrl(storagePath, 3600) // 1 hour expiry
-        
-        if (!signedUrlError && signedUrlData?.signedUrl) {
-          signatureUrl = signedUrlData.signedUrl
-          console.log(`[prepareDocumentData] Created signed URL for signature: ${storagePath}`)
-        } else {
-          // If signed URL fails, try public URL (bucket might be public)
-          const { data: publicUrlData } = adminClient.storage
+      if (options?.embedAssetsAsDataUrls) {
+        try {
+          const { data: blob, error } = await adminClient.storage
             .from("business-assets")
-            .getPublicUrl(storagePath)
-          signatureUrl = publicUrlData.publicUrl || doc.company.signature_url
-          console.log(`[prepareDocumentData] Using public URL for signature: ${publicUrlData.publicUrl || doc.company.signature_url}`)
+            .download(storagePath)
+          if (!error && blob) {
+            const ab = await (blob as any).arrayBuffer()
+            const buf = Buffer.from(ab)
+            const ext = storagePath.split(".").pop()?.toLowerCase() || "png"
+            const mime =
+              ext === "svg" ? "image/svg+xml" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png"
+            signatureUrl = `data:${mime};base64,${buf.toString("base64")}`
+          }
+        } catch {
+          // keep null
         }
-      } catch (error) {
-        // Fallback to original URL
-        signatureUrl = doc.company.signature_url
-        console.warn(`[prepareDocumentData] Failed to create signed URL for signature, using original:`, error)
+      } else {
+        // Try to create signed URL (works for private buckets)
+        try {
+          const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+            .from("business-assets")
+            .createSignedUrl(storagePath, 3600) // 1 hour expiry
+          
+          if (!signedUrlError && signedUrlData?.signedUrl) {
+            signatureUrl = signedUrlData.signedUrl
+            console.log(`[prepareDocumentData] Created signed URL for signature: ${storagePath}`)
+          } else {
+            // If signed URL fails, try public URL (bucket might be public)
+            const { data: publicUrlData } = adminClient.storage
+              .from("business-assets")
+              .getPublicUrl(storagePath)
+            signatureUrl = publicUrlData.publicUrl || doc.company.signature_url
+            console.log(`[prepareDocumentData] Using public URL for signature: ${publicUrlData.publicUrl || doc.company.signature_url}`)
+          }
+        } catch (error) {
+          // Fallback to original URL
+          signatureUrl = doc.company.signature_url
+          console.warn(`[prepareDocumentData] Failed to create signed URL for signature, using original:`, error)
+        }
       }
     } else {
       // If we can't extract storage path, use original URL (might be external URL)
@@ -1245,13 +1449,20 @@ export async function prepareDocumentData(
     PAGE_NUMBER: "1",
     TOTAL_PAGES: "1",
     // Current date and time for footer
-    CURRENT_DATE_TIME: new Date().toLocaleString(documentLanguage === "en" ? "en-US" : "he-IL", { 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit',
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }),
+    CURRENT_DATE_TIME: (() => {
+      const iso = options?.frozenNowIso || null
+      const d = iso ? new Date(iso) : new Date()
+      const locale = documentLanguage === "en" ? "en-US" : "he-IL"
+      return new Intl.DateTimeFormat(locale, {
+        timeZone: "Asia/Jerusalem",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(d)
+    })(),
     
     // ============================================
     // LEGACY PLACEHOLDERS (for backward compatibility with old templates)
@@ -1277,7 +1488,17 @@ export async function prepareDocumentData(
     RECEIPTNNUMBER: doc.document_number || "", // Typo variant
     Datecreation: formatDate(doc.issue_date),
     DATE: formatDate(doc.issue_date),
-    TIME: new Date().toLocaleTimeString(documentLanguage === "en" ? "en-US" : "he-IL", { hour: '2-digit', minute: '2-digit' }),
+    TIME: (() => {
+      const iso = options?.frozenNowIso || null
+      const d = iso ? new Date(iso) : new Date()
+      const locale = documentLanguage === "en" ? "en-US" : "he-IL"
+      return new Intl.DateTimeFormat(locale, {
+        timeZone: "Asia/Jerusalem",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(d)
+    })(),
     DESCRIPTION: doc.document_description || "",
     AMOUNT: formatCurrency(parseFloat(doc.total_amount || 0)),
     TOTAL: formatCurrency(parseFloat(doc.total_amount || 0)),
@@ -2008,8 +2229,9 @@ export async function generatePreviewPDF(
     }
     
     const targetLanguage: "he" | "en" = options?.language || "he"
-    // Prepare document data (preview is not "original" and not "copy")
-    const templateData = await prepareDocumentData(documentId, targetLanguage, { documentCopyLabel: "" })
+    // Prepare document data (preview is always DRAFT)
+    const draftLabel = targetLanguage === "en" ? "DRAFT" : "טיוטה"
+    const templateData = await prepareDocumentData(documentId, targetLanguage, { documentCopyLabel: draftLabel })
     // Get document type and company ID
     const supabase = await createClient()
     const { data: doc, error: docError } = await supabase
@@ -2060,7 +2282,28 @@ export async function generatePreviewPDF(
     if (pdfDebugEnabled) {
       console.log(`[generatePreviewPDF] Generating PDF from HTML`)
     }
-    const pdfResult = await generatePDFFromHTML(renderedHtml, template.css, {
+    const watermarkCss = `
+      /* __draft_watermark__ */
+      body::before {
+        content: "${draftLabel}";
+        position: fixed;
+        top: 40%;
+        left: 10%;
+        transform: rotate(-25deg);
+        font-family: Heebo, Assistant, Arial, sans-serif;
+        font-size: 120px;
+        font-weight: 700;
+        color: rgba(0, 0, 0, 0.12);
+        z-index: 999999;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      /* __end_draft_watermark__ */
+    `
+    const fontsCss = await buildDeterministicFontCssPrefix()
+    const previewCss = `${fontsCss}\n${template.css || ""}\n${watermarkCss}`
+
+    const pdfResult = await generatePDFFromHTML(renderedHtml, previewCss, {
       format: "A4",
       printBackground: true,
     })

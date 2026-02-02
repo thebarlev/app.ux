@@ -151,6 +151,7 @@ export async function generatePDFFromHTML(
   const landscape = (options as any).landscape || false
   const scale = (options as any).scale || 1
   const outputPath = (options as any).outputPath
+  const blockNetwork = options.blockNetwork === true
 
   let browser
   try {
@@ -158,6 +159,17 @@ export async function generatePDFFromHTML(
     browser = await chromium.launch({ headless: true })
     const context = await browser.newContext()
     const page = await context.newPage()
+
+    if (blockNetwork) {
+      // Determinism requirement: no outbound network. Allow only data: and about:.
+      await page.route("**/*", async (route) => {
+        const url = route.request().url()
+        if (url.startsWith("data:") || url.startsWith("about:")) {
+          return route.continue()
+        }
+        return route.abort()
+      })
+    }
 
     // Check if HTML already includes DOCTYPE or html tag (full document)
     const isFullDocument = html.trim().startsWith('<!DOCTYPE') || html.trim().startsWith('<html')    

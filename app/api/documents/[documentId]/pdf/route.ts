@@ -86,7 +86,9 @@ export async function GET(
     // 2) Fetch document metadata (using userClient - RLS applies)
     const { data: doc, error: docError } = await userClient
       .from("documents")
-      .select("id, document_type, document_status, document_number, pdf_storage_key, company_id, language, template_version_id, original_recovery_attempted_at, finalized_at")
+      .select(
+        "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en"
+      )
       .eq("id", documentId)
       .single()
 
@@ -186,32 +188,29 @@ export async function GET(
       })
     }
 
-    // MANDATORY: All downloads (original/copy) return the SAME stored PDF
-    // No PDF regeneration is allowed - single immutable PDF per document per language
-    // PDFs were created once during finalization and stored - we only serve them
-    // Final/pdf_ready: serve immutable stored PDF based on targetLanguage (he/en)
+    // Final/pdf_ready/cancelled: must serve the SIGNED PDF only (no regeneration).
+    const storageBucket = "business-assets"
     const storageKey =
       targetLanguage === "he"
-        ? `documents/${documentId}/${effectiveIssue}.he.pdf`
-        : `documents/${documentId}/source.${targetLanguage}.pdf`
-    const storageBucket = "business-assets"
+        ? effectiveIssue === "original"
+          ? ((doc as any).pdf_storage_key as string | null)
+          : ((doc as any).pdf_storage_key_he_copy as string | null)
+        : ((doc as any).pdf_storage_key_en as string | null)
 
-
-
-    // Signed URL for stored PDF
-    const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-      .from("business-assets")
-      .createSignedUrl(storageKey, 120)
-
-    const fetchFromSignedUrl = async (url: string) => {
-      const pdfResponse = await fetch(url)
-      if (!pdfResponse.ok) return null
-      const blob = await pdfResponse.blob()
-      return blob.size > 0 ? blob : null
+    if (!storageKey) {
+      return NextResponse.json(
+        {
+          error: "SIGNED_PDF_MISSING",
+          message: "Signed PDF is missing for this document. Please contact support.",
+        },
+        { status: 500 }
+      )
     }
 
-    // If signed URL failed or fetch failed -> treat as missing file
-    let pdfBlob = signedUrlData?.signedUrl ? await fetchFromSignedUrl(signedUrlData.signedUrl) : null
+    // Download directly from storage (no signed URL roundtrip).
+    const { data: pdfBlob, error: downloadError } = await adminClient.storage
+      .from(storageBucket)
+      .download(storageKey)
 
     if (!pdfBlob) {
       logPdfEvent("core", "PDF_MISSING_BUT_EXPECTED", {
@@ -227,19 +226,11 @@ export async function GET(
         businessId: doc.company_id,
         userId: auth.user.id,
       })
-      // If English PDF is missing, return error (don't generate)
-      if (targetLanguage === "en") {
-        return NextResponse.json({
-          error: "EN_PDF_MISSING",
-          message: "English PDF not found. Please contact support.",
-        }, { status: 404 })
-      }
-
       return NextResponse.json(
         {
-          error: "PDF_ORIGINAL_MISSING",
-          code: "PDF_ORIGINAL_MISSING",
-          details: "Original PDF missing in storage. No regeneration is allowed.",
+          error: "SIGNED_PDF_MISSING",
+          code: "SIGNED_PDF_MISSING",
+          details: "Signed PDF missing in storage. No regeneration is allowed.",
         },
         { status: 500 }
       )

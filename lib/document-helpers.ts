@@ -4,7 +4,10 @@
  */
 
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { randomUUID } from "crypto"
+import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
+import { createSigningRequest } from "@/lib/documents/signing/secure-signature-client"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -274,231 +277,199 @@ export async function finalizeDocument(
   }
 
   // CRITICAL: Generate PDF AFTER updating document_number but BEFORE finalizing
-  // This ensures PDF is uploaded to Storage before the document becomes immutable
-  // Order: Update document_number → Generate PDF → Upload to Storage → Get storageKey from result → Set status to 'final'
-  // NOTE: We use storageKey from generateDocumentPDF result directly, not from DB
-  console.log(`[finalizeDocument] Generating PDF for document ${draftId} (document_number is now set)...`)
-  
-  let pdfStorageKey: string | null = null
-  let pdfStorageKeyHeCopy: string | null = null
-  let pdfStorageKeyEn: string | null = null
-  let documentLanguage: "he" | "en" = "he"
-  
-  try {
-    const { generateDocumentPDF } = await import("@/lib/pdf-service")
+  // New flow: deterministic unsigned PDF -> Secure Signature -> store signed PDF -> finalize.
+  console.log(`[finalizeDocument] Generating deterministic PDF + signing for document ${draftId}...`)
 
-    const { data: langRow, error: langError } = await supabase
-      .from("documents")
-      .select("language")
-      .eq("id", draftId)
-      .single()
-    if (langError) {
-      return { ok: false, message: `Failed to resolve document language: ${langError.message}` }
+  if (!isDigitalSignaturesEnabled()) {
+    return {
+      ok: false,
+      message:
+        "Digital signing is required for issuing accounting documents. Enable DIGITAL_SIGNATURES_ENABLED=true and configure Secure Signature env vars.",
     }
-    documentLanguage = ((langRow as any)?.language as "he" | "en") || "he"
+  }
 
-    // Generate Hebrew PDF (Original) - immutable
-    const pdfResultHe = await generateDocumentPDF(draftId, {
-      mode: "final",
-      language: "he",
-      variant: "original",
-      isIssuance: true,
-      requestId,
-      context: "finalize",
-    })
-    
-    if (!pdfResultHe.success) {
-      const errorDetails = pdfResultHe.error || "Unknown error"
-      console.error(`❌ [finalizeDocument] Hebrew PDF generation failed for document ${draftId}:`, {
-        error: errorDetails,
-        documentId: draftId
-      })
-      // CRITICAL: PDF generation failure should block finalization
-      // Document cannot be finalized without PDF (regulatory requirement)
-      return { 
-        ok: false, 
-        message: `Cannot finalize document: PDF generation failed: ${errorDetails}. Please try again or contact support.`
-      }
-    }
-    
-    // Use storageKey from result directly (don't rely on DB - it may be blocked)
-    pdfStorageKey = pdfResultHe.storageKey || pdfResultHe.path || null
-    
-    if (!pdfStorageKey) {
-      console.error(`[finalizeDocument] Hebrew PDF was generated but storageKey is missing from result for document ${draftId}`)
-      return { 
-        ok: false, 
-        message: `Hebrew PDF was generated but storageKey was not returned. Please try again or contact support.`
-      }
-    }
-    
-    console.log(`✅ [finalizeDocument] Hebrew ORIGINAL PDF generated and uploaded to storage: ${pdfStorageKey}`)
+  const adminClient = createAdminClient()
+  const nowIso = new Date().toISOString()
 
-    // Generate Hebrew COPY PDF (immutable, same content) for HE documents
-    const pdfResultHeCopy = await generateDocumentPDF(draftId, {
-      mode: "final",
-      language: "he",
-      variant: "copy",
-      isIssuance: true,
-      requestId,
-      context: "finalize",
-    })
+  // Ensure a frozen issuance timestamp exists (used to replace all dynamic 'now' placeholders).
+  const { error: freezeTimeError } = await adminClient
+    .from("documents")
+    .update({ pdf_generated_at: nowIso })
+    .eq("id", draftId)
+    .eq("company_id", companyId)
+    .eq("document_status", "draft")
+    .is("pdf_generated_at", null)
 
-    if (!pdfResultHeCopy.success) {
-      const errorDetails = pdfResultHeCopy.error || "Unknown error"
-      console.error(`❌ [finalizeDocument] Hebrew COPY PDF generation failed for document ${draftId}:`, {
-        error: errorDetails,
-        documentId: draftId
-      })
-      return { 
-        ok: false, 
-        message: `Cannot finalize document: Hebrew copy PDF generation failed: ${errorDetails}. Please try again or contact support.`
-      }
-    }
+  if (freezeTimeError) {
+    return { ok: false, message: `Failed to freeze pdf_generated_at: ${freezeTimeError.message}` }
+  }
 
-    pdfStorageKeyHeCopy = pdfResultHeCopy.storageKey || pdfResultHeCopy.path || null
+  const { data: langRow, error: langError } = await adminClient
+    .from("documents")
+    .select("language, document_type, document_number, issue_date, template_version_id")
+    .eq("id", draftId)
+    .single()
+  if (langError || !langRow) {
+    return { ok: false, message: `Failed to resolve document language/type: ${langError?.message || "unknown"}` }
+  }
 
-    if (!pdfStorageKeyHeCopy) {
-      console.error(`[finalizeDocument] Hebrew COPY PDF was generated but storageKey is missing from result for document ${draftId}`)
-      return { 
-        ok: false, 
-        message: `Hebrew copy PDF was generated but storageKey was not returned. Please try again or contact support.`
-      }
-    }
+  const documentLanguage: "he" | "en" = ((langRow as any)?.language as any) === "en" ? "en" : "he"
+  const dbDocumentType: string = String((langRow as any)?.document_type || documentType)
+  const docNumber: string | null = (langRow as any)?.document_number ? String((langRow as any).document_number) : null
+  const issueDate: string | null = (langRow as any)?.issue_date ? String((langRow as any).issue_date) : null
 
-    console.log(`✅ [finalizeDocument] Hebrew COPY PDF generated and uploaded to storage: ${pdfStorageKeyHeCopy}`)
+  const { renderDeterministicPdfBytes } = await import("@/lib/pdf-service")
 
-    if (documentLanguage === "en") {
-      // Generate English PDF (Faithful Copy/Translation) - only allowed in finalization
-      const pdfResultEn = await generateDocumentPDF(draftId, { 
-        mode: "final", 
-        language: "en",
-        allowEnInFinalization: true, // Explicit flag to allow EN in finalization
-        isIssuance: true,
-        requestId,
-        context: "finalize",
-      })
+  const storageBucket = "business-assets"
+  const originalKey = `documents/${draftId}/original.he.signed.pdf`
+  const copyKey = `documents/${draftId}/copy.he.signed.pdf`
+  const enKey = `documents/${draftId}/source.en.signed.pdf`
 
-      if (!pdfResultEn.success) {
-        const errorDetails = pdfResultEn.error || "Unknown error"
-        console.error(`❌ [finalizeDocument] English PDF generation failed for document ${draftId}:`, {
-          error: errorDetails,
-          documentId: draftId
-        })
-        // CRITICAL: Both PDFs must be generated for finalization
-        return { 
-          ok: false, 
-          message: `Cannot finalize document: English PDF generation failed: ${errorDetails}. Please try again or contact support.`
-        }
-      }
-
-      pdfStorageKeyEn = pdfResultEn.storageKey || pdfResultEn.path || null
-
-      if (!pdfStorageKeyEn) {
-        console.error(`[finalizeDocument] English PDF was generated but storageKey is missing from result for document ${draftId}`)
-        return { 
-          ok: false, 
-          message: `English PDF was generated but storageKey was not returned. Please try again or contact support.`
-        }
-      }
-
-      console.log(`✅ [finalizeDocument] English PDF generated and uploaded to storage: ${pdfStorageKeyEn}`)
-    }
-
-    // Verify files exist in Storage (don't rely on DB - it may be blocked)
-    const adminClient = (await import("@/lib/supabase/admin")).createAdminClient()
-    const pdfFileName = pdfStorageKey.split("/").pop() || "original.he.pdf"
-    const { data: fileList, error: listError } = await adminClient.storage
-      .from("business-assets")
-      .list(`documents/${draftId}`, {
-        limit: 1,
-        search: pdfFileName
-      })
-    
-    if (listError || !fileList || fileList.length === 0) {
-      console.error(`[finalizeDocument] Hebrew PDF file not found in Storage for document ${draftId}:`, {
-        listError,
-        pdfStorageKey,
-        pdfFileName,
-        fileCount: fileList?.length || 0,
-      })
-      return { 
-        ok: false, 
-        message: `Hebrew PDF was generated but file was not found in storage. Please try again or contact support.`
-      }
-    }
-    
-    console.log(`✅ [finalizeDocument] Verified Hebrew ORIGINAL PDF file exists in Storage: ${pdfStorageKey}`)
-
-    if (!pdfStorageKeyHeCopy) {
-      return { ok: false, message: "Hebrew COPY PDF storage key missing during verification." }
-    }
-
-    const pdfFileNameCopy = pdfStorageKeyHeCopy.split("/").pop() || "copy.he.pdf"
-    const { data: fileListCopy, error: listErrorCopy } = await adminClient.storage
-      .from("business-assets")
-      .list(`documents/${draftId}`, {
-        limit: 1,
-        search: pdfFileNameCopy
-      })
-
-    if (listErrorCopy || !fileListCopy || fileListCopy.length === 0) {
-      console.error(`[finalizeDocument] Hebrew COPY PDF file not found in Storage for document ${draftId}:`, {
-        listError: listErrorCopy,
-        pdfStorageKey: pdfStorageKeyHeCopy,
-        pdfFileName: pdfFileNameCopy,
-        fileCount: fileListCopy?.length || 0,
-      })
-      return { 
-        ok: false, 
-        message: `Hebrew COPY PDF was generated but file was not found in storage. Please try again or contact support.`
-      }
-    }
-
-    console.log(`✅ [finalizeDocument] Verified Hebrew COPY PDF file exists in Storage: ${pdfStorageKeyHeCopy}`)
-
-    if (documentLanguage === "en") {
-      if (!pdfStorageKeyEn) {
-        return { ok: false, message: "English PDF storage key missing during verification." }
-      }
-      const pdfFileNameEn = pdfStorageKeyEn.split("/").pop() || "source.en.pdf"
-      const { data: fileListEn, error: listErrorEn } = await adminClient.storage
-        .from("business-assets")
-        .list(`documents/${draftId}`, {
-          limit: 1,
-          search: pdfFileNameEn
-        })
-      
-      if (listErrorEn || !fileListEn || fileListEn.length === 0) {
-        console.error(`[finalizeDocument] English PDF file not found in Storage for document ${draftId}:`, {
-          listError: listErrorEn,
-          pdfStorageKey: pdfStorageKeyEn,
-          pdfFileName: pdfFileNameEn,
-          fileCount: fileListEn?.length || 0,
-        })
-        return { 
-          ok: false, 
-          message: `English PDF was generated but file was not found in storage. Please try again or contact support.`
-        }
-      }
-      
-      console.log(`✅ [finalizeDocument] Verified English PDF file exists in Storage: ${pdfStorageKeyEn}`)
-    }
-    
-  } catch (pdfError: any) {
-    const errorMessage = pdfError?.message || String(pdfError)
-    const errorStack = pdfError?.stack || "No stack trace"
-    console.error(`❌ [finalizeDocument] PDF generation exception for document ${draftId}:`, {
-      error: errorMessage,
-      stack: errorStack,
+  const signAndUpload = async (args: {
+    language: "he" | "en"
+    variant: "original" | "copy"
+    storageKey: string
+    label: string
+    templateVersionId?: string | null
+  }) => {
+    const rendered = await renderDeterministicPdfBytes({
       documentId: draftId,
-      errorType: pdfError?.constructor?.name || typeof pdfError
+      language: args.language,
+      documentCopyLabel: args.label,
+      templateVersionId: args.templateVersionId,
     })
-    // CRITICAL: PDF generation exception should block finalization
-    return { 
-      ok: false, 
-      message: `Cannot finalize document: PDF generation threw exception: ${errorMessage}. Please try again or contact support.`
+    if (!rendered.ok) return { ok: false as const, message: rendered.message }
+
+    const externalDocId = `${draftId}:${args.variant}:${args.language}`
+    const signing = await createSigningRequest({
+      businessId: companyId,
+      externalDocId,
+      metadata: {
+        document_id: draftId,
+        document_number: docNumber,
+        document_type: dbDocumentType,
+        issue_date: issueDate,
+        variant: args.variant,
+        language: args.language,
+        unsigned_pdf_sha256: rendered.pdfSha256,
+        template_version_id: rendered.templateVersionId,
+        pdf_generated_at: rendered.frozenNowIso,
+      },
+      pdfBytes: rendered.pdfBytes,
+    })
+    if (!signing.ok) {
+      return { ok: false as const, message: `Signing failed (${signing.code}): ${signing.message}` }
     }
+
+    const { error: uploadError } = await adminClient.storage
+      .from(storageBucket)
+      .upload(args.storageKey, signing.signedPdfBytes, {
+        contentType: "application/pdf",
+        upsert: false,
+      })
+
+    // If already exists, treat as success (idempotent finalize retries).
+    if (uploadError && !String(uploadError.message || "").includes("already exists")) {
+      return { ok: false as const, message: `Failed to upload signed PDF: ${uploadError.message}` }
+    }
+
+    // Audit events per variant
+    try {
+      await adminClient.from("document_events").insert({
+        document_id: draftId,
+        company_id: companyId,
+        event_type: "signed",
+        performed_by: null,
+        event_data: {
+          provider: "secure_signature",
+          request_id: signing.requestId,
+          variant: args.variant,
+          language: args.language,
+          storage_key: args.storageKey,
+          unsigned_pdf_sha256: rendered.pdfSha256,
+          signed_pdf_sha256: signing.signedPdfSha256,
+          cert_info: signing.certInfo,
+          hashes: signing.hashes,
+          events: signing.events,
+        },
+      })
+    } catch {
+      // ignore
+    }
+
+    return {
+      ok: true as const,
+      storageKey: args.storageKey,
+      unsignedSha256: rendered.pdfSha256,
+      signedSha256: signing.signedPdfSha256,
+      templateVersionId: rendered.templateVersionId,
+      certInfo: signing.certInfo,
+      hashes: signing.hashes,
+      events: signing.events,
+    }
+  }
+
+  // Render+sign original HE
+  const original = await signAndUpload({
+    language: "he",
+    variant: "original",
+    storageKey: originalKey,
+    label: "מקור",
+    templateVersionId: (langRow as any)?.template_version_id || null,
+  })
+  if (!original.ok) return { ok: false, message: original.message }
+
+  // Render+sign HE copy
+  const copy = await signAndUpload({
+    language: "he",
+    variant: "copy",
+    storageKey: copyKey,
+    label: "העתק נאמן למקור",
+    templateVersionId: original.templateVersionId,
+  })
+  if (!copy.ok) return { ok: false, message: copy.message }
+
+  // Render+sign EN copy (only for EN documents)
+  let enStorageKey: string | null = null
+  if (documentLanguage === "en") {
+    const en = await signAndUpload({
+      language: "en",
+      variant: "copy",
+      storageKey: enKey,
+      label: "Certified Copy",
+      templateVersionId: original.templateVersionId,
+    })
+    if (!en.ok) return { ok: false, message: en.message }
+    enStorageKey = en.storageKey
+  }
+
+  // Persist template snapshot used (if any) and hashes for the canonical original.
+  const certFingerprint =
+    (original as any)?.certInfo?.fingerprint_sha256 ||
+    (original as any)?.certInfo?.fingerprint ||
+    null
+
+  const { error: metaError } = await adminClient
+    .from("documents")
+    .update({
+      template_version_id: original.templateVersionId || null,
+      pdf_storage_key: original.storageKey,
+      pdf_storage_key_he_copy: copy.storageKey,
+      pdf_storage_key_en: documentLanguage === "en" ? enStorageKey : null,
+      pdf_sha256: original.unsignedSha256,
+      signed_pdf_sha256: original.signedSha256,
+      signing_cert_fingerprint: certFingerprint,
+      signed_at: nowIso,
+      signature_provider: "secure_signature",
+      signature_certificate_id: certFingerprint,
+      // IMPORTANT: do NOT set signed_hash here; DB trigger blocks further updates once signed_hash is set.
+    })
+    .eq("id", draftId)
+    .eq("company_id", companyId)
+    .eq("document_status", "draft")
+
+  if (metaError) {
+    return { ok: false, message: `Failed to persist signing metadata: ${metaError.message}` }
   }
 
   // Initialize accounting fields on finalization.

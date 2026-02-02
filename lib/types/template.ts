@@ -188,6 +188,11 @@ export interface PDFGenerationOptions {
   displayHeaderFooter?: boolean;
   headerTemplate?: string;
   footerTemplate?: string;
+  /**
+   * If true, abort all network requests during rendering.
+   * This is required for deterministic issuance PDFs.
+   */
+  blockNetwork?: boolean;
 }
 
 export interface PDFGenerationResult {
