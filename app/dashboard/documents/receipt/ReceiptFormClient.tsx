@@ -2,8 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import type { InitialReceiptCreateData } from "./actions";
-import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
+import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "@/lib/documents/types";
 import {
   issueReceiptAction,
   saveReceiptDraftAction,

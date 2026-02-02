@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Eye } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
-import type { DocumentsListFilters, DocumentsListResult } from "../actions";
+import type { DocumentsListFilters, DocumentsListResult } from "@/lib/documents/types";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -270,10 +270,9 @@ export default function DraftsListClient({ initialData }: Props) {
 
         <DocumentsQuickViewDrawer
           open={isQuickViewOpen}
-          onOpenChange={setIsQuickViewOpen}
+          onClose={() => setIsQuickViewOpen(false)}
           documentId={selectedDocumentId}
-          documentSnapshot={selectedDocSnapshot}
-          onAfterMutations={() => router.refresh()}
+          initialDoc={selectedDocSnapshot}
         />
       </FormSection>
     </div>

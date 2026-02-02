@@ -5,8 +5,8 @@ import { useSearchParams } from "next/navigation";
 import type {
   InitialInvoiceReceiptCreateData,
   InvoiceReceiptDraftPayload,
-} from "./actions";
-import type { PaymentRow } from "@/lib/types/receipt";
+  PaymentRow,
+} from "@/lib/documents/types";
 import {
   issueInvoiceReceiptAction,
   saveInvoiceReceiptDraftAction,
@@ -841,7 +841,7 @@ export default function InvoiceReceiptFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueInvoiceReceiptAction(payload, draftId);
+      const result = await issueInvoiceReceiptAction(payload);
 
       if (!result || !result.ok) {
         toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");

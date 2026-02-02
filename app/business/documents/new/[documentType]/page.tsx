@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import TaxInvoiceFormClient from "@/app/dashboard/documents/tax-invoice/TaxInvoiceFormClient";
-import { getInitialDocumentCreateData, type DocumentIssueType } from "@/lib/documents/actions";
+import { getInitialDocumentCreateData } from "@/lib/documents/actions";
+import type { DocumentIssueType } from "@/lib/documents/types";
 import { getDocumentConfig } from "@/lib/documents/document-configs";
 
 export default async function BusinessDocumentNewPage({

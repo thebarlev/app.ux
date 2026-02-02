@@ -5,7 +5,7 @@
  * Each payment type has its own set of additional detail fields.
  */
 
-import type { PaymentMethod, PaymentRow } from "./actions";
+import type { PaymentMethod, PaymentRow } from "@/lib/documents/types";
 import type { ReactNode } from "react";
 import { useRef } from "react";
 import { Input } from "@/components/ui/input";

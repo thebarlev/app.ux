@@ -6,7 +6,7 @@ import type {
   InitialDocumentCreateData,
   DocumentDraftPayload,
   DocumentIssueType,
-} from "@/lib/documents/actions";
+} from "@/lib/documents/types";
 import {
   issueDocumentAction,
   saveDocumentDraftAction,

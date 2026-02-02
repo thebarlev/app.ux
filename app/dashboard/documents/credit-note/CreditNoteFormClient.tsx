@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import type { InitialCreditNoteCreateData, CreditNoteDraftPayload } from "./actions";
+import type { InitialCreditNoteCreateData, CreditNoteDraftPayload } from "@/lib/documents/types";
 import {
   issueCreditNoteAction,
   saveCreditNoteDraftAction,

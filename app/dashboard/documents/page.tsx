@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getAllDocumentsListAction, type DocumentsListFilters } from "./actions";
+import { getAllDocumentsListAction } from "./actions";
+import type { DocumentsListFilters } from "@/lib/documents/types";
 import DocumentsListClient from "./DocumentsListClient";
 
 type PageProps = {

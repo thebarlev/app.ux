@@ -868,16 +868,6 @@ export default function SettingsClient({ company, initialTemplates }: Props) {
             </div>
           </FormSection>
 
-          {/* Template Selection Section - Simple List */}
-          {false && (
-            <FormSection
-              title="בחירת תבניות מסמכים"
-              description="בחר תבנית ברירת מחדל לכל סוג מסמך. התבנית תשמש אוטומטית ביצירת מסמכים חדשים."
-            >
-              <SimpleTemplateSelector />
-            </FormSection>
-          )}
-
           {/* Action Buttons */}
           <FormActions
             primaryLabel={isSaving ? "שומר..." : "שמור שינויים"}

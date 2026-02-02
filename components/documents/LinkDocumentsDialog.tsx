@@ -7,7 +7,8 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { getOpenDocumentsByCustomer, type OpenDocument } from "@/lib/documents/actions";
+import { getOpenDocumentsByCustomer } from "@/lib/documents/actions";
+import type { OpenDocument } from "@/lib/documents/types";
 
 export type LinkDocumentsDialogLinkType = "payment" | "credit" | "conversion" | "related";
 
@@ -280,9 +281,9 @@ export default function LinkDocumentsDialog(props: {
                         </TableCell>
                         <TableCell className="text-right">{d.document_number || "—"}</TableCell>
                         <TableCell className="text-right">{d.document_type}</TableCell>
-                        <TableCell className="text-right">{formatDate(d.issue_date)}</TableCell>
+                        <TableCell className="text-right">{formatDate(d.document_date)}</TableCell>
                         <TableCell className="text-right">{formatMoney(d.total_amount)}</TableCell>
-                        <TableCell className="text-right">{formatMoney(d.outstanding_balance)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(d.outstanding_balance ?? null)}</TableCell>
                         <TableCell className="text-right">{statusLabelHe(computeUiStatusForRow(d))}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-col items-end gap-1">

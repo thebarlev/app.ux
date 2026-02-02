@@ -1,58 +1,29 @@
- "use server";
- 
- import type { ReceiptDraftPayload } from "@/lib/types/receipt";
- import {
-   getInitialDocumentCreateData,
-   saveDocumentDraftAction,
-   issueDocumentAction,
-   updateDocumentDraftAction,
-   getDraftDocumentForEditAction,
-   getDocumentPreviewUrlAction,
-   getRecipientConsentStatusAction,
-   giveRecipientConsentAction,
-   revokeRecipientConsentAction,
+"use server";
+
+import type { ReceiptDraftPayload, InitialDocumentCreateData, CreditNoteDraftPayload, InitialCreditNoteCreateData } from "@/lib/documents/types";
+import {
+  getInitialDocumentCreateData,
+  saveDocumentDraftAction,
+  issueDocumentAction,
+  updateDocumentDraftAction,
+  getDraftDocumentForEditAction,
+  getDocumentPreviewUrlAction,
+  getRecipientConsentStatusAction,
+  giveRecipientConsentAction,
+  revokeRecipientConsentAction,
   createDocumentLinkAction,
   markDocumentCancelledAction,
-   type InitialDocumentCreateData,
-   type PaymentRow,
-   type PaymentMethod,
-   type ReceiptSettings,
- } from "@/lib/documents/actions";
+} from "@/lib/documents/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
- 
- export type { PaymentRow, PaymentMethod, ReceiptSettings };
- 
- export type CreditNoteItemRow = {
-   label: string;
-   sku: string;
-   description: string;
-   quantity: number;
-   unitPrice: number;
-   currency: string;
-   vatMode: "before" | "included";
-   lineTotal: number;
- };
- 
- export type CreditNoteDraftPayload = Omit<ReceiptDraftPayload, "documentType"> & {
-   documentType: "creditNote";
-   items?: CreditNoteItemRow[];
-   vatType?: "regular" | "no_vat";
-   vatRate?: number;
-   vatAmount?: number;
-   subtotal?: number;
-   paymentDueDate?: string;
- };
- 
- export type InitialCreditNoteCreateData = InitialDocumentCreateData;
- 
- export {
-   getRecipientConsentStatusAction,
-   giveRecipientConsentAction,
-   revokeRecipientConsentAction,
- };
- 
- export async function getInitialCreditNoteCreateData(): Promise<InitialCreditNoteCreateData> {
+
+export {
+  getRecipientConsentStatusAction,
+  giveRecipientConsentAction,
+  revokeRecipientConsentAction,
+};
+
+export async function getInitialCreditNoteCreateData(): Promise<InitialCreditNoteCreateData> {
    return getInitialDocumentCreateData("creditNote");
  }
  

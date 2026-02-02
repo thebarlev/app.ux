@@ -9,12 +9,6 @@ import {
   finalizeDocument,
 } from "@/lib/document-helpers";
 import { getDocumentConfig } from "@/lib/documents/document-configs";
-import type {
-  PaymentRow,
-  PaymentMethod,
-  ReceiptDraftPayload,
-  ReceiptSettings,
-} from "@/lib/types/receipt";
 import { paymentRowToLineItem as convertPayment } from "@/lib/types/receipt";
 import { headers } from "next/headers";
 import {
@@ -22,60 +16,19 @@ import {
   DIGITAL_SIGNATURES_DEFERRED_MESSAGE,
 } from "@/lib/documents/signing/feature-flags";
 
-export type DocumentIssueType =
-  | "receipt"
-  | "tax_invoice"
-  | "invoiceReceipt"
-  | "creditNote"
-  | "quote"
-  | "proforma"
-  | "workOrder"
-  | "deliveryNote"
-  | "returnNote"
-  | "purchaseOrder"
-  | "selfInvoice"
-  | "selfCreditNote";
-
-export type VatType = "regular" | "no_vat";
-
-export type TaxInvoiceItemRow = {
-  label: string;
-  sku: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  currency: string;
-  vatMode: "before" | "included";
-  lineTotal: number;
-};
-
-export type DocumentDraftPayload = Omit<ReceiptDraftPayload, "documentType"> & {
-  documentType: DocumentIssueType;
-  items?: TaxInvoiceItemRow[];
-  vatType?: VatType;
-  vatRate?: number;
-  vatAmount?: number;
-  subtotal?: number;
-  paymentDueDate?: string;
-};
-
-export type InitialDocumentCreateData =
-  | {
-      ok: true;
-      companyId: string;
-      companyName: string | null;
-      sequenceLocked: boolean;
-      previewNumber: string | null;
-      draftId?: string | null;
-      draftOrigin?: "existing" | "new";
-      settings: ReceiptSettings;
-      minAllowedDate: string | null;
-      vatRate?: number;
-    }
-  | {
-      ok: false;
-      message: string;
-    };
+// Types are exported from lib/documents/types.ts (not from server actions)
+import type {
+  PaymentMethod,
+  PaymentRow,
+  ReceiptDraftPayload,
+  ReceiptSettings,
+  DocumentIssueType,
+  VatType,
+  TaxInvoiceItemRow,
+  DocumentDraftPayload,
+  InitialDocumentCreateData,
+  OpenDocument,
+} from "./types";
 
 const DOCUMENT_ROUTE_SEGMENTS: Record<DocumentIssueType, string> = {
   receipt: "receipt",
@@ -106,9 +59,6 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentIssueType, string> = {
   selfInvoice: "חשבונית עצמית",
   selfCreditNote: "חשבונית זיכוי עצמית",
 };
-
-// Re-export types for backward compatibility
-export type { PaymentRow, PaymentMethod, ReceiptDraftPayload, ReceiptSettings };
 
 type RecipientConsentStatus =
   | {
@@ -1608,11 +1558,11 @@ function todayYmd() {
 // Document links (organizational only)
 // =====================================================
 
-export type DocumentLinkType = "payment" | "credit" | "conversion" | "cancellation" | "related";
+type DocumentLinkTypeInternal = "payment" | "credit" | "conversion" | "cancellation" | "related";
 
-export type DocumentLinkDTO = {
+type DocumentLinkDTOInternal = {
   id: string;
-  linkType: DocumentLinkType;
+  linkType: DocumentLinkTypeInternal;
   amount: number;
   note: string | null;
   createdAt: string;
@@ -1636,7 +1586,7 @@ export type DocumentLinkDTO = {
   };
 };
 
-export type OpenDocument = {
+type OpenDocumentInternal = {
   id: string;
   document_number: string | null;
   document_type: string;
@@ -1677,17 +1627,20 @@ export async function getOpenDocumentsByCustomer(
 
     const rows: OpenDocument[] = (data || []).map((d: any) => ({
       id: String(d.id),
-      document_number: d.document_number ?? null,
+      document_number: d.document_number ?? "",
       document_type: String(d.document_type),
-      total_amount: typeof d.total_amount === "number" ? d.total_amount : d.total_amount ? Number(d.total_amount) : null,
+      document_date: String(d.issue_date || ""),
+      customer_name: String(d.customer_name || ""),
+      total_amount: typeof d.total_amount === "number" ? d.total_amount : d.total_amount ? Number(d.total_amount) : 0,
+      currency: String(d.currency || "₪"),
+      status: String(d.accounting_status || "open"),
+      accounting_status: d.accounting_status ?? null,
       outstanding_balance:
         typeof d.outstanding_balance === "number"
           ? d.outstanding_balance
           : d.outstanding_balance
             ? Number(d.outstanding_balance)
             : null,
-      accounting_status: d.accounting_status ?? null,
-      issue_date: d.issue_date ?? null,
     }));
 
     return { ok: true, data: rows };
@@ -1699,7 +1652,7 @@ export async function getOpenDocumentsByCustomer(
 export async function createDocumentLinkAction(args: {
   sourceDocumentId: string;
   targetDocumentId: string;
-  linkType: DocumentLinkType;
+  linkType: DocumentLinkTypeInternal;
   amount: number;
   note?: string | null;
 }): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
@@ -1875,7 +1828,7 @@ export async function markDocumentCancelledAction(args: {
 
 export async function listDocumentLinksAction(args: {
   documentId: string;
-}): Promise<{ ok: true; links: DocumentLinkDTO[] } | { ok: false; message: string }> {
+}): Promise<{ ok: true; links: DocumentLinkDTOInternal[] } | { ok: false; message: string }> {
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
@@ -1905,7 +1858,7 @@ export async function listDocumentLinksAction(args: {
 
     if (error) return { ok: false, message: error.message };
 
-    const links: DocumentLinkDTO[] = (data || []).map((row: any) => ({
+    const links: DocumentLinkDTOInternal[] = (data || []).map((row: any) => ({
       id: row.id,
       linkType: row.link_type,
       amount: Number(row.amount || 0),

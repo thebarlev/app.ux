@@ -153,6 +153,7 @@ export type ReceiptListItem = {
 export type ReceiptSettings = {
   allowedCurrencies: string[];
   defaultCurrency: string;
+  currency?: string; // backward compatibility
   language: "he" | "en";
   roundTotals: boolean;
 };

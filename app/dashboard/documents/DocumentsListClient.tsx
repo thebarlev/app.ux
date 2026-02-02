@@ -11,7 +11,8 @@ import { FieldWrapper } from "@/components/ui/field-wrapper";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
-import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
+import { getAllDocumentsListAction } from "./actions";
+import type { DocumentsListFilters, DocumentsListResult } from "@/lib/documents/types";
 import { Eye, Download, GitBranchPlus, XCircle, X } from "lucide-react";
 import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {

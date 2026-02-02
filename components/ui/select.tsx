@@ -8,10 +8,9 @@ import { cn } from '@/lib/utils'
 import { selectBase, selectSizes, selectUnderline, fieldStateBorders } from '@/components/ui/field-styles'
 
 function Select({
-  modal = false,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" modal={modal} {...props} />
+  return <SelectPrimitive.Root data-slot="select" {...props} />
 }
 
 function SelectGroup({

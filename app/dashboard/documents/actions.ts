@@ -2,57 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser, initializeSequence, isSequenceLocked } from "@/lib/document-helpers";
-
-export type DocumentsListFilters = {
-  search?: string;
-  documentType?: string;
-  /**
-   * Optional filter by document_status.
-   * - "draft": only drafts
-   * - "nonDraft": everything except drafts
-   * - "all": no filtering (default)
-   */
-  documentStatusFilter?: "all" | "draft" | "nonDraft";
-  dateFrom?: string;
-  dateTo?: string;
-  page?: number;
-  pageSize?: number;
-};
-
-export type DocumentListItem = {
-  id: string;
-  document_number: string | null;
-  document_type: string;
-  document_date: string | null;
-  customer_id: string | null;
-  customer_name: string | null;
-  document_description: string | null;
-  payment_method: string | null;
-  total_amount: number | null;
-  currency: string | null;
-  document_status: string;
-  accounting_status?: string | null;
-  paid_amount?: number | null;
-  credited_amount?: number | null;
-  outstanding_balance?: number | null;
-  reference_text?: string | null;
-  /**
-   * UI-only derived flags (no DB schema changes).
-   * Used to compute the 4-status UI mapping deterministically.
-   */
-  has_outgoing_credit_link?: boolean;
-  credited_by_credit_amount?: number | null;
-  is_canceled_by_credit?: boolean;
-  created_at: string;
-};
-
-export type DocumentsListResult = {
-  companyId: string;
-  documents: DocumentListItem[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-};
+import type { DocumentsListFilters, DocumentListItem, DocumentsListResult } from "@/lib/documents/types";
 
 /**
  * Fetch all documents for the current user's company with filters

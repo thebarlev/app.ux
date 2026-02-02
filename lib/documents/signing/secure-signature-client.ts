@@ -78,9 +78,11 @@ export async function createSigningRequest(params: {
   supplierName?: string
   businessName?: string
   businessTaxId?: string | null
+  businessContactName?: string | null
+  businessEmail?: string | null
   metadata?: Record<string, any>
   pdfBytes: Buffer
-}): Promise
+}): Promise<
   | {
       ok: true
       requestId: string | null
@@ -100,7 +102,7 @@ export async function createSigningRequest(params: {
       events: Array<Record<string, any>> | null
       status?: number
     }
-{
+> {
   const baseUrl = process.env.SECURE_SIGNATURE_BASE_URL?.trim()
   const apiKey = process.env.SECURE_SIGNATURE_API_KEY?.trim()
 
