@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { randomUUID } from "crypto"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
-import { createSigningRequest } from "@/lib/documents/signing/secure-signature-client"
+import { createSigningRequest } from "./documents/signing/secure-signature-client"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -21,10 +21,6 @@ const toSequenceDocumentType = (documentType: string) => {
   return documentType
 }
 
-/**
- * Get the company ID for the currently authenticated user
- * Checks both company_members (multi-tenant) and companies.auth_user_id (owner)
- */
 export async function getCompanyIdForUser(): Promise<string> {
   const supabase = await createClient()
 
@@ -36,7 +32,6 @@ export async function getCompanyIdForUser(): Promise<string> {
 
   console.log("[getCompanyIdForUser] User ID:", user.id);
 
-  // 1️⃣ קודם מנסים company_members (זה המקור האמיתי)
   const { data: membership, error: membershipError } = await supabase
     .from("company_members")
     .select("company_id")
@@ -52,7 +47,6 @@ export async function getCompanyIdForUser(): Promise<string> {
     return membership.company_id
   }
 
-  // 2️⃣ אם אין – מנסים בעלות ישירה (fallback)
   const { data: company, error: companyError } = await supabase
     .from("companies")
     .select("id")
@@ -68,15 +62,10 @@ export async function getCompanyIdForUser(): Promise<string> {
     return company.id
   }
 
-  // 3️⃣ אם כלום לא נמצא – שגיאה אמיתית
   console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
   throw new Error("company_not_found")
 }
 
-/**
- * Initialize a document sequence with a starting number
- * This should only be called once per company/document_type combination
- */
 export async function initializeSequence(
   companyId: string,
   documentType: string,
@@ -86,7 +75,6 @@ export async function initializeSequence(
   const supabase = await createClient()
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
-  // Check if already exists
   const { data: existing } = await supabase
     .from("document_sequences")
     .select("id, is_locked")
@@ -98,7 +86,6 @@ export async function initializeSequence(
     if (existing.is_locked) {
       return { ok: false, message: "sequence_already_locked" }
     }
-    // Update existing unlocked sequence
     const { error } = await supabase
       .from("document_sequences")
       .update({
@@ -114,7 +101,6 @@ export async function initializeSequence(
     return { ok: true }
   }
 
-  // Create new sequence
   const { error } = await supabase
     .from("document_sequences")
     .insert({
@@ -133,10 +119,6 @@ export async function initializeSequence(
   return { ok: true }
 }
 
-/**
- * בודק האם המספור של סוג מסמך מסוים נעול עבור חברה מסוימת
- * Check if a document sequence is locked for a specific company
- */
 export async function isSequenceLocked(params: {
   companyId: string;
   documentType: string;
@@ -164,7 +146,6 @@ export async function isSequenceLocked(params: {
   }
 
   if (!data) {
-    // אין עדיין שורה למספור – לא נעול, ואין current_number
     console.log("[isSequenceLocked] No sequence found, returning unlocked");
     return { locked: false, currentNumber: null }
   }
@@ -177,11 +158,6 @@ export async function isSequenceLocked(params: {
   }
 }
 
-/**
- * Get a preview of what the next document number will be
- * WITHOUT allocating it or changing database state
- * This is safe to call multiple times and shows users what number they'll get
- */
 export async function getNextDocumentNumberPreview(
   companyId: string,
   documentType: string
@@ -197,32 +173,45 @@ export async function getNextDocumentNumberPreview(
     .maybeSingle()
 
   if (!sequence) {
-    // Sequence not initialized yet
     return { nextNumber: null, formatted: null }
   }
 
-  // Next number is current_number + 1 (or starting_number if current is 0)
   const nextNum = Math.max(sequence.current_number + 1, sequence.starting_number)
   const prefix = sequence.prefix || ""
-  // Return pure number without zero-padding
-  // Examples: 1, 99, 100, 1543 (no leading zeros)
   const formatted = `${prefix}${nextNum}`
 
   return { nextNumber: nextNum, formatted }
 }
 
-/**
- * Finalize a draft document by assigning it a document number
- * Uses the generate_document_number RPC to atomically increment and assign
- * This is the ONLY function that should allocate document numbers
- */
 export async function finalizeDocument(
   draftId: string,
   companyId: string,
   documentType: string
-): Promise<{ ok: boolean; documentNumber?: string; message?: string }> {
+): Promise<{
+  ok: boolean
+  documentNumber?: string
+  message?: string
+  signing?: {
+    pdf_hashes: {
+      original_he_sha256: string
+      copy_he_sha256: string
+      copy_en_sha256?: string | null
+    }
+    signing_request_ids: {
+      original_he: string | null
+      copy_he: string | null
+      copy_en?: string | null
+    }
+    signed_pdf_base64: {
+      original_he: string
+      copy_he: string
+      copy_en?: string | null
+    }
+  }
+}> {
   const requestId = randomUUID()
   const supabase = await createClient()
+  const adminClient = createAdminClient()
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
   const { data: existingDoc, error: existingError } = await supabase
@@ -239,7 +228,6 @@ export async function finalizeDocument(
   let docNumber = existingDoc?.document_number ?? null
 
   if (!docNumber) {
-    // Generate number atomically - this is the moment allocation happens
     const { data: generatedNumber, error: rpcError } = await supabase.rpc(
       "generate_document_number",
       {
@@ -254,9 +242,6 @@ export async function finalizeDocument(
 
     docNumber = generatedNumber
 
-    // CRITICAL: Update document_number BEFORE generating PDF
-    // This ensures document_number is available in prepareDocumentData when rendering the template
-    // Order: Generate number → Update document_number (still draft) → Generate PDF → Set status to 'final'
     console.log(`[finalizeDocument] Updating document ${draftId} with document_number: ${docNumber} (before PDF generation)...`)
     
     const { error: updateNumberError } = await supabase
@@ -266,7 +251,7 @@ export async function finalizeDocument(
       })
       .eq("id", draftId)
       .eq("company_id", companyId)
-      .eq("document_status", "draft") // Only drafts can be updated
+      .eq("document_status", "draft")
     
     if (updateNumberError) {
       console.error(`[finalizeDocument] Failed to update document_number for document ${draftId}:`, updateNumberError)
@@ -276,8 +261,6 @@ export async function finalizeDocument(
     console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
   }
 
-  // CRITICAL: Generate PDF AFTER updating document_number but BEFORE finalizing
-  // New flow: deterministic unsigned PDF -> Secure Signature -> store signed PDF -> finalize.
   console.log(`[finalizeDocument] Generating deterministic PDF + signing for document ${draftId}...`)
 
   if (!isDigitalSignaturesEnabled()) {
@@ -288,10 +271,15 @@ export async function finalizeDocument(
     }
   }
 
-  const adminClient = createAdminClient()
+  // Fetch company data for signing
+  const { data: companyData } = await adminClient
+    .from("companies")
+    .select("name, tax_id, email")
+    .eq("id", companyId)
+    .single();
+
   const nowIso = new Date().toISOString()
 
-  // Ensure a frozen issuance timestamp exists (used to replace all dynamic 'now' placeholders).
   const { error: freezeTimeError } = await adminClient
     .from("documents")
     .update({ pdf_generated_at: nowIso })
@@ -315,20 +303,18 @@ export async function finalizeDocument(
 
   const documentLanguage: "he" | "en" = ((langRow as any)?.language as any) === "en" ? "en" : "he"
   const dbDocumentType: string = String((langRow as any)?.document_type || documentType)
-  const docNumber: string | null = (langRow as any)?.document_number ? String((langRow as any).document_number) : null
+  const docNumberFromDb: string | null = (langRow as any)?.document_number ? String((langRow as any).document_number) : null
   const issueDate: string | null = (langRow as any)?.issue_date ? String((langRow as any).issue_date) : null
+
+  if (!docNumber && docNumberFromDb) {
+    docNumber = docNumberFromDb
+  }
 
   const { renderDeterministicPdfBytes } = await import("@/lib/pdf-service")
 
-  const storageBucket = "business-assets"
-  const originalKey = `documents/${draftId}/original.he.signed.pdf`
-  const copyKey = `documents/${draftId}/copy.he.signed.pdf`
-  const enKey = `documents/${draftId}/source.en.signed.pdf`
-
-  const signAndUpload = async (args: {
+  const signAndReturn = async (args: {
     language: "he" | "en"
     variant: "original" | "copy"
-    storageKey: string
     label: string
     templateVersionId?: string | null
   }) => {
@@ -344,6 +330,9 @@ export async function finalizeDocument(
     const signing = await createSigningRequest({
       businessId: companyId,
       externalDocId,
+      businessName: companyData?.name || "Unknown Business",
+      businessTaxId: companyData?.tax_id || null,
+      supplierName: "VOW System",
       metadata: {
         document_id: draftId,
         document_number: docNumber,
@@ -354,6 +343,7 @@ export async function finalizeDocument(
         unsigned_pdf_sha256: rendered.pdfSha256,
         template_version_id: rendered.templateVersionId,
         pdf_generated_at: rendered.frozenNowIso,
+        email: companyData?.email,
       },
       pdfBytes: rendered.pdfBytes,
     })
@@ -361,19 +351,6 @@ export async function finalizeDocument(
       return { ok: false as const, message: `Signing failed (${signing.code}): ${signing.message}` }
     }
 
-    const { error: uploadError } = await adminClient.storage
-      .from(storageBucket)
-      .upload(args.storageKey, signing.signedPdfBytes, {
-        contentType: "application/pdf",
-        upsert: false,
-      })
-
-    // If already exists, treat as success (idempotent finalize retries).
-    if (uploadError && !String(uploadError.message || "").includes("already exists")) {
-      return { ok: false as const, message: `Failed to upload signed PDF: ${uploadError.message}` }
-    }
-
-    // Audit events per variant
     try {
       await adminClient.from("document_events").insert({
         document_id: draftId,
@@ -385,7 +362,6 @@ export async function finalizeDocument(
           request_id: signing.requestId,
           variant: args.variant,
           language: args.language,
-          storage_key: args.storageKey,
           unsigned_pdf_sha256: rendered.pdfSha256,
           signed_pdf_sha256: signing.signedPdfSha256,
           cert_info: signing.certInfo,
@@ -399,51 +375,49 @@ export async function finalizeDocument(
 
     return {
       ok: true as const,
-      storageKey: args.storageKey,
       unsignedSha256: rendered.pdfSha256,
       signedSha256: signing.signedPdfSha256,
       templateVersionId: rendered.templateVersionId,
       certInfo: signing.certInfo,
       hashes: signing.hashes,
       events: signing.events,
+      requestId: signing.requestId || null,
+      signedPdfBase64: signing.signedPdfBytes.toString("base64"),
     }
   }
 
-  // Render+sign original HE
-  const original = await signAndUpload({
+  const original = await signAndReturn({
     language: "he",
     variant: "original",
-    storageKey: originalKey,
     label: "מקור",
     templateVersionId: (langRow as any)?.template_version_id || null,
   })
   if (!original.ok) return { ok: false, message: original.message }
 
-  // Render+sign HE copy
-  const copy = await signAndUpload({
+  const copy = await signAndReturn({
     language: "he",
     variant: "copy",
-    storageKey: copyKey,
     label: "העתק נאמן למקור",
     templateVersionId: original.templateVersionId,
   })
   if (!copy.ok) return { ok: false, message: copy.message }
 
-  // Render+sign EN copy (only for EN documents)
-  let enStorageKey: string | null = null
+  let enSignedBase64: string | null = null
+  let enSignedSha256: string | null = null
+  let enRequestId: string | null = null
   if (documentLanguage === "en") {
-    const en = await signAndUpload({
+    const en = await signAndReturn({
       language: "en",
       variant: "copy",
-      storageKey: enKey,
       label: "Certified Copy",
       templateVersionId: original.templateVersionId,
     })
     if (!en.ok) return { ok: false, message: en.message }
-    enStorageKey = en.storageKey
+    enSignedBase64 = en.signedPdfBase64
+    enSignedSha256 = en.signedSha256
+    enRequestId = en.requestId
   }
 
-  // Persist template snapshot used (if any) and hashes for the canonical original.
   const certFingerprint =
     (original as any)?.certInfo?.fingerprint_sha256 ||
     (original as any)?.certInfo?.fingerprint ||
@@ -453,16 +427,12 @@ export async function finalizeDocument(
     .from("documents")
     .update({
       template_version_id: original.templateVersionId || null,
-      pdf_storage_key: original.storageKey,
-      pdf_storage_key_he_copy: copy.storageKey,
-      pdf_storage_key_en: documentLanguage === "en" ? enStorageKey : null,
       pdf_sha256: original.unsignedSha256,
       signed_pdf_sha256: original.signedSha256,
       signing_cert_fingerprint: certFingerprint,
       signed_at: nowIso,
       signature_provider: "secure_signature",
       signature_certificate_id: certFingerprint,
-      // IMPORTANT: do NOT set signed_hash here; DB trigger blocks further updates once signed_hash is set.
     })
     .eq("id", draftId)
     .eq("company_id", companyId)
@@ -472,11 +442,6 @@ export async function finalizeDocument(
     return { ok: false, message: `Failed to persist signing metadata: ${metaError.message}` }
   }
 
-  // Initialize accounting fields on finalization.
-  // IMPORTANT:
-  // - We do NOT introduce new DB status values.
-  // - This is only the initial state for newly finalized docs, before any document_links exist.
-  // - Later, document_links triggers will recompute paid/credited/outstanding/accounting_status.
   const { data: docForAccounting, error: docForAccountingError } = await supabase
     .from("documents")
     .select("document_type, total_amount")
@@ -495,8 +460,6 @@ export async function finalizeDocument(
     typeof totalAmountRaw === "number" ? totalAmountRaw : totalAmountRaw ? Number(totalAmountRaw) : 0
   const totalAmountSafe = Number.isFinite(totalAmount) ? Number(totalAmount.toFixed(2)) : 0
 
-  // Receipts / invoice-receipts are always "closed" (no outstanding balance) from issuance.
-  // Credit notes are treated as "closed" documents themselves; they "cancel" other documents via links.
   const isAlwaysClosedDoc = docType === "receipt" || docType === "invoice_receipt" || docType === "credit_note"
 
   const initialPaidAmount = isAlwaysClosedDoc ? totalAmountSafe : 0
@@ -504,10 +467,6 @@ export async function finalizeDocument(
   const initialOutstandingBalance = isAlwaysClosedDoc ? 0 : totalAmountSafe
   const initialAccountingStatus = totalAmountSafe <= 0 || isAlwaysClosedDoc ? "paid" : "open"
 
-  // Now update document to finalized status
-  // document_number was already updated above (before PDF generation)
-  // pdf_storage_key was already saved by generateDocumentPDF (while document was still 'draft')
-  // This update only changes status to 'final', which is allowed
   const { data, error } = await supabase
     .from("documents")
     .update({
@@ -520,7 +479,7 @@ export async function finalizeDocument(
     })
     .eq("id", draftId)
     .eq("company_id", companyId)
-    .eq("document_status", "draft") // Only drafts can be finalized
+    .eq("document_status", "draft")
     .select("id, document_number, document_type")
     .single()
 
@@ -533,5 +492,24 @@ export async function finalizeDocument(
   
   const successResponse = { ok: true, documentNumber: data.document_number };
   
-  return successResponse;
+  return {
+    ...successResponse,
+    signing: {
+      pdf_hashes: {
+        original_he_sha256: original.signedSha256,
+        copy_he_sha256: copy.signedSha256,
+        copy_en_sha256: enSignedSha256,
+      },
+      signing_request_ids: {
+        original_he: original.requestId,
+        copy_he: copy.requestId,
+        copy_en: enRequestId,
+      },
+      signed_pdf_base64: {
+        original_he: original.signedPdfBase64,
+        copy_he: copy.signedPdfBase64,
+        copy_en: enSignedBase64,
+      },
+    },
+  };
 }

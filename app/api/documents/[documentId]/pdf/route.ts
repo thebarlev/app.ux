@@ -188,53 +188,16 @@ export async function GET(
       })
     }
 
-    // Final/pdf_ready/cancelled: must serve the SIGNED PDF only (no regeneration).
-    const storageBucket = "business-assets"
-    const storageKey =
-      targetLanguage === "he"
-        ? effectiveIssue === "original"
-          ? ((doc as any).pdf_storage_key as string | null)
-          : ((doc as any).pdf_storage_key_he_copy as string | null)
-        : ((doc as any).pdf_storage_key_en as string | null)
-
-    if (!storageKey) {
-      return NextResponse.json(
-        {
-          error: "SIGNED_PDF_MISSING",
-          message: "Signed PDF is missing for this document. Please contact support.",
-        },
-        { status: 500 }
-      )
-    }
-
-    // Download directly from storage (no signed URL roundtrip).
-    const { data: pdfBlob, error: downloadError } = await adminClient.storage
-      .from(storageBucket)
-      .download(storageKey)
-
-    if (!pdfBlob) {
-      logPdfEvent("core", "PDF_MISSING_BUT_EXPECTED", {
-        docId: documentId,
-        requestId,
-        context: "download",
-        lang: targetLanguage,
-        result: "MISSING",
-        bucket: storageBucket,
-        fullPath: storageKey,
-        timingMs: Date.now() - startedAt,
-        source: "pdf-route",
-        businessId: doc.company_id,
-        userId: auth.user.id,
-      })
-      return NextResponse.json(
-        {
-          error: "SIGNED_PDF_MISSING",
-          code: "SIGNED_PDF_MISSING",
-          details: "Signed PDF missing in storage. No regeneration is allowed.",
-        },
-        { status: 500 }
-      )
-    }
+    // No-storage policy: signed PDFs are NOT persisted.
+    // Therefore, this route cannot serve finalized documents.
+    return NextResponse.json(
+      {
+        error: "NO_STORAGE_POLICY",
+        message:
+          "Signed PDF is not stored. Download is available only immediately after finalize/issue.",
+      },
+      { status: 410 }
+    )
 
     const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)
 

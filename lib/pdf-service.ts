@@ -183,6 +183,11 @@ export async function renderDeterministicPdfBytes(params: {
     }
   | { ok: false; message: string }
 > {
+  console.log("[SIGN_FLOW] deterministic PDF render entry", {
+    documentId: params.documentId,
+    language: params.language,
+    label: params.documentCopyLabel,
+  })
   const admin = createAdminClient()
   const { data: doc, error: docError } = await admin
     .from("documents")
@@ -256,6 +261,12 @@ export async function renderDeterministicPdfBytes(params: {
 
   const pdfBytes = Buffer.from(pdfResult.buffer as any)
   const pdfSha256 = sha256HexFromSigningClient(pdfBytes)
+  console.log("[SIGN_FLOW] deterministic PDF bytes produced", {
+    documentId: params.documentId,
+    bytesLength: pdfBytes.length,
+    sha256: pdfSha256,
+    frozenNowIso,
+  })
   return { ok: true, pdfBytes, pdfSha256, frozenNowIso, templateVersionId: template.templateId || null }
 }
 

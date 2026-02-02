@@ -163,6 +163,7 @@ export default function ReceiptFormClient({
     companyName: string;
     documentTypeLabel: string;
     language: "he" | "en";
+    signing?: any;
   } | null>(null);
 
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
@@ -708,6 +709,7 @@ export default function ReceiptFormClient({
         companyName: result.companyName || "העסק שלי",
         documentTypeLabel: "קבלה",
         language,
+        signing: (result as any).signing ?? null,
       });
       setSuccessModalOpen(true);
       setConfirmationModalOpen(false);
@@ -1447,29 +1449,40 @@ export default function ReceiptFormClient({
               onDownloadHebrew={async (opts) => {
                 try {
                   const issue = opts?.issue || "copy";
-                  const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=he&issue=${issue}`;
-                  const response = await fetch(pdfUrl);
+                  const signing = (successModalData as any)?.signing
+                  const b64 =
+                    issue === "original"
+                      ? signing?.signed_pdf_base64?.original_he
+                      : signing?.signed_pdf_base64?.copy_he
 
-                  if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    const errorMessage = errorData.details || errorData.error || response.statusText;
-                    throw new Error(`PDF download failed: ${errorMessage}`);
+                  if (!b64) {
+                    throw new Error("Signed PDF not available (no-storage policy). Please re-issue.")
                   }
 
-                  const blob = await response.blob();
-                  if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+                  const binary = atob(b64)
+                  const bytes = new Uint8Array(binary.length)
+                  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+                  const pdfBlob = new Blob([bytes], { type: "application/pdf" })
 
-                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
-                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
-                  const link = document.createElement("a");
-                  link.href = downloadUrl;
-                  const baseName = successModalData.documentNumber || successModalData.documentId;
-                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-he.pdf`;
-                  link.download = fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  window.URL.revokeObjectURL(downloadUrl);
+                  const downloadUrl = window.URL.createObjectURL(pdfBlob)
+                  const link = document.createElement("a")
+                  link.href = downloadUrl
+                  const baseName = successModalData.documentNumber || successModalData.documentId
+                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-he.pdf`
+                  link.download = fileName
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                  window.URL.revokeObjectURL(downloadUrl)
+
+                  if (issue === "original") {
+                    // Regulatory: mark original as issued (idempotent).
+                    fetch(`/api/documents/${successModalData.documentId}/issuance`, {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ language: "he" }),
+                    }).catch(() => {})
+                  }
                 } catch (error: any) {
                   toast.error(`שגיאה בהורדת PDF: ${error.message}`);
                 }
@@ -1477,29 +1490,29 @@ export default function ReceiptFormClient({
               onDownloadEnglish={async (opts) => {
                 try {
                   const issue = opts?.issue || "copy";
-                  const pdfUrl = `/api/documents/${successModalData.documentId}/pdf?lang=en&issue=${issue}`;
-                  const response = await fetch(pdfUrl);
-
-                  if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    const errorMessage = errorData.details || errorData.error || response.statusText;
-                    throw new Error(`PDF download failed: ${errorMessage}`);
+                  // EN download is always "copy" in the UX, but keep issue param for compatibility.
+                  void issue
+                  const signing = (successModalData as any)?.signing
+                  const b64 = signing?.signed_pdf_base64?.copy_en
+                  if (!b64) {
+                    throw new Error("Signed EN PDF not available.")
                   }
 
-                  const blob = await response.blob();
-                  if (blob.size === 0) throw new Error("Downloaded PDF is empty");
+                  const binary = atob(b64)
+                  const bytes = new Uint8Array(binary.length)
+                  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+                  const pdfBlob = new Blob([bytes], { type: "application/pdf" })
 
-                  const pdfBlob = new Blob([blob], { type: "application/pdf" });
-                  const downloadUrl = window.URL.createObjectURL(pdfBlob);
-                  const link = document.createElement("a");
-                  link.href = downloadUrl;
-                  const baseName = successModalData.documentNumber || successModalData.documentId;
-                  const fileName = issue === "original" ? `${baseName}.pdf` : `${baseName}-en.pdf`;
-                  link.download = fileName;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  window.URL.revokeObjectURL(downloadUrl);
+                  const downloadUrl = window.URL.createObjectURL(pdfBlob)
+                  const link = document.createElement("a")
+                  link.href = downloadUrl
+                  const baseName = successModalData.documentNumber || successModalData.documentId
+                  const fileName = `${baseName}-en.pdf`
+                  link.download = fileName
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                  window.URL.revokeObjectURL(downloadUrl)
                 } catch (error: any) {
                   toast.error(`שגיאה בהורדת PDF: ${error.message}`);
                 }

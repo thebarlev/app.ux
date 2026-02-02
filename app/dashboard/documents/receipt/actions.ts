@@ -43,6 +43,7 @@ export async function issueReceiptAction(payload: ReceiptDraftPayload, draftId?:
     documentNumber: result.documentNumber,
     companyName: result.companyName,
     payload: result.payload,
+    signing: (result as any).signing ?? null,
   };
 }
 

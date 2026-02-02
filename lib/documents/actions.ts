@@ -998,6 +998,7 @@ export async function issueDocumentAction(
         documentNumber: result.documentNumber,
         companyName: company?.company_name || "העסק שלי",
         payload,
+        signing: (result as any).signing ?? null,
       };
     }
 
@@ -1158,6 +1159,7 @@ export async function issueDocumentAction(
       documentNumber: result.documentNumber,
       companyName: company?.company_name || "העסק שלי",
       payload,
+      signing: (result as any).signing ?? null,
     };
   } catch (error: any) {
     const errorMessage =
