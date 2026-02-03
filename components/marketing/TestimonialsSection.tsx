@@ -1,4 +1,4 @@
-import type { Section } from '@/lib/sanity/queries'
+import type { Section } from '@/lib/marketing/types'
 
 interface TestimonialsSectionProps {
   section: Section

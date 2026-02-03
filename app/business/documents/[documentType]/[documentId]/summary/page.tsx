@@ -107,7 +107,6 @@ export default async function BusinessDocumentSummaryPage({
       company={company as any}
       customer={customer as any}
       items={items as any}
-      documentType={config.uiKey as any}
     />
   );
 }

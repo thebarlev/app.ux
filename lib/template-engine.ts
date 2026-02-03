@@ -140,7 +140,24 @@ export async function generatePDFFromHTML(
   css: string = "",
   options: PDFGenerationOptions = {}
 ): Promise<PDFGenerationResult> {  
-  const { chromium } = await import("playwright")
+  const { chromium } = await import("playwright-core")
+
+  // Preflight: fail fast with an actionable message if Playwright browsers aren't installed.
+  // This is NOT business logic; it prevents opaque runtime failures in finalize/sign flow.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { existsSync } = require("node:fs") as typeof import("node:fs")
+    const executablePath = chromium.executablePath()
+    if (!executablePath || !existsSync(executablePath)) {
+      throw new Error(
+        `Playwright Chromium executable is missing at: ${executablePath || "(empty path)"}.\n` +
+          `Run: npm exec playwright install chromium\n` +
+          `In CI/Vercel ensure browsers are installed during build (recommended env: PLAYWRIGHT_BROWSERS_PATH=0).`
+      )
+    }
+  } catch (e) {
+    // If preflight itself fails (shouldn't), continue to original launch and let Playwright throw.
+  }
   
   const {
     format = "A4",

@@ -306,6 +306,11 @@ export const TEMPLATE_VALIDATION_RULES: Record<DocumentType, TemplateValidationR
     required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
     recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}'],
   },
+  invoiceReceipt: {
+    document_type: 'invoiceReceipt',
+    required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],
+    recommended_placeholders: ['{{company_name}}', '{{customer_name}}', '{{{payments_table}}}', '{{{items_table}}}'],
+  },
   proforma: {
     document_type: 'proforma',
     required_placeholders: ['{{document_number}}', '{{document_date}}', '{{total_amount}}'],

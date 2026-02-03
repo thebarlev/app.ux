@@ -1,6 +1,6 @@
 "use server";
 
-import type { ReceiptDraftPayload } from "@/lib/types/receipt";
+import type { TaxInvoiceDraftPayload, InitialTaxInvoiceCreateData } from "@/lib/documents/types";
 import {
   getInitialDocumentCreateData,
   saveDocumentDraftAction,
@@ -11,36 +11,7 @@ import {
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
-  type InitialDocumentCreateData,
-  type PaymentRow,
-  type PaymentMethod,
-  type ReceiptSettings,
 } from "@/lib/documents/actions";
-
-export type { PaymentRow, PaymentMethod, ReceiptSettings };
-
-export type TaxInvoiceItemRow = {
-  label: string;
-  sku: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  currency: string;
-  vatMode: "before" | "included";
-  lineTotal: number;
-};
-
-export type TaxInvoiceDraftPayload = Omit<ReceiptDraftPayload, "documentType"> & {
-  documentType: "tax_invoice";
-  items?: TaxInvoiceItemRow[];
-  vatType?: "regular" | "no_vat";
-  vatRate?: number;
-  vatAmount?: number;
-  subtotal?: number;
-  paymentDueDate?: string;
-};
-
-export type InitialTaxInvoiceCreateData = InitialDocumentCreateData;
 
 export {
   getRecipientConsentStatusAction,

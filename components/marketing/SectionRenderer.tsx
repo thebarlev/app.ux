@@ -5,7 +5,7 @@ import { BenefitsSection } from './BenefitsSection'
 import { TestimonialsSection } from './TestimonialsSection'
 import { FAQSection } from './FAQSection'
 import { CTASection } from './CTASection'
-import type { Section } from '@/lib/sanity/queries'
+import type { Section } from '@/lib/marketing/types'
 
 interface SectionRendererProps {
   section: Section

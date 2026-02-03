@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import type { Section } from '@/lib/sanity/queries'
+import type { Section } from '@/lib/marketing/types'
 
 interface CTASectionProps {
   section: Section

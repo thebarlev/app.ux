@@ -7,7 +7,8 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { getOpenDocumentsByCustomer, type OpenDocument } from "@/lib/documents/actions";
+import { getOpenDocumentsByCustomer } from "@/lib/documents/actions";
+import type { OpenDocument } from "@/lib/documents/types";
 
 export type LinkDocumentsDialogLinkType = "payment" | "credit" | "conversion" | "related";
 

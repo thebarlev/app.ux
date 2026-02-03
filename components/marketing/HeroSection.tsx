@@ -1,13 +1,12 @@
 import Link from 'next/link'
-import type { Section } from '@/lib/sanity/queries'
-import { urlForImage } from '@/lib/sanity/image'
+import type { Section } from '@/lib/marketing/types'
 
 interface HeroSectionProps {
   section: Section
 }
 
 export function HeroSection({ section }: HeroSectionProps) {
-  const imageUrl = section.image ? urlForImage(section.image) : null
+  const imageUrl = section.imageUrl || null
 
   return (
     <section className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -53,11 +52,12 @@ function renderContent(content: any[]): React.ReactNode {
         </p>
       )
     }
-    if (block._type === 'image' && block.asset) {
+    // Optional image blocks for local content
+    if (block._type === 'image' && (block.url || block.src)) {
       return (
         <img
           key={index}
-          src={urlForImage(block)}
+          src={block.url || block.src}
           alt={block.alt || ''}
           className="my-4 rounded-lg"
         />

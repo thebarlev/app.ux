@@ -2,15 +2,11 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import type { InitialReceiptCreateData } from "./actions";
-import type { PaymentRow, ReceiptDraftPayload } from "@/lib/types/receipt";
+import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "@/lib/documents/types";
 import {
   issueReceiptAction,
   saveReceiptDraftAction,
   updateReceiptDraftAction,
-  getRecipientConsentStatusAction,
-  giveRecipientConsentAction,
-  revokeRecipientConsentAction,
 } from "./actions";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
@@ -33,7 +29,6 @@ import { CurrencyAmountGroup } from "@/components/ui/currency-amount-group";
 import { Card, CardContent } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/form-section";
 import { cn } from "@/lib/utils";
-import { isDigitalSignaturesEnabledClient } from "@/lib/documents/signing/feature-flags-client";
 import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -103,7 +98,6 @@ export default function ReceiptFormClient({
 }) {
   const searchParams = useSearchParams();
   const draftId = draftIdProp ?? (initial.ok ? initial.draftId ?? undefined : undefined);
-  const digitalSignaturesEnabled = isDigitalSignaturesEnabledClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
@@ -149,13 +143,7 @@ export default function ReceiptFormClient({
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
 
-  const [recipientConsent, setRecipientConsent] = useState<{
-    status: "idle" | "loading" | "ready" | "error";
-    hasConsent: boolean;
-    recipientIdentifier: string | null;
-    message?: string;
-  }>({ status: "idle", hasConsent: false, recipientIdentifier: null });
-  const [consentChecked, setConsentChecked] = useState(false);
+  // Consent is treated as granted-on-login; keep state removed to avoid accidental blocking.
 
   const [successModalData, setSuccessModalData] = useState<{
     documentId: string;
@@ -495,58 +483,7 @@ export default function ReceiptFormClient({
     setConfirmationModalOpen(true);
   }
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadConsent() {
-      if (!confirmationModalOpen) return;
-
-      if (!isDigitalSignaturesEnabledClient()) {
-        setRecipientConsent({ status: "idle", hasConsent: true, recipientIdentifier: null });
-        setConsentChecked(true);
-        return;
-      }
-
-      setRecipientConsent((prev) => ({ ...prev, status: "loading", message: undefined }));
-
-      try {
-        const res = await getRecipientConsentStatusAction(customerId, customerName);
-        if (cancelled) return;
-
-        if (!res.ok) {
-          setRecipientConsent({
-            status: "error",
-            hasConsent: false,
-            recipientIdentifier: null,
-            message: res.message,
-          });
-          setConsentChecked(false);
-          return;
-        }
-
-        setRecipientConsent({
-          status: "ready",
-          hasConsent: res.hasConsent,
-          recipientIdentifier: res.recipientIdentifier,
-        });
-        setConsentChecked(res.hasConsent);
-      } catch (e: any) {
-        if (cancelled) return;
-        setRecipientConsent({
-          status: "error",
-          hasConsent: false,
-          recipientIdentifier: null,
-          message: e?.message || "שגיאה בטעינת סטטוס הסכמה",
-        });
-        setConsentChecked(false);
-      }
-    }
-
-    loadConsent();
-    return () => {
-      cancelled = true;
-    };
-  }, [confirmationModalOpen, customerId, customerName]);
+  // Consent loading removed (no longer required).
 
   async function handleIssueConfirm() {
     setIsFinalizing(true);
@@ -609,36 +546,7 @@ export default function ReceiptFormClient({
       return;
     }
 
-    if (isDigitalSignaturesEnabledClient()) {
-      if (recipientConsent.status === "loading") {
-        toast.error("טוען סטטוס הסכמה... נסה שוב בעוד רגע");
-        setIsFinalizing(false);
-        return;
-      }
-      if (recipientConsent.status === "error") {
-        toast.error(recipientConsent.message || "שגיאה בבדיקת הסכמה");
-        setIsFinalizing(false);
-        return;
-      }
-      if (recipientConsent.status === "ready" && !recipientConsent.hasConsent) {
-        if (!consentChecked) {
-          toast.error("נדרש לסמן הסכמת מקבל למסמך ממוחשב לפני הפקה");
-          setIsFinalizing(false);
-          return;
-        }
-        const consentResult = await giveRecipientConsentAction(customerId, customerName);
-        if (!consentResult.ok) {
-          toast.error(consentResult.message || "שגיאה בשמירת הסכמה");
-          setIsFinalizing(false);
-          return;
-        }
-        setRecipientConsent((prev) => ({
-          ...prev,
-          hasConsent: true,
-          recipientIdentifier: consentResult.recipientIdentifier,
-        }));
-      }
-    }
+    // Recipient consent is not required for issuing.
 
     if (!allPaymentsConfirmed) {
       setShowPaymentsApprovalWarning(true);
@@ -1413,23 +1321,10 @@ export default function ReceiptFormClient({
             isLoading={busy === "issue" || isFinalizing}
             hasEmail={false}
             isFinalizing={isFinalizing}
-            consentState={digitalSignaturesEnabled ? recipientConsent : undefined}
-            consentChecked={digitalSignaturesEnabled ? consentChecked : undefined}
-            onConsentCheckedChange={digitalSignaturesEnabled ? setConsentChecked : undefined}
-            onRevokeConsent={
-              digitalSignaturesEnabled
-                ? async () => {
-                    const res = await revokeRecipientConsentAction(customerId, customerName);
-                    if (!res.ok) {
-                      toast.error(res.message || "שגיאה בביטול הסכמה");
-                      return;
-                    }
-                    setRecipientConsent((prev) => ({ ...prev, hasConsent: false }));
-                    setConsentChecked(false);
-                    toast.success("ההסכמה בוטלה");
-                  }
-                : undefined
-            }
+            consentState={undefined}
+            consentChecked={undefined}
+            onConsentCheckedChange={undefined}
+            onRevokeConsent={undefined}
           />
 
           {successModalData && (

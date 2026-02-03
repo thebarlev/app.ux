@@ -1,6 +1,6 @@
 "use server";
 
-import type { ReceiptDraftPayload } from "@/lib/types/receipt";
+import type { ReceiptDraftPayload, InitialReceiptCreateData } from "@/lib/documents/types";
 import { 
   getInitialDocumentCreateData,
   saveDocumentDraftAction,
@@ -11,14 +11,7 @@ import {
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
   revokeRecipientConsentAction,
-  type InitialDocumentCreateData,
-  type PaymentRow,
-  type PaymentMethod,
-  type ReceiptSettings,
 } from "@/lib/documents/actions";
-
-export type { PaymentRow, PaymentMethod, ReceiptDraftPayload, ReceiptSettings };
-export type InitialReceiptCreateData = InitialDocumentCreateData;
 
 export {
   getRecipientConsentStatusAction,

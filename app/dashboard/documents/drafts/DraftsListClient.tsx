@@ -270,10 +270,12 @@ export default function DraftsListClient({ initialData }: Props) {
 
         <DocumentsQuickViewDrawer
           open={isQuickViewOpen}
-          onOpenChange={setIsQuickViewOpen}
+          onClose={() => {
+            setIsQuickViewOpen(false);
+            router.refresh();
+          }}
           documentId={selectedDocumentId}
-          documentSnapshot={selectedDocSnapshot}
-          onAfterMutations={() => router.refresh()}
+          initialDoc={selectedDocSnapshot}
         />
       </FormSection>
     </div>

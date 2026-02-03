@@ -153,6 +153,11 @@ export type ReceiptListItem = {
 export type ReceiptSettings = {
   allowedCurrencies: string[];
   defaultCurrency: string;
+  /**
+   * Backward/compat: some screens expect a `currency` field on settings.
+   * Prefer `defaultCurrency`, but keep optional support for existing code.
+   */
+  currency?: string;
   language: "he" | "en";
   roundTotals: boolean;
 };

@@ -19,6 +19,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { FormActions } from "@/components/ui/form-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import SimpleTemplateSelector from "@/components/dashboard/SimpleTemplateSelector";
 
 type Company = {
   id: string;

@@ -10,72 +10,23 @@ import {
 } from "@/lib/document-helpers";
 import { getDocumentConfig } from "@/lib/documents/document-configs";
 import type {
-  PaymentRow,
+  DocumentDraftPayload,
+  DocumentIssueType,
+  InitialDocumentCreateData,
+  OpenDocument,
   PaymentMethod,
+  PaymentRow,
   ReceiptDraftPayload,
   ReceiptSettings,
-} from "@/lib/types/receipt";
+  TaxInvoiceItemRow,
+  VatType,
+} from "@/lib/documents/types";
 import { paymentRowToLineItem as convertPayment } from "@/lib/types/receipt";
 import { headers } from "next/headers";
 import {
   isDigitalSignaturesEnabled,
   DIGITAL_SIGNATURES_DEFERRED_MESSAGE,
 } from "@/lib/documents/signing/feature-flags";
-
-export type DocumentIssueType =
-  | "receipt"
-  | "tax_invoice"
-  | "invoiceReceipt"
-  | "creditNote"
-  | "quote"
-  | "proforma"
-  | "workOrder"
-  | "deliveryNote"
-  | "returnNote"
-  | "purchaseOrder"
-  | "selfInvoice"
-  | "selfCreditNote";
-
-export type VatType = "regular" | "no_vat";
-
-export type TaxInvoiceItemRow = {
-  label: string;
-  sku: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  currency: string;
-  vatMode: "before" | "included";
-  lineTotal: number;
-};
-
-export type DocumentDraftPayload = Omit<ReceiptDraftPayload, "documentType"> & {
-  documentType: DocumentIssueType;
-  items?: TaxInvoiceItemRow[];
-  vatType?: VatType;
-  vatRate?: number;
-  vatAmount?: number;
-  subtotal?: number;
-  paymentDueDate?: string;
-};
-
-export type InitialDocumentCreateData =
-  | {
-      ok: true;
-      companyId: string;
-      companyName: string | null;
-      sequenceLocked: boolean;
-      previewNumber: string | null;
-      draftId?: string | null;
-      draftOrigin?: "existing" | "new";
-      settings: ReceiptSettings;
-      minAllowedDate: string | null;
-      vatRate?: number;
-    }
-  | {
-      ok: false;
-      message: string;
-    };
 
 const DOCUMENT_ROUTE_SEGMENTS: Record<DocumentIssueType, string> = {
   receipt: "receipt",
@@ -106,9 +57,6 @@ const DOCUMENT_TYPE_LABELS: Record<DocumentIssueType, string> = {
   selfInvoice: "חשבונית עצמית",
   selfCreditNote: "חשבונית זיכוי עצמית",
 };
-
-// Re-export types for backward compatibility
-export type { PaymentRow, PaymentMethod, ReceiptDraftPayload, ReceiptSettings };
 
 type RecipientConsentStatus =
   | {
@@ -838,44 +786,9 @@ export async function issueDocumentAction(
       return errorResponse;
     }
 
-    const shouldEnforceConsent = isDigitalSignaturesEnabled();
-    const resolvedRecipient = shouldEnforceConsent
-      ? await resolveRecipientIdentifier({
-          supabase,
-          customerId: payload.customerId || null,
-          customerName: payload.customerName,
-          companyId,
-        })
-      : null;
-    if (shouldEnforceConsent && resolvedRecipient && !resolvedRecipient.ok) {
-      return { ok: false as const, message: resolvedRecipient.message };
-    }
-
-    if (shouldEnforceConsent && resolvedRecipient && resolvedRecipient.ok) {
-      const { data: consentData, error: consentError } = await getConsentRow({
-        supabase,
-        companyId,
-        recipientIdentifier: resolvedRecipient.recipientIdentifier,
-      });
-
-      if (consentError) {
-        return {
-          ok: false as const,
-          message:
-            "שגיאה בבדיקת הסכמת מקבל: חסרה טבלת `recipient_consents` או אין הרשאה. נא להריץ scripts/030-recipient-consents.sql ואז לנסות שוב.",
-        };
-      }
-
-      const hasActiveConsent =
-        !!consentData?.consent_given_at && !consentData?.consent_revoked_at;
-      if (!hasActiveConsent) {
-        return {
-          ok: false as const,
-          message:
-            "נדרשת הסכמת מקבל למסמך ממוחשב לפני הפקה. סמן/י הסכמה בחלון האישור ואז נסה/י שוב.",
-        };
-      }
-    }
+    // Recipient consent requirement disabled:
+    // Business requirement: once a user is logged-in, consent is treated as granted.
+    // We still keep the digital-signature flow enabled elsewhere.
 
     if (draftId) {
       const { data: existing, error: fetchError } = await supabase
@@ -1621,9 +1534,9 @@ function todayYmd() {
 // Document links (organizational only)
 // =====================================================
 
-export type DocumentLinkType = "payment" | "credit" | "conversion" | "cancellation" | "related";
+type DocumentLinkType = "payment" | "credit" | "conversion" | "cancellation" | "related";
 
-export type DocumentLinkDTO = {
+type DocumentLinkDTO = {
   id: string;
   linkType: DocumentLinkType;
   amount: number;
@@ -1649,7 +1562,7 @@ export type DocumentLinkDTO = {
   };
 };
 
-export type OpenDocument = {
+type OpenDocumentInternal = {
   id: string;
   document_number: string | null;
   document_type: string;
