@@ -515,30 +515,45 @@ export async function finalizeDocument(
   const initialOutstandingBalance = isAlwaysClosedDoc ? 0 : totalAmountSafe
   const initialAccountingStatus = totalAmountSafe <= 0 || isAlwaysClosedDoc ? "paid" : "open"
 
-  const { data, error } = await supabase
-    .from("documents")
-    .update({
-      document_status: "final",
-      finalized_at: new Date().toISOString(),
-      paid_amount: initialPaidAmount,
-      credited_amount: initialCreditedAmount,
-      outstanding_balance: initialOutstandingBalance,
-      accounting_status: initialAccountingStatus,
-    })
-    .eq("id", draftId)
-    .eq("company_id", companyId)
-    .eq("document_status", "draft")
-    .select("id, document_number, document_type")
-    .single()
+  const { data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
+    "finalize_document_with_usage_guard",
+    {
+      p_company_id: companyId,
+      p_document_id: draftId,
+      p_now: nowIso,
+      p_paid_amount: initialPaidAmount,
+      p_credited_amount: initialCreditedAmount,
+      p_outstanding_balance: initialOutstandingBalance,
+      p_accounting_status: initialAccountingStatus,
+    }
+  )
 
-  if (error) {
-    console.error(`[finalizeDocument] Failed to update document ${draftId} to finalized status:`, error)
-    return { ok: false, message: error.message }
+  if (finalizeGuardError) {
+    console.error(`[finalizeDocument] finalize_document_with_usage_guard failed for ${draftId}:`, finalizeGuardError)
+    return { ok: false, message: finalizeGuardError.message }
+  }
+
+  const finalizeRow = Array.isArray(finalizeGuardData) ? finalizeGuardData[0] : (finalizeGuardData as any)
+  const finalizeOk = !!finalizeRow?.ok
+  const reason = typeof finalizeRow?.reason === "string" ? finalizeRow.reason : null
+
+  if (!finalizeOk) {
+    const message =
+      reason === "limit_reached"
+        ? "הגעת למגבלת המסמכים החודשית. לא ניתן להפיק מסמכים חדשים."
+        : reason === "trial_ended"
+          ? "תקופת הניסיון הסתיימה. לא ניתן להפיק מסמכים חדשים."
+          : reason === "subscription_expired"
+            ? "המנוי פג. לא ניתן להפיק מסמכים חדשים."
+            : reason === "account_blocked"
+              ? "החשבון חסום. לא ניתן להפיק מסמכים חדשים."
+              : "לא ניתן להפיק מסמך. נסה שוב."
+    return { ok: false, message }
   }
 
   console.log(`✅ [finalizeDocument] Document ${draftId} finalized successfully with PDF`)
   
-  const successResponse = { ok: true, documentNumber: data.document_number };
+  const successResponse = { ok: true, documentNumber: docNumber || undefined };
   
   return {
     ...successResponse,

@@ -3,6 +3,7 @@
 import { FileText, Users, Settings, Receipt, UserPlus, BarChart } from "lucide-react";
 import DashboardCard from "./DashboardCard";
 import NewDocumentFab from "@/components/dashboard/NewDocumentFab";
+import { SubscriptionUsageCard } from "@/components/subscription/SubscriptionUsageCard";
 
 export default function DashboardPage() {
   return (
@@ -13,6 +14,11 @@ export default function DashboardPage() {
           <h1 className="ui-page-title">לוח בקרה</h1>
           <p className="ui-page-subtitle">ברוכים הבאים למערכת הניהול</p>
         </div>
+
+        <section className="space-y-4">
+          <h2 className="text-right text-lg font-semibold text-fg">מנוי ושימוש</h2>
+          <SubscriptionUsageCard />
+        </section>
 
         {/* Quick Actions Grid */}
         <section className="space-y-4">

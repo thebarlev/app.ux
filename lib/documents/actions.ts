@@ -119,6 +119,113 @@ function getDocumentBasePath(documentType: DocumentIssueType) {
   return "/dashboard/documents";
 }
 
+function firstDayOfMonthUtcIso(now = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth(); // 0-11
+  const d = new Date(Date.UTC(y, m, 1));
+  return d.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+async function precheckSubscriptionEligibility(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  companyId: string;
+}): Promise<
+  | {
+      ok: true;
+      planId: string;
+      status: string;
+      documentsUsed: number;
+      documentsLimit: number;
+      yearMonth: string;
+      trialEndsAt: string | null;
+      currentPeriodEnd: string | null;
+    }
+  | {
+      ok: false;
+      reason: "account_blocked" | "trial_ended" | "subscription_expired" | "limit_reached" | "unknown";
+      message: string;
+    }
+> {
+  const { supabase, companyId } = params;
+
+  const { data: sub, error: subError } = await supabase
+    .from("subscriptions")
+    .select("plan_id,status,trial_ends_at,current_period_end")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (subError || !sub) {
+    return {
+      ok: false,
+      reason: "unknown",
+      message: "לא ניתן לאמת סטטוס מנוי. נסה שוב בעוד רגע.",
+    };
+  }
+
+  const planId = String((sub as any).plan_id || "");
+  const status = String((sub as any).status || "");
+  const trialEndsAt = (sub as any).trial_ends_at ? String((sub as any).trial_ends_at) : null;
+  const currentPeriodEnd = (sub as any).current_period_end ? String((sub as any).current_period_end) : null;
+
+  if (["blocked", "canceled", "past_due"].includes(status)) {
+    return { ok: false, reason: "account_blocked", message: "החשבון חסום. לא ניתן להפיק מסמכים חדשים." };
+  }
+
+  const now = new Date();
+  if (status === "trial" && trialEndsAt && now > new Date(trialEndsAt)) {
+    return { ok: false, reason: "trial_ended", message: "תקופת הניסיון הסתיימה. לא ניתן להפיק מסמכים חדשים." };
+  }
+
+  if (status === "active") {
+    if (!currentPeriodEnd || now > new Date(currentPeriodEnd)) {
+      return { ok: false, reason: "subscription_expired", message: "המנוי פג. לא ניתן להפיק מסמכים חדשים." };
+    }
+  }
+
+  const { data: plan, error: planError } = await supabase
+    .from("plans")
+    .select("documents_per_month")
+    .eq("id", planId)
+    .maybeSingle();
+
+  if (planError || !plan) {
+    return { ok: false, reason: "unknown", message: "לא ניתן לאמת תכנית מנוי. נסה שוב בעוד רגע." };
+  }
+
+  const documentsLimit = Number((plan as any).documents_per_month ?? 0) || 0;
+  const yearMonth = firstDayOfMonthUtcIso(now);
+  const { data: usage, error: usageError } = await supabase
+    .from("usage_monthly")
+    .select("documents_count")
+    .eq("company_id", companyId)
+    .eq("year_month", yearMonth)
+    .maybeSingle();
+
+  if (usageError) {
+    return { ok: false, reason: "unknown", message: "לא ניתן לאמת שימוש חודשי. נסה שוב בעוד רגע." };
+  }
+
+  const documentsUsed = Number((usage as any)?.documents_count ?? 0) || 0;
+  if (documentsLimit > 0 && documentsUsed >= documentsLimit) {
+    return {
+      ok: false,
+      reason: "limit_reached",
+      message: "הגעת למגבלת המסמכים החודשית. לא ניתן להפיק מסמכים חדשים.",
+    };
+  }
+
+  return {
+    ok: true,
+    planId,
+    status,
+    documentsUsed,
+    documentsLimit,
+    yearMonth,
+    trialEndsAt,
+    currentPeriodEnd,
+  };
+}
+
 function itemRowToLineItem(
   item: TaxInvoiceItemRow,
   documentId: string,
@@ -868,6 +975,15 @@ export async function issueDocumentAction(
         console.error(`${logPrefix} Failed to replace line items`, lineItemsError);
       }
 
+      const eligibility = await precheckSubscriptionEligibility({ supabase, companyId });
+      if (!eligibility.ok) {
+        return {
+          ok: false as const,
+          message: eligibility.message,
+          reason: eligibility.reason,
+        };
+      }
+
       console.log(`${logPrefix} Calling finalizeDocument`, {
         draftId,
         companyId: companyId?.substring(0, 8),
@@ -1023,6 +1139,15 @@ export async function issueDocumentAction(
       } else {
         console.log(`${logPrefix} Line items inserted successfully`);
       }
+    }
+
+    const eligibility = await precheckSubscriptionEligibility({ supabase, companyId });
+    if (!eligibility.ok) {
+      return {
+        ok: false as const,
+        message: eligibility.message,
+        reason: eligibility.reason,
+      };
     }
 
     console.log(`${logPrefix} Calling finalizeDocument`, {
