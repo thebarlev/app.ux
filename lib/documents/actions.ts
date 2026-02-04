@@ -155,6 +155,22 @@ async function precheckSubscriptionEligibility(params: {
     .maybeSingle();
 
   if (subError || !sub) {
+    const isMissingSubscriptionsTable =
+      String((subError as any)?.code || "") === "PGRST205" ||
+      String((subError as any)?.message || "").includes("public.subscriptions") ||
+      String((subError as any)?.message || "").includes("table 'public.subscriptions'")
+
+    if (isMissingSubscriptionsTable) {
+      return {
+        ok: false,
+        reason: "unknown",
+        message:
+          "חסרות טבלאות מנויים (subscriptions/plans/usage_monthly) בפרויקט Supabase המחובר. " +
+          "נא להריץ בסדר הזה: scripts/045-subscriptions-schema-v1.sql ואז scripts/046-subscriptions-rls-v1.sql, " +
+          "להמתין לרענון schema cache, ואז לנסות שוב.",
+      }
+    }
+
     return {
       ok: false,
       reason: "unknown",
@@ -875,6 +891,31 @@ export async function issueDocumentAction(
     payloadKeys: Object.keys(payload),
   });
 
+  let agentFlow: {
+    step:
+      | "entry"
+      | "after_validation"
+      | "validation_failed_return"
+      | "draft_fetch_done"
+      | "draft_fetch_error_return"
+      | "draft_not_found_return"
+      | "draft_not_draft_return"
+      | "update_error_return"
+      | "eligibility_block_return"
+      | "calling_finalize"
+      | "finalize_done"
+      | "create_draft_branch"
+      | "exception";
+    hasDraftId: boolean;
+    ok: boolean | null;
+    note: string | null;
+  } = {
+    step: "entry",
+    hasDraftId: typeof draftId === "string" && draftId.length > 0,
+    ok: null,
+    note: null,
+  };
+
   try {
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
@@ -885,7 +926,12 @@ export async function issueDocumentAction(
     const err = validatePayload(payload, minAllowedDate);
     console.log(`${logPrefix} Validation result`, { hasError: !!err, error: err });
 
+    agentFlow.step = "after_validation";
+
     if (err) {
+      agentFlow.step = "validation_failed_return";
+      agentFlow.ok = false;
+      agentFlow.note = "validation_failed";
       console.error(`${logPrefix} Validation failed`, { error: err });
       const errorMessage = typeof err === "string" ? err : String(err) || "שגיאת ולידציה";
       const errorResponse = { ok: false as const, message: errorMessage };
@@ -906,10 +952,25 @@ export async function issueDocumentAction(
         .eq("document_type", dbDocumentType)
         .maybeSingle();
 
-      if (fetchError) return { ok: false as const, message: fetchError.message };
-      if (!existing) return { ok: false as const, message: "Draft not found" };
+      agentFlow.step = "draft_fetch_done";
+
+      if (fetchError) {
+        agentFlow.step = "draft_fetch_error_return";
+        agentFlow.ok = false;
+        agentFlow.note = "draft_fetch_error";
+        return { ok: false as const, message: fetchError.message };
+      }
+      if (!existing) {
+        agentFlow.step = "draft_not_found_return";
+        agentFlow.ok = false;
+        agentFlow.note = "draft_not_found";
+        return { ok: false as const, message: "Draft not found" };
+      }
 
       if (existing.document_status !== "draft") {
+        agentFlow.step = "draft_not_draft_return";
+        agentFlow.ok = false;
+        agentFlow.note = `not_draft:${String(existing.document_status || "")}`;
         return {
           ok: false as const,
           message: "Cannot edit final documents. Only drafts can be modified.",
@@ -960,7 +1021,12 @@ export async function issueDocumentAction(
               "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
           };
         }
-        if (updateError) return { ok: false as const, message: updateError.message };
+        if (updateError) {
+          agentFlow.step = "update_error_return";
+          agentFlow.ok = false;
+          agentFlow.note = "update_error";
+          return { ok: false as const, message: updateError.message };
+        }
       }
 
       const lineItemsError = await replaceDocumentLineItems({
@@ -977,6 +1043,9 @@ export async function issueDocumentAction(
 
       const eligibility = await precheckSubscriptionEligibility({ supabase, companyId });
       if (!eligibility.ok) {
+        agentFlow.step = "eligibility_block_return";
+        agentFlow.ok = false;
+        agentFlow.note = `${eligibility.reason || "eligibility_blocked"}:${String(eligibility.message || "").slice(0, 120)}`;
         return {
           ok: false as const,
           message: eligibility.message,
@@ -989,6 +1058,10 @@ export async function issueDocumentAction(
         companyId: companyId?.substring(0, 8),
         documentType,
       });
+      const agentFinalizeT0 = Date.now()
+
+      agentFlow.step = "calling_finalize";
+
       const userRes = await supabase.auth.getUser();
       const createdByEmail = userRes?.data?.user?.email ?? null;
       const createdByName =
@@ -1007,6 +1080,10 @@ export async function issueDocumentAction(
         ok: result.ok,
         documentNumber: result.documentNumber,
       });
+
+      agentFlow.step = "finalize_done";
+      agentFlow.ok = result.ok;
+      agentFlow.note = result.ok ? "finalize_ok" : (result.message || "finalize_failed");
 
       if (!result.ok) {
         console.error(`${logPrefix} finalizeDocument failed`, {
@@ -1032,6 +1109,7 @@ export async function issueDocumentAction(
       };
     }
 
+    agentFlow.step = "create_draft_branch";
     console.log(`${logPrefix} Creating draft document`, {
       companyId: companyId?.substring(0, 8),
       customerName: payload.customerName?.substring(0, 30),
@@ -1143,6 +1221,9 @@ export async function issueDocumentAction(
 
     const eligibility = await precheckSubscriptionEligibility({ supabase, companyId });
     if (!eligibility.ok) {
+      agentFlow.step = "eligibility_block_return";
+      agentFlow.ok = false;
+      agentFlow.note = `${eligibility.reason || "eligibility_blocked"}:${String(eligibility.message || "").slice(0, 120)}`;
       return {
         ok: false as const,
         message: eligibility.message,
@@ -1213,6 +1294,9 @@ export async function issueDocumentAction(
       signing: (result as any).signing ?? null,
     };
   } catch (error: any) {
+    agentFlow.step = "exception";
+    agentFlow.ok = false;
+    agentFlow.note = error instanceof Error ? error.message : String(error);
     const errorMessage =
       error?.message || error?.toString() || String(error) || "שגיאה בלתי צפויה בהפקת המסמך";
     const errorType = error?.constructor?.name || typeof error;
@@ -1232,6 +1316,7 @@ export async function issueDocumentAction(
       ok: false as const,
       message: errorMessage,
     };
+  } finally {
   }
 }
 

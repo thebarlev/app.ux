@@ -273,7 +273,10 @@ export default function ReceiptSuccessModal({
               {actions.topRow.map((a) => (
                 <button
                   key={a.id}
-                  onClick={a.onClick}
+                  onClick={() => {
+                    if (a.disabled) return;
+                    a.onClick();
+                  }}
                   disabled={a.disabled}
                   className={`flex flex-col items-center gap-2 p-4 rounded-lg transition-colors min-w-0 ${
                     a.disabled ? "opacity-50 cursor-not-allowed" : "hover:bg-white/50"

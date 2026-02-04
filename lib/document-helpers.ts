@@ -210,6 +210,8 @@ export async function finalizeDocument(
     }
   }
 }> {
+  const agentFinalizeStart = Date.now()
+
   const requestId = randomUUID()
   const supabase = await createClient()
   const adminClient = createAdminClient()
@@ -279,19 +281,12 @@ export async function finalizeDocument(
     .eq("id", companyId)
     .single();
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:277',message:'Company data fetched from DB',data:{companyId:companyId.substring(0,8),companyName:companyData?.company_name,taxId:companyData?.tax_id,registrationNumber:companyData?.registration_number,companyNumber:companyData?.company_number,contactFullName:companyData?.contact_full_name,email:companyData?.email},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
-
   // Determine the business tax ID from available fields
   const businessTaxId = companyData?.tax_id || companyData?.registration_number || companyData?.company_number || null;
   const businessContactName = companyData?.contact_full_name || null;
 
   // Get current user for event logging
   const { data: { user } } = await supabase.auth.getUser();
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:293',message:'User data for signing',data:{userId:user?.id?.substring(0,8),userEmail:user?.email,userName:user?.user_metadata?.full_name||user?.user_metadata?.name,createdByName:opts?.createdByName,createdByEmail:opts?.createdByEmail,resolvedTaxId:businessTaxId,resolvedContactName:businessContactName},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A,B'})}).catch(()=>{});
 
   const nowIso = new Date().toISOString()
 
@@ -343,7 +338,6 @@ export async function finalizeDocument(
 
     const externalDocId = `${draftId}:${args.variant}:${args.language}`
     
-    // #region agent log
     const metadataToSend = {
       document_id: draftId,
       document_number: docNumber,
@@ -358,9 +352,7 @@ export async function finalizeDocument(
       creator_email: opts?.createdByEmail || companyData?.email || null,
       business_tax_id: businessTaxId,
       business_contact_name: businessContactName,
-    };
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:343',message:'Metadata being sent to dsign',data:{businessName:companyData?.company_name?.trim()||companyId,businessTaxId:businessTaxId,metadata:metadataToSend},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
+    }
     
     const signing = await createSigningRequest({
       businessId: companyId,
@@ -403,10 +395,6 @@ export async function finalizeDocument(
         business_contact_name: businessContactName,
       };
       
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:398',message:'Saving to document_events',data:{performedBy:user?.id?.substring(0,8),eventData:eventDataToSave},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       await adminClient.from("document_events").insert({
         document_id: draftId,
         company_id: companyId,
@@ -415,9 +403,6 @@ export async function finalizeDocument(
         event_data: eventDataToSave,
       })
     } catch (e: any) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'document-helpers.ts:414',message:'Error saving document_events',data:{error:e?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       // ignore
     }
 
@@ -430,58 +415,147 @@ export async function finalizeDocument(
       hashes: signing.hashes,
       events: signing.events,
       requestId: signing.requestId || null,
+      signedPdfBytes: signing.signedPdfBytes,
       signedPdfBase64: signing.signedPdfBytes.toString("base64"),
     }
   }
 
-  const original = await signAndReturn({
+  const templateVersionIdBase = (langRow as any)?.template_version_id || null
+
+  const originalT0 = Date.now()
+  const copyT0 = Date.now()
+
+  // Start HE signings concurrently (original + copy). EN is done after HE
+  // to reduce concurrent load on the signing service.
+  const originalPromise = signAndReturn({
     language: "he",
     variant: "original",
     label: "מקור",
-    templateVersionId: (langRow as any)?.template_version_id || null,
+    templateVersionId: templateVersionIdBase,
   })
-  if (!original.ok) return { ok: false, message: original.message }
-
-  const copy = await signAndReturn({
+  const copyPromise = signAndReturn({
     language: "he",
     variant: "copy",
     label: "העתק נאמן למקור",
-    templateVersionId: original.templateVersionId,
+    templateVersionId: templateVersionIdBase,
   })
-  if (!copy.ok) return { ok: false, message: copy.message }
+  const settled = await Promise.allSettled([originalPromise, copyPromise] as any)
+
+  const originalSettled = settled[0] as PromiseSettledResult<any>
+  const copySettled = settled[1] as PromiseSettledResult<any>
+  const enSettled: PromiseSettledResult<any> | null = null
+
+  const original =
+    originalSettled.status === "fulfilled"
+      ? originalSettled.value
+      : ({ ok: false, message: originalSettled.reason?.message || String(originalSettled.reason) } as const)
+  const copy =
+    copySettled.status === "fulfilled"
+      ? copySettled.value
+      : ({ ok: false, message: copySettled.reason?.message || String(copySettled.reason) } as const)
+
+  const looksLikeTransientSigningFailure = (msg: unknown) => {
+    const s = typeof msg === "string" ? msg : ""
+    return s.includes("signing_failed") || s.includes("Signing failed (http_error)")
+  }
+
+  let originalFinal = original as any
+  let copyFinal = copy as any
+
+  // Retry once sequentially if DSIGN flaked during concurrent signing.
+  if (!originalFinal.ok && looksLikeTransientSigningFailure(originalFinal.message)) {
+    originalFinal = await signAndReturn({
+      language: "he",
+      variant: "original",
+      label: "מקור",
+      templateVersionId: templateVersionIdBase,
+    })
+  }
+  if (!copyFinal.ok && looksLikeTransientSigningFailure(copyFinal.message)) {
+    copyFinal = await signAndReturn({
+      language: "he",
+      variant: "copy",
+      label: "העתק נאמן למקור",
+      templateVersionId: templateVersionIdBase,
+    })
+  }
+
+  if (!originalFinal.ok) return { ok: false, message: originalFinal.message }
+  if (!copyFinal.ok) return { ok: false, message: copyFinal.message }
 
   let enSignedBase64: string | null = null
   let enSignedSha256: string | null = null
   let enRequestId: string | null = null
+  let enSignedBytes: Buffer | null = null
   if (documentLanguage === "en") {
     const en = await signAndReturn({
       language: "en",
       variant: "copy",
       label: "Certified Copy",
-      templateVersionId: original.templateVersionId,
+      templateVersionId: templateVersionIdBase,
     })
     if (!en.ok) return { ok: false, message: en.message }
     enSignedBase64 = en.signedPdfBase64
     enSignedSha256 = en.signedSha256
     enRequestId = en.requestId
+    enSignedBytes = en.signedPdfBytes
+  }
+
+  // Persist signed PDFs to Storage so downloads are reliable (API route proxies from storage).
+  const storageBucket = "business-assets"
+  const originalStorageKey = `documents/${draftId}/original.he.pdf`
+  const copyHeStorageKey = `documents/${draftId}/copy.he.pdf`
+  const copyEnStorageKey = `documents/${draftId}/source.en.pdf`
+
+  const uploadPdfIfMissing = async (storageKey: string, pdfBytes: Buffer) => {
+    const res = await adminClient.storage
+      .from(storageBucket)
+      .upload(storageKey, pdfBytes, { contentType: "application/pdf", upsert: false })
+    if (res.error) {
+      const msg = String(res.error.message || "")
+      // "already exists" is fine (immutable storage)
+      if (msg.toLowerCase().includes("already exists") || msg.toLowerCase().includes("duplicate")) {
+        return { ok: true as const, existed: true as const }
+      }
+      return { ok: false as const, message: res.error.message }
+    }
+    return { ok: true as const, existed: false as const }
+  }
+
+  const upOriginal = await uploadPdfIfMissing(originalStorageKey, Buffer.from(originalFinal.signedPdfBytes))
+  if (!upOriginal.ok) return { ok: false, message: `Failed to upload signed PDF (original_he): ${upOriginal.message}` }
+
+  const upCopyHe = await uploadPdfIfMissing(copyHeStorageKey, Buffer.from(copyFinal.signedPdfBytes))
+  if (!upCopyHe.ok) return { ok: false, message: `Failed to upload signed PDF (copy_he): ${upCopyHe.message}` }
+
+  if (enSignedBytes) {
+    const upEn = await uploadPdfIfMissing(copyEnStorageKey, Buffer.from(enSignedBytes))
+    if (!upEn.ok) return { ok: false, message: `Failed to upload signed PDF (copy_en): ${upEn.message}` }
   }
 
   const certFingerprint =
-    (original as any)?.certInfo?.fingerprint_sha256 ||
-    (original as any)?.certInfo?.fingerprint ||
+    (originalFinal as any)?.certInfo?.fingerprint_sha256 ||
+    (originalFinal as any)?.certInfo?.fingerprint ||
     null
+
+  const updateFields: any = {
+    template_version_id: originalFinal.templateVersionId || null,
+    pdf_sha256: originalFinal.unsignedSha256,
+    signed_pdf_sha256: originalFinal.signedSha256,
+    signing_cert_fingerprint: certFingerprint,
+    signed_at: nowIso,
+    signature_provider: "secure_signature",
+    signature_certificate_id: certFingerprint,
+    pdf_storage_key: originalStorageKey,
+    pdf_storage_key_he_copy: copyHeStorageKey,
+  }
+  if (enSignedBytes) {
+    updateFields.pdf_storage_key_en = copyEnStorageKey
+  }
 
   const { error: metaError } = await adminClient
     .from("documents")
-    .update({
-      template_version_id: original.templateVersionId || null,
-      pdf_sha256: original.unsignedSha256,
-      signed_pdf_sha256: original.signedSha256,
-      signing_cert_fingerprint: certFingerprint,
-      signed_at: nowIso,
-      signature_provider: "secure_signature",
-      signature_certificate_id: certFingerprint,
-    })
+    .update(updateFields)
     .eq("id", draftId)
     .eq("company_id", companyId)
     .eq("document_status", "draft")
@@ -515,7 +589,22 @@ export async function finalizeDocument(
   const initialOutstandingBalance = isAlwaysClosedDoc ? 0 : totalAmountSafe
   const initialAccountingStatus = totalAmountSafe <= 0 || isAlwaysClosedDoc ? "paid" : "open"
 
-  const { data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
+  const isMissingOrMismatchedFinalizeRpc = (err: any) => {
+    const code = String(err?.code || "")
+    const msg = String(err?.message || "")
+    return (
+      code === "PGRST202" ||
+      code === "PGRST205" ||
+      msg.includes("Could not find the function public.finalize_document_with_usage_guard") ||
+      msg.includes("finalize_document_with_usage_guard(")
+    )
+  }
+
+  let finalizeGuardData: any = null
+  let finalizeGuardError: any = null
+  let finalizeRpcMode: "v2_with_accounting" | "v1_no_accounting" | "legacy_minimal" = "v2_with_accounting"
+
+  ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
     "finalize_document_with_usage_guard",
     {
       p_company_id: companyId,
@@ -526,7 +615,32 @@ export async function finalizeDocument(
       p_outstanding_balance: initialOutstandingBalance,
       p_accounting_status: initialAccountingStatus,
     }
-  )
+  ))
+
+  if (finalizeGuardError && isMissingOrMismatchedFinalizeRpc(finalizeGuardError)) {
+    finalizeRpcMode = "v1_no_accounting"
+
+    ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
+      "finalize_document_with_usage_guard",
+      {
+        p_company_id: companyId,
+        p_document_id: draftId,
+        p_now: nowIso,
+      }
+    ))
+  }
+
+  if (finalizeGuardError && isMissingOrMismatchedFinalizeRpc(finalizeGuardError)) {
+    finalizeRpcMode = "legacy_minimal"
+
+    ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
+      "finalize_document_with_usage_guard",
+      {
+        p_company_id: companyId,
+        p_document_id: draftId,
+      }
+    ))
+  }
 
   if (finalizeGuardError) {
     console.error(`[finalizeDocument] finalize_document_with_usage_guard failed for ${draftId}:`, finalizeGuardError)
@@ -559,18 +673,18 @@ export async function finalizeDocument(
     ...successResponse,
     signing: {
       pdf_hashes: {
-        original_he_sha256: original.signedSha256,
-        copy_he_sha256: copy.signedSha256,
+        original_he_sha256: originalFinal.signedSha256,
+        copy_he_sha256: copyFinal.signedSha256,
         copy_en_sha256: enSignedSha256,
       },
       signing_request_ids: {
-        original_he: original.requestId,
-        copy_he: copy.requestId,
+        original_he: originalFinal.requestId,
+        copy_he: copyFinal.requestId,
         copy_en: enRequestId,
       },
       signed_pdf_base64: {
-        original_he: original.signedPdfBase64,
-        copy_he: copy.signedPdfBase64,
+        original_he: originalFinal.signedPdfBase64,
+        copy_he: copyFinal.signedPdfBase64,
         copy_en: enSignedBase64,
       },
     },

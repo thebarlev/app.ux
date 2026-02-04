@@ -216,11 +216,6 @@ export default function ReceiptSummaryClient(props: {
   payments: PaymentRow[];
   signingInfo: SigningInfoRow | null;
 }) {
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ReceiptSummaryClient.tsx:219',message:'Component props received',data:{hasSigningInfo:!!props.signingInfo,signingInfoKeys:props.signingInfo?Object.keys(props.signingInfo):[],eventDataKeys:props.signingInfo?.event_data?Object.keys(props.signingInfo.event_data):[],businessName:props.signingInfo?.event_data?.business_name,businessTaxId:props.signingInfo?.event_data?.business_tax_id,businessContactName:props.signingInfo?.event_data?.business_contact_name},timestamp:Date.now(),sessionId:'debug-session',runId:'verification',hypothesisId:'F'})}).catch(()=>{});
-  }
-  // #endregion
   const [busy, setBusy] = useState<null | "view" | "download">(null);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";

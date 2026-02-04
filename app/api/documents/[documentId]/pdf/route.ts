@@ -78,6 +78,8 @@ export async function GET(
     const requestUrl = new URL(req.url)
     const requestedLangParam = requestUrl.searchParams.get("lang")
     const requestedLanguage = requestedLangParam === "en" ? "en" : requestedLangParam === "he" ? "he" : null
+    const issueParam = requestUrl.searchParams.get("issue")
+    const issueMode: "original" | "copy" = issueParam === "original" ? "original" : "copy"
 
     if (pdfDebugEnabled) {
       console.log("[PDF] Start:", { documentId, userId: auth.user.id })
@@ -87,7 +89,7 @@ export async function GET(
     const { data: doc, error: docError } = await userClient
       .from("documents")
       .select(
-        "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en"
+        "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en, original_issued_at, original_issued_language"
       )
       .eq("id", documentId)
       .single()
@@ -112,8 +114,6 @@ export async function GET(
     }
 
     const docLanguage = ((doc as any)?.language as "he" | "en" | undefined) || "he"
-    const issueMode: "original" | "copy" =
-      requestUrl.searchParams.get("issue") === "original" ? "original" : "copy"
     const targetLanguage: "he" | "en" =
       requestedLanguage || (issueMode === "original" ? "he" : docLanguage)
 
@@ -122,15 +122,6 @@ export async function GET(
     let originalAlreadyIssued = !!(doc as any)?.original_issued_at
 
     if (isOriginalAllowed) {
-      const { data: originalEvents, error: originalEventError } = await adminClient
-        .from("document_events")
-        .select("id")
-        .eq("document_id", documentId)
-        .eq("event_type", "original_issued")
-        .limit(1)
-      if (!originalEventError && originalEvents && originalEvents.length > 0) {
-        originalAlreadyIssued = true
-      }
       effectiveIssue = originalAlreadyIssued ? "copy" : "original"
     }
     const documentCopyLabel =
@@ -188,16 +179,57 @@ export async function GET(
       })
     }
 
-    // No-storage policy: signed PDFs are NOT persisted.
-    // Therefore, this route cannot serve finalized documents.
-    return NextResponse.json(
-      {
-        error: "NO_STORAGE_POLICY",
-        message:
-          "Signed PDF is not stored. Download is available only immediately after finalize/issue.",
+    // Finalized/cancelled: serve the immutable stored PDF (generated/signed during finalization).
+    // Storage is accessed with adminClient (service role), while doc access uses RLS via userClient.
+    const storageBucket = "business-assets"
+    const fromDoc =
+      targetLanguage === "en"
+        ? ((doc as any)?.pdf_storage_key_en as string | null)
+        : effectiveIssue === "copy"
+          ? ((doc as any)?.pdf_storage_key_he_copy as string | null)
+          : ((doc as any)?.pdf_storage_key as string | null)
+
+    const expected =
+      targetLanguage === "en"
+        ? `documents/${documentId}/source.en.pdf`
+        : effectiveIssue === "copy"
+          ? `documents/${documentId}/copy.he.pdf`
+          : `documents/${documentId}/original.he.pdf`
+
+    const storageKey = (fromDoc && String(fromDoc).trim().length > 0) ? String(fromDoc) : expected
+
+    const { data: file, error: dlError } = await adminClient.storage
+      .from(storageBucket)
+      .download(storageKey)
+
+    if (dlError || !file) {
+      return NextResponse.json(
+        { error: "PDF_NOT_AVAILABLE", code: "PDF_NOT_AVAILABLE", details: dlError?.message || "File not found" },
+        { status: 404 }
+      )
+    }
+
+    // Mark original issued (idempotent) when we successfully serve it.
+    if (effectiveIssue === "original" && targetLanguage === "he" && !originalAlreadyIssued) {
+      const nowIso = new Date().toISOString()
+      await userClient
+        .from("documents")
+        .update({ original_issued_at: nowIso, original_issued_language: "he" })
+        .eq("id", documentId)
+        .is("original_issued_at", null)
+    }
+
+    const buf = Buffer.from(await file.arrayBuffer())
+    const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)
+
+    return new NextResponse(buf as any, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Length": String(buf.length),
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
-      { status: 410 }
-    )
+    })
   } catch (e: any) {
     console.error("[PDF] Route crashed:", e?.stack || e)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })

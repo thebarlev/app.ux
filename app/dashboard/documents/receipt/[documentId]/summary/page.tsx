@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import ReceiptSummaryClient from "./ReceiptSummaryClient";
-import { appendFileSync } from "fs";
 
 export default async function ReceiptSummaryPage({
   params,
@@ -77,34 +76,6 @@ export default async function ReceiptSummaryPage({
   const customer = customerRes.data || null;
   const paymentsRaw = paymentsRes.data || [];
   const signingInfo = signingInfoRes.data || null;
-
-  // #region agent log - Server component logging to file
-  try {
-    appendFileSync('/Users/uxellent/v0-system-owner-admin-panel/.cursor/debug.log', JSON.stringify({
-      location: 'summary/page.tsx:78',
-      message: 'Signing info fetched for display',
-      data: {
-        hasSigningInfo: !!signingInfo,
-        signingInfoType: signingInfo ? typeof signingInfo : 'null',
-        performedAt: signingInfo?.performed_at,
-        performedBy: signingInfo?.performed_by,
-        eventDataType: signingInfo?.event_data ? typeof signingInfo.event_data : 'null',
-        eventDataKeys: signingInfo?.event_data ? Object.keys(signingInfo.event_data) : [],
-        businessName: signingInfo?.event_data?.business_name,
-        businessTaxId: signingInfo?.event_data?.business_tax_id,
-        businessContactName: signingInfo?.event_data?.business_contact_name,
-        createdByName: signingInfo?.event_data?.created_by_name,
-        createdByEmail: signingInfo?.event_data?.created_by_email,
-      },
-      timestamp: Date.now(),
-      sessionId: 'debug-session',
-      runId: 'verification',
-      hypothesisId: 'E'
-    }) + '\n');
-  } catch (e) {
-    // ignore
-  }
-  // #endregion
 
   const payments = (paymentsRaw as any[]).map((item) => {
     const meta = item?.payment_metadata || {};

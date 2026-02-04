@@ -5,6 +5,8 @@ import type {
   PDFGenerationOptions,
   PDFGenerationResult 
 } from "@/lib/types/template"
+import { writeFile } from "node:fs/promises"
+import { renderPdfRemote } from "@/lib/pdf/remote-render"
 
 // ==================== HANDLEBARS HELPERS ====================
 
@@ -126,7 +128,7 @@ export function compileAndRender(
   }
 }
 
-// ==================== PDF GENERATION (Playwright) ====================
+// ==================== PDF GENERATION (Remote Renderer) ====================
 
 /**
  * Generate PDF from HTML using Playwright's headless Chromium
@@ -140,12 +142,56 @@ export async function generatePDFFromHTML(
   css: string = "",
   options: PDFGenerationOptions = {}
 ): Promise<PDFGenerationResult> {  
+  const outputPath = (options as any).outputPath
+
+  function buildFullHtml(innerHtml: string, innerCss: string) {
+    const styleTag = `<style>${innerCss || ""}</style>`
+
+    if (innerHtml.includes("</head>")) {
+      return innerHtml.replace("</head>", `${styleTag}</head>`)
+    }
+
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+${styleTag}
+</head>
+<body>
+${innerHtml}
+</body>
+</html>`
+  }
+
+  const shouldUseRemoteRenderer =
+    typeof process.env.PDF_RENDER_URL === "string" &&
+    process.env.PDF_RENDER_URL.length > 0 &&
+    typeof process.env.PDF_RENDER_TOKEN === "string" &&
+    process.env.PDF_RENDER_TOKEN.length > 0
+
+  if (shouldUseRemoteRenderer) {
+    try {
+      const fullHtml = buildFullHtml(html, css)
+      const pdfBytes = await renderPdfRemote(fullHtml)
+
+      if (outputPath) {
+        await writeFile(outputPath, pdfBytes)
+      }
+
+      return { success: true, buffer: pdfBytes, path: outputPath }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
   const { chromium } = await import("playwright-core")
 
   // Preflight: fail fast with an actionable message if Playwright browsers aren't installed.
   // This is NOT business logic; it prevents opaque runtime failures in finalize/sign flow.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { existsSync } = require("node:fs") as typeof import("node:fs")
     const executablePath = chromium.executablePath()
     if (!executablePath || !existsSync(executablePath)) {
@@ -167,7 +213,7 @@ export async function generatePDFFromHTML(
   
   const landscape = (options as any).landscape || false
   const scale = (options as any).scale || 1
-  const outputPath = (options as any).outputPath
+  // const outputPath = (options as any).outputPath
   const blockNetwork = options.blockNetwork === true
 
   let browser

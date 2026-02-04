@@ -559,6 +559,8 @@ export default function ReceiptFormClient({
 
     setBusy("issue");
     try {
+      const t0 = Date.now()
+
       const result = await issueReceiptAction(payload, draftId);
 
       if (!result || !result.ok) {

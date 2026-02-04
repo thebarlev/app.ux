@@ -69,20 +69,17 @@ async function ensureBusinessRegistered(
   email?: string | null,
   contactName?: string | null
 ): Promise<void> {
-  // #region agent log
   const requestBody = {
     business_id: businessId,
     name,
     tax_id: taxId,
     email,
     contact_name: contactName,
-  };
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'secure-signature-client.ts:51',message:'Registering business with dsign',data:{businessId8:businessId.substring(0,8),requestBody:requestBody},timestamp:Date.now(),sessionId:'debug-session',runId:'fix-verification',hypothesisId:'G'})}).catch(()=>{});
-  // #endregion
+  }
   
   try {
     // Try DELETE first to remove old certificate
-    const deleteResponse = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses/${businessId}`, {
+    await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses/${businessId}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -90,13 +87,8 @@ async function ensureBusinessRegistered(
       },
     })
     
-    // #region agent log
-    const deleteResponseData = await deleteResponse.json().catch(() => ({}));
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'secure-signature-client.ts:71',message:'Business DELETE response from dsign',data:{status:deleteResponse.status,ok:deleteResponse.ok,responseData:deleteResponseData},timestamp:Date.now(),sessionId:'debug-session',runId:'fix-verification',hypothesisId:'I'})}).catch(()=>{});
-    // #endregion
-    
     // Now POST to create/update
-    const postResponse = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses`, {
+    await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -104,16 +96,37 @@ async function ensureBusinessRegistered(
       },
       body: JSON.stringify(requestBody),
     })
-    
-    // #region agent log
-    const postResponseData = await postResponse.json().catch(() => ({}));
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'secure-signature-client.ts:91',message:'Business POST response from dsign',data:{status:postResponse.status,ok:postResponse.ok,responseData:postResponseData},timestamp:Date.now(),sessionId:'debug-session',runId:'fix-verification',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
   } catch (e: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'secure-signature-client.ts:95',message:'Business registration error',data:{error:e?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'fix-verification',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
     // ignore
+  }
+}
+
+const BUSINESS_ENSURE_TTL_MS = 5 * 60 * 1000
+const businessEnsureCache = new Map<string, { expiresAt: number; promise: Promise<void> }>()
+
+async function ensureBusinessRegisteredOnce(
+  baseUrl: string,
+  apiKey: string,
+  businessId: string,
+  name: string,
+  taxId?: string | null,
+  email?: string | null,
+  contactName?: string | null
+): Promise<void> {
+  const now = Date.now()
+  const hit = businessEnsureCache.get(businessId)
+  if (hit && hit.expiresAt > now) {
+    return hit.promise
+  }
+
+  const p = ensureBusinessRegistered(baseUrl, apiKey, businessId, name, taxId, email, contactName)
+  businessEnsureCache.set(businessId, { expiresAt: now + BUSINESS_ENSURE_TTL_MS, promise: p })
+
+  try {
+    await p
+  } catch (e) {
+    businessEnsureCache.delete(businessId)
+    throw e
   }
 }
 
@@ -170,7 +183,7 @@ export async function createSigningRequest(params: {
   }
 
   // Register business first
-  await ensureBusinessRegistered(
+  await ensureBusinessRegisteredOnce(
     baseUrl,
     apiKey,
     params.businessId,
@@ -181,6 +194,7 @@ export async function createSigningRequest(params: {
   )
 
   const url = `${baseUrl.replace(/\/+$/, "")}/v1/signing/requests`
+  const agentSigningT0 = Date.now()
 
   const base64FieldMode = (process.env.SECURE_SIGNATURE_BASE64_FIELD || "").toLowerCase()
   const pdfBase64 = base64FromBuffer(params.pdfBytes)
@@ -350,10 +364,6 @@ export async function createSigningRequest(params: {
 
   const signedPdfBase64 =
     typeof (json as any)?.signed_pdf_base64 === "string" ? (json as any).signed_pdf_base64 : null
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'secure-signature-client.ts:253',message:'Response from dsign API',data:{hasSignedPdf:!!signedPdfBase64,certInfo:certInfo,hashes:hashes,events:events,requestId:requestId},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
 
   if (!signedPdfBase64) {
     return {
