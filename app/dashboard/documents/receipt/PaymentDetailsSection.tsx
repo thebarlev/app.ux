@@ -65,6 +65,74 @@ export default function PaymentDetailsSection({
   if (renderMode === "inline") {
     if (!method) return null;
 
+    // When confirmed: show only filled values (no empty inputs/labels)
+    if (isConfirmed) {
+      const parts: string[] = [];
+      const push = (label: string, value: unknown) => {
+        const s = typeof value === "number" ? String(value) : String(value ?? "").trim();
+        if (!s) return;
+        parts.push(`${label}: ${s}`);
+      };
+
+      if (method === "כרטיס אשראי") {
+        push("4 ספרות", payment.cardLastDigits);
+        push("סוג", payment.cardType);
+        push("עסקה", payment.cardDealType);
+        if (Number.isFinite(payment.cardInstallments as any)) push("תשלומים", payment.cardInstallments);
+      } else if (method === "העברה בנקאית") {
+        push("בנק", payment.bankName);
+        push("סניף", payment.bankBranch ?? (payment as any).branch);
+        push("חשבון", payment.bankAccount ?? (payment as any).accountNumber);
+      } else if (method === "צ׳ק") {
+        push("בנק", payment.checkBank);
+        push("סניף", payment.checkBranch);
+        push("חשבון", payment.checkAccount);
+        push("צ׳ק", payment.checkNumber);
+      } else if (
+        method === "Bit" ||
+        method === "PayBox" ||
+        method === "PayPal" ||
+        method === "Apple Pay" ||
+        method === "Google Pay" ||
+        method === "Colu" ||
+        method === "Pay"
+      ) {
+        push("חשבון", payment.payerAccount);
+        push("מס׳ עסקה", payment.transactionReference);
+      } else if (
+        method === "Payoneer" ||
+        method === "ניכוי חלק עובד טל״א" ||
+        method === "V-CHECK" ||
+        method === "שווה כסף" ||
+        method === "שובר מתנה" ||
+        method === "שובר BuyME" ||
+        method === "אתריום" ||
+        method === "ביטקוין"
+      ) {
+        push("מס׳ עסקה", payment.transactionReference);
+      } else if (method === "ניכוי אחר") {
+        push("תיאור", payment.description);
+      } else if (method === "ניכוי במקור") {
+        // Keep explanatory text (not an input)
+        return (
+          <div className="text-xs text-warning-fg bg-warning/10 border border-warning/30 px-3 py-2 rounded">
+            <div className="font-semibold">הסכום ששולם למס הכנסה על ידי הלקוח</div>
+          </div>
+        );
+      }
+
+      if (parts.length === 0) return null;
+      return (
+        <div className="text-sm text-muted-fg text-right flex flex-wrap gap-2">
+          {parts.map((t) => (
+            <span key={t} className="whitespace-nowrap">
+              {t}
+            </span>
+          ))}
+        </div>
+      );
+    }
+
     // Credit card: 4 fields in a row
     if (method === "כרטיס אשראי") {
       return (

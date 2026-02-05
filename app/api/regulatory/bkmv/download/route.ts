@@ -3,9 +3,16 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 export async function GET(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rl = rateLimit({ key: `bkmv-download:${ip}`, limit: 30, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) });
+    }
+
     const url = new URL(req.url);
     const companyId = url.searchParams.get("companyId") || "";
     const key = url.searchParams.get("key") || "";
@@ -26,7 +33,8 @@ export async function GET(req: Request) {
     const { data, error } = await service.storage.from("regulatory-exports").download(key);
 
     if (error || !data) {
-      return NextResponse.json({ error: error?.message || "File not found" }, { status: 404 });
+      // Do not leak storage/internal errors.
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
     const arrayBuffer = await data.arrayBuffer();

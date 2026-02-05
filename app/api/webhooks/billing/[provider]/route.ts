@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createHash } from "crypto"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
 function sha256Hex(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex")
@@ -12,6 +13,12 @@ export async function POST(
 ) {
   const { provider } = await params
   const providerKey = String(provider || "").toLowerCase().trim()
+
+  const ip = getClientIp(req)
+  const rl = rateLimit({ key: `billing-webhook:${providerKey}:${ip}`, limit: 60, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, message: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+  }
 
   const rawBody = await req.text().catch(() => "")
   const headers = req.headers
@@ -47,7 +54,8 @@ export async function POST(
     if (code === "23505") {
       return NextResponse.json({ ok: true, status: "ignored", provider: providerKey, event_id: eventId })
     }
-    return NextResponse.json({ ok: false, message: insertErr.message }, { status: 500 })
+    console.error("[BILLING_WEBHOOK] insert failed", { provider: providerKey, event_id: eventId, error: insertErr })
+    return NextResponse.json({ ok: false, message: "Internal Server Error" }, { status: 500 })
   }
 
   // Phase-now: provider not configured; keep endpoint live and idempotent.

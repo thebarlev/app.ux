@@ -40,6 +40,16 @@ export type PaymentRow = {
   date: string; // YYYY-MM-DD format
   amount: number;
   currency: string;
+
+  /**
+   * FX fields (mixed-currency payments; stored in payment_metadata JSONB)
+   * - fxRate: 1 row.currency = fxRate ILS
+   * - fxRateDate: published date used for rate (may be earlier than payment date)
+   * - fxRateSource: 'boi' for auto, 'manual' when user overrides
+   */
+  fxRate?: number;
+  fxRateDate?: string; // YYYY-MM-DD
+  fxRateSource?: "boi" | "manual";
   
   // Bank transfer fields (stored in document_line_items.bank_name, branch, account_number)
   bankName?: string;
@@ -189,6 +199,11 @@ export type PaymentMetadata = {
   
   // Other
   description?: string;
+
+  // FX (optional)
+  fxRate?: number;
+  fxRateDate?: string; // YYYY-MM-DD
+  fxRateSource?: "boi" | "manual";
 };
 
 /**
@@ -248,6 +263,12 @@ export function paymentRowToLineItem(
   if (payment.transactionReference) metadata.transactionReference = payment.transactionReference;
   
   if (payment.description) metadata.description = payment.description;
+
+  if (Number.isFinite(payment.fxRate)) metadata.fxRate = Number(payment.fxRate);
+  if (typeof payment.fxRateDate === "string" && payment.fxRateDate.trim().length > 0)
+    metadata.fxRateDate = payment.fxRateDate.trim();
+  if (payment.fxRateSource === "boi" || payment.fxRateSource === "manual")
+    metadata.fxRateSource = payment.fxRateSource;
   
   return {
     document_id: documentId,
@@ -303,6 +324,12 @@ export function lineItemToPaymentRow(item: DocumentLineItem): PaymentRow {
     if (meta.transactionReference) payment.transactionReference = meta.transactionReference;
     
     if (meta.description) payment.description = meta.description;
+
+    const fxRate = Number((meta as any).fxRate);
+    if (Number.isFinite(fxRate)) payment.fxRate = fxRate;
+    if (typeof (meta as any).fxRateDate === "string") payment.fxRateDate = String((meta as any).fxRateDate);
+    const src = (meta as any).fxRateSource;
+    if (src === "boi" || src === "manual") payment.fxRateSource = src;
   }
   
   return payment;

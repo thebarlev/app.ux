@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 // Force Node.js runtime
 export const runtime = "nodejs";
@@ -7,6 +8,12 @@ export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const ip = getClientIp(request);
+  const rl = rateLimit({ key: `legacy-receipt-pdf:${ip}`, limit: 60, windowMs: 60_000 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+
   const params = await context.params
   const receiptId = params.id
 

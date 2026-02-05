@@ -1,5 +1,7 @@
 import "server-only"
 
+import { logSecurityEvent } from "@/lib/security/audit-log"
+
 type SecureSignatureCreateRequest = {
   business_id: string
   external_doc_id: string
@@ -171,6 +173,16 @@ export async function createSigningRequest(params: {
   const apiKey = process.env.SECURE_SIGNATURE_API_KEY?.trim()
 
   if (!baseUrl || !apiKey) {
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId: null,
+      ip: null,
+      path: null,
+      meta: { code: "misconfigured", message: "missing_env", externalDocId: params.externalDocId },
+    })
     return {
       ok: false,
       code: "misconfigured",
@@ -267,6 +279,16 @@ export async function createSigningRequest(params: {
       body: JSON.stringify(body),
     })
   } catch (e: any) {
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId: null,
+      ip: null,
+      path: null,
+      meta: { code: "http_error", message: e?.message || String(e), externalDocId: params.externalDocId },
+    })
     return {
       ok: false,
       code: "http_error",
@@ -305,6 +327,16 @@ export async function createSigningRequest(params: {
       contentType: res.headers.get("content-type") || null,
       bodySnippet: snippet || null,
     })
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId: null,
+      ip: null,
+      path: null,
+      meta: { code: "bad_response", status: res.status, externalDocId: params.externalDocId },
+    })
     return {
       ok: false,
       code: "bad_response",
@@ -337,6 +369,16 @@ export async function createSigningRequest(params: {
   const events = Array.isArray(json?.events) ? (json.events as any) : null
 
   if (!res.ok) {
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId,
+      ip: null,
+      path: null,
+      meta: { code: "http_error", status: res.status, externalDocId: params.externalDocId },
+    })
     return {
       ok: false,
       code: "http_error",
@@ -366,6 +408,16 @@ export async function createSigningRequest(params: {
     typeof (json as any)?.signed_pdf_base64 === "string" ? (json as any).signed_pdf_base64 : null
 
   if (!signedPdfBase64) {
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId,
+      ip: null,
+      path: null,
+      meta: { code: "bad_response", message: "missing_signed_pdf_base64", status: res.status, externalDocId: params.externalDocId },
+    })
     return {
       ok: false,
       code: "bad_response",

@@ -73,6 +73,16 @@ export default function CreditNoteFormClient({
     vatRate?: number | null;
     vatAmount?: number | null;
     subtotal?: number | null;
+    description?: string;
+    items?: Array<{
+      label: string;
+      sku: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      currency: string;
+      vatMode: "before" | "included";
+    }>;
   } | null;
   draftId?: string;
 }) {
@@ -87,9 +97,9 @@ export default function CreditNoteFormClient({
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
   const [allowedCurrencies, setAllowedCurrencies] = useState<string[]>(
-    initial.ok ? initial.settings.allowedCurrencies : ["₪", "$", "€"]
+    initial.ok ? initial.settings.allowedCurrencies : ["ILS", "USD", "EUR"]
   );
-  const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "₪");
+  const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "ILS");
   const [vatType, setVatType] = useState<"regular" | "no_vat">("regular");
   const defaultVatRate = useMemo(() => {
     const base = initial.ok ? initial.vatRate ?? 18 : 18;
@@ -170,6 +180,21 @@ export default function CreditNoteFormClient({
       setCurrency(editData.currency);
       setNotes(editData.notes);
       if (editData.vatType) setVatType(editData.vatType);
+      if (typeof editData.description === "string") setDescription(editData.description);
+
+      if (Array.isArray((editData as any).items) && (editData as any).items.length > 0) {
+        const loadedItems = (editData as any).items.map((item: any) => ({
+          label: item.label || "",
+          sku: item.sku || "",
+          description: item.description || "",
+          quantity: typeof item.quantity === "number" ? item.quantity : 1,
+          unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
+          currency: item.currency || editData.currency,
+          vatMode: item.vatMode === "included" ? "included" : "before",
+        }));
+        setItems(loadedItems);
+        setConfirmedRows(new Set(loadedItems.map((_: any, idx: number) => idx)));
+      }
     }
   }, [editData]);
 
@@ -347,7 +372,7 @@ export default function CreditNoteFormClient({
   ]);
 
   useEffect(() => {
-    if (currency !== "₪") {
+    if (currency !== "ILS") {
       setItems((prev) => prev.map((item) => ({ ...item, currency })));
     }
   }, [currency]);
@@ -698,23 +723,7 @@ export default function CreditNoteFormClient({
   }
 
   return (
-    <main dir="rtl" className="min-h-screen">
-      <style>{`
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container button:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container input:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container select:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*="font-size"]),
-        main[dir="rtl"] .ui-container span:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-      `}</style>
-
+    <main dir="rtl" className="min-h-screen ui-document-form">
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {message && (
@@ -998,7 +1007,7 @@ export default function CreditNoteFormClient({
                                 <div className="ti-items-field ti-items-currency ti-items-hide-label min-w-0" data-label="מטבע">
                                   <Select
                                     value={row.currency || currency}
-                                    disabled={currency !== "₪" || confirmedRows.has(i)}
+                                    disabled={currency !== "ILS" || confirmedRows.has(i)}
                                     onValueChange={(v) => updateItemRow(i, { currency: v })}
                                   >
                                     <SelectTrigger

@@ -6,6 +6,19 @@ import { NextResponse } from "next/server";
  * Visit: /api/test-storage
  */
 export async function GET() {
+  // Never expose debug/test endpoints in production.
+  if (process.env.NODE_ENV === "production") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  // Non-prod: system-admin only.
+  const { requireSystemAdmin } = await import("@/lib/security/system-admin");
+  try {
+    await requireSystemAdmin();
+  } catch {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
   try {
     const supabase = await createClient();
 
@@ -23,31 +36,6 @@ export async function GET() {
         .list("business-logos", { limit: 10 });
       
       filesInBucket = files;
-    }
-
-    // Test 4: Check storage policies
-    let policiesError: string | undefined;
-    try {
-      const { error } = await supabase.rpc("exec", {
-        sql: `
-        SELECT 
-          policyname,
-          permissive,
-          roles,
-          cmd
-        FROM pg_policies
-        WHERE schemaname = 'storage'
-          AND tablename = 'objects'
-        ORDER BY policyname;
-      `,
-      });
-      if (error) {
-        policiesError = error.message;
-      } else {
-        policiesError = "SQL query not available via client";
-      }
-    } catch (e) {
-      policiesError = e instanceof Error ? e.message : "Unknown error";
     }
 
     return NextResponse.json({
@@ -93,8 +81,7 @@ export async function GET() {
   } catch (error: any) {
     return NextResponse.json({
       success: false,
-      error: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      error: "Internal Server Error",
     }, { status: 500 });
   }
 }

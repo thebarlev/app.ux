@@ -614,8 +614,8 @@ export async function getInitialDocumentCreateData(
     }
 
     const settings: ReceiptSettings = {
-      allowedCurrencies: ["₪", "$", "€"],
-      defaultCurrency: "₪",
+      allowedCurrencies: ["ILS", "USD", "EUR"],
+      defaultCurrency: "ILS",
       language: "he",
       roundTotals: false,
     };
@@ -1053,6 +1053,26 @@ export async function issueDocumentAction(
         };
       }
 
+      // Ensure deterministic issuance uses the canonical Admin template snapshot.
+      // We persist the resolved template id into documents.template_version_id (idempotent).
+      try {
+        const { getTemplateForDocument } = await import("@/lib/pdf-service")
+        const chosen = await getTemplateForDocument(companyId, dbDocumentType as any, {
+          language: payload.language === "en" ? "en" : "he",
+          allowFallbackToHe: true,
+        })
+        if (chosen?.templateId) {
+          await supabase
+            .from("documents")
+            .update({ template_version_id: chosen.templateId })
+            .eq("id", draftId)
+            .eq("company_id", companyId)
+            .is("template_version_id", null)
+        }
+      } catch {
+        // ignore (template snapshot is best-effort)
+      }
+
       console.log(`${logPrefix} Calling finalizeDocument`, {
         draftId,
         companyId: companyId?.substring(0, 8),
@@ -1086,11 +1106,21 @@ export async function issueDocumentAction(
       agentFlow.note = result.ok ? "finalize_ok" : (result.message || "finalize_failed");
 
       if (!result.ok) {
+        const rawMessage = result.message || "Failed to issue document"
+        if (rawMessage === "TEMPLATE_NOT_FOUND") {
+          return {
+            ok: false as const,
+            message:
+              "אין תבנית פעילה למסמך הזה במערכת (Admin Templates). " +
+              "כדי להפיק מסמך חדש חייבת להיות לפחות תבנית אחת פעילה עבור סוג המסמך (tax_invoice / invoice_receipt). " +
+              "פתח /admin/templates וצור/הפעל תבנית מתאימה (is_active=true) וודא שהיא משויכת לסוג המסמך.",
+          }
+        }
         console.error(`${logPrefix} finalizeDocument failed`, {
-          message: result.message,
+          message: rawMessage,
           draftId,
         });
-        return { ok: false as const, message: result.message || "Failed to issue document" };
+        return { ok: false as const, message: rawMessage };
       }
 
       const { data: company } = await supabase
@@ -1125,11 +1155,25 @@ export async function issueDocumentAction(
         }
       : {};
 
+    // Best-effort: snapshot the canonical template id at draft creation time.
+    let templateVersionId: string | null = null
+    try {
+      const { getTemplateForDocument } = await import("@/lib/pdf-service")
+      const chosen = await getTemplateForDocument(companyId, dbDocumentType as any, {
+        language: payload.language === "en" ? "en" : "he",
+        allowFallbackToHe: true,
+      })
+      templateVersionId = chosen?.templateId || null
+    } catch {
+      templateVersionId = null
+    }
+
     const baseDraftInsert = {
       company_id: companyId,
       document_type: dbDocumentType,
       document_status: "draft",
       document_number: null,
+      template_version_id: templateVersionId,
       customer_id: payload.customerId || null,
       customer_name: payload.customerName,
       issue_date: payload.documentDate,

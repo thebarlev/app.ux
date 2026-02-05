@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { getReceiptStyleSettingsPublic } from "@/lib/receipt-style";
 import { getTemplateForDocument } from "@/lib/pdf-service";
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets";
 import PreviewWrapper from "@/app/dashboard/documents/tax-invoice/preview/PreviewWrapper";
 import { getDocumentConfigByRouteSegment } from "@/lib/documents/document-configs";
 
@@ -129,10 +130,18 @@ async function PreviewDataLoader({
       const admin = createAdminClient();
       const trySignedUrl = async (path: string | null) => {
         if (!path) return null;
+        const bucket = path.startsWith("business-signatures/") ? SECURE_ASSETS_BUCKET : PUBLIC_ASSETS_BUCKET;
         const { data } = await admin.storage
-          .from("business-assets")
+          .from(bucket)
           .createSignedUrl(path, 3600);
-        return data?.signedUrl || null;
+        if (data?.signedUrl) return data.signedUrl;
+
+        // Legacy fallback: signatures may still exist in the old public bucket.
+        if (bucket === SECURE_ASSETS_BUCKET) {
+          const { data: legacy } = await admin.storage.from(PUBLIC_ASSETS_BUCKET).createSignedUrl(path, 3600);
+          return legacy?.signedUrl || null;
+        }
+        return null;
       };
 
       const logoPath = getStoragePathFromUrl(logoUrl);

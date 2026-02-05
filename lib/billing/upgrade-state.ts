@@ -47,8 +47,9 @@ export function verifyUpgradeState(state: string): { ok: true; payload: UpgradeS
   if (!body || !sig) return { ok: false }
 
   const expected = sign(body, secret)
-  const a = Buffer.from(sig)
-  const b = Buffer.from(expected)
+  // Convert to Uint8Array backed by ArrayBuffer for TS compatibility.
+  const a = Uint8Array.from(Buffer.from(sig))
+  const b = Uint8Array.from(Buffer.from(expected))
   if (a.length !== b.length) return { ok: false }
   if (!timingSafeEqual(a, b)) return { ok: false }
 

@@ -1,9 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 export async function GET(request: NextRequest) {
   try {
+    const ip = getClientIp(request);
+    const rl = rateLimit({ key: `customers-search:${ip}`, limit: 60, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ customers: [] }, { status: 429, headers: rateLimitHeaders(rl) });
+    }
+
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
 
@@ -40,10 +47,10 @@ export async function GET(request: NextRequest) {
     
     // Handle network/DNS errors gracefully
     if (error?.cause?.code === 'ENOTFOUND' || error?.code === 'ENOTFOUND') {
-      console.error("Network error - Supabase host not found:", error.cause?.hostname || error.hostname);
+      console.error("Network error (ENOTFOUND)");
       return NextResponse.json(
         { 
-          error: "Connection error. Please check your internet connection.",
+          error: "Service unavailable",
           customers: [] 
         },
         { status: 503 }
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(
       { 
-        error: error?.message || "Internal server error",
+        error: "Internal Server Error",
         customers: []
       },
       { status: 500 }

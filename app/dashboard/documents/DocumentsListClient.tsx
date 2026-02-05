@@ -153,6 +153,29 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
   const effectiveListPathBase = listPathBase || "/dashboard/documents";
   const effectivePageTitle = pageTitle || "מסמכים";
 
+  // Restrict document types by list category pages (income vs ongoing).
+  // Important: These pages must never show/filter document types from the other category.
+  const docTypeWhitelist = useMemo(() => {
+    if (effectiveListPathBase.includes("/documents/income")) {
+      return ["receipt", "tax_invoice", "credit_note", "invoice_receipt"] as const;
+    }
+    if (effectiveListPathBase.includes("/documents/ongoing")) {
+      return [
+        "quote",
+        "proforma",
+        "work_order",
+        "delivery_note",
+        "return_note",
+        "purchase_order",
+        "self_invoice",
+        "self_credit_note",
+      ] as const;
+    }
+    return null;
+  }, [effectiveListPathBase]);
+  const docTypeWhitelistSet = useMemo(() => (docTypeWhitelist ? new Set<string>(docTypeWhitelist) : null), [docTypeWhitelist]);
+  const docTypeWhitelistCsv = useMemo(() => (docTypeWhitelist ? Array.from(docTypeWhitelist).join(",") : null), [docTypeWhitelist]);
+
   // Dev-only: allow QA to test multi-select UI even when the dataset currently contains only receipts.
   const SHOW_ALL_DOC_TYPES_FOR_TEST = process.env.NODE_ENV !== "production";
   const HIDDEN_DOC_TYPES = new Set(["invoiceReceipt", "invoice"]);
@@ -492,7 +515,12 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
   const tableHeaderBorder = "1px solid #EDF1F5";
 
   const documentTypeOptions = useMemo(() => {
-    // Current system: only receipts exist. Show only the types that exist in data,
+    // If we are in a dedicated category page (income/ongoing), show ONLY the whitelisted types.
+    if (docTypeWhitelistSet) {
+      return Array.from(docTypeWhitelistSet);
+    }
+
+    // Default page behavior: show types that exist in data,
     // but always include receipts so the option remains available even when list is empty.
     const set = new Set<string>(["receipt"]);
     for (const d of documents) {
@@ -510,7 +538,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
       if (!HIDDEN_DOC_TYPES.has(t)) set.add(t);
     }
     return Array.from(set);
-  }, [documents, selectedDocTypes, SHOW_ALL_DOC_TYPES_FOR_TEST]);
+  }, [docTypeWhitelistSet, documents, selectedDocTypes, SHOW_ALL_DOC_TYPES_FOR_TEST]);
 
   const areAllDocTypesExplicitlySelected = useMemo(() => {
     if (selectedDocTypes.size === 0) return false;
@@ -526,11 +554,13 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
 
   useEffect(() => {
     if (selectedDocTypes.size === 0 || isAllDocTypesSelected) {
-      setDocumentType("all");
+      // On category pages, "all" means "all within the whitelist", not all system documents.
+      if (docTypeWhitelistCsv) setDocumentType(docTypeWhitelistCsv);
+      else setDocumentType("all");
     } else {
       setDocumentType(Array.from(selectedDocTypes).join(","));
     }
-  }, [isAllDocTypesSelected, selectedDocTypes]);
+  }, [docTypeWhitelistCsv, isAllDocTypesSelected, selectedDocTypes]);
 
 
   const monthGroups = useMemo(() => {

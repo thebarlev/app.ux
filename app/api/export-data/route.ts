@@ -1,8 +1,15 @@
 import { createClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 import * as XLSX from "xlsx"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
 export async function GET(request: NextRequest) {
+  const ip = getClientIp(request)
+  const rl = rateLimit({ key: `export-data:${ip}`, limit: 10, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+  }
+
   const supabase = await createClient()
 
   // Verify admin authentication
@@ -56,7 +63,8 @@ export async function GET(request: NextRequest) {
   const { data: companies, error: companiesError } = await companiesQuery
 
   if (companiesError) {
-    return NextResponse.json({ error: companiesError.message }, { status: 500 })
+    console.error("[EXPORT_DATA] companies query failed", companiesError)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 
   // Fetch all documents
@@ -66,7 +74,8 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
 
   if (documentsError) {
-    return NextResponse.json({ error: documentsError.message }, { status: 500 })
+    console.error("[EXPORT_DATA] documents query failed", documentsError)
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
   const docCount = documents?.length || 0
   const docsWithCopyKey = (documents || []).filter((d: any) => !!d.pdf_storage_key_he_copy).length

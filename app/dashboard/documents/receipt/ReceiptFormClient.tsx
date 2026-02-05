@@ -31,6 +31,7 @@ import { FormSection } from "@/components/ui/form-section";
 import { cn } from "@/lib/utils";
 import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { FxRateDialog } from "@/components/payments/FxRateDialog";
 import {
   createDocumentLinkAction,
   getDocumentForChainingAction,
@@ -108,9 +109,10 @@ export default function ReceiptFormClient({
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
   const [allowedCurrencies, setAllowedCurrencies] = useState<string[]>(
-    initial.ok ? initial.settings.allowedCurrencies : ["₪", "$", "€"]
+    initial.ok ? initial.settings.allowedCurrencies : ["ILS", "USD", "EUR"]
   );
-  const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "₪");
+  const [currency, setCurrency] = useState<string>(initial.ok ? initial.settings.defaultCurrency : "ILS");
+  const isFxScenario = language === "en" && currency === "ILS";
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -123,6 +125,8 @@ export default function ReceiptFormClient({
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   const [isCancellationReceipt, setIsCancellationReceipt] = useState(false);
   const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
+  const [fxLoading, setFxLoading] = useState<Record<number, boolean>>({});
+  const [fxApiErrors, setFxApiErrors] = useState<Record<number, string>>({});
 
   const [notes, setNotes] = useState("");
   const [emailNotes, setEmailNotes] = useState("");
@@ -182,6 +186,7 @@ export default function ReceiptFormClient({
       if (typeof editData.description === "string") setDescription(editData.description);
       if (editData.payments && editData.payments.length > 0) {
         setPayments(editData.payments);
+        setConfirmedPayments(new Set(editData.payments.map((_, idx) => idx)));
       }
     }
   }, [editData]);
@@ -248,10 +253,19 @@ export default function ReceiptFormClient({
   const previewNumber = initial.ok ? initial.previewNumber : null;
 
   const total = useMemo(() => {
-    const sum = payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0);
+    const sum = payments.reduce((acc, p, idx) => {
+      if (!confirmedPayments.has(idx)) return acc;
+      const amt = Number.isFinite(p.amount) ? p.amount : 0;
+      if (!isFxScenario) return acc + amt;
+      const rowCur = String(p.currency || currency);
+      if (rowCur === "ILS") return acc + amt;
+      const fx = Number((p as any).fxRate);
+      if (!Number.isFinite(fx) || fx <= 0) return acc;
+      return acc + amt * fx;
+    }, 0);
     if (!roundTotals) return sum;
     return Math.round(sum);
-  }, [payments, roundTotals]);
+  }, [payments, confirmedPayments, roundTotals, isFxScenario, currency]);
   const hasConfirmedPayments = confirmedPayments.size > 0;
   const unconfirmedPaymentRowIndices = useMemo(() => {
     const out: number[] = [];
@@ -287,10 +301,77 @@ export default function ReceiptFormClient({
   }, [customerName, customerId, documentDate, description, payments, notes, currency, total, roundTotals, language, isCancellationReceipt]);
 
   useEffect(() => {
-    if (currency !== "₪") {
-      setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+    if (currency !== "ILS") {
+      setPayments((prev) =>
+        prev.map((p) => ({
+          ...p,
+          currency,
+          fxRate: undefined,
+          fxRateDate: undefined,
+          fxRateSource: undefined,
+        }))
+      );
+      return;
     }
-  }, [currency]);
+    if (!isFxScenario) {
+      setPayments((prev) =>
+        prev.map((p) => ({
+          ...p,
+          currency: "ILS",
+          fxRate: undefined,
+          fxRateDate: undefined,
+          fxRateSource: undefined,
+        }))
+      );
+    }
+  }, [currency, isFxScenario]);
+
+  async function fetchFxRateForRow(i: number, baseCurrency: string, paymentDate: string) {
+    const base = String(baseCurrency || "").toUpperCase().trim();
+    const date = String(paymentDate || "").trim();
+    if (!/^[A-Z]{3}$/.test(base) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+    setFxLoading((prev) => ({ ...prev, [i]: true }));
+    setFxApiErrors((prev) => {
+      if (!prev[i]) return prev;
+      const next = { ...prev };
+      delete next[i];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/fx-rate?base=${encodeURIComponent(base)}&date=${encodeURIComponent(date)}`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+      });
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.message || "FX rate fetch failed");
+      }
+      setPayments((prev) =>
+        prev.map((r, idx) =>
+          idx === i
+            ? {
+                ...r,
+                fxRate: Number(json.rate),
+                fxRateDate: String(json.rateDate || ""),
+                fxRateSource: "boi",
+              }
+            : r
+        )
+      );
+    } catch (e: any) {
+      setFxApiErrors((prev) => ({
+        ...prev,
+        [i]: "לא ניתן להביא שער המרה כרגע, אנא נסה שוב או הזן ידנית",
+      }));
+      setPaymentErrors((prev) => ({
+        ...prev,
+        [i]: { ...(prev[i] || {}), amount: "חסר שער המרה" },
+      }));
+    } finally {
+      setFxLoading((prev) => ({ ...prev, [i]: false }));
+    }
+  }
 
 
 
@@ -334,6 +415,15 @@ export default function ReceiptFormClient({
     }
     if (!Number.isFinite(payment.amount) || (isCancellationReceipt ? payment.amount >= 0 : payment.amount <= 0)) {
       errors.amount = `סכום חייב להיות ${isCancellationReceipt ? "קטן מ-0" : "גדול מ-0"}`;
+    }
+    if (isFxScenario) {
+      const rowCur = String(payment.currency || currency);
+      if (rowCur !== "ILS") {
+        const fx = Number((payment as any).fxRate);
+        if (!Number.isFinite(fx) || fx <= 0) {
+          errors.amount = "חובה לעדכן שער המרה";
+        }
+      }
     }
     return errors;
   }
@@ -429,7 +519,7 @@ export default function ReceiptFormClient({
         notes: notes || "",
         footerNotes: footerText || "",
         total: total.toString() || "0",
-        currency: currency || "₪",
+        currency: currency || "ILS",
         payments: JSON.stringify(paymentsForPreview),
       });
 
@@ -559,8 +649,6 @@ export default function ReceiptFormClient({
 
     setBusy("issue");
     try {
-      const t0 = Date.now()
-
       const result = await issueReceiptAction(payload, draftId);
 
       if (!result || !result.ok) {
@@ -635,23 +723,7 @@ export default function ReceiptFormClient({
   }
 
   return (
-    <main dir="rtl" className="min-h-screen">
-      <style>{`
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container button:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container input:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container select:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*="font-size"]),
-        main[dir="rtl"] .ui-container span:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-      `}</style>
-
+    <main dir="rtl" className="min-h-screen ui-document-form">
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {message && (
@@ -814,7 +886,7 @@ export default function ReceiptFormClient({
                 <div className="space-y-[20px]">
                   {/* Headers Row */}
                   <div className="px-[20px] sm:px-6 lg:px-8">
-                    <div className="hidden md:grid md:grid-cols-[19.2%_13%_1fr_60px_minmax(150px,36%)_140px] gap-3 items-center font-semibold">
+                    <div className="hidden md:grid md:grid-cols-[minmax(140px,20%)_minmax(120px,140px)_minmax(160px,200px)_minmax(96px,110px)_1fr_minmax(120px,140px)] gap-3 items-center font-semibold">
                       <div className="text-right pr-[12px] translate-y-[20px]">אמצעי תשלום</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">תאריך</div>
                       <div className="text-right pr-[12px] translate-y-[20px]">סכום</div>
@@ -835,7 +907,7 @@ export default function ReceiptFormClient({
                       >
                         <div className="min-w-0">
                           {/* Desktop View - Single Row Grid */}
-                          <div className="hidden md:grid md:grid-cols-[19.2%_13%_1fr_60px_minmax(150px,36%)_140px] gap-3 items-center">
+                          <div className="hidden md:grid md:grid-cols-[minmax(140px,20%)_minmax(120px,140px)_minmax(160px,200px)_minmax(96px,110px)_1fr_minmax(120px,140px)] gap-3 items-center">
                             {/* אמצעי תשלום - 24% */}
                             <div className="w-full min-w-0">
                               <Select
@@ -877,52 +949,120 @@ export default function ReceiptFormClient({
                             <DateInput
                               id={`payment-date-${i}`}
                               value={row.date}
-                              onChange={(v) => updatePaymentRow(i, { date: v })}
+                              onChange={(v) => {
+                                updatePaymentRow(i, { date: v });
+                                const rowCur = String(row.currency || currency);
+                                if (
+                                  isFxScenario &&
+                                  rowCur !== "ILS" &&
+                                  row.fxRateSource !== "manual"
+                                ) {
+                                  fetchFxRateForRow(i, rowCur, v);
+                                }
+                              }}
                               className="ti-items-input text-right min-w-0"
                               variant="items"
                               disabled={confirmedPayments.has(i)}
                             />
 
                             {/* סכום - 13% */}
-                            <MoneyInput
-                              className={cn(
-                                "w-full min-w-0 text-right",
-                                paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
-                                confirmedPayments.has(i) ? "pointer-events-none" : ""
-                              )}
-                              variant="items"
-                              allowNegative={isCancellationReceipt}
-                              displayValue={
-                                isCancellationReceipt
-                                  ? formatMoney(row.amount, currency, true)
-                                  : undefined
-                              }
-                              readOnly={isCancellationReceipt}
-                              value={row.amount}
-                              onChange={(v) => {
-                                const next = isCancellationReceipt ? -Math.abs(v) : v;
-                                updatePaymentRow(i, { amount: next });
-                                if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
-                                  const newErrors = { ...paymentErrors };
-                                  if (newErrors[i]) {
-                                    delete newErrors[i].amount;
-                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
-                                  }
-                                  setPaymentErrors(newErrors);
+                            <div className="relative min-w-0">
+                              <MoneyInput
+                                className={cn(
+                                  "w-full min-w-0 text-right",
+                                  isFxScenario &&
+                                    confirmedPayments.has(i) &&
+                                    String(row.currency || currency) !== "ILS"
+                                    ? "pl-9"
+                                    : "",
+                                  confirmedPayments.has(i) ? "pointer-events-none" : ""
+                                )}
+                                error={!!paymentErrors[i]?.amount}
+                                variant="items"
+                                allowNegative={isCancellationReceipt}
+                                displayValue={
+                                  isCancellationReceipt
+                                    ? formatMoney(row.amount, currency, true)
+                                    : undefined
                                 }
-                              }}
-                              currency={currency}
-                            />
+                                readOnly={isCancellationReceipt}
+                                value={row.amount}
+                                onChange={(v) => {
+                                  const next = isCancellationReceipt ? -Math.abs(v) : v;
+                                  updatePaymentRow(i, { amount: next });
+                                  if (paymentErrors[i]?.amount && (isCancellationReceipt ? next < 0 : next > 0)) {
+                                    const newErrors = { ...paymentErrors };
+                                    if (newErrors[i]) {
+                                      delete newErrors[i].amount;
+                                      if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                    }
+                                    setPaymentErrors(newErrors);
+                                  }
+                                }}
+                                currency={row.currency || currency}
+                              />
+                              {isFxScenario &&
+                              confirmedPayments.has(i) &&
+                              String(row.currency || currency) !== "ILS" ? (
+                                <div className="absolute left-2 top-1/2 -translate-y-1/2">
+                                  <FxRateDialog
+                                    baseCurrency={String(row.currency || "").toUpperCase()}
+                                    rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
+                                    disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                    onUpdateRate={(nextRate) => {
+                                      updatePaymentRow(i, {
+                                        fxRate: nextRate,
+                                        fxRateSource: "manual",
+                                        fxRateDate: row.fxRateDate || row.date || todayYmd(),
+                                      });
+                                    }}
+                                  />
+                                </div>
+                              ) : null}
+                            {!fxApiErrors[i] && paymentErrors[i]?.amount ? (
+                              <div className="absolute right-0 top-full mt-1 text-right text-[14px] text-danger">
+                                {paymentErrors[i]?.amount}
+                              </div>
+                            ) : null}
+                            {fxApiErrors[i] ? (
+                              <div className="absolute right-0 top-full mt-1 text-right text-[14px] text-danger">
+                                {fxApiErrors[i]}
+                              </div>
+                            ) : null}
+                            </div>
 
-                            {/* מטבע - 80px */}
+                            {/* מטבע */}
                             <Select
                               value={row.currency || currency}
-                              disabled={currency !== "₪" || confirmedPayments.has(i)}
-                              onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                              disabled={!isFxScenario || confirmedPayments.has(i)}
+                              onValueChange={(v) => {
+                                const next = String(v || "").toUpperCase().trim();
+                                setPayments((prev) =>
+                                  prev.map((r, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...r,
+                                          currency: next,
+                                          fxRate: undefined,
+                                          fxRateDate: undefined,
+                                          fxRateSource: undefined,
+                                        }
+                                      : r
+                                  )
+                                );
+                                if (isFxScenario && next !== "ILS") {
+                                  fetchFxRateForRow(i, next, row.date || documentDate || todayYmd());
+                                }
+                              }}
                             >
                               <SelectTrigger
                                 variant="underline"
-                                className="ti-items-select w-full min-w-0"
+                                className={cn(
+                                  "ti-items-select w-full min-w-0",
+                                  paymentErrors[i]?.amount
+                                    ? "border-[color:var(--field-border-error)] focus:border-[color:var(--field-border-error)]"
+                                    : ""
+                                )}
                                 aria-label="מטבע"
                               >
                                 <SelectValue />
@@ -966,7 +1106,12 @@ export default function ReceiptFormClient({
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               ) : (
-                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  onClick={() => confirmPaymentRow(i)}
+                                  disabled={!!fxLoading[i]}
+                                >
                                   אישור
                                 </Button>
                               )}
@@ -1023,6 +1168,7 @@ export default function ReceiptFormClient({
                                   ))}
                                 </SelectContent>
                               </Select>
+                              {/* עריכת מטבע במובייל: לא קיימת, המטבע עריך רק לפני אישור */}
                             </div>
 
                             {/* תאריך */}
@@ -1031,7 +1177,17 @@ export default function ReceiptFormClient({
                               <DateInput
                                 id={`payment-date-mobile-${i}`}
                                 value={row.date}
-                                onChange={(v) => updatePaymentRow(i, { date: v })}
+                                onChange={(v) => {
+                                  updatePaymentRow(i, { date: v });
+                                  const rowCur = String(row.currency || currency);
+                                  if (
+                                    isFxScenario &&
+                                    rowCur !== "ILS" &&
+                                    row.fxRateSource !== "manual"
+                                  ) {
+                                    fetchFxRateForRow(i, rowCur, v);
+                                  }
+                                }}
                                 className="ti-items-input text-right w-full"
                                 variant="items"
                                 disabled={confirmedPayments.has(i)}
@@ -1046,9 +1202,9 @@ export default function ReceiptFormClient({
                                   <MoneyInput
                                     className={cn(
                                       "w-full text-right",
-                                      paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
                                       confirmedPayments.has(i) ? "pointer-events-none" : ""
                                     )}
+                                    error={!!paymentErrors[i]?.amount}
                                     variant="items"
                                     allowNegative={isCancellationReceipt}
                                     displayValue={
@@ -1070,19 +1226,42 @@ export default function ReceiptFormClient({
                                         setPaymentErrors(newErrors);
                                       }
                                     }}
-                                    currency={currency}
+                                    currency={row.currency || currency}
                                   />
                                 </div>
 
                                 <div className="w-[60px]">
                                   <Select
                                     value={row.currency || currency}
-                                    disabled={currency !== "₪" || confirmedPayments.has(i)}
-                                    onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                                    disabled={!isFxScenario || confirmedPayments.has(i)}
+                                    onValueChange={(v) => {
+                                      const next = String(v || "").toUpperCase().trim();
+                                      setPayments((prev) =>
+                                        prev.map((r, idx) =>
+                                          idx === i
+                                            ? {
+                                                ...r,
+                                                currency: next,
+                                                fxRate: undefined,
+                                                fxRateDate: undefined,
+                                                fxRateSource: undefined,
+                                              }
+                                            : r
+                                        )
+                                      );
+                                      if (isFxScenario && next !== "ILS") {
+                                        fetchFxRateForRow(i, next, row.date || documentDate || todayYmd());
+                                      }
+                                    }}
                                   >
                                     <SelectTrigger
                                       variant="underline"
-                                      className="ti-items-select w-full"
+                                      className={cn(
+                                        "ti-items-select w-full",
+                                        paymentErrors[i]?.amount
+                                          ? "border-[color:var(--field-border-error)] focus:border-[color:var(--field-border-error)]"
+                                          : ""
+                                      )}
                                       aria-label="מטבע"
                                     >
                                       <SelectValue />
@@ -1097,6 +1276,36 @@ export default function ReceiptFormClient({
                                   </Select>
                                 </div>
 
+                                {/* עריכת מטבע במובייל: המטבע עריך רק לפני אישור */}
+
+                                {isFxScenario &&
+                                confirmedPayments.has(i) &&
+                                String(row.currency || currency) !== "ILS" ? (
+                                  <div className="shrink-0">
+                                    <FxRateDialog
+                                      baseCurrency={String(row.currency || "").toUpperCase()}
+                                      rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
+                                      disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                      onUpdateRate={(nextRate) => {
+                                        updatePaymentRow(i, {
+                                          fxRate: nextRate,
+                                          fxRateSource: "manual",
+                                          fxRateDate: row.fxRateDate || row.date || todayYmd(),
+                                        });
+                                      }}
+                                    />
+                                  </div>
+                                ) : null}
+                                {!fxApiErrors[i] && paymentErrors[i]?.amount ? (
+                                  <div className="mt-1 text-right text-[14px] text-danger">
+                                    {paymentErrors[i]?.amount}
+                                  </div>
+                                ) : null}
+                                {fxApiErrors[i] ? (
+                                  <div className="mt-1 text-right text-[14px] text-danger">
+                                    {fxApiErrors[i]}
+                                  </div>
+                                ) : null}
                                 {/* כפתורים בשורה עם הסכום */}
                                 <div className="flex items-center justify-end gap-2 shrink-0">
                                   {confirmedPayments.has(i) ? (
@@ -1117,7 +1326,12 @@ export default function ReceiptFormClient({
                                       <Pencil className="h-4 w-4" />
                                     </Button>
                                   ) : (
-                                    <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      onClick={() => confirmPaymentRow(i)}
+                                      disabled={!!fxLoading[i]}
+                                    >
                                       אישור
                                     </Button>
                                   )}
@@ -1136,6 +1350,12 @@ export default function ReceiptFormClient({
                                 </div>
                               </div>
                             </div>
+
+                            {fxApiErrors[i] ? (
+                              <div className="mt-1 text-right text-[14px] text-danger">
+                                {fxApiErrors[i]}
+                              </div>
+                            ) : null}
 
                             {/* פרטים נוספים */}
                             {row.method && (

@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { generatePreviewPDF } from "@/lib/pdf-service"
 import { isPdfDebugEnabled, logPdfEvent } from "@/lib/pdf-logger"
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
+import { logSecurityEvent } from "@/lib/security/audit-log"
 
 /**
  * Format download filename:
@@ -47,6 +50,12 @@ export async function GET(
   const pdfDebugEnabled = isPdfDebugEnabled()
 
   try {
+    const ip = getClientIp(req)
+    const rl = rateLimit({ key: `pdf-download:${ip}`, limit: 30, windowMs: 60_000 })
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+    }
+
     // Create two clients: userClient for auth, adminClient for storage operations
     const userClient = await createClient()
     let adminClient: ReturnType<typeof createAdminClient>
@@ -60,7 +69,7 @@ export async function GET(
         {
           error: "Server configuration error",
           code: "MISSING_ENV_VARIABLES",
-          details: adminError.message || "Missing required environment variables for admin client. Please check your .env.local file and restart the server.",
+          // Never expose internal configuration details to clients.
         },
         { status: 500 }
       )
@@ -71,6 +80,16 @@ export async function GET(
     
     if (authError || !auth?.user) {
       console.error("[PDF] Unauthorized:", { authError, documentId: (await params).documentId })
+      logSecurityEvent({
+        event: "auth_denied",
+        outcome: "denied",
+        userId: null,
+        companyId: null,
+        requestId,
+        ip,
+        path: new URL(req.url).pathname,
+        meta: { surface: "pdf_download" },
+      })
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -181,7 +200,8 @@ export async function GET(
 
     // Finalized/cancelled: serve the immutable stored PDF (generated/signed during finalization).
     // Storage is accessed with adminClient (service role), while doc access uses RLS via userClient.
-    const storageBucket = "business-assets"
+    // MUST be private (legacy fallback to PUBLIC_ASSETS_BUCKET exists only for already-issued PDFs).
+    const primaryBucket = SECURE_ASSETS_BUCKET
     const fromDoc =
       targetLanguage === "en"
         ? ((doc as any)?.pdf_storage_key_en as string | null)
@@ -196,17 +216,76 @@ export async function GET(
           ? `documents/${documentId}/copy.he.pdf`
           : `documents/${documentId}/original.he.pdf`
 
-    const storageKey = (fromDoc && String(fromDoc).trim().length > 0) ? String(fromDoc) : expected
+    const rawKey = (fromDoc && String(fromDoc).trim().length > 0) ? String(fromDoc) : expected
+    const storageKey = rawKey.replace(/^\/+/, "")
 
-    const { data: file, error: dlError } = await adminClient.storage
-      .from(storageBucket)
-      .download(storageKey)
+    // Defense-in-depth: never trust DB storage keys beyond document scope.
+    const allowedPrefix = `documents/${documentId}/`
+    const scopedStorageKey = storageKey.startsWith(allowedPrefix) && !storageKey.includes("..") ? storageKey : expected
+
+    let file: any = null
+    let dlError: any = null
+
+    ;({ data: file, error: dlError } = await adminClient.storage
+      .from(primaryBucket)
+      .download(scopedStorageKey))
+
+    // Legacy migration: old PDFs were stored in the public bucket.
+    // If found there, copy to the private bucket and remove from public (best-effort).
+    if (dlError || !file) {
+      const legacy = await adminClient.storage.from(PUBLIC_ASSETS_BUCKET).download(scopedStorageKey)
+      if (!legacy.error && legacy.data) {
+        file = legacy.data
+        dlError = null
+        try {
+          const buf = Buffer.from(await (legacy.data as any).arrayBuffer())
+          const up = await adminClient.storage
+            .from(primaryBucket)
+            .upload(scopedStorageKey, buf, { contentType: "application/pdf", upsert: false })
+
+          // If upload succeeded (or already existed), remove the public copy.
+          if (!up.error || String(up.error?.message || "").toLowerCase().includes("already exists")) {
+            await adminClient.storage.from(PUBLIC_ASSETS_BUCKET).remove([scopedStorageKey])
+          }
+        } catch {
+          // ignore migration failures
+        }
+      } else {
+        dlError = legacy.error
+      }
+    }
 
     if (dlError || !file) {
       return NextResponse.json(
-        { error: "PDF_NOT_AVAILABLE", code: "PDF_NOT_AVAILABLE", details: dlError?.message || "File not found" },
+        { error: "PDF_NOT_AVAILABLE", code: "PDF_NOT_AVAILABLE" },
         { status: 404 }
       )
+    }
+
+    // Security log + audit trail (best-effort; must not block PDF delivery).
+    try {
+      const ua = req.headers.get("user-agent")
+      await userClient.from("document_events").insert({
+        document_id: doc.id,
+        company_id: (doc as any).company_id,
+        event_type: "viewed",
+        ip_address: ip && ip !== "unknown" ? ip : null,
+        user_agent: ua ? String(ua).slice(0, 512) : null,
+        event_data: { kind: "pdf_download", issue: effectiveIssue, lang: targetLanguage },
+      } as any)
+
+      logSecurityEvent({
+        event: "pdf_download",
+        outcome: "succeeded",
+        userId: auth.user.id,
+        companyId: (doc as any).company_id || null,
+        requestId,
+        ip,
+        path: new URL(req.url).pathname,
+        meta: { issue: effectiveIssue, lang: targetLanguage },
+      })
+    } catch (e) {
+      // ignore
     }
 
     // Mark original issued (idempotent) when we successfully serve it.

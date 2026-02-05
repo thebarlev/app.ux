@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { ScrollLockFix } from "@/components/ScrollLockFix"
+import NewDocumentFab from "@/components/dashboard/NewDocumentFab"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -308,94 +309,6 @@ function SidebarContent({
         ))}
       </nav>
 
-      {/* New Document Button */}
-      <div
-        style={{
-          marginBottom: "30px",
-          marginTop: "50px",
-          paddingLeft: expanded ? "30px" : "0px",
-          paddingRight: expanded ? "14px" : "1px",
-          position: "relative",
-        }}
-      >
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 w-[60px] h-[60px] transition-all font-bold bg-[#99DE76] hover:bg-[#FFC669] text-[#19183B] text-[18px] py-[14px]"
-              aria-label="מסמך חדש"
-            >
-              <span style={{ fontSize: "44px", fontWeight: "bold", marginRight: "2px", color: "var(--fg)" }}>+</span>
-              
-            </button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent side="left" align="start" sideOffset={8} className="min-w-[160px]">
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/incomes/documents/new/invoice" className="w-full">
-                חשבונית מס
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/incomes/documents/new/invoiceReceipt" className="w-full">
-                חשבונית מס / קבלה
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/incomes/documents/new/creditNote" className="w-full">
-                חשבונית זיכוי
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/dashboard/incomes/documents/new/receipt" className="w-full">
-                קבלה
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/quote" className="w-full">
-                הצעת מחיר
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/proforma" className="w-full">
-                חשבון עסקה (דרישת תשלום)
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/workOrder" className="w-full">
-                הזמנת עבודה
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/deliveryNote" className="w-full">
-                תעודת משלוח
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/returnNote" className="w-full">
-                תעודת החזרה
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/purchaseOrder" className="w-full">
-                הזמנת רכש
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/selfInvoice" className="w-full">
-                חשבונית עצמית
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild onSelect={() => onNavigate?.()}>
-              <Link href="/business/documents/new/selfCreditNote" className="w-full">
-                חשבונית זיכוי עצמית
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
       {/* Settings Link */}
       <div style={{ marginBottom: "8px", padding: "0 12px" }}>
         <Link
@@ -597,95 +510,208 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     <>
       <ScrollLockFix />
       <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir="rtl">
-      {/* Main Content Area */}
-      <div className={mainWrapperClassName}>
-        {/* Mobile Header */}
-        {!isReceiptPreview && (
-          <div ref={mobileHeaderRef} className="sticky top-0 z-[60] md:hidden bg-bg/95 backdrop-blur border-b border-border w-full max-w-full">
-            <div className="flex items-center justify-start px-4 py-3">
-              <button
-                ref={hamburgerButtonRef}
-                type="button"
-                onClick={() => setSidebarOpen((v) => !v)}
-                className={`p-2 rounded-md hover:bg-muted transition ${sidebarOpen ? "text-white" : "text-fg"}`}
-                aria-label={sidebarOpen ? "סגור תפריט" : "פתח תפריט"}
-                aria-expanded={sidebarOpen}
-                aria-controls="mobile-sidebar"
-              >
-                {sidebarOpen ? (
-                  <X className="h-6 w-6 text-white transition-transform duration-200 rotate-0 scale-100" aria-hidden="true" />
-                ) : (
-                  <Menu className="h-6 w-6 transition-transform duration-200 rotate-0 scale-100" aria-hidden="true" />
-                )}
-              </button>
+        {/* Main Content Area */}
+        <div className={mainWrapperClassName}>
+          {/* ✅ MOBILE HEADER - RTL מיושר לימין */}
+          {!isReceiptPreview && (
+            <div 
+              ref={mobileHeaderRef} 
+              className="sticky top-0 z-[60] md:hidden bg-[#4A90B5] shadow-md w-full"
+            >
+              <div className="flex items-center justify-between px-4 py-3">
+                {/* כפתור תפריט/X - משמאל */}
+                <button
+                  ref={hamburgerButtonRef}
+                  type="button"
+                  onClick={() => setSidebarOpen((v) => !v)}
+                  className="p-2 rounded-md hover:bg-white/10 transition-colors relative"
+                  aria-label={sidebarOpen ? "סגור תפריט" : "פתח תפריט"}
+                  aria-expanded={sidebarOpen}
+                  aria-controls="mobile-sidebar"
+                >
+                  {/* אנימציה של המבורגר ל-X */}
+                  <div className="relative w-7 h-7">
+                    <Menu 
+                      className={`absolute inset-0 h-7 w-7 text-white transition-all duration-300 ${
+                        sidebarOpen 
+                          ? 'opacity-0 rotate-90 scale-0' 
+                          : 'opacity-100 rotate-0 scale-100'
+                      }`}
+                      aria-hidden="true" 
+                    />
+                    <X 
+                      className={`absolute inset-0 h-7 w-7 text-white transition-all duration-300 ${
+                        sidebarOpen 
+                          ? 'opacity-100 rotate-0 scale-100' 
+                          : 'opacity-0 rotate-90 scale-0'
+                      }`}
+                      aria-hidden="true" 
+                    />
+                  </div>
+                </button>
+
+                {/* לוגו VOW - מימין */}
+                <Link href="/dashboard" className="flex items-center">
+                  <Image
+                    src="/brand/vow_black.svg"
+                    alt="VOW"
+                    width={80}
+                    height={32}
+                    priority
+                    
+                  />
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Content */}
+          <main className={mainClassName}>{children}</main>
+        </div>
+
+        {/* Desktop Sidebar */}
+        {!isReceiptPreview && (
+          <aside ref={desktopAsideRef} className={desktopAsideClassName}>
+            <SidebarContent
+              expanded={isExpanded}
+              inDocsCreate={!!isDocCreateRoute}
+              pinnedCollapsed={pinnedCollapsed}
+              onToggleCollapse={() => {
+                const next = !pinnedCollapsed
+                setPinnedCollapsed(next)
+                try {
+                  window.localStorage.setItem(SIDEBAR_LS_KEY, String(next))
+                } catch {
+                  // ignore
+                }
+              }}
+              onExpandFromIcon={() => {
+                if (!pinnedCollapsed) return
+                setPinnedCollapsed(false)
+                try {
+                  window.localStorage.setItem(SIDEBAR_LS_KEY, "false")
+                } catch {
+                  // ignore
+                }
+              }}
+            />
+          </aside>
         )}
 
-        {/* Content */}
-        <main className={mainClassName}>{children}</main>
+        {/* ✅ MOBILE SIDEBAR - עד 70% גובה */}
+        {!isReceiptPreview && sidebarOpen && (
+          <>
+            <aside 
+              id="mobile-sidebar" 
+              className="fixed top-[60px] left-0 right-0 h-[70vh] z-40 md:hidden bg-[#4A90B5] rounded-b-3xl animate-in slide-in-from-top-full duration-300"
+            >
+              {/* תוכן הסיידבר */}
+              <nav className="flex flex-col h-full p-6 pt-4">
+                {/* פריטי תפריט ראשיים */}
+                <div className="space-y-2 flex-1 overflow-y-auto">
+                  {navItems.map((item, idx) => {
+                    const Icon = item.icon
+                    const isActive = isItemActive(item, pathname) || hasActiveChild(item, pathname)
+                    
+                    if (item.subItems) {
+                      // פריט עם תת-תפריט
+                      return (
+                        <details key={idx} className="group">
+                          <summary
+                            className={`
+                              flex items-center justify-start gap-3 px-4 py-3 rounded-lg
+                              text-white transition-all cursor-pointer list-none
+                              ${isActive ? 'bg-white/20 font-semibold' : 'hover:bg-white/10'}
+                            `}
+                          >
+                            <Icon className="h-5 w-5 shrink-0" />
+                            <span className="text-lg flex-1 text-right">{item.label}</span>
+                            <ChevronLeft className="h-4 w-4 shrink-0 transition-transform duration-200 group-open:-rotate-90" />
+                          </summary>
+                          <div className="mt-1 ml-8 space-y-1">
+                            {item.subItems.map((subItem) => (
+                              <Link
+                                key={subItem.href}
+                                href={subItem.href}
+                                onClick={() => setSidebarOpen(false)}
+                                className={`
+                                  block px-4 py-2 rounded-lg text-white/90 text-base text-right
+                                  ${pathname === subItem.href ? 'bg-white/20 font-medium' : 'hover:bg-white/10'}
+                                `}
+                              >
+                                {subItem.label}
+                              </Link>
+                            ))}
+                          </div>
+                        </details>
+                      )
+                    }
+                    
+                    // פריט רגיל
+                    return (
+                      <Link
+                        key={idx}
+                        href={item.href!}
+                        onClick={() => setSidebarOpen(false)}
+                        className={`
+                          flex items-center justify-start gap-3 px-4 py-3 rounded-lg
+                          text-white transition-all
+                          ${isActive ? 'bg-white/20 font-semibold' : 'hover:bg-white/10'}
+                        `}
+                      >
+                        <Icon className="h-5 w-5 shrink-0" />
+                        <span className="text-lg flex-1 text-right">{item.label}</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+
+                {/* קו מפריד */}
+                <div className="border-t border-white/20 my-4"></div>
+
+                {/* הגדרות והתנתקות */}
+                <div className="space-y-2">
+                  <Link
+                    href="/dashboard/settings"
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all"
+                  >
+                    <Settings className="h-5 w-5 shrink-0" />
+                    <span className="text-lg flex-1 text-right">הגדרות</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setSidebarOpen(false)
+                      handleLogout()
+                    }}
+                    className="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all"
+                  >
+                    <LogOut className="h-5 w-5 shrink-0" />
+                    <span className="text-lg flex-1 text-right">התנתקות</span>
+                  </button>
+                </div>
+              </nav>
+            </aside>
+
+            {/* Overlay - רקע כהה */}
+            <div 
+              className="fixed top-[60px] left-0 right-0 bottom-0 bg-black/50 z-30 md:hidden animate-in fade-in duration-200" 
+              onClick={() => setSidebarOpen(false)} 
+            />
+          </>
+        )}
+
+        {/* ✨ כפתור + צף - רק במובייל ולא בעמודי יצירת מסמך */}
+        {!isReceiptPreview && !isDocCreateRoute && (
+          <div className="md:hidden">
+            <NewDocumentFab />
+          </div>
+        )}
       </div>
-
-      {/* Desktop Sidebar */}
-      {!isReceiptPreview && (
-        <aside ref={desktopAsideRef} className={desktopAsideClassName}>
-          <SidebarContent
-            expanded={isExpanded}
-            inDocsCreate={!!isDocCreateRoute}
-            pinnedCollapsed={pinnedCollapsed}
-            onToggleCollapse={() => {
-              const next = !pinnedCollapsed
-              setPinnedCollapsed(next)
-              try {
-                window.localStorage.setItem(SIDEBAR_LS_KEY, String(next))
-              } catch {
-                // ignore
-              }
-            }}
-            onExpandFromIcon={() => {
-              if (!pinnedCollapsed) return
-              setPinnedCollapsed(false)
-              try {
-                window.localStorage.setItem(SIDEBAR_LS_KEY, "false")
-              } catch {
-                // ignore
-              }
-            }}
-          />
-        </aside>
-      )}
-
-      {/* Mobile Sidebar */}
-      {!isReceiptPreview && sidebarOpen ? (
-        <>
-        <aside id="mobile-sidebar" className="fixed top-0 right-0 z-50 h-full w-[85vw] max-w-[320px] bg-sidebar md:hidden">
-            <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-              <span className="font-semibold text-lg">תפריט</span>
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-md hover:bg-sidebar-hover transition"
-                aria-label="סגור תפריט"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="h-[calc(100%-73px)]">
-              <SidebarContent
-                onNavigate={() => setSidebarOpen(false)}
-                expanded={true}
-                inDocsCreate={false}
-                pinnedCollapsed={false}
-                onToggleCollapse={() => {}}
-                onExpandFromIcon={() => {}}
-              />
-            </div>
-          </aside>
-
-          <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
-        </>
-      ) : null}
-    </div>
     </>
   )
+  
+  async function handleLogout() {
+    await logoutAction()
+  }
 }

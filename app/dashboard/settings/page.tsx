@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets";
 import SettingsClient from "./SettingsClient";
 
 export default async function SettingsPage() {
@@ -175,9 +176,16 @@ export default async function SettingsPage() {
       return null;
     };
 
+    const pickBucketForPath = (storagePath: string): string => {
+      // Signatures must be stored in a private bucket.
+      if (storagePath.startsWith("business-signatures/")) return SECURE_ASSETS_BUCKET;
+      return PUBLIC_ASSETS_BUCKET;
+    };
+
     const makeSignedUrl = async (storagePath: string | null): Promise<string | null> => {
       if (!storagePath) return null;
-      const { data, error } = await adminClient.storage.from("business-assets").createSignedUrl(storagePath, 3600);
+      const bucket = pickBucketForPath(storagePath);
+      const { data, error } = await adminClient.storage.from(bucket).createSignedUrl(storagePath, 3600);
       if (error || !data?.signedUrl) return null;
       return data.signedUrl;
     };

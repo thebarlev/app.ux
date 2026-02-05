@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
 import { buildBkmvTxt, buildIncomeZip, BkmvError } from "@/lib/regulatory/bkmv";
 import type { BkmvContext, BkmvDocument, BkmvLineItem } from "@/lib/regulatory/bkmv";
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 function format2(n: number) {
   return String(n).padStart(2, "0");
@@ -29,6 +30,12 @@ function toDDMMYYYY(isoDate: string) {
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
+    const rl = rateLimit({ key: `bkmv-export:${ip}`, limit: 10, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) });
+    }
+
     const body = await req.json().catch(() => null);
     const companyId = body?.companyId as string | undefined;
     const from = body?.from as string | undefined; // YYYY-MM-DD
@@ -74,7 +81,8 @@ export async function POST(req: Request) {
       .order("created_at", { ascending: true });
 
     if (docsError) {
-      return NextResponse.json({ error: docsError.message }, { status: 500 });
+      console.error("[BKMV] docs query failed", docsError);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
     const documents: BkmvDocument[] = (docs || []).map((d: any) => ({
@@ -104,7 +112,8 @@ export async function POST(req: Request) {
       .order("line_number", { ascending: true });
 
     if (itemsError) {
-      return NextResponse.json({ error: itemsError.message }, { status: 500 });
+      console.error("[BKMV] line items query failed", itemsError);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
     const lineItems: BkmvLineItem[] = (items || []).map((it: any) => ({
@@ -143,7 +152,8 @@ export async function POST(req: Request) {
       });
 
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      console.error("[BKMV] upload failed", uploadError);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -156,7 +166,8 @@ export async function POST(req: Request) {
   } catch (e: any) {
     if (e instanceof BkmvError) {
       const status = e.code === "BKMV_SPEC_INCOMPLETE" ? 501 : 400;
-      return NextResponse.json({ error: e.message, code: e.code, details: e.details }, { status });
+      // Do not leak internal diagnostic details to clients.
+      return NextResponse.json({ error: e.message, code: e.code }, { status });
     }
 
     if (e?.message === "unauthorized") {

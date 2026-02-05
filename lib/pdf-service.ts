@@ -16,6 +16,8 @@ import { getPageTexts } from "@/lib/system-texts"
 import { signPdfWithEnvP12 } from "@/lib/documents/signing/p12-signer"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
 import { sha256Hex as sha256HexFromSigningClient } from "@/lib/documents/signing/secure-signature-client"
+import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import type { 
   TemplateDefinition, 
   ReceiptTemplateData,
@@ -144,11 +146,18 @@ async function loadTemplateById(params: {
 
   if (error || !row) return null
 
-  // Prefer bilingual fields if present; fallback to legacy.
-  const heHtml: string | null = (row as any).html_he ?? (row as any).html_template ?? null
-  const heCss: string | null = (row as any).css_he ?? (row as any).css ?? null
-  const enHtml: string | null = (row as any).html_en ?? null
-  const enCss: string | null = (row as any).css_en ?? null
+  const pickNonEmpty = (...vals: Array<unknown>): string | null => {
+    for (const v of vals) {
+      if (typeof v === "string" && v.trim().length > 0) return v
+    }
+    return null
+  }
+
+  // Prefer bilingual fields if NON-EMPTY; otherwise fallback to legacy.
+  const heHtml = pickNonEmpty((row as any).html_he, (row as any).html_template, (row as any).html)
+  const heCss = pickNonEmpty((row as any).css_he, (row as any).css) || ""
+  const enHtml = pickNonEmpty((row as any).html_en)
+  const enCss = pickNonEmpty((row as any).css_en) || null
 
   if (params.language === "en") {
     if (typeof enHtml === "string" && enHtml.trim().length > 0) {
@@ -178,6 +187,8 @@ export async function renderDeterministicPdfBytes(params: {
       ok: true
       pdfBytes: Buffer
       pdfSha256: string
+      rawPdfBytes?: Buffer
+      rawPdfSha256?: string
       frozenNowIso: string
       templateVersionId: string | null
     }
@@ -214,7 +225,9 @@ export async function renderDeterministicPdfBytes(params: {
       ? await (async () => {
           const t = await getTemplateForDocument((doc as any).company_id, (doc as any).document_type as any, {
             language: params.language,
-            allowFallbackToHe: false,
+            // If EN template is missing, allow using HE template rather than failing issuance.
+            // (The language-specific content is controlled by the template; this just avoids a hard stop.)
+            allowFallbackToHe: params.language === "en",
           })
           return { html: t.html, css: t.css, templateId: t.templateId }
         })()
@@ -230,25 +243,29 @@ export async function renderDeterministicPdfBytes(params: {
   })
 
   const renderedHtml = compileAndRender(template.html, templateData)
-  const augmentedCss = await augmentCssForLinkStrippedPdf(template.html, template.css || "")
-  const fontsCss = await buildDeterministicFontCssPrefix()
-  const finalCss = `${fontsCss}\n${augmentedCss || ""}`
+  // Source of truth: CSS must come from the Admin template DB only (no hardcoded/merged/augmented CSS).
+  const finalCss = String(template.css || "")
 
   const footerDateTime = (templateData as any)?.CURRENT_DATE_TIME || ""
-  const footerTemplate = `
-    <div style="font-family: Heebo, Assistant, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
-      <div style="border-top: 1px solid #e5e7eb; padding-top: 3mm; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
-        <span style="justify-self: start; text-align: right;">הופק ב-${footerDateTime}</span>
-        <span style="justify-self: center;">עמוד <span class=\"pageNumber\"></span> מתוך <span class=\"totalPages\"></span></span>
-        <span style="justify-self: end; text-align: left; direction: rtl; unicode-bidi: plaintext;">מסמך ממוחשב הופק על ידי thebarlev</span>
-      </div>
-    </div>
-  `
+  // Footer HTML/CSS is not generated here. Page numbers are stamped outside HTML/CSS.
+  const footerTemplate = ""
+
+  const isRemoteRenderer =
+    typeof process.env.PDF_RENDER_URL === "string" &&
+    process.env.PDF_RENDER_URL.length > 0 &&
+    typeof process.env.PDF_RENDER_TOKEN === "string" &&
+    process.env.PDF_RENDER_TOKEN.length > 0
+
+  // When using pdf.vow.co.il, it should act as renderer only.
+  // Send the footer as-is to the renderer (no stamping / no fallback).
+  const pdfMargin = isRemoteRenderer
+    ? { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" }
+    : { top: "3mm", right: "8mm", bottom: "15mm", left: "8mm" }
 
   const pdfResult = await generatePDFFromHTML(renderedHtml, finalCss, {
     format: "A4",
     printBackground: true,
-    margin: { top: "3mm", right: "8mm", bottom: "15mm", left: "8mm" },
+    margin: pdfMargin,
     displayHeaderFooter: true,
     headerTemplate: "<div></div>",
     footerTemplate,
@@ -259,15 +276,40 @@ export async function renderDeterministicPdfBytes(params: {
     return { ok: false, message: pdfResult.error || "PDF_GENERATION_FAILED" }
   }
 
-  const pdfBytes = Buffer.from(pdfResult.buffer as any)
+  const rawPdfBytes = Buffer.from(pdfResult.buffer as any)
+  const rawPdfSha256 = sha256HexFromSigningClient(rawPdfBytes)
+
+  // Apply footer page numbers outside HTML/CSS (deterministic, works regardless of renderer).
+  // Keep raw bytes for fallback signing if provider is sensitive.
+  let pdfBytes = rawPdfBytes
+  const generatedByText =
+    params.language === "en"
+      ? "Computerized document generated by thebarlev"
+      : "מסמך ממוחשב הופק על ידי thebarlev"
+  pdfBytes = await stampPdfFooter({
+    pdfBytes: rawPdfBytes,
+    language: params.language,
+    generatedAtText: footerDateTime,
+    generatedByText,
+  })
+
   const pdfSha256 = sha256HexFromSigningClient(pdfBytes)
+
   console.log("[SIGN_FLOW] deterministic PDF bytes produced", {
     documentId: params.documentId,
     bytesLength: pdfBytes.length,
     sha256: pdfSha256,
     frozenNowIso,
   })
-  return { ok: true, pdfBytes, pdfSha256, frozenNowIso, templateVersionId: template.templateId || null }
+  return {
+    ok: true,
+    pdfBytes,
+    pdfSha256,
+    rawPdfBytes,
+    rawPdfSha256,
+    frozenNowIso,
+    templateVersionId: template.templateId || null,
+  }
 }
 
 const TAX_INVOICE_LIKE_TYPES = new Set([
@@ -322,6 +364,14 @@ const TEMPLATE_TYPE_ALIASES: Record<string, string> = {
 const resolveTemplateDocumentType = (documentType: string) =>
   TEMPLATE_TYPE_ALIASES[documentType] || documentType;
 
+const resolveTemplateDocumentTypesToTry = (documentType: string) => {
+  const primary = resolveTemplateDocumentType(documentType)
+  // Historical compatibility: some Admin templates were saved under invoice_receipt while
+  // issuance queries tax_invoice. Treat them as the same pool.
+  if (primary === "tax_invoice") return ["tax_invoice", "invoice_receipt"]
+  return [primary]
+}
+
 // ==================== TEMPLATE FETCHING ====================
 
 /**
@@ -365,11 +415,15 @@ export async function getTemplateForDocument(
   resolvedLanguage: "he" | "en";
   didFallbackToHe: boolean;
 }> {
-  const supabase = await createClient()
+  // IMPORTANT: Template resolution is server-side only and must use the canonical Admin templates.
+  // Using the admin client avoids RLS visibility gaps (e.g. global templates, selections, mappings)
+  // which would otherwise cause fallback to hardcoded templates/CSS.
+  const supabase = createAdminClient()
   const language: "he" | "en" = options?.language || "he"
   const allowFallbackToHe = options?.allowFallbackToHe === true
   const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === 'true'
   const templateDocumentType = resolveTemplateDocumentType(documentType)
+  const templateDocumentTypesToTry = resolveTemplateDocumentTypesToTry(documentType)
 
   if (DEBUG_TEMPLATES) {
     console.log("[TEMPLATE_FETCH] getTemplateForDocument called:", {
@@ -435,7 +489,7 @@ export async function getTemplateForDocument(
     const { data: mappedRows, error: mappedError } = await supabase
       .from("template_document_types")
       .select("template_id")
-      .eq("document_type", templateDocumentType)
+      .in("document_type", templateDocumentTypesToTry)
 
     if (!mappedError && mappedRows && mappedRows.length > 0) {
       mappedTemplateIds = Array.from(
@@ -455,10 +509,18 @@ export async function getTemplateForDocument(
     // Non-negotiable:
     // - Use English ONLY when language === "en"
     // - If language === "en" but html_en missing/empty -> fallback to Hebrew and set resolvedLanguage="he"
-    const heHtml: string | null = row?.html_template ?? row?.html ?? null
-    const heCss: string = row?.css ?? ""
-    const enHtml: string | null = row?.html_en ?? null
-    const enCss: string | null = row?.css_en ?? null
+    const pickNonEmpty = (...vals: Array<unknown>): string | null => {
+      for (const v of vals) {
+        if (typeof v === "string" && v.trim().length > 0) return v
+      }
+      return null
+    }
+
+    // Support both legacy and bilingual columns, but treat empty strings as missing.
+    const heHtml = pickNonEmpty(row?.html_he, row?.html_template, row?.html)
+    const heCss = pickNonEmpty(row?.css_he, row?.css) || ""
+    const enHtml = pickNonEmpty(row?.html_en)
+    const enCss = pickNonEmpty(row?.css_en)
 
     if (language === "en") {
       if (typeof enHtml === "string" && enHtml.trim().length > 0) {
@@ -504,8 +566,8 @@ export async function getTemplateForDocument(
     picked: { html: string; css: string; resolvedLanguage: "he" | "en"; didFallbackToHe: boolean },
     templateId: string | null
   ) => {
-    const augmentedCss = await augmentCssForLinkStrippedPdf(picked.html, picked.css || "")
-    return { ...picked, css: augmentedCss, templateId }
+    // Source of truth: CSS must come from the template DB only (no augmentation/merging).
+    return { ...picked, css: picked.css || "", templateId }
   }
 
   // PRIORITY 0: User's explicit selection from settings (highest priority)
@@ -513,7 +575,7 @@ export async function getTemplateForDocument(
     .from("company_template_selections")
     .select("template_id")
     .eq("company_id", companyId)
-    .eq("document_type", templateDocumentType)
+    .in("document_type", templateDocumentTypesToTry)
     .maybeSingle()
 
   if (DEBUG_TEMPLATES) {
@@ -526,7 +588,7 @@ export async function getTemplateForDocument(
   if (userSelection?.template_id) {
     const { data: selectedTemplate } = await supabase
       .from("templates")
-      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
       .eq("id", userSelection.template_id)
       .eq("is_active", true)
       .maybeSingle()
@@ -554,12 +616,58 @@ export async function getTemplateForDocument(
     }
   }
 
+  // PRIORITY 0.5: Legacy single-selection (companies.selected_template_id)
+  // Use ONLY if that template supports this document type (via junction table or legacy column).
+  const { data: companyRow } = await supabase
+    .from("companies")
+    .select("selected_template_id")
+    .eq("id", companyId)
+    .maybeSingle()
+
+  if (companyRow?.selected_template_id) {
+    const legacyId = String(companyRow.selected_template_id)
+
+    // Check support via template_document_types first
+    let supportsDocType = false
+    try {
+      const { data: mapRow } = await supabase
+        .from("template_document_types")
+        .select("template_id, document_type")
+        .eq("template_id", legacyId)
+        .in("document_type", templateDocumentTypesToTry)
+        .limit(1)
+        .maybeSingle()
+      supportsDocType = !!mapRow
+    } catch {
+      supportsDocType = false
+    }
+
+    const { data: legacyTemplate } = await supabase
+      .from("templates")
+      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
+      .eq("id", legacyId)
+      .eq("is_active", true)
+      .maybeSingle()
+
+    // Fallback check: legacy column match (deprecated but still valid)
+    if (!supportsDocType && legacyTemplate) {
+      supportsDocType = templateDocumentTypesToTry.includes(String((legacyTemplate as any).document_type || ""))
+    }
+
+    if (legacyTemplate && supportsDocType) {
+      const picked = pickVariantChecked(legacyTemplate, "PRIORITY_0_5_LEGACY_COMPANY_SELECTED")
+      if (picked) {
+        return await finalizePicked(picked, legacyTemplate.id)
+      }
+    }
+  }
+
   // PRIORITY 1: Company's default template
   const { data: companyDefault } = await supabase
     .from("templates")
-    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
     .eq("company_id", companyId)
-    .eq("document_type", templateDocumentType)
+    .in("document_type", templateDocumentTypesToTry)
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
@@ -591,9 +699,9 @@ export async function getTemplateForDocument(
   // PRIORITY 2: Global default template
   const { data: globalDefault, error: globalDefaultError } = await supabase
     .from("templates")
-    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
     .is("company_id", null)
-    .eq("document_type", documentType)
+    .in("document_type", templateDocumentTypesToTry)
     .eq("is_default", true)
     .eq("is_active", true)
     .maybeSingle()
@@ -629,7 +737,7 @@ export async function getTemplateForDocument(
       .from("templates")
       .select("id", { count: "exact", head: true })
       .is("company_id", null)
-      .eq("document_type", documentType)
+      .in("document_type", templateDocumentTypesToTry)
       .eq("is_default", true)
       .eq("is_active", true)
 
@@ -650,7 +758,7 @@ export async function getTemplateForDocument(
       .from("templates")
       .select("id, name, company_id, is_default, is_active, document_type, created_at")
       .is("company_id", null)
-      .eq("document_type", documentType)
+      .in("document_type", templateDocumentTypesToTry)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(5)
@@ -682,7 +790,7 @@ export async function getTemplateForDocument(
       const { data: rlsGlobalList, error: rlsGlobalErr } = await supabase
         .from("templates")
         .select("id, name, company_id, is_default, is_active")
-        .eq("document_type", documentType)
+        .in("document_type", templateDocumentTypesToTry)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
 
@@ -733,9 +841,9 @@ export async function getTemplateForDocument(
   // PRIORITY 3: Any active company template (fallback)
   const { data: anyCompanyTemplate } = await supabase
     .from("templates")
-    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
     .eq("company_id", companyId)
-    .eq("document_type", documentType)
+    .in("document_type", templateDocumentTypesToTry)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle()
@@ -751,9 +859,9 @@ export async function getTemplateForDocument(
   // PRIORITY 4: Any active global template (fallback)
   const { data: anyGlobalTemplate } = await supabase
     .from("templates")
-    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+    .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_he, css_he, html_en, css_en")
     .is("company_id", null)
-    .eq("document_type", documentType)
+    .in("document_type", templateDocumentTypesToTry)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle()
@@ -768,9 +876,12 @@ export async function getTemplateForDocument(
 
   // PRIORITY 4.5: Any active mapped template (company first, then global)
   if (mappedTemplateIds.length > 0) {
-    const { data: mappedCompanyTemplate } = await supabase
+    const classicNamePattern = "%קלאס%"
+
+    const { data: mappedCompanyTemplate, error: mappedCompanyError } = await supabase
       .from("templates")
-      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+      // Use '*' to avoid schema drift (some DBs don't have bilingual columns)
+      .select("*")
       .eq("company_id", companyId)
       .in("id", mappedTemplateIds)
       .eq("is_active", true)
@@ -786,9 +897,30 @@ export async function getTemplateForDocument(
       }
     }
 
-    const { data: mappedGlobalTemplate } = await supabase
+    // Prefer "קלאסי/קלאסית" template among mapped globals when available.
+    const { data: mappedGlobalClassic, error: mappedGlobalClassicError } = await supabase
       .from("templates")
-      .select("id, name, company_id, document_type, is_default, is_active, html_template, css, html_en, css_en")
+      .select("*")
+      .is("company_id", null)
+      .in("id", mappedTemplateIds)
+      .eq("is_active", true)
+      .ilike("name", classicNamePattern)
+      .order("is_default", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (mappedGlobalClassic) {
+      console.log(`⚠️ Using mapped global classic template: ${mappedGlobalClassic.name} (${mappedGlobalClassic.id})`)
+      const picked = pickVariantChecked(mappedGlobalClassic, "PRIORITY_4_5_MAPPED_GLOBAL_CLASSIC")
+      if (picked) {
+        return await finalizePicked(picked, mappedGlobalClassic.id)
+      }
+    }
+
+    const { data: mappedGlobalTemplate, error: mappedGlobalError } = await supabase
+      .from("templates")
+      // Use '*' to avoid schema drift (some DBs don't have bilingual columns)
+      .select("*")
       .is("company_id", null)
       .in("id", mappedTemplateIds)
       .eq("is_active", true)
@@ -805,32 +937,9 @@ export async function getTemplateForDocument(
     }
   }
 
-  // PRIORITY 5: Final fallback - Use hardcoded default template(s)
-  if (documentType === "receipt") {
-    console.log(`⚠️ Using hardcoded fallback template for receipt`)
-    const defaultTemplate = getDefaultReceiptTemplate()
-    if (language === "en" && !allowFallbackToHe) {
-      throw new Error("TEMPLATE_MISSING_LANGUAGE:en")
-    }
-    return await finalizePicked({
-      html: defaultTemplate.html,
-      css: defaultTemplate.css,
-      resolvedLanguage: "he",
-      didFallbackToHe: language === "en",
-    }, null)
-  }
-
-  console.log(`⚠️ Using hardcoded generic fallback template for document type: ${documentType}`)
-  const generic = getDefaultGenericDocumentTemplate()
-  return await finalizePicked(
-    {
-      html: generic.html,
-      css: generic.css,
-      resolvedLanguage: "he",
-      didFallbackToHe: language === "en",
-    },
-    null
-  )
+  // No hardcoded fallback: Admin Templates are the source of truth.
+  // If we reach here, the dataset has no matching active template.
+  throw new Error("TEMPLATE_NOT_FOUND")
 }
 
 // ==================== DATA PREPARATION ====================
@@ -1284,6 +1393,40 @@ export async function prepareDocumentData(
     return null
   }
 
+  // Best-effort: if a legacy signature exists in the public bucket, copy it into the private bucket
+  // so future renders use private storage only.
+  const ensureSignatureInSecureBucket = async (storagePath: string): Promise<void> => {
+    if (!storagePath.startsWith("business-signatures/")) return
+
+    // 1) Try secure bucket first (exists => done)
+    const secureProbe = await adminClient.storage.from(SECURE_ASSETS_BUCKET).download(storagePath)
+    if (!secureProbe.error && secureProbe.data) return
+
+    // 2) Try legacy public bucket
+    const legacy = await adminClient.storage.from(PUBLIC_ASSETS_BUCKET).download(storagePath)
+    if (legacy.error || !legacy.data) return
+
+    try {
+      const ab = await (legacy.data as any).arrayBuffer()
+      const buf = Buffer.from(ab)
+      const ext = storagePath.split(".").pop()?.toLowerCase() || "png"
+      const contentType =
+        ext === "svg" ? "image/svg+xml" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png"
+
+      const up = await adminClient.storage
+        .from(SECURE_ASSETS_BUCKET)
+        .upload(storagePath, buf, { contentType, upsert: false })
+
+      // Ignore duplicates (immutable-ish)
+      if (up.error) {
+        const msg = String(up.error.message || "").toLowerCase()
+        if (!msg.includes("already exists") && !msg.includes("duplicate")) return
+      }
+    } catch {
+      // ignore best-effort migration failures
+    }
+  }
+
   // Process logo URL
   if (doc.company?.logo_url) {
     const storagePath = getStoragePathFromUrl(doc.company.logo_url)
@@ -1291,7 +1434,7 @@ export async function prepareDocumentData(
       if (options?.embedAssetsAsDataUrls) {
         try {
           const { data: blob, error } = await adminClient.storage
-            .from("business-assets")
+            .from(PUBLIC_ASSETS_BUCKET)
             .download(storagePath)
           if (!error && blob) {
             const ab = await (blob as any).arrayBuffer()
@@ -1308,7 +1451,7 @@ export async function prepareDocumentData(
         // Try to create signed URL (works for private buckets)
         try {
           const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-            .from("business-assets")
+            .from(PUBLIC_ASSETS_BUCKET)
             .createSignedUrl(storagePath, 3600) // 1 hour expiry
           
           if (!signedUrlError && signedUrlData?.signedUrl) {
@@ -1317,7 +1460,7 @@ export async function prepareDocumentData(
           } else {
             // If signed URL fails, try public URL (bucket might be public)
             const { data: publicUrlData } = adminClient.storage
-              .from("business-assets")
+              .from(PUBLIC_ASSETS_BUCKET)
               .getPublicUrl(storagePath)
             logoUrl = publicUrlData.publicUrl || doc.company.logo_url
             console.log(`[prepareDocumentData] Using public URL for logo: ${publicUrlData.publicUrl || doc.company.logo_url}`)
@@ -1338,10 +1481,11 @@ export async function prepareDocumentData(
   if (doc.company?.signature_url) {
     const storagePath = getStoragePathFromUrl(doc.company.signature_url)
     if (storagePath) {
+      await ensureSignatureInSecureBucket(storagePath)
       if (options?.embedAssetsAsDataUrls) {
         try {
           const { data: blob, error } = await adminClient.storage
-            .from("business-assets")
+            .from(SECURE_ASSETS_BUCKET)
             .download(storagePath)
           if (!error && blob) {
             const ab = await (blob as any).arrayBuffer()
@@ -1358,19 +1502,18 @@ export async function prepareDocumentData(
         // Try to create signed URL (works for private buckets)
         try {
           const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-            .from("business-assets")
+            .from(SECURE_ASSETS_BUCKET)
             .createSignedUrl(storagePath, 3600) // 1 hour expiry
           
           if (!signedUrlError && signedUrlData?.signedUrl) {
             signatureUrl = signedUrlData.signedUrl
             console.log(`[prepareDocumentData] Created signed URL for signature: ${storagePath}`)
           } else {
-            // If signed URL fails, try public URL (bucket might be public)
+            // If signed URL fails, keep original (could be an external URL).
             const { data: publicUrlData } = adminClient.storage
-              .from("business-assets")
+              .from(SECURE_ASSETS_BUCKET)
               .getPublicUrl(storagePath)
             signatureUrl = publicUrlData.publicUrl || doc.company.signature_url
-            console.log(`[prepareDocumentData] Using public URL for signature: ${publicUrlData.publicUrl || doc.company.signature_url}`)
           }
         } catch (error) {
           // Fallback to original URL
@@ -1802,7 +1945,8 @@ export async function generateDocumentPDF(
       targetLanguage === "he" && options?.variant
         ? `documents/${documentId}/${options.variant}.he.pdf`
         : `documents/${documentId}/source.${targetLanguage}.pdf`
-    const storageBucket = "business-assets"
+    // MUST be private to prevent public access to accounting PDFs.
+    const storageBucket = SECURE_ASSETS_BUCKET
 
 
     // Regulatory check: If PDF already exists, return it (immutable).
@@ -1810,7 +1954,7 @@ export async function generateDocumentPDF(
     if (pdfMode !== "copy") {
       const filename = storageKey.split("/").pop() || "source.pdf"
       const { data: fileData } = await adminClient.storage
-        .from("business-assets")
+        .from(storageBucket)
         .list(`documents/${documentId}`, {
           limit: 1,
           search: filename,
@@ -1932,8 +2076,19 @@ export async function generateDocumentPDF(
       console.log(`[generateDocumentPDF] Generating PDF buffer from HTML for document: ${documentId}`)
     }
     const footerDateTime = templateData.CURRENT_DATE_TIME || ""
-    const footerTemplate = `
-      <div style="font-family: Heebo, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
+    const footerTemplate =
+      targetLanguage === "en"
+        ? `
+      <div style="font-family: Heebo, Assistant, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
+<div style="border-top: 1px solid #e5e7eb; padding-top: 3mm; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
+  <span style="justify-self: start; text-align: left;">Generated at ${footerDateTime}</span>
+  <span style="justify-self: center;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+  <span style="justify-self: end; text-align: right;">Computerized document generated by thebarlev</span>
+</div>
+      </div>
+    `
+        : `
+      <div style="font-family: Heebo, Assistant, Arial, sans-serif; font-size: 10px; color: #111; width: 100%; padding: 0 8mm; box-sizing: border-box;">
 <div style="border-top: 1px solid #e5e7eb; padding-top: 3mm; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
   <span style="justify-self: start; text-align: right;">הופק ב-${footerDateTime}</span>
   <span style="justify-self: center;">עמוד <span class="pageNumber"></span> מתוך <span class="totalPages"></span></span>
@@ -1996,7 +2151,7 @@ export async function generateDocumentPDF(
       )
     }    
     const { data: uploadData, error: uploadError } = await adminClient.storage
-      .from("business-assets")
+      .from(storageBucket)
       .upload(storageKey, finalPdfBuffer, {
         contentType: "application/pdf",
         upsert: false, // Never overwrite - immutable

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets";
 
 async function getCompanyIdForUser(userId: string): Promise<string> {
   const supabase = await createClient();
@@ -220,7 +221,7 @@ export async function uploadLogoAction(formData: FormData) {
 
     if (company?.logo_url) {
       const oldPath = `business-logos/${companyId}/logo.png`;
-      await supabase.storage.from("business-assets").remove([oldPath]);
+    await supabase.storage.from(PUBLIC_ASSETS_BUCKET).remove([oldPath]);
     }
 
     // העלאת לוגו חדש
@@ -229,7 +230,7 @@ export async function uploadLogoAction(formData: FormData) {
     const filePath = `business-logos/${companyId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("business-assets")
+      .from(PUBLIC_ASSETS_BUCKET)
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
@@ -248,7 +249,7 @@ export async function uploadLogoAction(formData: FormData) {
 
     // URL ציבורי
     const { data: urlData } = supabase.storage
-      .from("business-assets")
+      .from(PUBLIC_ASSETS_BUCKET)
       .getPublicUrl(filePath);
 
     // עדכון בטבלת companies
@@ -289,7 +290,7 @@ export async function deleteLogoAction() {
     }
 
     const filePath = `business-logos/${companyId}/logo.png`;
-    await supabase.storage.from("business-assets").remove([filePath]);
+    await supabase.storage.from(PUBLIC_ASSETS_BUCKET).remove([filePath]);
 
     const { error } = await supabase
       .from("companies")
@@ -338,7 +339,7 @@ export async function uploadCompanySignatureAction(formData: FormData) {
     const filePath = `business-signatures/${companyId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("business-assets")
+      .from(SECURE_ASSETS_BUCKET)
       .upload(filePath, file, { upsert: true });
 
     if (uploadError) {
@@ -356,15 +357,11 @@ export async function uploadCompanySignatureAction(formData: FormData) {
       return { ok: false as const, message: uploadError.message };
     }
 
-    // 4. URL ציבורי
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("business-assets").getPublicUrl(filePath);
-
-    // 5. עדכון שדה signature_url בטבלת companies
+    // 4. עדכון שדה signature_url בטבלת companies
+    // IMPORTANT: store a storage path (not a public URL). Signatures must not be public.
     const { error: updateError } = await supabase
       .from("companies")
-      .update({ signature_url: publicUrl })
+      .update({ signature_url: filePath })
       .eq("id", companyId);
 
     if (updateError) {
@@ -398,7 +395,7 @@ export async function uploadCompanySignatureAction(formData: FormData) {
     revalidatePath("/dashboard/settings");
     revalidatePath("/dashboard");
 
-    return { ok: true as const, signatureUrl: publicUrl };
+    return { ok: true as const, signatureUrl: filePath };
   } catch (e: any) {
     console.error("uploadCompanySignatureAction fatal error:", e);
     const errorMessage = e?.message || "unknown_error";
@@ -449,7 +446,7 @@ export async function deleteSignatureAction() {
 
     // מוחקים מה-Storage
     const filePath = `business-signatures/${companyId}/signature.png`;
-    await supabase.storage.from("business-assets").remove([filePath]);
+    await supabase.storage.from(SECURE_ASSETS_BUCKET).remove([filePath]);
 
     // מעדכנים את הרשומה
     const { error } = await supabase

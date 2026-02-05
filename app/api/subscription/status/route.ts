@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { signUpgradeState } from "@/lib/billing/upgrade-state"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
 function firstDayOfMonthUtcIso(now = new Date()): string {
   const y = now.getUTCFullYear()
@@ -10,7 +11,13 @@ function firstDayOfMonthUtcIso(now = new Date()): string {
   return d.toISOString().slice(0, 10)
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const ip = getClientIp(request)
+  const rl = rateLimit({ key: `subscription-status:${ip}`, limit: 60, windowMs: 60_000 })
+  if (!rl.allowed) {
+    return NextResponse.json({ ok: false, message: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+  }
+
   const supabase = await createClient()
   const { data: auth } = await supabase.auth.getUser()
   if (!auth?.user) {
@@ -29,7 +36,7 @@ export async function GET() {
 
   if (subError || !sub) {
     return NextResponse.json(
-      { ok: false, message: subError?.message || "Subscription not found" },
+      { ok: false, message: "Subscription not available" },
       { status: 500 }
     )
   }
@@ -46,7 +53,7 @@ export async function GET() {
     .maybeSingle()
 
   if (planError || !plan) {
-    return NextResponse.json({ ok: false, message: planError?.message || "Plan not found" }, { status: 500 })
+    return NextResponse.json({ ok: false, message: "Plan not available" }, { status: 500 })
   }
 
   const documentsLimit = Number((plan as any).documents_per_month ?? 0) || 0
@@ -59,7 +66,7 @@ export async function GET() {
     .maybeSingle()
 
   if (usageError) {
-    return NextResponse.json({ ok: false, message: usageError.message || "Usage query failed" }, { status: 500 })
+    return NextResponse.json({ ok: false, message: "Usage not available" }, { status: 500 })
   }
 
   const documentsUsed = Number((usage as any)?.documents_count ?? 0) || 0

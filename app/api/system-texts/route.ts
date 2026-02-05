@@ -5,9 +5,16 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 export async function GET(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rl = rateLimit({ key: `system-texts:${ip}`, limit: 300, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ texts: {} }, { status: 429, headers: rateLimitHeaders(rl) });
+    }
+
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const langParam = searchParams.get("lang");

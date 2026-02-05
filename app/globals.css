@@ -1301,6 +1301,21 @@ input:not([type="checkbox"]):not([type="radio"]):not(.ti-items-input):not(.ti-it
     @apply mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-10;
   }
 
+  /* ==================== Document Form Typography Overrides ==================== */
+  /* Kept global (but scoped) to avoid inline <style> hydration issues */
+  .ui-document-form .ui-container p { font-size: 18px !important; }
+  .ui-document-form .ui-container h2 { font-size: 26px !important; }
+  .ui-document-form .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
+  .ui-document-form .ui-container button:not([style*=font-size]),
+  .ui-document-form .ui-container input:not([style*=font-size]),
+  .ui-document-form .ui-container select:not([style*=font-size]),
+  .ui-document-form .ui-container textarea:not([style*=font-size]),
+  .ui-document-form .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*=font-size]),
+  .ui-document-form .ui-container span:not([style*=font-size]),
+  .ui-document-form .ui-container div:not([style*=font-size]):not([class*="text-"]):not([class*="font-"]) {
+    font-size: 18px !important;
+  }
+
   .ui-form-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 300px));

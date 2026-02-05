@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildIncomeZip } from '@/lib/reports/income';
+import { getClientIp, rateLimit, rateLimitHeaders } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +17,26 @@ export const runtime = 'nodejs';
  * Returns: ZIP file with PDFs
  */
 export async function POST(request: NextRequest) {
+  // Never expose this legacy report endpoint in production.
+  if (process.env.NODE_ENV === "production") {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  // Non-prod: system-admin only.
+  const { requireSystemAdmin } = await import("@/lib/security/system-admin");
   try {
+    await requireSystemAdmin();
+  } catch {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  try {
+    const ip = getClientIp(request);
+    const rl = rateLimit({ key: `income-report:${ip}`, limit: 10, windowMs: 60_000 });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) });
+    }
+
     const body = await request.json();
     
     const { businessId, dateFrom, dateTo } = body;
@@ -46,11 +66,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Generate ZIP with PDFs
-    // TODO: Add authentication check here:
-    // const session = await getServerSession();
-    // if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    
+    // Generate ZIP with PDFs (non-prod system-admin only)
     const { zipBytes, zipName } = await buildIncomeZip({
       businessId,
       dateFrom: fromDate,
@@ -72,7 +88,7 @@ export async function POST(request: NextRequest) {
     console.error('Income report generation error:', error);
     
     return NextResponse.json(
-      { error: 'Failed to generate report', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Failed to generate report' },
       { status: 500 }
     );
   }

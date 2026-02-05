@@ -31,6 +31,7 @@ import { getDocumentConfig } from "@/lib/documents/document-configs";
 import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { createDocumentLinkAction, getDocumentForChainingAction } from "@/lib/documents/actions";
+import { FxRateDialog } from "@/components/payments/FxRateDialog";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -98,6 +99,17 @@ export default function InvoiceReceiptFormClient({
     vatRate?: number | null;
     vatAmount?: number | null;
     subtotal?: number | null;
+    description?: string;
+    items?: Array<{
+      label: string;
+      sku: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      currency: string;
+      vatMode: "before" | "included";
+    }>;
+    payments?: PaymentRow[];
   } | null;
   draftId?: string;
 }) {
@@ -115,11 +127,12 @@ export default function InvoiceReceiptFormClient({
   const [language, setLanguage] = useState<"he" | "en">(initial.ok ? initial.settings.language : "he");
   const [roundTotals, setRoundTotals] = useState<boolean>(initial.ok ? initial.settings.roundTotals : false);
   const [allowedCurrencies, setAllowedCurrencies] = useState<string[]>(
-    initial.ok ? initial.settings.allowedCurrencies : ["₪", "$", "€"]
+    initial.ok ? initial.settings.allowedCurrencies : ["ILS", "USD", "EUR"]
   );
   const [currency, setCurrency] = useState<string>(
-    initial.ok ? (initial.settings.currency || "₪") : "₪"
+    initial.ok ? (initial.settings.currency || "ILS") : "ILS"
   );
+  const isFxScenario = language === "en" && currency === "ILS";
   const [vatType, setVatType] = useState<"regular" | "no_vat">("regular");
   const defaultVatRate = useMemo(() => {
     const base = initial.ok ? initial.vatRate ?? 18 : 18;
@@ -159,6 +172,8 @@ export default function InvoiceReceiptFormClient({
   const [confirmedPayments, setConfirmedPayments] = useState<Set<number>>(new Set());
   const [showPaymentsApprovalWarning, setShowPaymentsApprovalWarning] = useState(false);
   const [paymentErrors, setPaymentErrors] = useState<Record<number, { method?: string; amount?: string }>>({});
+  const [fxLoading, setFxLoading] = useState<Record<number, boolean>>({});
+  const [fxApiErrors, setFxApiErrors] = useState<Record<number, string>>({});
 
   const [busy, setBusy] = useState<null | "draft" | "issue" | "preview">(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -205,6 +220,27 @@ export default function InvoiceReceiptFormClient({
       setCurrency(editData.currency);
       setNotes(editData.notes);
       if (editData.vatType) setVatType(editData.vatType);
+      if (typeof editData.description === "string") setDescription(editData.description);
+
+      if (Array.isArray((editData as any).items) && (editData as any).items.length > 0) {
+        const loadedItems = (editData as any).items.map((item: any) => ({
+          label: item.label || "",
+          sku: item.sku || "",
+          description: item.description || "",
+          quantity: typeof item.quantity === "number" ? item.quantity : 1,
+          unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : 0,
+          currency: item.currency || editData.currency,
+          vatMode: item.vatMode === "included" ? "included" : "before",
+        }));
+        setItems(loadedItems);
+        setConfirmedRows(new Set(loadedItems.map((_: any, idx: number) => idx)));
+      }
+
+      if (Array.isArray((editData as any).payments) && (editData as any).payments.length > 0) {
+        const loadedPayments = (editData as any).payments as PaymentRow[];
+        setPayments(loadedPayments);
+        setConfirmedPayments(new Set(loadedPayments.map((_, idx) => idx)));
+      }
     }
   }, [editData]);
 
@@ -304,6 +340,19 @@ export default function InvoiceReceiptFormClient({
     if (!roundTotals) return sum;
     return Math.round(sum);
   }, [subtotal, vatAmount, vatRate, roundTotals]);
+
+  const paymentsTotal = useMemo(() => {
+    return payments.reduce((acc, p, idx) => {
+      if (!confirmedPayments.has(idx)) return acc;
+      const amt = Number.isFinite(p.amount) ? p.amount : 0;
+      if (!isFxScenario) return acc + amt;
+      const rowCur = String(p.currency || currency);
+      if (rowCur === "ILS") return acc + amt;
+      const fx = Number((p as any).fxRate);
+      if (!Number.isFinite(fx) || fx <= 0) return acc;
+      return acc + amt * fx;
+    }, 0);
+  }, [payments, confirmedPayments, isFxScenario, currency]);
   const hasConfirmedItems = confirmedRows.size > 0;
   const hasConfirmedPayments = confirmedPayments.size > 0;
   const unconfirmedItemRowIndices = useMemo(() => {
@@ -375,16 +424,81 @@ export default function InvoiceReceiptFormClient({
 
   // Update payment currencies when currency changes
   useEffect(() => {
-    if (currency !== "₪") {
-      setPayments((prev) => prev.map((p) => ({ ...p, currency })));
+    if (currency !== "ILS") {
+      setPayments((prev) =>
+        prev.map((p) => ({
+          ...p,
+          currency,
+          fxRate: undefined,
+          fxRateDate: undefined,
+          fxRateSource: undefined,
+        }))
+      );
+      return;
     }
-  }, [currency]);
+    if (!isFxScenario) {
+      setPayments((prev) =>
+        prev.map((p) => ({
+          ...p,
+          currency: "ILS",
+          fxRate: undefined,
+          fxRateDate: undefined,
+          fxRateSource: undefined,
+        }))
+      );
+    }
+  }, [currency, isFxScenario]);
 
   useEffect(() => {
-    if (currency !== "₪") {
+    if (currency !== "ILS") {
       setItems((prev) => prev.map((item) => ({ ...item, currency })));
     }
   }, [currency]);
+
+  async function fetchFxRateForRow(i: number, baseCurrency: string, paymentDate: string) {
+    const base = String(baseCurrency || "").toUpperCase().trim();
+    const date = String(paymentDate || "").trim();
+    if (!/^[A-Z]{3}$/.test(base) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+    setFxLoading((prev) => ({ ...prev, [i]: true }));
+    setFxApiErrors((prev) => {
+      if (!prev[i]) return prev;
+      const next = { ...prev };
+      delete next[i];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/fx-rate?base=${encodeURIComponent(base)}&date=${encodeURIComponent(date)}`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+      });
+      const json = await res.json().catch(() => ({} as any));
+      if (!res.ok || !json?.ok) throw new Error(json?.message || "FX rate fetch failed");
+      setPayments((prev) =>
+        prev.map((r, idx) =>
+          idx === i
+            ? {
+                ...r,
+                fxRate: Number(json.rate),
+                fxRateDate: String(json.rateDate || ""),
+                fxRateSource: "boi",
+              }
+            : r
+        )
+      );
+    } catch {
+      setFxApiErrors((prev) => ({
+        ...prev,
+        [i]: "לא ניתן להביא שער המרה כרגע, אנא נסה שוב או הזן ידנית",
+      }));
+      setPaymentErrors((prev) => ({
+        ...prev,
+        [i]: { ...(prev[i] || {}), amount: "חסר שער המרה" },
+      }));
+    } finally {
+      setFxLoading((prev) => ({ ...prev, [i]: false }));
+    }
+  }
 
 
 
@@ -488,6 +602,15 @@ export default function InvoiceReceiptFormClient({
     if (!Number.isFinite(payment.amount) || payment.amount <= 0) {
       errors.amount = "סכום חייב להיות גדול מ-0";
     }
+    if (isFxScenario) {
+      const rowCur = String(payment.currency || currency);
+      if (rowCur !== "ILS") {
+        const fx = Number((payment as any).fxRate);
+        if (!Number.isFinite(fx) || fx <= 0) {
+          errors.amount = "חובה לעדכן שער המרה";
+        }
+      }
+    }
     return errors;
   }
 
@@ -507,7 +630,6 @@ export default function InvoiceReceiptFormClient({
 
   // Validation: Check if items total matches payments total
   function validateTotalsMismatch(): boolean {
-    const paymentsTotal = payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0);
     const itemsTotal = total; // This includes VAT
     
     // Allow small rounding differences (0.01)
@@ -601,7 +723,7 @@ export default function InvoiceReceiptFormClient({
         vatRate: vatRate.toString(),
         vatAmount: vatAmount.toString(),
         vatType: vatType,
-        currency: currency || "₪",
+        currency: currency || "ILS",
         items: JSON.stringify(itemsForPreview),
       });
 
@@ -807,23 +929,7 @@ export default function InvoiceReceiptFormClient({
   }
 
   return (
-    <main dir="rtl" className="min-h-screen">
-      <style>{`
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container button:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container input:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container select:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container textarea:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container label:not(.ui-floating-label):not(.ui-date-label):not(.ui-select-label):not([style*="font-size"]),
-        main[dir="rtl"] .ui-container span:not([style*="font-size"]),
-        main[dir="rtl"] .ui-container div:not([style*="font-size"]):not([class*="text-"]):not([class*="font-"]),
-        main[dir="rtl"] .ui-container p { font-size: 18px !important; }
-        main[dir="rtl"] .ui-container h1 { font-size: 56px !important; font-weight: 700 !important; }
-        main[dir="rtl"] .ui-container h2 { font-size: 26px !important; }
-      `}</style>
-
+    <main dir="rtl" className="min-h-screen ui-document-form">
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {message && (
@@ -1109,7 +1215,7 @@ export default function InvoiceReceiptFormClient({
                                 <div className="ti-items-field ti-items-currency ti-items-hide-label min-w-0" data-label="מטבע">
                                   <Select
                                     value={row.currency || currency}
-                                    disabled={currency !== "₪" || confirmedRows.has(i)}
+                                    disabled={currency !== "ILS" || confirmedRows.has(i)}
                                     onValueChange={(v) => updateItemRow(i, { currency: v })}
                                   >
                                     <SelectTrigger
@@ -1381,7 +1487,7 @@ export default function InvoiceReceiptFormClient({
                 <div className="space-y-[20px]">
                   {/* Headers Row */}
                   <div className="px-[20px] sm:px-6 lg:px-8">
-                    <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center font-semibold">
+                    <div className="hidden md:grid md:grid-cols-[minmax(140px,20%)_minmax(120px,140px)_minmax(160px,200px)_minmax(96px,110px)_1fr_minmax(120px,160px)] gap-3 items-center font-semibold">
                       <div className="text-right pr-[20px] translate-y-[20px]">אמצעי תשלום</div>
                       <div className="text-right pr-[20px] translate-y-[20px]">תאריך</div>
                       <div className="text-right pr-[20px] translate-y-[20px]">סכום</div>
@@ -1402,7 +1508,7 @@ export default function InvoiceReceiptFormClient({
                       >
                         <div className="min-w-0">
                           {/* Desktop View - Single Row Grid */}
-                          <div className="hidden md:grid md:grid-cols-[19.2%_13%_13%_80px_minmax(150px,36%)_1fr] gap-3 items-center">
+                          <div className="hidden md:grid md:grid-cols-[minmax(140px,20%)_minmax(120px,140px)_minmax(160px,200px)_minmax(96px,110px)_1fr_minmax(120px,160px)] gap-3 items-center">
                             {/* אמצעי תשלום - 19.2% */}
                             <div className="w-full min-w-0">
                               <Select
@@ -1444,44 +1550,103 @@ export default function InvoiceReceiptFormClient({
                             <DateInput
                               id={`payment-date-${i}`}
                               value={row.date}
-                              onChange={(v) => updatePaymentRow(i, { date: v })}
+                              onChange={(v) => {
+                                updatePaymentRow(i, { date: v });
+                                const rowCur = String(row.currency || currency);
+                                if (isFxScenario && rowCur !== "ILS" && row.fxRateSource !== "manual") {
+                                  fetchFxRateForRow(i, rowCur, v);
+                                }
+                              }}
                               className="ti-items-input text-right min-w-0"
                               variant="items"
                               disabled={confirmedPayments.has(i)}
                             />
 
                             {/* סכום - 13% */}
-                            <MoneyInput
-                              className={cn(
-                                "w-full min-w-0 text-right",
-                                paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
-                                confirmedPayments.has(i) ? "pointer-events-none" : ""
-                              )}
-                              variant="items"
-                              value={row.amount}
-                              onChange={(v) => {
-                                updatePaymentRow(i, { amount: v });
-                                if (paymentErrors[i]?.amount && v > 0) {
-                                  const newErrors = { ...paymentErrors };
-                                  if (newErrors[i]) {
-                                    delete newErrors[i].amount;
-                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                            <div className="relative min-w-0">
+                              <MoneyInput
+                                className={cn(
+                                  "w-full min-w-0 text-right",
+                                  isFxScenario &&
+                                    confirmedPayments.has(i) &&
+                                    String(row.currency || currency) !== "ILS"
+                                    ? "pl-9"
+                                    : "",
+                                  confirmedPayments.has(i) ? "pointer-events-none" : ""
+                                )}
+                                error={!!paymentErrors[i]?.amount}
+                                variant="items"
+                                value={row.amount}
+                                onChange={(v) => {
+                                  updatePaymentRow(i, { amount: v });
+                                  if (paymentErrors[i]?.amount && v > 0) {
+                                    const newErrors = { ...paymentErrors };
+                                    if (newErrors[i]) {
+                                      delete newErrors[i].amount;
+                                      if (Object.keys(newErrors[i]).length === 0) delete newErrors[i];
+                                    }
+                                    setPaymentErrors(newErrors);
                                   }
-                                  setPaymentErrors(newErrors);
-                                }
-                              }}
-                              currency={currency}
-                            />
+                                }}
+                                currency={row.currency || currency}
+                              />
+                              {isFxScenario &&
+                              confirmedPayments.has(i) &&
+                              String(row.currency || currency) !== "ILS" ? (
+                                <div className="absolute left-2 top-1/2 -translate-y-1/2">
+                                  <FxRateDialog
+                                    baseCurrency={String(row.currency || "").toUpperCase()}
+                                    rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
+                                    disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                    onUpdateRate={(nextRate) => {
+                                      updatePaymentRow(i, {
+                                        fxRate: nextRate,
+                                        fxRateSource: "manual",
+                                        fxRateDate: row.fxRateDate || row.date || todayYmd(),
+                                      });
+                                    }}
+                                  />
+                                </div>
+                              ) : null}
+                            {fxApiErrors[i] ? (
+                              <div className="absolute right-0 top-full mt-1 text-right text-[14px] text-danger">
+                                {fxApiErrors[i]}
+                              </div>
+                            ) : null}
+                            </div>
 
-                            {/* מטבע - 80px */}
+                            {/* מטבע */}
                             <Select
                               value={row.currency || currency}
-                              disabled={currency !== "₪" || confirmedPayments.has(i)}
-                              onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                              disabled={!isFxScenario || confirmedPayments.has(i)}
+                              onValueChange={(v) => {
+                                const next = String(v || "").toUpperCase().trim();
+                                setPayments((prev) =>
+                                  prev.map((r, idx) =>
+                                    idx === i
+                                      ? {
+                                          ...r,
+                                          currency: next,
+                                          fxRate: undefined,
+                                          fxRateDate: undefined,
+                                          fxRateSource: undefined,
+                                        }
+                                      : r
+                                  )
+                                );
+                                if (isFxScenario && next !== "ILS") {
+                                  fetchFxRateForRow(i, next, row.date || documentDate || todayYmd());
+                                }
+                              }}
                             >
                               <SelectTrigger
                                 variant="underline"
-                                className="ti-items-select w-full min-w-0"
+                                className={cn(
+                                  "ti-items-select w-full min-w-0",
+                                  paymentErrors[i]?.amount
+                                    ? "border-[color:var(--field-border-error)] focus:border-[color:var(--field-border-error)]"
+                                    : ""
+                                )}
                                 aria-label="מטבע"
                               >
                                 <SelectValue />
@@ -1525,7 +1690,12 @@ export default function InvoiceReceiptFormClient({
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               ) : (
-                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  onClick={() => confirmPaymentRow(i)}
+                                  disabled={!!fxLoading[i]}
+                                >
                                   אישור
                                 </Button>
                               )}
@@ -1590,7 +1760,13 @@ export default function InvoiceReceiptFormClient({
                               <DateInput
                                 id={`payment-date-mobile-${i}`}
                                 value={row.date}
-                                onChange={(v) => updatePaymentRow(i, { date: v })}
+                                onChange={(v) => {
+                                  updatePaymentRow(i, { date: v });
+                                  const rowCur = String(row.currency || currency);
+                                  if (isFxScenario && rowCur !== "ILS" && row.fxRateSource !== "manual") {
+                                    fetchFxRateForRow(i, rowCur, v);
+                                  }
+                                }}
                                 className="ti-items-input text-right w-full"
                                 variant="items"
                                 disabled={confirmedPayments.has(i)}
@@ -1604,9 +1780,9 @@ export default function InvoiceReceiptFormClient({
                                 <MoneyInput
                                   className={cn(
                                     "w-full text-right",
-                                    paymentErrors[i]?.amount ? "border-danger focus-visible:ring-danger" : "",
                                     confirmedPayments.has(i) ? "pointer-events-none" : ""
                                   )}
+                                  error={!!paymentErrors[i]?.amount}
                                   variant="items"
                                   value={row.amount}
                                   onChange={(v) => {
@@ -1620,17 +1796,40 @@ export default function InvoiceReceiptFormClient({
                                       setPaymentErrors(newErrors);
                                     }
                                   }}
-                                  currency={currency}
+                                  currency={row.currency || currency}
                                 />
 
                                 <Select
                                   value={row.currency || currency}
-                                  disabled={currency !== "₪" || confirmedPayments.has(i)}
-                                  onValueChange={(v) => updatePaymentRow(i, { currency: v })}
+                                  disabled={!isFxScenario || confirmedPayments.has(i)}
+                                  onValueChange={(v) => {
+                                    const next = String(v || "").toUpperCase().trim();
+                                    setPayments((prev) =>
+                                      prev.map((r, idx) =>
+                                        idx === i
+                                          ? {
+                                              ...r,
+                                              currency: next,
+                                              fxRate: undefined,
+                                              fxRateDate: undefined,
+                                              fxRateSource: undefined,
+                                            }
+                                          : r
+                                      )
+                                    );
+                                    if (isFxScenario && next !== "ILS") {
+                                      fetchFxRateForRow(i, next, row.date || documentDate || todayYmd());
+                                    }
+                                  }}
                                 >
                                   <SelectTrigger
                                     variant="underline"
-                                    className="ti-items-select ti-payments-currency w-[80px] shrink-0"
+                                    className={cn(
+                                      "ti-items-select ti-payments-currency w-[80px] shrink-0",
+                                      paymentErrors[i]?.amount
+                                        ? "border-[color:var(--field-border-error)] focus:border-[color:var(--field-border-error)]"
+                                        : ""
+                                    )}
                                     aria-label="מטבע"
                                   >
                                     <SelectValue />
@@ -1643,7 +1842,27 @@ export default function InvoiceReceiptFormClient({
                                     ))}
                                   </SelectContent>
                                 </Select>
+
+                                {isFxScenario && String(row.currency || currency) !== "ILS" ? (
+                                  <FxRateDialog
+                                    baseCurrency={String(row.currency || "").toUpperCase()}
+                                    rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
+                                    disabled={!!fxLoading[i]}
+                                    onUpdateRate={(nextRate) => {
+                                      updatePaymentRow(i, {
+                                        fxRate: nextRate,
+                                        fxRateSource: "manual",
+                                        fxRateDate: row.fxRateDate || row.date || todayYmd(),
+                                      });
+                                    }}
+                                  />
+                                ) : null}
                               </div>
+                              {fxApiErrors[i] ? (
+                                <div className="mt-1 text-right text-[14px] text-danger">
+                                  {fxApiErrors[i]}
+                                </div>
+                              ) : null}
                             </div>
 
                             {/* פרטים נוספים */}
@@ -1679,7 +1898,12 @@ export default function InvoiceReceiptFormClient({
                                   <Pencil className="h-4 w-4" />
                                 </Button>
                               ) : (
-                                <Button type="button" variant="default" onClick={() => confirmPaymentRow(i)}>
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  onClick={() => confirmPaymentRow(i)}
+                                  disabled={!!fxLoading[i]}
+                                >
                                   אישור
                                 </Button>
                               )}
@@ -1717,7 +1941,7 @@ export default function InvoiceReceiptFormClient({
                     <div className="flex justify-between items-center">
                       <div className="text-lg font-bold" style={{ color: "#19183B" }}></div>
                       <div className="text-2xl font-bold  ml-[50px]" style={{ color: "#19183B" }}>
-                        סה״כ {formatMoney(payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0), currency)}
+                        סה״כ {formatMoney(paymentsTotal, currency)}
                       </div>
                     </div>
                     {roundTotals && (
@@ -1999,10 +2223,7 @@ export default function InvoiceReceiptFormClient({
                     <div className="flex justify-between items-center">
                       <span className="text-muted-fg">סה״כ תקבולים:</span>
                       <span className="font-semibold text-fg">
-                        {formatMoney(
-                          payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0),
-                          currency
-                        )}
+                        {formatMoney(paymentsTotal, currency)}
                       </span>
                     </div>
                     <div className="h-px bg-muted my-2" />
@@ -2010,9 +2231,7 @@ export default function InvoiceReceiptFormClient({
                       <span className="text-danger font-medium">הפרש:</span>
                       <span className="font-bold text-danger">
                         {formatMoney(
-                          Math.abs(
-                            total - payments.reduce((acc, p) => acc + (Number.isFinite(p.amount) ? p.amount : 0), 0)
-                          ),
+                          Math.abs(total - paymentsTotal),
                           currency
                         )}
                       </span>

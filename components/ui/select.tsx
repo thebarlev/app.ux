@@ -64,9 +64,11 @@ function SelectTrigger({
       {...props}
     >
       {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className={cn("size-4 text-current", iconClassName)} style={iconStyle} />
-      </SelectPrimitive.Icon>
+      {props.disabled ? null : (
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className={cn("size-4 text-current", iconClassName)} style={iconStyle} />
+        </SelectPrimitive.Icon>
+      )}
     </SelectPrimitive.Trigger>
   )
 }

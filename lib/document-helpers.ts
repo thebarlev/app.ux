@@ -7,7 +7,9 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { randomUUID } from "crypto"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
-import { createSigningRequest } from "./documents/signing/secure-signature-client"
+import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from "./documents/signing/secure-signature-client"
+import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
+import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -338,7 +340,7 @@ export async function finalizeDocument(
 
     const externalDocId = `${draftId}:${args.variant}:${args.language}`
     
-    const metadataToSend = {
+    const metadataToSendBase = {
       document_id: draftId,
       document_number: docNumber,
       document_type: dbDocumentType,
@@ -354,7 +356,8 @@ export async function finalizeDocument(
       business_contact_name: businessContactName,
     }
     
-    const signing = await createSigningRequest({
+    const attemptSign = async (pdfBytes: Buffer, unsignedSha: string, attemptLabel: "stamped" | "ascii" | "raw") => {
+      return createSigningRequest({
       businessId: companyId,
       externalDocId,
     
@@ -369,12 +372,71 @@ export async function finalizeDocument(
       businessEmail: companyData?.email || null,
       supplierName: "VOW System",
     
-      metadata: metadataToSend,
+        metadata: { ...metadataToSendBase, unsigned_pdf_sha256: unsignedSha },
     
-      pdfBytes: rendered.pdfBytes,
+        pdfBytes,
     })
-        if (!signing.ok) {
-      return { ok: false as const, message: `Signing failed (${signing.code}): ${signing.message}` }
+    }
+
+    const signing = await attemptSign(rendered.pdfBytes, rendered.pdfSha256, "stamped")
+    if (!signing.ok) {
+      const msg = `Signing failed (${signing.code}): ${signing.message}`
+
+      // If stamping produced a PDF DSIGN can't sign, retry once with the raw (pre-stamp) PDF bytes.
+      const looksLikeSigningFailed =
+        String(signing.message || "").includes("signing_failed") ||
+        String(signing.message || "").includes("Signing failed") ||
+        String(signing.code || "") === "http_error"
+
+      if (looksLikeSigningFailed && (rendered as any).rawPdfBytes && (rendered as any).rawPdfSha256) {
+        // Retry with an ASCII-only stamped footer so the final signed PDF still contains a footer.
+        // (DSIGN sometimes rejects PDFs with embedded Hebrew fonts.)
+        try {
+          const rawBytes: Buffer = (rendered as any).rawPdfBytes
+          const asciiStamped = await stampPdfFooter({
+            pdfBytes: rawBytes,
+            language: "en",
+            generatedAtText: String((rendered as any).frozenNowIso || ""),
+            generatedByText: "VOW",
+          })
+          const asciiSha = sha256HexFromSigningClient(asciiStamped)
+          const asciiTry = await attemptSign(asciiStamped, asciiSha, "ascii")
+          if (asciiTry.ok) {
+            return {
+              ok: true as const,
+              unsignedSha256: asciiSha,
+              signedSha256: asciiTry.signedPdfSha256,
+              templateVersionId: rendered.templateVersionId,
+              certInfo: asciiTry.certInfo,
+              hashes: asciiTry.hashes,
+              events: asciiTry.events,
+              requestId: asciiTry.requestId || null,
+              signedPdfBytes: asciiTry.signedPdfBytes,
+              signedPdfBase64: asciiTry.signedPdfBytes.toString("base64"),
+            }
+          }
+        } catch {
+          // ignore, proceed to raw fallback
+        }
+
+        const retry = await attemptSign((rendered as any).rawPdfBytes, (rendered as any).rawPdfSha256, "raw")
+        if (retry.ok) {
+          return {
+            ok: true as const,
+            unsignedSha256: (rendered as any).rawPdfSha256,
+            signedSha256: retry.signedPdfSha256,
+            templateVersionId: rendered.templateVersionId,
+            certInfo: retry.certInfo,
+            hashes: retry.hashes,
+            events: retry.events,
+            requestId: retry.requestId || null,
+            signedPdfBytes: retry.signedPdfBytes,
+            signedPdfBase64: retry.signedPdfBytes.toString("base64"),
+          }
+        }
+      }
+
+      return { ok: false as const, message: msg }
     }
 
     try {
@@ -502,12 +564,13 @@ export async function finalizeDocument(
   }
 
   // Persist signed PDFs to Storage so downloads are reliable (API route proxies from storage).
-  const storageBucket = "business-assets"
+  // MUST be private to prevent public access to accounting PDFs.
+  const storageBucket = SECURE_ASSETS_BUCKET
   const originalStorageKey = `documents/${draftId}/original.he.pdf`
   const copyHeStorageKey = `documents/${draftId}/copy.he.pdf`
   const copyEnStorageKey = `documents/${draftId}/source.en.pdf`
 
-  const uploadPdfIfMissing = async (storageKey: string, pdfBytes: Buffer) => {
+  const uploadPdfIfMissing = async (storageKey: string, pdfBytes: Uint8Array) => {
     const res = await adminClient.storage
       .from(storageBucket)
       .upload(storageKey, pdfBytes, { contentType: "application/pdf", upsert: false })
@@ -522,14 +585,14 @@ export async function finalizeDocument(
     return { ok: true as const, existed: false as const }
   }
 
-  const upOriginal = await uploadPdfIfMissing(originalStorageKey, Buffer.from(originalFinal.signedPdfBytes))
+  const upOriginal = await uploadPdfIfMissing(originalStorageKey, Uint8Array.from(originalFinal.signedPdfBytes as any))
   if (!upOriginal.ok) return { ok: false, message: `Failed to upload signed PDF (original_he): ${upOriginal.message}` }
 
-  const upCopyHe = await uploadPdfIfMissing(copyHeStorageKey, Buffer.from(copyFinal.signedPdfBytes))
+  const upCopyHe = await uploadPdfIfMissing(copyHeStorageKey, Uint8Array.from(copyFinal.signedPdfBytes as any))
   if (!upCopyHe.ok) return { ok: false, message: `Failed to upload signed PDF (copy_he): ${upCopyHe.message}` }
 
   if (enSignedBytes) {
-    const upEn = await uploadPdfIfMissing(copyEnStorageKey, Buffer.from(enSignedBytes))
+    const upEn = await uploadPdfIfMissing(copyEnStorageKey, Uint8Array.from(enSignedBytes as any))
     if (!upEn.ok) return { ok: false, message: `Failed to upload signed PDF (copy_en): ${upEn.message}` }
   }
 

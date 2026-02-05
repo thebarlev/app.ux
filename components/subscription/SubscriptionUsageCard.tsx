@@ -162,11 +162,7 @@ export function SubscriptionUsageCard() {
               </div>
             </div>
 
-            {view.upgradeUrl && (
-              <div className="text-right text-xs text-muted-fg">
-                Upgrade URL (placeholder): <span className="break-all">{view.upgradeUrl}</span>
-              </div>
-            )}
+
           </>
         )}
       </CardContent>

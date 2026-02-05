@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FloatingInput } from "@/components/ui/floating-input"
@@ -63,14 +64,17 @@ export function StepOnboarding(_props: StepOnboardingProps) {
     const folder = kind === "logo" ? "business-logos" : "business-signatures"
     const filePath = `${folder}/${companyId}/${fileName}`
 
-    const { error: uploadError } = await supabase.storage.from("business-assets").upload(filePath, file, { upsert: true })
+    const bucket = kind === "logo" ? PUBLIC_ASSETS_BUCKET : SECURE_ASSETS_BUCKET
+    const { error: uploadError } = await supabase.storage.from(bucket).upload(filePath, file, { upsert: true })
     if (uploadError) throw new Error(uploadError.message)
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("business-assets").getPublicUrl(filePath)
+    // Logos can remain public; signatures must never be public.
+    const publicUrl =
+      kind === "logo"
+        ? supabase.storage.from(PUBLIC_ASSETS_BUCKET).getPublicUrl(filePath).data.publicUrl
+        : null
 
-    const updateField = kind === "logo" ? { logo_url: publicUrl } : { signature_url: publicUrl }
+    const updateField = kind === "logo" ? { logo_url: publicUrl } : { signature_url: filePath }
     const { error: updateError } = await supabase.from("companies").update(updateField).eq("id", companyId)
     if (updateError) throw new Error(updateError.message)
   }

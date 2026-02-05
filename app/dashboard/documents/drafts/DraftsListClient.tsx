@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
-import { Eye } from "lucide-react";
-import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
+import { FolderOpen } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import type { DocumentsListFilters, DocumentsListResult } from "../actions";
 
@@ -55,9 +54,6 @@ function truncateDescription(description: string | null): string {
 
 export default function DraftsListClient({ initialData }: Props) {
   const router = useRouter();
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [selectedDocSnapshot, setSelectedDocSnapshot] = useState<DocumentsQuickViewDocumentSnapshot | null>(null);
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
 
   if (!initialData.ok) {
@@ -71,9 +67,33 @@ export default function DraftsListClient({ initialData }: Props) {
 
   const { documents } = initialData.data!;
 
-  const tableFontSize = "clamp(14px, 1.1vw, 18px)";
+  const tableFontSize = "clamp(12px,1.2vw, 16px)";
   const tableHeaderColor = "#5389BB";
   const tableHeaderBorder = "1px solid #EDF1F5";
+
+  function getDraftOpenHref(docType: string, draftId: string) {
+    const t = String(docType || "").toLowerCase();
+    if (t === "receipt") return `/dashboard/documents/receipt?draftId=${encodeURIComponent(draftId)}`;
+    if (t === "tax_invoice") return `/dashboard/documents/tax-invoice?draftId=${encodeURIComponent(draftId)}`;
+    if (t === "invoice_receipt") return `/dashboard/documents/tax-invoice-receipt?draftId=${encodeURIComponent(draftId)}`;
+    if (t === "credit_note") return `/dashboard/documents/credit-note?draftId=${encodeURIComponent(draftId)}`;
+
+    // Business document types live under /business/documents/new/{uiKey}
+    const businessUiKeyByDb: Record<string, string> = {
+      quote: "quote",
+      proforma: "proforma",
+      work_order: "workOrder",
+      delivery_note: "deliveryNote",
+      return_note: "returnNote",
+      purchase_order: "purchaseOrder",
+      self_invoice: "selfInvoice",
+      self_credit_note: "selfCreditNote",
+    };
+    const uiKey = businessUiKeyByDb[t];
+    if (uiKey) return `/business/documents/new/${uiKey}?draftId=${encodeURIComponent(draftId)}`;
+
+    return null;
+  }
 
   const monthGroups = useMemo(() => {
     const safeDate = (doc: any) => {
@@ -114,7 +134,7 @@ export default function DraftsListClient({ initialData }: Props) {
   return (
     <div className="mt-[50px]">
       <FormSection title="טיוטות">
-        <div style={{ overflowX: "auto" }}>
+        <div className="docs-table-scroll">
           {/* Column headers (single header row for the whole list) */}
           <table
             style={{
@@ -126,30 +146,29 @@ export default function DraftsListClient({ initialData }: Props) {
             }}
           >
             <colgroup>
-              {/* number */}
-              <col style={{ width: "clamp(80px, 10vw, 120px)" }} />
               {/* date */}
-              <col style={{ width: "clamp(100px, 12vw, 140px)" }} />
+              <col style={{ width: "clamp(90px, 10vw, 80px)" }} />
               {/* doc type */}
-              <col style={{ width: "clamp(120px, 14vw, 160px)" }} />
+              <col style={{ width: "clamp(150px, 9vw, 120px)" }} />
               {/* customer */}
-              <col style={{ width: "clamp(160px, 20vw, 220px)" }} />
+              <col style={{ width: "clamp(190px, 16vw, 60px)" }} />
               {/* description */}
-              <col style={{ width: "clamp(140px, 26vw, 260px)" }} />
+              <col style={{ width: "clamp(211px, 30vw, 210px)" }} />
               {/* amount */}
-              <col style={{ width: "clamp(120px, 12vw, 160px)" }} />
+              <col style={{ width: "clamp(50px, 10vw, 140px)" }} />
               {/* actions */}
-              <col style={{ width: "120px" }} />
+              <col style={{ width: "260px" }} />
             </colgroup>
             <thead>
               <tr style={{ backgroundColor: "#FFFFFF", borderBottom: tableHeaderBorder }}>
-                <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>מספר</th>
-                <th style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תאריך</th>
-                <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סוג המסמך</th>
-                <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>שם הלקוח</th>
-                <th style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תיאור</th>
-                <th style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סכום</th>
-                <th style={{ padding: "12px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>פעולות</th>
+                <th style={{ padding: "5px 4px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תאריך</th>
+                <th style={{ padding: "5px 3px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סוג המסמך</th>
+                <th style={{ padding: "5px 3px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>שם הלקוח</th>
+                <th style={{ padding: "5px 3px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>תיאור</th>
+                <th style={{ padding: "5px 4px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>סכום</th>
+                <th className="docs-actions-cell" style={{ padding: "6px", textAlign: "right", fontSize: tableFontSize, fontWeight: 500, color: tableHeaderColor }}>
+                  <span className="docs-actions-shift">פעולות</span>
+                </th>
               </tr>
             </thead>
           </table>
@@ -180,13 +199,12 @@ export default function DraftsListClient({ initialData }: Props) {
                     }}
                   >
                     <colgroup>
-                      <col style={{ width: "clamp(80px, 10vw, 120px)" }} />
-                      <col style={{ width: "clamp(100px, 12vw, 140px)" }} />
-                      <col style={{ width: "clamp(120px, 14vw, 160px)" }} />
-                      <col style={{ width: "clamp(160px, 20vw, 220px)" }} />
-                      <col style={{ width: "clamp(140px, 26vw, 260px)" }} />
-                      <col style={{ width: "clamp(120px, 12vw, 160px)" }} />
-                      <col style={{ width: "120px" }} />
+                      <col style={{ width: "clamp(90px, 10vw, 80px)" }} />
+                      <col style={{ width: "clamp(150px, 9vw, 120px)" }} />
+                      <col style={{ width: "clamp(190px, 16vw, 60px)" }} />
+                      <col style={{ width: "clamp(211px, 30vw, 210px)" }} />
+                      <col style={{ width: "clamp(50px, 10vw, 140px)" }} />
+                      <col style={{ width: "260px" }} />
                     </colgroup>
                     <tbody>
                       {group.docs.map((doc, index) => (
@@ -200,30 +218,6 @@ export default function DraftsListClient({ initialData }: Props) {
                           onMouseEnter={() => setHoveredRowId(doc.id)}
                           onMouseLeave={() => setHoveredRowId(null)}
                         >
-                          <td style={{ padding: "10px 6px", textAlign: "right", fontSize: tableFontSize }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedDocumentId(doc.id);
-                                setSelectedDocSnapshot(doc);
-                                setIsQuickViewOpen(true);
-                              }}
-                              style={{
-                                background: "transparent",
-                                border: "none",
-                                padding: 0,
-                                margin: 0,
-                                cursor: "pointer",
-                                color: "#1A8299",
-                                fontWeight: 400,
-                                textDecoration: "underline",
-                                textUnderlineOffset: "3px",
-                              }}
-                              title="צפייה בטיוטה"
-                            >
-                              {doc.document_number || "טיוטה"}
-                            </button>
-                          </td>
                           <td style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, color: "#19183B", whiteSpace: "nowrap" }}>
                             {formatDate(doc.document_date)}
                           </td>
@@ -239,21 +233,21 @@ export default function DraftsListClient({ initialData }: Props) {
                           <td style={{ padding: "10px 8px", textAlign: "right", fontSize: tableFontSize, color: "#19183B", whiteSpace: "nowrap" }}>
                             {formatAmount(doc.total_amount, doc.currency)}
                           </td>
-                          <td style={{ padding: "12px", textAlign: "right", position: "relative", width: "120px" }} onClick={(e) => e.stopPropagation()}>
+                          <td style={{ padding: "12px", textAlign: "right", position: "relative" }} onClick={(e) => e.stopPropagation()}>
                             {hoveredRowId === doc.id ? (
                               <div className="flex items-center justify-end gap-2" style={{ marginBottom: 6 }}>
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  aria-label="צפייה"
+                                  aria-label="פתיחה"
                                   onClick={() => {
-                                    setSelectedDocumentId(doc.id);
-                                    setSelectedDocSnapshot(doc);
-                                    setIsQuickViewOpen(true);
+                                    const href = getDraftOpenHref(doc.document_type, doc.id);
+                                    if (!href) return;
+                                    router.push(href);
                                   }}
                                 >
-                                  <Eye className="h-5 w-5" />
+                                  <FolderOpen className="h-5 w-5" />
                                 </Button>
                               </div>
                             ) : null}
@@ -267,16 +261,6 @@ export default function DraftsListClient({ initialData }: Props) {
             </div>
           )}
         </div>
-
-        <DocumentsQuickViewDrawer
-          open={isQuickViewOpen}
-          onClose={() => {
-            setIsQuickViewOpen(false);
-            router.refresh();
-          }}
-          documentId={selectedDocumentId}
-          initialDoc={selectedDocSnapshot}
-        />
       </FormSection>
     </div>
   );

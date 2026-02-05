@@ -1,9 +1,16 @@
 import { createClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { NextResponse } from "next/server"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const ip = getClientIp(request)
+    const rl = rateLimit({ key: `templates-user:${ip}`, limit: 120, windowMs: 60_000 })
+    if (!rl.allowed) {
+      return NextResponse.json({ ok: false, message: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+    }
+
     const supabase = await createClient()
 
     // Get current user
@@ -42,7 +49,7 @@ export async function GET() {
 
     if (error) {
       console.error("[TEMPLATE_FETCH] /api/templates/user-templates error:", error)
-      return NextResponse.json({ ok: false, message: error.message }, { status: 500 })
+      return NextResponse.json({ ok: false, message: "שגיאה בטעינת תבניות" }, { status: 500 })
     }
 
     const DEBUG_TEMPLATES = process.env.DEBUG_TEMPLATES === "true"

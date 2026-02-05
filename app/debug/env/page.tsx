@@ -1,4 +1,6 @@
 import CopyEnvVarNamesButton from "./CopyEnvVarNamesButton"
+import { notFound } from "next/navigation"
+import { requireSystemAdmin } from "@/lib/security/system-admin"
 
 function maskKey(value: string) {
   if (!value) return ""
@@ -48,7 +50,13 @@ function Row({
   )
 }
 
-export default function EnvDebugPage() {
+export default async function EnvDebugPage() {
+  // Hard-disable in production (no client-accessible env surfaces).
+  if (process.env.NODE_ENV === "production") notFound()
+
+  // Non-prod: system-admin only.
+  await requireSystemAdmin()
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY || ""

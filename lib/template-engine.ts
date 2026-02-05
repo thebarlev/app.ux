@@ -144,14 +144,25 @@ export async function generatePDFFromHTML(
 ): Promise<PDFGenerationResult> {  
   const outputPath = (options as any).outputPath
 
-  function buildFullHtml(innerHtml: string, innerCss: string) {
-    const styleTag = `<style>${innerCss || ""}</style>`
+  const shouldUseRemoteRenderer =
+    typeof process.env.PDF_RENDER_URL === "string" &&
+    process.env.PDF_RENDER_URL.length > 0 &&
+    typeof process.env.PDF_RENDER_TOKEN === "string" &&
+    process.env.PDF_RENDER_TOKEN.length > 0
 
-    if (innerHtml.includes("</head>")) {
-      return innerHtml.replace("</head>", `${styleTag}</head>`)
-    }
-
-    return `<!doctype html>
+  if (shouldUseRemoteRenderer) {
+    try {
+      const footer_html = String((options as any)?.footerTemplate || "")
+      const footer_css = ""
+      // Source of truth: CSS must originate from DB only.
+      // Transport packaging: embed the SAME css verbatim in <head> to protect against renderers
+      // that ignore a separate "css" field. This does not add/merge any external CSS.
+      function packageHtmlWithCss(innerHtml: string, innerCss: string) {
+        const styleTag = `<style>${innerCss || ""}</style>`
+        if (typeof innerHtml === "string" && innerHtml.includes("</head>")) {
+          return innerHtml.replace("</head>", `${styleTag}</head>`)
+        }
+        return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8" />
@@ -161,21 +172,27 @@ ${styleTag}
 ${innerHtml}
 </body>
 </html>`
-  }
+      }
+      const packagedHtml = packageHtmlWithCss(html, css)
+      const remoteOptions = {
+        format: (options as any)?.format,
+        // Always enable background printing for PDF (required for CSS backgrounds/colors).
+        printBackground: typeof (options as any)?.printBackground === "boolean" ? (options as any)?.printBackground : true,
+        margin: (options as any)?.margin,
+        landscape: (options as any)?.landscape,
+        scale: (options as any)?.scale,
+      }
 
-  const shouldUseRemoteRenderer =
-    typeof process.env.PDF_RENDER_URL === "string" &&
-    process.env.PDF_RENDER_URL.length > 0 &&
-    typeof process.env.PDF_RENDER_TOKEN === "string" &&
-    process.env.PDF_RENDER_TOKEN.length > 0
-
-  if (shouldUseRemoteRenderer) {
-    try {
-      const fullHtml = buildFullHtml(html, css)
-      const pdfBytes = await renderPdfRemote(fullHtml)
+      const pdfBytes = await renderPdfRemote({
+        html: packagedHtml,
+        css,
+        footer_html,
+        footer_css,
+        options: remoteOptions,
+      })
 
       if (outputPath) {
-        await writeFile(outputPath, pdfBytes)
+        await writeFile(outputPath, new Uint8Array(pdfBytes))
       }
 
       return { success: true, buffer: pdfBytes, path: outputPath }
@@ -208,8 +225,9 @@ ${innerHtml}
   const {
     format = "A4",
     margin = { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" },
-    printBackground = true,
   } = options
+  // Always print CSS backgrounds/colors in PDFs.
+  const printBackground = true
   
   const landscape = (options as any).landscape || false
   const scale = (options as any).scale || 1
@@ -771,7 +789,7 @@ ${innerHtml}
         bottom: margin?.bottom || "3mm", // Minimal bottom margin to prevent footer from causing 2nd page
         left: margin?.left || "3mm",    // Minimal side margins
       },
-      printBackground,
+      printBackground: true, // Required: ensure CSS backgrounds render
       scale,
       path: outputPath, // If provided, saves to disk
       preferCSSPageSize: false, // Use PDF format size, not CSS @page size

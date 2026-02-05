@@ -1,9 +1,16 @@
 import { createClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { NextRequest, NextResponse } from "next/server"
+import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request)
+    const rl = rateLimit({ key: `templates-set-default:${ip}`, limit: 30, windowMs: 60_000 })
+    if (!rl.allowed) {
+      return NextResponse.json({ ok: false, message: "Rate limit exceeded" }, { status: 429, headers: rateLimitHeaders(rl) })
+    }
+
     console.log("🟢 [API /set-default] Received request")
     const supabase = await createClient()
     
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
       console.error("❌ [API /set-default] Error updating template:", updateError)
       console.error("❌ [API /set-default] This likely means RLS policy is blocking!")
       return NextResponse.json(
-        { ok: false, message: updateError.message },
+        { ok: false, message: "שגיאה בעדכון תבנית" },
         { status: 500 }
       )
     }

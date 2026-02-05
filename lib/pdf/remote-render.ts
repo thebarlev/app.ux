@@ -1,4 +1,23 @@
-export async function renderPdfRemote(html: string): Promise<Buffer> {
+type RemotePdfRenderOptions = {
+  format?: string
+  printBackground?: boolean
+  margin?: { top?: string; right?: string; bottom?: string; left?: string }
+  displayHeaderFooter?: boolean
+  headerTemplate?: string
+  footerTemplate?: string
+  landscape?: boolean
+  scale?: number
+}
+
+export type RemotePdfRenderPayload = {
+  html: string
+  css: string
+  footer_html: string
+  footer_css: string
+  options?: RemotePdfRenderOptions
+}
+
+export async function renderPdfRemote(payload: RemotePdfRenderPayload): Promise<Buffer> {
     const controller = new AbortController();
     const t = setTimeout(
       () => controller.abort(),
@@ -7,22 +26,30 @@ export async function renderPdfRemote(html: string): Promise<Buffer> {
   
     try {
       const t0 = Date.now()
-      const res = await fetch(`${process.env.PDF_RENDER_URL}/render`, {
+
+      const url = `${process.env.PDF_RENDER_URL}/render`
+      const baseHeaders = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.PDF_RENDER_TOKEN}`,
+      }
+
+      const body = JSON.stringify(payload)
+
+      let res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.PDF_RENDER_TOKEN}`,
-        },
-        body: JSON.stringify({ html }),
+        headers: baseHeaders,
+        body,
         signal: controller.signal,
-      });
+      })
   
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(`pdf_render_failed ${res.status} ${txt}`);
       }
-  
-      return Buffer.from(await res.arrayBuffer());
+
+      const buf = Buffer.from(await res.arrayBuffer())
+
+      return buf
     } finally {
       clearTimeout(t);
     }

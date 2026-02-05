@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { getReceiptStyleSettingsPublic } from "@/lib/receipt-style";
 import { getTemplateForDocument } from "@/lib/pdf-service";
+import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets";
 import PreviewWrapper from "./PreviewWrapper";
 
 async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
@@ -148,7 +149,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
           try {
             const adminClient = createAdminClient();
             const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-              .from("business-assets")
+              .from(PUBLIC_ASSETS_BUCKET)
               .createSignedUrl(storagePath, 3600); // 1 hour expiry
             
             if (!signedUrlError && signedUrlData?.signedUrl) {
@@ -157,7 +158,7 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
             } else {
               // If signed URL fails, try public URL (bucket might be public)
               const { data: publicUrlData } = adminClient.storage
-                .from("business-assets")
+                .from(PUBLIC_ASSETS_BUCKET)
                 .getPublicUrl(storagePath);
               logoUrl = publicUrlData.publicUrl || companyRow.logo_url;
               console.log(`[PreviewPage] Using public URL for logo: ${publicUrlData.publicUrl || companyRow.logo_url}`);
@@ -180,19 +181,18 @@ async function PreviewDataLoader({ searchParams }: { searchParams: any }) {
           try {
             const adminClient = createAdminClient();
             const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
-              .from("business-assets")
+              .from(SECURE_ASSETS_BUCKET)
               .createSignedUrl(storagePath, 3600); // 1 hour expiry
             
             if (!signedUrlError && signedUrlData?.signedUrl) {
               signatureUrl = signedUrlData.signedUrl;
               console.log(`[PreviewPage] Created signed URL for signature: ${storagePath}`);
             } else {
-              // If signed URL fails, try public URL (bucket might be public)
-              const { data: publicUrlData } = adminClient.storage
-                .from("business-assets")
-                .getPublicUrl(storagePath);
-              signatureUrl = publicUrlData.publicUrl || companyRow.signature_url;
-              console.log(`[PreviewPage] Using public URL for signature: ${publicUrlData.publicUrl || companyRow.signature_url}`);
+              // Legacy fallback: signature may still exist in the old public bucket.
+              const { data: legacySigned } = await adminClient.storage
+                .from(PUBLIC_ASSETS_BUCKET)
+                .createSignedUrl(storagePath, 3600);
+              signatureUrl = legacySigned?.signedUrl || companyRow.signature_url;
             }
           } catch (error) {
             // Fallback to original URL
