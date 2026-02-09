@@ -1597,13 +1597,25 @@ export default function InvoiceReceiptFormClient({
                                   <FxRateDialog
                                     baseCurrency={String(row.currency || "").toUpperCase()}
                                     rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
-                                    disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                    disabled={!!fxLoading[i]}
                                     onUpdateRate={(nextRate) => {
                                       updatePaymentRow(i, {
                                         fxRate: nextRate,
                                         fxRateSource: "manual",
                                         fxRateDate: row.fxRateDate || row.date || todayYmd(),
                                       });
+                                      if (paymentErrors[i]?.amount) {
+                                        setPaymentErrors((prev) => {
+                                          const next = { ...prev }
+                                          const rowErr = next[i]
+                                          if (!rowErr) return prev
+                                          const cloned = { ...rowErr }
+                                          delete cloned.amount
+                                          if (Object.keys(cloned).length === 0) delete next[i]
+                                          else next[i] = cloned as any
+                                          return next
+                                        })
+                                      }
                                     }}
                                   />
                                 </div>
@@ -1854,6 +1866,18 @@ export default function InvoiceReceiptFormClient({
                                         fxRateSource: "manual",
                                         fxRateDate: row.fxRateDate || row.date || todayYmd(),
                                       });
+                                      if (paymentErrors[i]?.amount) {
+                                        setPaymentErrors((prev) => {
+                                          const next = { ...prev }
+                                          const rowErr = next[i]
+                                          if (!rowErr) return prev
+                                          const cloned = { ...rowErr }
+                                          delete cloned.amount
+                                          if (Object.keys(cloned).length === 0) delete next[i]
+                                          else next[i] = cloned as any
+                                          return next
+                                        })
+                                      }
                                     }}
                                   />
                                 ) : null}

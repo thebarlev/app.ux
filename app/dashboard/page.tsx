@@ -2,7 +2,6 @@
 
 import { FileText, Users, Settings, Receipt, UserPlus, BarChart } from "lucide-react";
 import DashboardCard from "./DashboardCard";
-import NewDocumentFab from "@/components/dashboard/NewDocumentFab";
 import { SubscriptionUsageCard } from "@/components/subscription/SubscriptionUsageCard";
 
 export default function DashboardPage() {
@@ -63,8 +62,6 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
-
-      <NewDocumentFab />
     </main>
   );
 }

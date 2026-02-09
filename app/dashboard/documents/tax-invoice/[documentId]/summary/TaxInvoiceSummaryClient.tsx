@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getTaxInvoicePreviewUrlAction } from "@/app/dashboard/documents/tax-invoice/actions";
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { currencySymbol } from "@/lib/currency/symbol";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 
 const DOC_LABEL_BY_DB_VALUE = new Map(getAllDocumentConfigs().map((c) => [c.dbValue, c.label]));
@@ -76,7 +77,7 @@ function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null || typeof amount !== "number") return "—";
   const curr = currency || "ILS";
   const formatted = amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${formatted} ${curr === "ILS" ? "₪" : curr}`;
+  return `${formatted} ${currencySymbol(curr)}`;
 }
 
 async function downloadPdf(documentId: string, opts: { issue: "original" | "copy"; lang: "he" | "en"; fileName: string }) {

@@ -6,7 +6,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus, Minus, ChevronLeft } from "lucide-react";
 
-export default function NewDocumentFab() {
+export default function NewDocumentFab({
+  variant = "floating",
+  asideExpanded = true,
+}: {
+  variant?: "floating" | "aside";
+  asideExpanded?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const pathname = usePathname();
@@ -63,18 +69,26 @@ export default function NewDocumentFab() {
             setShowMore(false);
           }
         }}
-        className="fixed bottom-6 left-6 z-[70] w-[57px] h-[57px] bg-[#99DE76] hover:bg-[#8BCF65] shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+        className={
+          variant === "floating"
+            ? "fixed bottom-6 left-6 z-[70] w-[57px] h-[57px] bg-[#99DE76] hover:bg-[#8BCF65] shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-105 active:scale-95"
+            : `w-[60px] h-[60px] flex items-center justify-center transition-all bg-[#99DE76] hover:bg-[#8BCF65] text-black`
+        }
         aria-label={isOpen ? "סגור תפריט" : "פתח תפריט מסמכים"}
       >
-        <div className="relative w-[23px] h-[23px]">
+        <div className={variant === "floating" ? "relative w-[23px] h-[23px]" : "relative w-[20px] h-[20px]"}>
           <Plus
-            className={`absolute inset-0 w-[23px] h-[23px] text-black transition-all duration-300 ${
+            className={`absolute inset-0 ${
+              variant === "floating" ? "w-[23px] h-[23px]" : "w-[20px] h-[20px]"
+            } text-black transition-all duration-300 ${
               isOpen ? "opacity-0 rotate-90 scale-0" : "opacity-100 rotate-0 scale-100"
             }`}
             strokeWidth={3}
           />
           <Minus
-            className={`absolute inset-0 w-[23px] h-[23px] text-black transition-all duration-300 ${
+            className={`absolute inset-0 ${
+              variant === "floating" ? "w-[23px] h-[23px]" : "w-[20px] h-[20px]"
+            } text-black transition-all duration-300 ${
               isOpen ? "opacity-100 rotate-0 scale-100" : "opacity-0 rotate-90 scale-0"
             }`}
             strokeWidth={3}
@@ -95,7 +109,19 @@ export default function NewDocumentFab() {
           />
 
           {/* התפריט */}
-          <div className="fixed bottom-6 left-6 z-[68] animate-in slide-in-from-bottom-4 duration-300">
+          <div
+            className={`fixed bottom-6 ${
+              variant === "floating" ? "left-6" : ""
+            } z-[68] animate-in slide-in-from-bottom-4 duration-300`}
+            style={
+              variant === "floating"
+                ? undefined
+                : {
+                    // Place the menu just left of the right aside (best-effort, depends on expanded/collapsed width)
+                    right: asideExpanded ? 275 : 125,
+                  }
+            }
+          >
             <div className="bg-white rounded-2xl shadow-2xl p-6 min-w-[320px] max-w-[400px]">
               {/* מסמכים ראשיים */}
               <div className="space-y-2">

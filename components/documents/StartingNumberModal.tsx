@@ -134,12 +134,7 @@ export default function StartingNumberModal({
         {/* Content */}
         <div className="p-[30px] space-y-[50px]">
           {/* Warning Alert */}
-          <div className="flex items-start gap-3 p-4 bg-warning/10 border border-warning/20 rounded-[5px]" role="alert">
-            <AlertCircle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="text-sm text-fg">
-              <strong className="font-semibold">חשוב:</strong> לא ניתן לבחור 0. ברירת המחדל היא 1. המיספור ימשיך בצורה רציפה (1, 2, 3...).
-            </div>
-          </div>
+        
 
           {/* Error announcement */}
           {error && (
@@ -200,14 +195,7 @@ export default function StartingNumberModal({
           </FieldWrapper>
 
           {/* Preview */}
-          <div className="p-4 bg-muted/30 border border-border rounded-[5px]" aria-live="polite">
-            <div className="text-sm font-semibold text-muted-fg mb-2">
-              תצוגה מקדימה של המיספור:
-            </div>
-            <div className="text-lg font-bold text-fg">
-              {startingNumber}, {startingNumber + 1}, {startingNumber + 2}...
-            </div>
-          </div>
+          
         </div>
 
         {/* Footer Actions */}

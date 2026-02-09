@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { selectUnderline } from "@/components/ui/field-styles";
+import { currencySymbol } from "@/lib/currency/symbol";
 import { cn } from "@/lib/utils";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import { getDocumentPreviewUrlAction, closeDocumentAction } from "@/lib/documents/actions";
@@ -57,7 +58,7 @@ function formatDate(dateStr: string | null): string {
 function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
   const curr = currency || "ILS";
-  return `${amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${curr === "ILS" ? "₪" : curr}`;
+  return `${amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currencySymbol(curr)}`;
 }
 
 function getDocumentTypeLabel(type: string): string {
@@ -1487,7 +1488,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                       </h4>
                     </div>
 
-                    <div className="docs-table-scroll">
+                    <div>
                       <table style={{ width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: tableFontSize, tableLayout: "fixed" }}>
                         <colgroup>
                           {/* checkbox */}

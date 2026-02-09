@@ -24,6 +24,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 type Props = {
   baseCurrency: string; // e.g. USD
@@ -56,6 +57,8 @@ export function FxRateDialog({
 }: Props) {
   const base = useMemo(() => String(baseCurrency || "").toUpperCase().trim(), [baseCurrency]);
   const quote = useMemo(() => String(quoteCurrency || "").toUpperCase().trim(), [quoteCurrency]);
+  const baseLabel = useMemo(() => currencySymbol(base), [base]);
+  const quoteLabel = useMemo(() => currencySymbol(quote), [quote]);
 
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -93,7 +96,7 @@ export function FxRateDialog({
   const body = (
     <>
       <div className="flex items-center justify-end gap-2">
-        <div className="text-sm whitespace-nowrap">{quote}</div>
+        <div className="text-sm whitespace-nowrap">{quoteLabel}</div>
         <Input
           inputMode="decimal"
           value={rateInput}
@@ -106,7 +109,7 @@ export function FxRateDialog({
           style={error ? { borderColor: "var(--field-border-error)" } : undefined}
           aria-invalid={error ? true : undefined}
         />
-        <div className="text-sm whitespace-nowrap">= 1 {base}</div>
+        <div className="text-sm whitespace-nowrap">= 1 {baseLabel}</div>
       </div>
 
       {error ? <div className="text-right text-sm text-danger">{error}</div> : null}

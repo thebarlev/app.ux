@@ -11,7 +11,7 @@ import {
   Home,
   FileText,
   Users,
-  LogOut,
+  Power,
   BarChart,
   ChevronDown,
   Settings,
@@ -309,6 +309,13 @@ function SidebarContent({
         ))}
       </nav>
 
+      {/* Desktop-only: New document button lives in the right aside menu (not in mobile header/drawer). */}
+      <div
+        className={`hidden md:flex mb-2 ${expanded ? "px-3 justify-start" : "px-0 justify-center"}`}
+      >
+        <NewDocumentFab variant="aside" asideExpanded={expanded} />
+      </div>
+
       {/* Settings Link */}
       <div style={{ marginBottom: "8px", padding: "0 12px" }}>
         <Link
@@ -352,7 +359,7 @@ function SidebarContent({
             paddingRight: expanded ? undefined : "20px",
           }}
         >
-          <LogOut className="h-5 w-5 text-current" />
+          <Power className="h-5 w-5 text-current" />
           {expanded ? <span>{isLoggingOut ? "מתנתק..." : "התנתקות"}</span> : null}
           {expanded ? <span className="shrink-0 w-6" aria-hidden="true" /> : null}
         </button>
@@ -686,7 +693,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     }}
                     className="w-full flex items-center justify-start gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 transition-all"
                   >
-                    <LogOut className="h-5 w-5 shrink-0" />
+                    <Power className="h-5 w-5 shrink-0" />
                     <span className="text-lg flex-1 text-right">התנתקות</span>
                   </button>
                 </div>

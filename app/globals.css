@@ -560,7 +560,7 @@ label.ui-date-label,
     position: relative;
     top: 20px;
     
-    left: 100px;
+    left: 0px;
   }
   .ti-items-field.ti-items-actions {
     display: flex;
@@ -575,8 +575,32 @@ label.ui-date-label,
   transform: translateX(20px);
 }
 
+.docs-table-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: auto; /* Firefox */
+  scrollbar-color: var(--fg) #edf1f5; /* thumb, track */
+}
+
+/* Flat horizontal scrollbar (WebKit/Blink) */
+.docs-table-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+.docs-table-scroll::-webkit-scrollbar-track {
+  background: #edf1f5;
+}
+.docs-table-scroll::-webkit-scrollbar-thumb {
+  background: var(--fg);
+  border-radius: 0;
+}
+
 .docs-actions-cell {
   overflow: visible;
+  white-space: nowrap;
 }
 
 .docs-row-fixed {

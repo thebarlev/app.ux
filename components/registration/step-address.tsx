@@ -8,11 +8,13 @@ import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
+import { isValidIsraeliId, normalizeIsraeliIdInput } from "@/lib/validation/israeli-id"
 
 export function StepAddress() {
   const router = useRouter()
   const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const invalidIdMessage = "מספר תעודת זהות / ח״פ אינו תקין"
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -33,6 +35,13 @@ export function StepAddress() {
 
     try {
       const supabase = createClient()
+
+      // Validate BEFORE auth.signUp() to prevent orphan users on invalid ID.
+      if (!isValidIsraeliId(data.companyNumber)) {
+        setError(invalidIdMessage)
+        setIsLoading(false)
+        return
+      }
 
       // Step 1: Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -78,7 +87,8 @@ export function StepAddress() {
           auth_user_id: authData.user.id,
           company_name: data.businessName,
           business_type: data.businessType,
-          registration_number: data.companyNumber,
+          // Canonical identifier in this scope:
+          registration_number: normalizeIsraeliIdInput(data.companyNumber),
           address: `${data.street}, ${data.city}${data.postalCode ? ' ' + data.postalCode : ''}`,
           industry: data.industry || data.customIndustry,
           contact_first_name: data.firstName,
@@ -91,7 +101,13 @@ export function StepAddress() {
 
       if (companyError) {
         console.error("Company creation error:", companyError)
-        setError(`שגיאה ביצירת חברה: ${companyError.message}`)
+        const code = (companyError as any)?.code ?? null
+        const msg = typeof companyError.message === "string" ? companyError.message : ""
+        if (code === "P0001" || msg.includes("INVALID_TAX_ID")) {
+          setError(invalidIdMessage)
+        } else {
+          setError(`שגיאה ביצירת חברה: ${companyError.message}`)
+        }
         setIsLoading(false)
         return
       }

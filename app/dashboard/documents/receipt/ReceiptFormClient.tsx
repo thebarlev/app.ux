@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { FxRateDialog } from "@/components/payments/FxRateDialog";
+import { currencySymbol } from "@/lib/currency/symbol";
 import {
   createDocumentLinkAction,
   getDocumentForChainingAction,
@@ -72,9 +73,10 @@ function todayYmd() {
 
 function formatMoney(amount: number, currency: string, showParensForNegative = false) {
   const n = Number.isFinite(amount) ? amount : 0;
-  const formatted = `${Math.abs(n).toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+  const curr = currencySymbol(currency);
+  const formatted = `${Math.abs(n).toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${curr}`;
   if (showParensForNegative && n < 0) return `(${formatted})`;
-  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${curr}`;
 }
 
 export default function ReceiptFormClient({
@@ -1008,13 +1010,25 @@ export default function ReceiptFormClient({
                                   <FxRateDialog
                                     baseCurrency={String(row.currency || "").toUpperCase()}
                                     rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
-                                    disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                    disabled={!!fxLoading[i]}
                                     onUpdateRate={(nextRate) => {
                                       updatePaymentRow(i, {
                                         fxRate: nextRate,
                                         fxRateSource: "manual",
                                         fxRateDate: row.fxRateDate || row.date || todayYmd(),
                                       });
+                                      if (paymentErrors[i]?.amount) {
+                                        setPaymentErrors((prev) => {
+                                          const next = { ...prev }
+                                          const rowErr = next[i]
+                                          if (!rowErr) return prev
+                                          const cloned = { ...rowErr }
+                                          delete cloned.amount
+                                          if (Object.keys(cloned).length === 0) delete next[i]
+                                          else next[i] = cloned as any
+                                          return next
+                                        })
+                                      }
                                     }}
                                   />
                                 </div>
@@ -1070,7 +1084,7 @@ export default function ReceiptFormClient({
                               <SelectContent>
                                 {allowedCurrencies.map((c) => (
                                   <SelectItem key={c} value={c}>
-                                    {c}
+                                      {currencySymbol(c)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1269,7 +1283,7 @@ export default function ReceiptFormClient({
                                     <SelectContent>
                                       {allowedCurrencies.map((c) => (
                                         <SelectItem key={c} value={c}>
-                                          {c}
+                                          {currencySymbol(c)}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1285,7 +1299,7 @@ export default function ReceiptFormClient({
                                     <FxRateDialog
                                       baseCurrency={String(row.currency || "").toUpperCase()}
                                       rate={Number.isFinite(Number(row.fxRate)) ? Number(row.fxRate) : null}
-                                      disabled={confirmedPayments.has(i) || !!fxLoading[i]}
+                                      disabled={!!fxLoading[i]}
                                       onUpdateRate={(nextRate) => {
                                         updatePaymentRow(i, {
                                           fxRate: nextRate,

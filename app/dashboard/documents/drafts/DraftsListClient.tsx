@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FolderOpen } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import type { DocumentsListFilters, DocumentsListResult } from "../actions";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -32,7 +33,7 @@ function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null) return "—";
   const curr = currency || "ILS";
   return `${amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${
-    curr === "ILS" ? "₪" : curr
+    currencySymbol(curr)
   }`;
 }
 

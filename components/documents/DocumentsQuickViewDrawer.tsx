@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { Download, Eye } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -74,7 +75,7 @@ function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null || typeof amount !== "number") return "—";
   const curr = currency || "ILS";
   const formatted = amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${formatted} ${curr === "ILS" ? "₪" : curr}`;
+  return `${formatted} ${currencySymbol(curr)}`;
 }
 
 function getDocumentTypeLabel(type: string): string {

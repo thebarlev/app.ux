@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 interface ReceiptSettingsSummaryProps {
   settings: {
@@ -39,7 +40,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
     || settings.allowedVatTypes?.find((v) => v.value === settings.vatType)?.label
     || settings.vatType;
   const summary = [
-    `מטבע: ${settings.currency}`,
+    `מטבע: ${currencySymbol(settings.currency)}`,
     `שפה: ${settings.language === "he" ? "עברית" : "English"}`,
     settings.vatType ? `סוג מע״מ: ${vatLabel}` : null,
   ]
@@ -52,7 +53,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
         "w-full flex flex-col mb-6 transition-all duration-200",
         expanded ? "bg-white rounded-[20px] shadow-sm" : "bg-transparent rounded-none shadow-xs"
       )}
-      style={{ fontSize: 14, direction: "rtl", boxShadow: 'none', border: 'none', paddingLeft: 0, paddingRight: 0 }}
+      style={{ fontSize: 14, direction: "rtl", boxShadow: "none", border: "none", paddingLeft: 0, paddingRight: 0 }}
       aria-expanded={expanded}
     >
       <button
@@ -83,20 +84,20 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
             <span className="text-muted-foreground mb-1">מטבע</span>
             {settings.canEdit?.currency ? (
               <Select value={settings.currency} onValueChange={(v) => onChange({ currency: v })}>
-                <SelectTrigger className="h-8 text-[14px]" style={{ color: '#708993' }}>
+                <SelectTrigger variant="underline" className="h-8 text-[14px] text-fg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {(settings.allowedCurrencies || [settings.currency]).map((c) => (
                     <SelectItem key={c} value={c} className="text-[14px]">
-                      {c}
+                      {currencySymbol(c)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             ) : (
-              <span style={{ color: '#708993' }}>
-                {settings.currency}
+              <span className="text-fg">
+                {currencySymbol(settings.currency)}
                 {settings.settingsLinks?.currency && (
                   <a href={settings.settingsLinks.currency} className="ml-2 underline text-primary text-xs" tabIndex={0} target="_blank" rel="noopener noreferrer">
                     ערוך בהגדרות
@@ -110,7 +111,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
             <span className="text-muted-foreground mb-1">שפה</span>
             {settings.canEdit?.language ? (
               <Select value={settings.language} onValueChange={(v) => onChange({ language: v as "he" | "en" })}>
-                <SelectTrigger className="h-8 text-[14px]" style={{ color: '#708993' }}>
+                <SelectTrigger variant="underline" className="h-8 text-[14px] text-fg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -125,7 +126,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
                 </SelectContent>
               </Select>
             ) : (
-              <span style={{ color: '#708993' }}>
+              <span className="text-fg">
                 {settings.language === "he" ? "עברית" : "English"}
                 {settings.settingsLinks?.language && (
                   <a href={settings.settingsLinks.language} className="ml-2 underline text-primary text-xs" tabIndex={0} target="_blank" rel="noopener noreferrer">
@@ -167,7 +168,7 @@ export default function ReceiptSettingsSummary({ settings, onChange }: ReceiptSe
                 type="button"
                 className={cn(
                   "w-14 h-7 rounded-full flex items-center transition-colors relative",
-                  settings.roundTotals ? "bg-[#5389BB]" : "bg-muted"
+                  settings.roundTotals ? "bg-primary" : "bg-muted"
                 )}
                 style={{ border: 'none', padding: 0 }}
                 onClick={() => onChange({ roundTotals: !settings.roundTotals })}

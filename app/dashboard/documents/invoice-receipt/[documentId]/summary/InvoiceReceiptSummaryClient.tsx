@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getInvoiceReceiptPreviewUrlAction } from "@/app/dashboard/documents/invoice-receipt/actions";
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 type InvoiceReceiptRow = {
   id: string;
@@ -73,7 +74,7 @@ function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null || typeof amount !== "number") return "—";
   const curr = currency || "ILS";
   const formatted = amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${formatted} ${curr === "ILS" ? "₪" : curr}`;
+  return `${formatted} ${currencySymbol(curr)}`;
 }
 
 async function downloadPdf(documentId: string, opts: { issue: "original" | "copy"; lang: "he" | "en"; fileName: string }) {

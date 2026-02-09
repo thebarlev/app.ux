@@ -5,6 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
+import { isValidIsraeliId, normalizeIsraeliIdInput } from "@/lib/validation/israeli-id"
 import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,6 +46,7 @@ export function StepBusinessProfile() {
   const router = useRouter()
   const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const invalidIdMessage = "מספר תעודת זהות / ח״פ אינו תקין"
 
   const validate = () => {
     const newErrors: Record<string, string> = {}
@@ -52,6 +54,9 @@ export function StepBusinessProfile() {
     if (!data.businessName.trim()) newErrors.businessName = "שדה חובה"
     if (!data.businessType) newErrors.businessType = "שדה חובה"
     if (!data.companyNumber.trim()) newErrors.companyNumber = "שדה חובה"
+    if (data.companyNumber.trim() && !isValidIsraeliId(data.companyNumber)) {
+      newErrors.companyNumber = invalidIdMessage
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -107,11 +112,19 @@ export function StepBusinessProfile() {
       }
 
       // 2) Create company + membership (keep schema-cache retry behavior)
+      // IMPORTANT: validate ID BEFORE any auth creation to avoid orphan users.
+      if (!isValidIsraeliId(data.companyNumber)) {
+        setErrors((prev) => ({ ...prev, companyNumber: invalidIdMessage }))
+        setError(invalidIdMessage)
+        setIsLoading(false)
+        return
+      }
+
       const baseCompanyPayload: Record<string, any> = {
         company_name: data.businessName,
         business_type: data.businessType,
-        company_number: data.companyNumber || null,
-        registration_number: data.companyNumber || null,
+        // Canonical identifier in this scope:
+        registration_number: normalizeIsraeliIdInput(data.companyNumber) || null,
         industry: data.industry || null, // Hebrew text is source of truth
         custom_industry: data.customIndustry || null,
         contact_first_name: data.firstName,
@@ -138,6 +151,12 @@ export function StepBusinessProfile() {
 
         const code = (companyError as any)?.code ?? null
         const msg = typeof companyError.message === "string" ? companyError.message : ""
+        if (code === "P0001" || msg.includes("INVALID_TAX_ID")) {
+          setErrors((prev) => ({ ...prev, companyNumber: invalidIdMessage }))
+          setError(invalidIdMessage)
+          setIsLoading(false)
+          return
+        }
         if (code === "PGRST204") {
           const m = msg.match(/Could not find the '([^']+)' column/i)
           const missingCol = m?.[1]
@@ -278,7 +297,19 @@ export function StepBusinessProfile() {
               placeholder="123456789"
               required
               value={data.companyNumber}
-              onChange={(e) => updateData({ companyNumber: e.target.value })}
+              onChange={(e) => {
+                updateData({ companyNumber: e.target.value })
+                if (errors.companyNumber) setErrors((prev) => ({ ...prev, companyNumber: "" }))
+              }}
+              onBlur={() => {
+                const v = data.companyNumber
+                if (!v.trim()) return
+                if (!isValidIsraeliId(v)) {
+                  setErrors((prev) => ({ ...prev, companyNumber: invalidIdMessage }))
+                } else if (errors.companyNumber) {
+                  setErrors((prev) => ({ ...prev, companyNumber: "" }))
+                }
+              }}
               dir="ltr"
               className="auth-input text-left"
               labelClassName="auth-label"

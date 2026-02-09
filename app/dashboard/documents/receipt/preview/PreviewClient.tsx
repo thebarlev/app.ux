@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReceiptStyleSettings } from "@/lib/types/receipt-style";
 
 function getCurrencyCode(currencySymbol: string): string {
@@ -38,6 +38,13 @@ function formatDate(dateStr: string, language: "he" | "en") {
   } catch {
     return dateStr;
   }
+}
+
+function getDocumentCopyLabel(params: { issue: "original" | "copy" | ""; language: "he" | "en" }): string {
+  if (params.issue === "original") {
+    return params.language === "en" ? "Original" : "מקור";
+  }
+  return params.language === "en" ? "Faithful Copy" : "העתק נאמן למקור";
 }
 
 type CustomerData = {
@@ -107,6 +114,7 @@ export default function PreviewClient({
   const documentIdParam = searchParams.get("documentId") || "";
   // Match PDF behavior: when no issue provided, treat as "copy" for finalized documents.
   const issue = (((searchParams.get("issue") || "") || (documentIdParam ? "copy" : "")).toLowerCase() as "original" | "copy" | "") || "";
+  const embed = searchParams.get("embed") === "1";
   const previewNumber = searchParams.get("previewNumber") || null;
   const companyNameBase =
     (language === "en" ? (companyData as any)?.company_name_en : companyData?.company_name) ||
@@ -122,6 +130,11 @@ export default function PreviewClient({
   const total = parseFloat(searchParams.get("total") || "0");
   const currency = searchParams.get("currency") || "₪";
   const autoDownload = searchParams.get("autoDownload") === "true";
+  const copyLabel = getDocumentCopyLabel({ issue, language });
+  const watermarkLabel = "להמחשה בלבד";
+
+  const receiptRef = useRef<HTMLDivElement | null>(null);
+  const [embedScale, setEmbedScale] = useState(1);
 
   useEffect(() => {
     let cancelled = false
@@ -210,6 +223,29 @@ export default function PreviewClient({
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [previewNumber, companyNameBase]);
+
+  // Embed mode: scale the rendered page to fit the viewport height (avoid scrollbars in the modal).
+  useEffect(() => {
+    if (!embed) return;
+    const el = receiptRef.current;
+    if (!el) return;
+
+    const compute = () => {
+      const h = el.offsetHeight || el.scrollHeight || 0;
+      const viewport = window.innerHeight || 0;
+      if (!h || !viewport) return;
+      const available = Math.max(200, viewport - 16);
+      const next = Math.min(1, available / h);
+      setEmbedScale(next);
+    };
+
+    const t = window.setTimeout(compute, 0);
+    window.addEventListener("resize", compute);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("resize", compute);
+    };
+  }, [embed, templateHtml, templateCss, previewNumber, customerName, companyNameBase, documentDate, total, currency, payments.length]);
   
   // Helper function to escape HTML and prevent XSS
   const escapeHtml = (text: string | null | undefined): string => {
@@ -479,7 +515,8 @@ export default function PreviewClient({
     TOTAL_PAGES: "1",
 
     // Regulatory: original vs copy label (Preview-only; controlled by URL param issue=original|copy)
-    DOCUMENT_COPY_LABEL: "להמחשה בלבד",
+    DOCUMENT_COPY_LABEL: copyLabel,
+    PREVIEW_WATERMARK_LABEL: watermarkLabel,
     
     // Current date and time for footer
     CURRENT_DATE_TIME: new Date().toLocaleString(language === "en" ? "en-US" : "he-IL", { 
@@ -736,7 +773,13 @@ useEffect(() => {
   return (
     <div
       dir={language === "en" ? "ltr" : "rtl"}
-      style={{ minHeight: "100vh", background: "#F5F6F7", padding: "40px 20px" }}
+      style={{
+        minHeight: "100vh",
+        height: embed ? "100vh" : undefined,
+        background: embed ? "#FFFFFF" : "#F5F6F7",
+        padding: embed ? "0px" : "40px 20px",
+        overflow: embed ? "hidden" : undefined,
+      }}
     >
       {/* Error Display */}
       {renderError && (
@@ -834,6 +877,23 @@ useEffect(() => {
         
         ${styleSettings.customCss}
       `}</style>
+
+      {/* Preview watermark (visual only; not embedded into PDFs) */}
+      <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center">
+        <div
+          style={{
+            transform: "rotate(-20deg)",
+            fontSize: "64px",
+            fontWeight: 800,
+            color: "rgba(0,0,0,0.08)",
+            letterSpacing: "0.02em",
+            userSelect: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {watermarkLabel}
+        </div>
+      </div>
 
       {/* Inject template CSS if available */}
       {useTemplate && templateCss && (
@@ -939,6 +999,28 @@ useEffect(() => {
           hasContent: processedHtml.trim().length > 0
         });
         
+        if (embed) {
+          return (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div
+                ref={receiptRef}
+                className="receipt-document receipt-pdf"
+                style={{
+                  width: "210mm",
+                  minHeight: "297mm",
+                  margin: "0 auto",
+                  display: "block",
+                  background: "#ffffff",
+                  transform: embedScale !== 1 ? `scale(${embedScale})` : undefined,
+                  transformOrigin: "top center",
+                }}
+              >
+                <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div style={{ display: "flex", justifyContent: "center" }}>
             <iframe
@@ -1164,7 +1246,7 @@ useEffect(() => {
                   lineHeight: "normal",
                 }}
               >
-                העתק נאמן למקור
+                {copyLabel}
               </div>
             </div>
 

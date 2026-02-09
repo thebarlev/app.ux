@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getReceiptPreviewUrlAction } from "@/app/dashboard/documents/receipt/actions";
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { currencySymbol } from "@/lib/currency/symbol";
+import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
 
 type ReceiptRow = {
   id: string;
@@ -89,7 +91,7 @@ function formatAmount(amount: number | null, currency: string | null): string {
   if (amount === null || typeof amount !== "number") return "—";
   const curr = currency || "ILS";
   const formatted = amount.toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${formatted} ${curr === "ILS" ? "₪" : curr}`;
+  return `${formatted} ${currencySymbol(curr)}`;
 }
 
 async function downloadPdf(documentId: string, opts: { issue: "original" | "copy"; lang: "he" | "en"; fileName: string }) {
@@ -217,6 +219,9 @@ export default function ReceiptSummaryClient(props: {
   signingInfo: SigningInfoRow | null;
 }) {
   const [busy, setBusy] = useState<null | "view" | "download">(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | undefined>(undefined);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
     message?: string;
@@ -286,13 +291,18 @@ export default function ReceiptSummaryClient(props: {
 
   async function openFullPreview() {
     setBusy("view");
+    setPreviewError(null);
     try {
       const res = await getReceiptPreviewUrlAction(props.receipt.id);
       if (res.ok && res.url) {
-        window.open(res.url, "_blank");
+        // Embed mode: render inside modal at full height, without extra page chrome.
+        const url = res.url.includes("?") ? `${res.url}&embed=1` : `${res.url}?embed=1`;
+        setPreviewUrl(url);
+        setPreviewOpen(true);
         return;
       }
-      alert(res.message || "שגיאה בפתיחת תצוגה");
+      setPreviewError(res.message || "שגיאה בפתיחת תצוגה");
+      setPreviewOpen(true);
     } finally {
       setBusy(null);
     }
@@ -309,6 +319,37 @@ export default function ReceiptSummaryClient(props: {
               <div className="flex items-center gap-2">
                 {isEnglishDocument ? (
                   <>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת מקור (עברית)"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.receipt.id, {
+                              issue: "original",
+                              lang: "he",
+                              fileName: `${props.receipt.document_number || props.receipt.id}.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          הורדת מקור (עברית)
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="relative group">
                       <Button
                         variant="ghost"
@@ -372,36 +413,69 @@ export default function ReceiptSummaryClient(props: {
                     </div>
                   </>
                 ) : (
-                  <div className="relative group">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="הורדה"
-                      onClick={async () => {
-                        if (busy !== null) return;
-                        setBusy("download");
-                        try {
-                          await downloadPdf(props.receipt.id, {
-                            issue: "copy",
-                            lang: "he",
-                            fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
-                          });
-                        } catch (e: any) {
-                          alert(e?.message || "שגיאה בהורדה");
-                        } finally {
-                          setBusy(null);
-                        }
-                      }}
-                      disabled={busy !== null}
-                    >
-                      <Download className="h-5 w-5" />
-                    </Button>
-                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                        הורדה
+                  <>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת מקור"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.receipt.id, {
+                              issue: "original",
+                              lang: "he",
+                              fileName: `${props.receipt.document_number || props.receipt.id}.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          הורדת מקור
+                        </div>
                       </div>
                     </div>
-                  </div>
+
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת העתק"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.receipt.id, {
+                              issue: "copy",
+                              lang: "he",
+                              fileName: `${props.receipt.document_number || props.receipt.id}-he.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          הורדת העתק
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="relative group">
@@ -556,69 +630,20 @@ export default function ReceiptSummaryClient(props: {
               </Card>
             </div>
           ) : null}
-
-          {props.signingInfo && (
-            <div className="mt-6">
-              <h4 className="text-right text-base font-semibold mb-2">פרטי חתימה דיגיטלית</h4>
-              <Card>
-                <CardContent className="p-4 pr-0 text-right">
-                  <div className="text-sm space-y-2">
-                    {props.signingInfo.performed_at && (
-                      <div>
-                        <span className="font-semibold">נחתם בתאריך:</span>{" "}
-                        {formatDateTime(props.signingInfo.performed_at)}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.business_name && (
-                      <div>
-                        <span className="font-semibold">שם החברה:</span>{" "}
-                        {props.signingInfo.event_data.business_name}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.business_tax_id && (
-                      <div>
-                        <span className="font-semibold">מספר חברה / ח.פ:</span>{" "}
-                        {props.signingInfo.event_data.business_tax_id}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.business_contact_name && (
-                      <div>
-                        <span className="font-semibold">איש קשר:</span>{" "}
-                        {props.signingInfo.event_data.business_contact_name}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.created_by_name && (
-                      <div>
-                        <span className="font-semibold">נוצר על ידי:</span>{" "}
-                        {props.signingInfo.event_data.created_by_name}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.created_by_email && (
-                      <div>
-                        <span className="font-semibold">מייל:</span>{" "}
-                        {props.signingInfo.event_data.created_by_email}
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.signed_pdf_sha256 && (
-                      <div>
-                        <span className="font-semibold">חתימת PDF (SHA256):</span>{" "}
-                        <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                          {props.signingInfo.event_data.signed_pdf_sha256.substring(0, 16)}...
-                        </code>
-                      </div>
-                    )}
-                    {props.signingInfo.event_data?.cert_info?.valid_to && (
-                      <div className="text-xs text-muted-foreground mt-2">
-                        תעודת החתימה תקפה עד: {new Date(props.signingInfo.event_data.cert_info.valid_to).toLocaleDateString("he-IL")}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
+
+      <ReceiptPreviewModal
+        isOpen={previewOpen}
+        onClose={() => {
+          setPreviewOpen(false);
+          setPreviewUrl(undefined);
+          setPreviewError(null);
+        }}
+        pdfUrl={previewUrl}
+        isLoading={busy === "view"}
+        error={previewError}
+      />
     </main>
   );
 }

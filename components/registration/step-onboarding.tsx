@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
 import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
+import { isValidIsraeliId, normalizeIsraeliIdInput } from "@/lib/validation/israeli-id"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { FloatingInput } from "@/components/ui/floating-input"
@@ -31,6 +32,7 @@ export function StepOnboarding(_props: StepOnboardingProps) {
 
   const allowedImageTypes = useMemo(() => new Set(["image/png", "image/jpeg", "image/jpg", "image/svg+xml"]), [])
   const maxImageBytes = 5 * 1024 * 1024
+  const invalidIdMessage = "מספר תעודת זהות / ח״פ אינו תקין"
 
   useEffect(() => {
     return () => {
@@ -85,6 +87,13 @@ export function StepOnboarding(_props: StepOnboardingProps) {
 
     try {
       const supabase = createClient()
+
+      // Validate BEFORE auth.signUp() to prevent orphan users on invalid ID.
+      if (!isValidIsraeliId(data.companyNumber)) {
+        setError(invalidIdMessage)
+        setIsLoading(false)
+        return
+      }
 
       let authUserId: string | null = null
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
@@ -142,8 +151,8 @@ export function StepOnboarding(_props: StepOnboardingProps) {
         company_name_en: businessNameEnTrimmed.length > 0 ? businessNameEnTrimmed : null,
         english_address: englishAddressTrimmed.length > 0 ? englishAddressTrimmed : null,
         business_type: data.businessType,
-        company_number: data.companyNumber || null,
-        registration_number: data.companyNumber || null,
+        // Canonical identifier in this scope:
+        registration_number: normalizeIsraeliIdInput(data.companyNumber) || null,
         industry: data.industry || null,
         custom_industry: data.customIndustry || null,
         contact_first_name: data.firstName,
@@ -170,6 +179,11 @@ export function StepOnboarding(_props: StepOnboardingProps) {
 
         const code = (companyError as any)?.code ?? null
         const msg = typeof companyError.message === "string" ? companyError.message : ""
+        if (code === "P0001" || msg.includes("INVALID_TAX_ID")) {
+          setError(invalidIdMessage)
+          setIsLoading(false)
+          return
+        }
         if (code === "PGRST204") {
           const m = msg.match(/Could not find the '([^']+)' column/i)
           const missingCol = m?.[1]
