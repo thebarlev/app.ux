@@ -12,5 +12,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login");
   }
 
+  // Guard: ensure the user completed onboarding (has a company).
+  const { data: company } = await supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle()
+  if (!company?.id) {
+    redirect("/register4")
+  }
+
   return <DashboardShell>{children}</DashboardShell>;
 }
