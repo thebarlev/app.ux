@@ -72,16 +72,16 @@ async function chargeToken(args: {
   const url = "https://secure.cardcom.solutions/interface/ChargeToken.aspx"
 
   const form = new URLSearchParams({
-    TerminalNumber: cfg.terminalNumber,
-    UserName: cfg.apiUsername,
+    TerminalNumber: cfg.terminalNumber!,
+    UserName: cfg.apiUsername!,
     CodePage: "65001",
     "TokenToCharge.Token": args.token,
     "TokenToCharge.SumToBill": args.sumToBill.toFixed(2),
     "TokenToCharge.CoinID": String(args.coinId),
     "TokenToCharge.APILevel": "10",
     "TokenToCharge.UniqAsmachta": args.uniqAsmachta,
-    "TokenToCharge.UserPassword": cfg.apiPassword,
-  })
+    "TokenToCharge.UserPassword": cfg.apiPassword!,
+  } as Record<string, string>)
 
   const r = await fetch(url, {
     method: "POST",

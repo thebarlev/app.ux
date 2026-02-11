@@ -18,7 +18,9 @@ function getCardcomConfig() {
   if (!apiPassword) missing.push("CARDCOM_API_PASSWORD")
   if (missing.length) throw new Error(`Missing Cardcom env vars: ${missing.join(", ")}`)
 
-  return { terminalNumber, apiUsername, mode }
+  // NOTE: apiPassword is validated above even if not currently used here.
+  // Keeping it ensures config completeness and avoids silent misconfig.
+  return { terminalNumber, apiUsername, apiPassword, mode }
 }
 
 function parseNameValueResponse(rawText: string): Record<string, any> {
@@ -96,9 +98,24 @@ function extractTokenFromIndicator(indicator: Record<string, any>): {
 }
 
 async function handleIndicator(req: Request) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:handleIndicator:entry',message:'Indicator called',data:{hasUrl:!!req.url},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #region agent log (safe)
+  try {
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "indicator/route.ts:handleIndicator:entry",
+        message: "Indicator called",
+        data: { hasUrl: !!req.url },
+        timestamp: Date.now(),
+        hypothesisId: "H1",
+      }),
+    }).catch(() => {})
+  } catch {
+    // ignore
+  }
   // #endregion
+
   const ip = getClientIp(req)
   const rl = rateLimit({ key: `cardcom-indicator:${ip}`, limit: 120, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -144,12 +161,17 @@ async function handleIndicator(req: Request) {
   try {
     const cfg = getCardcomConfig()
     const indicatorUrl = "https://secure.cardcom.solutions/Interface/BillGoldGetLowProfileIndicator.aspx"
-    const qs = new URLSearchParams({
-      terminalnumber: cfg.terminalNumber,
-      username: cfg.apiUsername,
-      lowprofilecode: lowProfileCode,
-      codepage: "65001",
-    })
+    
+    const terminalNumber = cfg.terminalNumber ?? ""
+    const apiUsername = cfg.apiUsername ?? ""
+    
+    const qs = new URLSearchParams()
+    qs.set("terminalnumber", terminalNumber)
+    qs.set("username", apiUsername)
+    qs.set("lowprofilecode", lowProfileCode)
+    qs.set("codepage", "65001")
+    
+    
 
     const r = await fetch(`${indicatorUrl}?${qs.toString()}`, { method: "GET" })
     indicatorRaw = await r.text()
@@ -160,14 +182,35 @@ async function handleIndicator(req: Request) {
       .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "pull_failed" } })
       .eq("provider", providerKey)
       .eq("event_id", eventId)
+
     return NextResponse.json({ ok: true, status: "error" })
   }
 
   const operationResponse = Number((indicator as any).OperationResponse ?? NaN)
   const internalDealNumber = String((indicator as any).InternalDealNumber ?? "").trim() || null
   const tokenInfo = extractTokenFromIndicator(indicator)
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:afterCardcomPull',message:'Cardcom indicator parsed',data:{lowProfileCode,returnValue,operationResponse,paid:Number.isFinite(operationResponse)&&operationResponse===0},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+
+  // #region agent log (safe)
+  try {
+    fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "indicator/route.ts:afterCardcomPull",
+        message: "Cardcom indicator parsed",
+        data: {
+          lowProfileCode,
+          returnValue,
+          operationResponse,
+          paid: Number.isFinite(operationResponse) && operationResponse === 0,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H5",
+      }),
+    }).catch(() => {})
+  } catch {
+    // ignore
+  }
   // #endregion
 
   // Lookup checkout session (prefer LowProfileCode, fallback to ReturnValue if provided)
@@ -195,9 +238,24 @@ async function handleIndicator(req: Request) {
   }
 
   if (!checkout?.id) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:checkoutNotFound',message:'Checkout not found',data:{lowProfileCode,returnValue},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #region agent log (safe)
+    try {
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "indicator/route.ts:checkoutNotFound",
+          message: "Checkout not found",
+          data: { lowProfileCode, returnValue },
+          timestamp: Date.now(),
+          hypothesisId: "H2",
+        }),
+      }).catch(() => {})
+    } catch {
+      // ignore
+    }
     // #endregion
+
     await admin
       .from("billing_webhook_events")
       .update({
@@ -207,6 +265,7 @@ async function handleIndicator(req: Request) {
       })
       .eq("provider", providerKey)
       .eq("event_id", eventId)
+
     return NextResponse.json({ ok: true, status: "ok" })
   }
 
@@ -255,9 +314,29 @@ async function handleIndicator(req: Request) {
       })
       .eq("company_id", String(checkout.company_id))
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:subscriptionUpdate',message:'Subscription update result',data:{checkoutId:checkout.id,companyId:checkout.company_id,planId:checkout.plan_id,subErr:subErr?String(subErr):null},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+    // #region agent log (safe)
+    try {
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "indicator/route.ts:subscriptionUpdate",
+          message: "Subscription update result",
+          data: {
+            checkoutId: checkout.id,
+            companyId: checkout.company_id,
+            planId: checkout.plan_id,
+            subErr: subErr ? String(subErr) : null,
+          },
+          timestamp: Date.now(),
+          hypothesisId: "H4",
+        }),
+      }).catch(() => {})
+    } catch {
+      // ignore
+    }
     // #endregion
+
     if (subErr) {
       console.error("[CARDCOM_INDICATOR] Subscription update failed", { checkoutId: checkout.id, error: subErr })
       await logBillingFailure("subscription_update", subErr)
@@ -296,7 +375,9 @@ async function handleIndicator(req: Request) {
 
     // 3) Auto-issue VOW accounting document (ALWAYS call; RPC is idempotent)
     const issuerCompanyId = process.env.VOW_BILLING_COMPANY_ID
-    let issued: any = null, issueErr: any = null
+    let issued: any = null,
+      issueErr: any = null
+
     if (issuerCompanyId) {
       const r = await adminDb.rpc("issue_paid_checkout_document_service", {
         p_checkout_session_id: String(checkout.id),
@@ -305,9 +386,30 @@ async function handleIndicator(req: Request) {
       issued = r.data
       issueErr = r.error
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:documentIssuance',message:'Document issuance result',data:{checkoutId:checkout.id,issuerCompanyId:!!issuerCompanyId,issueErr:issueErr?String(issueErr):null,issuedOk:Array.isArray(issued)&&issued[0]?issued[0].ok:null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+
+    // #region agent log (safe)
+    try {
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "indicator/route.ts:documentIssuance",
+          message: "Document issuance result",
+          data: {
+            checkoutId: checkout.id,
+            issuerCompanyId: !!issuerCompanyId,
+            issueErr: issueErr ? String(issueErr) : null,
+            issuedOk: Array.isArray(issued) && issued[0] ? issued[0].ok : null,
+          },
+          timestamp: Date.now(),
+          hypothesisId: "H3",
+        }),
+      }).catch(() => {})
+    } catch {
+      // ignore
+    }
     // #endregion
+
     if (!issuerCompanyId) {
       console.error("[CARDCOM_INDICATOR] Missing VOW_BILLING_COMPANY_ID")
       await logBillingFailure("document_issuance", new Error("VOW_BILLING_COMPANY_ID not set"))
@@ -340,4 +442,3 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   return handleIndicator(req)
 }
-

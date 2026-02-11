@@ -161,8 +161,8 @@ export async function POST(req: Request) {
   const sumToBill = amount.toFixed(2)
   const form = new URLSearchParams({
     Operation: "2", // charge + create token (Cardcom docs)
-    TerminalNumber: cfg.terminalNumber,
-    UserName: cfg.apiUsername,
+    TerminalNumber: cfg.terminalNumber!,
+    UserName: cfg.apiUsername!,
     SumToBill: sumToBill,
     CoinId: String(coinId),
     APILevel: "10",
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     ErrorRedirectUrl: errorUrl,
     IndicatorUrl: indicatorUrl,
     ReturnValue: checkoutSessionId, // <= 250 chars; used for correlation
-  })
+  } as Record<string, string>)
 
   let rawOpenText = ""
   try {
