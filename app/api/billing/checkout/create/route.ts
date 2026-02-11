@@ -78,15 +78,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "Missing plan_id" }, { status: 400 })
   }
 
+  const isProd = process.env.NODE_ENV === "production"
+
   // Ensure Cardcom is configured (env-only, VOW-only)
   getCardcomConfig()
+
+  // Regulatory: do not accept payments in production without a configured issuer company
+  if (isProd && (!process.env.VOW_BILLING_COMPANY_ID || !String(process.env.VOW_BILLING_COMPANY_ID).trim())) {
+    console.error("[BILLING_CHECKOUT_CREATE] VOW_BILLING_COMPANY_ID required in production for invoice/receipt issuance")
+    return NextResponse.json(
+      { ok: false, message: "Configuration error: VOW_BILLING_COMPANY_ID must be set in production" },
+      { status: 500 }
+    )
+  }
 
   const companyId = await getCompanyIdForUser()
   const publicBaseUrl = getPublicBaseUrl(req)
 
   // CRITICAL: In production, IndicatorUrl must point to a publicly reachable domain (Cardcom callback).
   // localhost is NOT reachable from Cardcom servers. Enforce PUBLIC_BASE_URL.
-  const isProd = process.env.NODE_ENV === "production"
   if (isProd && (!process.env.PUBLIC_BASE_URL || !String(process.env.PUBLIC_BASE_URL).trim())) {
     console.error("[BILLING_CHECKOUT_CREATE] PUBLIC_BASE_URL required in production for Cardcom IndicatorUrl")
     return NextResponse.json(
