@@ -194,6 +194,7 @@ export async function finalizeDocument(
   ok: boolean
   documentNumber?: string
   message?: string
+  reason?: string | null
   signing?: {
     pdf_hashes: {
       original_he_sha256: string
@@ -658,6 +659,8 @@ export async function finalizeDocument(
     return (
       code === "PGRST202" ||
       code === "PGRST205" ||
+      msg.includes("Could not find the function public.finalize_document_with_period_guard") ||
+      msg.includes("finalize_document_with_period_guard(") ||
       msg.includes("Could not find the function public.finalize_document_with_usage_guard") ||
       msg.includes("finalize_document_with_usage_guard(")
     )
@@ -665,10 +668,15 @@ export async function finalizeDocument(
 
   let finalizeGuardData: any = null
   let finalizeGuardError: any = null
-  let finalizeRpcMode: "v2_with_accounting" | "v1_no_accounting" | "legacy_minimal" = "v2_with_accounting"
+  let finalizeRpcMode:
+    | "period_guard"
+    | "v2_with_accounting"
+    | "v1_no_accounting"
+    | "legacy_minimal" = "period_guard"
 
+  // Prefer new period-based guard (anniversary periods + free hard cap).
   ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
-    "finalize_document_with_usage_guard",
+    "finalize_document_with_period_guard",
     {
       p_company_id: companyId,
       p_document_id: draftId,
@@ -681,7 +689,7 @@ export async function finalizeDocument(
   ))
 
   if (finalizeGuardError && isMissingOrMismatchedFinalizeRpc(finalizeGuardError)) {
-    finalizeRpcMode = "v1_no_accounting"
+    finalizeRpcMode = "v2_with_accounting"
 
     ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
       "finalize_document_with_usage_guard",
@@ -689,6 +697,10 @@ export async function finalizeDocument(
         p_company_id: companyId,
         p_document_id: draftId,
         p_now: nowIso,
+        p_paid_amount: initialPaidAmount,
+        p_credited_amount: initialCreditedAmount,
+        p_outstanding_balance: initialOutstandingBalance,
+        p_accounting_status: initialAccountingStatus,
       }
     ))
   }
@@ -707,7 +719,7 @@ export async function finalizeDocument(
 
   if (finalizeGuardError) {
     console.error(`[finalizeDocument] finalize_document_with_usage_guard failed for ${draftId}:`, finalizeGuardError)
-    return { ok: false, message: finalizeGuardError.message }
+    return { ok: false, message: finalizeGuardError.message, reason: null }
   }
 
   const finalizeRow = Array.isArray(finalizeGuardData) ? finalizeGuardData[0] : (finalizeGuardData as any)
@@ -725,12 +737,12 @@ export async function finalizeDocument(
             : reason === "account_blocked"
               ? "החשבון חסום. לא ניתן להפיק מסמכים חדשים."
               : "לא ניתן להפיק מסמך. נסה שוב."
-    return { ok: false, message }
+    return { ok: false, message, reason }
   }
 
   console.log(`✅ [finalizeDocument] Document ${draftId} finalized successfully with PDF`)
   
-  const successResponse = { ok: true, documentNumber: docNumber || undefined };
+  const successResponse = { ok: true, documentNumber: docNumber || undefined, reason: null };
   
   return {
     ...successResponse,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import type { InitialReceiptCreateData, PaymentRow, ReceiptDraftPayload } from "@/lib/documents/types";
 import {
@@ -33,6 +34,7 @@ import { Trash2, Save, CheckCircle, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { FxRateDialog } from "@/components/payments/FxRateDialog";
 import { currencySymbol } from "@/lib/currency/symbol";
+import { SubscriptionBlockModal, type SubscriptionBlockKind } from "@/components/subscription/SubscriptionBlockModal";
 import {
   createDocumentLinkAction,
   getDocumentForChainingAction,
@@ -99,6 +101,7 @@ export default function ReceiptFormClient({
   } | null;
   draftId?: string;
 }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = draftIdProp ?? (initial.ok ? initial.draftId ?? undefined : undefined);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -148,6 +151,7 @@ export default function ReceiptFormClient({
   const [confirmationModalOpen, setConfirmationModalOpen] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [blockModalKind, setBlockModalKind] = useState<null | SubscriptionBlockKind>(null);
 
   // Consent is treated as granted-on-login; keep state removed to avoid accidental blocking.
 
@@ -654,7 +658,14 @@ export default function ReceiptFormClient({
       const result = await issueReceiptAction(payload, draftId);
 
       if (!result || !result.ok) {
-        toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
+        const reason = (result as any)?.reason as string | null | undefined;
+        if (reason === "limit_reached") {
+          setBlockModalKind("free_quota");
+        } else if (reason === "subscription_expired" || reason === "past_due" || reason === "account_blocked") {
+          setBlockModalKind("renewal_required");
+        } else {
+          toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
+        }
         setBusy(null);
         setIsFinalizing(false);
         return;
@@ -726,6 +737,15 @@ export default function ReceiptFormClient({
 
   return (
     <main dir="rtl" className="min-h-screen ui-document-form">
+      <SubscriptionBlockModal
+        isOpen={blockModalKind !== null}
+        kind={blockModalKind || "free_quota"}
+        onClose={() => setBlockModalKind(null)}
+        onPrimary={() => {
+          setBlockModalKind(null);
+          router.push("/pricing");
+        }}
+      />
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {message && (

@@ -57,7 +57,48 @@ function addPeriod(now: Date, interval: "month" | "year"): Date {
   return d
 }
 
+function firstNonEmptyString(...vals: Array<any>): string | null {
+  for (const v of vals) {
+    const s = typeof v === "string" ? v.trim() : ""
+    if (s) return s
+  }
+  return null
+}
+
+function extractTokenFromIndicator(indicator: Record<string, any>): {
+  token: string
+  tokenExDate: string | null
+  brand: string | null
+  cardNumStart: string | null
+  cardNumEnd: string | null
+} | null {
+  const token = firstNonEmptyString(
+    indicator.Token,
+    indicator["ExtShvaParams.CardToken"],
+    indicator["ExtShvaParams.CardToken_15"],
+    indicator["TokenToCharge.Token"]
+  )
+  if (!token) return null
+
+  const tokenExDate = firstNonEmptyString(indicator.TokenExDate, indicator.Tokef_30, indicator["ExtShvaParams.Tokef30"])
+
+  const brand = firstNonEmptyString(
+    indicator.Mutag_24,
+    indicator["ExtShvaParams.Mutag24"],
+    indicator["Mutag24"],
+    indicator["Mutag"]
+  )
+
+  const cardNumStart = firstNonEmptyString(indicator.CardNumStart, indicator["ExtShvaParams.FirstCardDigits"])
+  const cardNumEnd = firstNonEmptyString(indicator.CardNumEnd, indicator["ExtShvaParams.CardNumber5"])
+
+  return { token, tokenExDate, brand, cardNumStart, cardNumEnd }
+}
+
 async function handleIndicator(req: Request) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:handleIndicator:entry',message:'Indicator called',data:{hasUrl:!!req.url},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
   const ip = getClientIp(req)
   const rl = rateLimit({ key: `cardcom-indicator:${ip}`, limit: 120, windowMs: 60_000 })
   if (!rl.allowed) {
@@ -124,6 +165,10 @@ async function handleIndicator(req: Request) {
 
   const operationResponse = Number((indicator as any).OperationResponse ?? NaN)
   const internalDealNumber = String((indicator as any).InternalDealNumber ?? "").trim() || null
+  const tokenInfo = extractTokenFromIndicator(indicator)
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:afterCardcomPull',message:'Cardcom indicator parsed',data:{lowProfileCode,returnValue,operationResponse,paid:Number.isFinite(operationResponse)&&operationResponse===0},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+  // #endregion
 
   // Lookup checkout session (prefer LowProfileCode, fallback to ReturnValue if provided)
   const adminDb = createServiceRoleClient()
@@ -150,6 +195,9 @@ async function handleIndicator(req: Request) {
   }
 
   if (!checkout?.id) {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:checkoutNotFound',message:'Checkout not found',data:{lowProfileCode,returnValue},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
     await admin
       .from("billing_webhook_events")
       .update({
@@ -167,6 +215,20 @@ async function handleIndicator(req: Request) {
 
   const paid = Number.isFinite(operationResponse) && operationResponse === 0
 
+  async function logBillingFailure(stage: string, err: any) {
+    try {
+      await adminDb.from("billing_failures").insert({
+        checkout_session_id: checkout.id,
+        company_id: checkout.company_id,
+        failure_stage: stage,
+        error_message: err?.message ?? String(err),
+        error_details: { error: err },
+      })
+    } catch {
+      console.error("[CARDCOM_INDICATOR] Failed to log billing_failure", { stage, err })
+    }
+  }
+
   await adminDb
     .from("checkout_sessions")
     .update({
@@ -177,11 +239,11 @@ async function handleIndicator(req: Request) {
     .eq("id", String(checkout.id))
 
   if (paid) {
-    // Activate subscription for buyer company
     const interval: "month" | "year" = checkout.billing_interval === "year" ? "year" : "month"
     const endIso = addPeriod(now, interval).toISOString()
 
-    await adminDb
+    // 1) Activate subscription for buyer company (must succeed)
+    const { error: subErr } = await adminDb
       .from("subscriptions")
       .update({
         plan_id: checkout.plan_id,
@@ -193,21 +255,68 @@ async function handleIndicator(req: Request) {
       })
       .eq("company_id", String(checkout.company_id))
 
-    // Auto-issue VOW accounting document under dedicated VOW billing company
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:subscriptionUpdate',message:'Subscription update result',data:{checkoutId:checkout.id,companyId:checkout.company_id,planId:checkout.plan_id,subErr:subErr?String(subErr):null},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+    // #endregion
+    if (subErr) {
+      console.error("[CARDCOM_INDICATOR] Subscription update failed", { checkoutId: checkout.id, error: subErr })
+      await logBillingFailure("subscription_update", subErr)
+    }
+
+    // 2) Persist latest active token
+    if (tokenInfo?.token) {
+      try {
+        await adminDb
+          .from("customer_payment_methods")
+          .update({ status: "revoked" })
+          .eq("company_id", String(checkout.company_id))
+          .eq("provider", "cardcom")
+          .eq("status", "active")
+          .neq("token", tokenInfo.token)
+
+        await adminDb.from("customer_payment_methods").upsert(
+          {
+            company_id: String(checkout.company_id),
+            user_id: null,
+            provider: "cardcom",
+            token: tokenInfo.token,
+            token_ex_date: tokenInfo.tokenExDate,
+            brand: tokenInfo.brand,
+            card_num_start: tokenInfo.cardNumStart,
+            card_num_end: tokenInfo.cardNumEnd,
+            status: "active",
+          } as any,
+          { onConflict: "company_id,provider,token" }
+        )
+      } catch (e: any) {
+        console.error("[CARDCOM_INDICATOR] Failed to persist token", { error: e?.message || e })
+        await logBillingFailure("token_persist", e)
+      }
+    }
+
+    // 3) Auto-issue VOW accounting document (ALWAYS call; RPC is idempotent)
     const issuerCompanyId = process.env.VOW_BILLING_COMPANY_ID
-    if (!issuerCompanyId) {
-      console.error("[CARDCOM_INDICATOR] Missing VOW_BILLING_COMPANY_ID")
-    } else {
-      const { data: issued, error: issueErr } = await adminDb.rpc("issue_paid_checkout_document_service", {
+    let issued: any = null, issueErr: any = null
+    if (issuerCompanyId) {
+      const r = await adminDb.rpc("issue_paid_checkout_document_service", {
         p_checkout_session_id: String(checkout.id),
         p_issuer_company_id: String(issuerCompanyId),
       } as any)
-
-      if (issueErr) {
-        console.error("[CARDCOM_INDICATOR] issue_paid_checkout_document_service failed", { error: issueErr })
-      } else if (Array.isArray(issued) && issued[0] && issued[0].ok !== true) {
-        console.error("[CARDCOM_INDICATOR] issuance returned not-ok", issued[0])
-      }
+      issued = r.data
+      issueErr = r.error
+    }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'indicator/route.ts:documentIssuance',message:'Document issuance result',data:{checkoutId:checkout.id,issuerCompanyId:!!issuerCompanyId,issueErr:issueErr?String(issueErr):null,issuedOk:Array.isArray(issued)&&issued[0]?issued[0].ok:null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    // #endregion
+    if (!issuerCompanyId) {
+      console.error("[CARDCOM_INDICATOR] Missing VOW_BILLING_COMPANY_ID")
+      await logBillingFailure("document_issuance", new Error("VOW_BILLING_COMPANY_ID not set"))
+    } else if (issueErr) {
+      console.error("[CARDCOM_INDICATOR] issue_paid_checkout_document_service failed", { error: issueErr })
+      await logBillingFailure("document_issuance", issueErr)
+    } else if (Array.isArray(issued) && issued[0] && issued[0].ok !== true) {
+      console.error("[CARDCOM_INDICATOR] issuance returned not-ok", issued[0])
+      await logBillingFailure("document_issuance", new Error(JSON.stringify(issued[0])))
     }
   }
 

@@ -1,0 +1,1 @@
+{"location":"checkout/create/route.ts:urls","message":"Checkout URLs sent to Cardcom","data":{"indicatorUrl":"http://localhost:3001/api/billing/cardcom/indicator","successUrl":"http://localhost:3001/billing/success","publicBaseUrl":"http://localhost:3001"},"timestamp":1770796216422,"hypothesisId":"H1"}

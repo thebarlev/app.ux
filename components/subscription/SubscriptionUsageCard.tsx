@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -54,6 +55,7 @@ function reasonMessage(reason: StatusReason | null): string | null {
 }
 
 export function SubscriptionUsageCard() {
+  const router = useRouter()
   const [state, setState] = useState<SubscriptionStatusResponse | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -121,8 +123,8 @@ export function SubscriptionUsageCard() {
             </div>
           </div>
 
-          <Button variant="secondary" disabled className="shrink-0">
-            שדרוג בקרוב
+          <Button variant="secondary" className="shrink-0" onClick={() => router.push("/pricing")}>
+            שדרוג מנוי
           </Button>
         </div>
 

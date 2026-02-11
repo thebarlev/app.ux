@@ -84,12 +84,26 @@ export async function POST(req: Request) {
   const companyId = await getCompanyIdForUser()
   const publicBaseUrl = getPublicBaseUrl(req)
 
+  // CRITICAL: In production, IndicatorUrl must point to a publicly reachable domain (Cardcom callback).
+  // localhost is NOT reachable from Cardcom servers. Enforce PUBLIC_BASE_URL.
+  const isProd = process.env.NODE_ENV === "production"
+  if (isProd && (!process.env.PUBLIC_BASE_URL || !String(process.env.PUBLIC_BASE_URL).trim())) {
+    console.error("[BILLING_CHECKOUT_CREATE] PUBLIC_BASE_URL required in production for Cardcom IndicatorUrl")
+    return NextResponse.json(
+      { ok: false, message: "Configuration error: PUBLIC_BASE_URL must be set in production" },
+      { status: 500 }
+    )
+  }
+
   const defaultSuccessUrl = `${publicBaseUrl}/dashboard?checkout=success`
   const defaultErrorUrl = `${publicBaseUrl}/dashboard?checkout=error`
 
   const successUrl = typeof body?.success_url === "string" && body.success_url.trim() ? String(body.success_url).trim() : defaultSuccessUrl
   const errorUrl = typeof body?.error_url === "string" && body.error_url.trim() ? String(body.error_url).trim() : defaultErrorUrl
   const indicatorUrl = `${publicBaseUrl}/api/billing/cardcom/indicator`
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'checkout/create/route.ts:urls',message:'Checkout URLs sent to Cardcom',data:{indicatorUrl,successUrl,publicBaseUrl},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
 
   // Resolve amount from plans
   const { data: plan, error: planErr } = await userClient

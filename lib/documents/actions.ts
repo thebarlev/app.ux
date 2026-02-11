@@ -1120,7 +1120,7 @@ export async function issueDocumentAction(
           message: rawMessage,
           draftId,
         });
-        return { ok: false as const, message: rawMessage };
+        return { ok: false as const, message: rawMessage, reason: (result as any)?.reason ?? null };
       }
 
       const { data: company } = await supabase

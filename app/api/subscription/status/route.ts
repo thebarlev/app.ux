@@ -4,11 +4,19 @@ import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { signUpgradeState } from "@/lib/billing/upgrade-state"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 
-function firstDayOfMonthUtcIso(now = new Date()): string {
-  const y = now.getUTCFullYear()
-  const m = now.getUTCMonth()
-  const d = new Date(Date.UTC(y, m, 1))
-  return d.toISOString().slice(0, 10)
+function deriveAnniversaryMonthWindow(now: Date, anchor: Date): { start: Date; end: Date } {
+  // Compute rolling [start, end) monthly window anchored at `anchor` day-of-month.
+  // Uses (year, month) parts of Postgres age()-style logic.
+  const months =
+    (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12 + (now.getUTCMonth() - anchor.getUTCMonth())
+  const start = new Date(anchor.getTime())
+  start.setUTCMonth(start.getUTCMonth() + months)
+  if (start.getTime() > now.getTime()) {
+    start.setUTCMonth(start.getUTCMonth() - 1)
+  }
+  const end = new Date(start.getTime())
+  end.setUTCMonth(end.getUTCMonth() + 1)
+  return { start, end }
 }
 
 export async function GET(request: Request) {
@@ -26,11 +34,10 @@ export async function GET(request: Request) {
 
   const companyId = await getCompanyIdForUser()
   const now = new Date()
-  const yearMonth = firstDayOfMonthUtcIso(now)
 
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
-    .select("company_id, plan_id, status, trial_ends_at, current_period_end")
+    .select("company_id, plan_id, status, trial_starts_at, trial_ends_at, current_period_start, current_period_end")
     .eq("company_id", companyId)
     .maybeSingle()
 
@@ -43,7 +50,9 @@ export async function GET(request: Request) {
 
   const planId = String((sub as any).plan_id || "free")
   const status = String((sub as any).status || "trial")
+  const trialStartsAt = (sub as any).trial_starts_at ? String((sub as any).trial_starts_at) : null
   const trialEndsAt = (sub as any).trial_ends_at ? String((sub as any).trial_ends_at) : null
+  const currentPeriodStart = (sub as any).current_period_start ? String((sub as any).current_period_start) : null
   const currentPeriodEnd = (sub as any).current_period_end ? String((sub as any).current_period_end) : null
 
   const { data: plan, error: planError } = await supabase
@@ -56,31 +65,61 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, message: "Plan not available" }, { status: 500 })
   }
 
-  const documentsLimit = Number((plan as any).documents_per_month ?? 0) || 0
+  const VOW_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+  const documentsLimit =
+    companyId === VOW_COMPANY_ID ? 1_000_000 : Number((plan as any).documents_per_month ?? 0) || 0
 
-  const { data: usage, error: usageError } = await supabase
-    .from("usage_monthly")
-    .select("documents_count")
-    .eq("company_id", companyId)
-    .eq("year_month", yearMonth)
-    .maybeSingle()
-
-  if (usageError) {
-    return NextResponse.json({ ok: false, message: "Usage not available" }, { status: 500 })
+  // Period-based usage: count finalized docs within the current subscription period
+  let periodStartIso: string | null = null
+  let periodEndIso: string | null = null
+  if (planId === "free") {
+    if (currentPeriodStart && currentPeriodEnd) {
+      periodStartIso = currentPeriodStart
+      periodEndIso = currentPeriodEnd
+    } else if (trialStartsAt) {
+      const win = deriveAnniversaryMonthWindow(now, new Date(trialStartsAt))
+      periodStartIso = win.start.toISOString()
+      periodEndIso = win.end.toISOString()
+    } else {
+      // Fallback: calendar-like month window if no anchor
+      const win = deriveAnniversaryMonthWindow(now, new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)))
+      periodStartIso = win.start.toISOString()
+      periodEndIso = win.end.toISOString()
+    }
+  } else {
+    periodStartIso = currentPeriodStart
+    periodEndIso = currentPeriodEnd
   }
 
-  const documentsUsed = Number((usage as any)?.documents_count ?? 0) || 0
+  // Count ALL finalized docs (receipt, invoice_receipt, negative_receipt, tax_invoice, etc.). No exemptions.
+  let documentsUsed = 0
+  if (periodStartIso && periodEndIso) {
+    const { count, error: countErr } = await supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("document_status", "final")
+      .gte("finalized_at", periodStartIso)
+      .lt("finalized_at", periodEndIso)
+    if (countErr) {
+      return NextResponse.json({ ok: false, message: "Usage not available" }, { status: 500 })
+    }
+    documentsUsed = Number(count || 0) || 0
+  }
 
   // status_reason mirrors server enforcement (issue/finalize is blocked; read-only remains allowed)
   let statusReason: null | "trial_ended" | "subscription_expired" | "account_blocked" | "limit_reached" = null
 
   if (["blocked", "canceled", "past_due"].includes(status)) {
     statusReason = "account_blocked"
-  } else if (status === "trial" && trialEndsAt && now > new Date(trialEndsAt)) {
-    statusReason = "trial_ended"
-  } else if (status === "active" && (!currentPeriodEnd || now > new Date(currentPeriodEnd))) {
+  } else if (planId !== "free" && status === "active" && (!periodEndIso || now >= new Date(periodEndIso))) {
     statusReason = "subscription_expired"
-  } else if (documentsLimit > 0 && documentsUsed >= documentsLimit) {
+  } else if (
+    planId === "free" &&
+    documentsLimit > 0 &&
+    documentsUsed >= documentsLimit &&
+    companyId !== VOW_COMPANY_ID
+  ) {
     statusReason = "limit_reached"
   }
 
@@ -102,12 +141,11 @@ export async function GET(request: Request) {
     status,
     status_reason: statusReason,
     trial_ends_at: trialEndsAt,
-    current_period_end: currentPeriodEnd,
+    current_period_end: periodEndIso,
     documents_used: documentsUsed,
     documents_limit: documentsLimit,
-    year_month: yearMonth,
     upgrade_url: upgradeUrl,
-    upgrade_available: false,
+    upgrade_available: planId === "free",
   })
 }
 

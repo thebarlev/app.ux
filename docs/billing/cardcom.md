@@ -74,7 +74,7 @@ Behavior:
 - Updates:
   - `checkout_sessions` → `paid|failed`
   - `subscriptions` for the buyer company (`status=active`, period dates)
-  - Issues a **VOW receipt** under `VOW_BILLING_COMPANY_ID` via a privileged Postgres RPC.
+  - Issues a **VOW invoice/receipt (`invoice_receipt`)** under `VOW_BILLING_COMPANY_ID` via a privileged Postgres RPC.
 
 ---
 
@@ -99,11 +99,21 @@ Function:
 If `document_sequences` is missing for the issuer (VOW) company:
 
 - Auto-creates sequences for:
-  - `receipt`
-  - `invoice_receipt` (defensive)
+  - `invoice_receipt`
 - Starts at **1000** (sets `starting_number=1000`, `current_number=999`) and then increments sequentially.
 
 ---
+
+## Required in production
+- `PUBLIC_BASE_URL` – **Must be set** (e.g. `https://app.vow.co.il`). Cardcom calls IndicatorUrl from their servers; localhost is not reachable.
+- If missing in production, checkout creation returns 500.
+
+## Debugging stuck checkout_sessions
+See `scripts/063-debug-stuck-checkout.sql` for queries to:
+- Find sessions stuck at `redirected`
+- Verify `billing_webhook_events` has the idempotency event
+- Check `indicator_url` points to production (not localhost)
+- Inspect `billing_failures` for post-payment issues
 
 ## Supabase migrations to run (order)
 
@@ -114,6 +124,8 @@ Run in Supabase SQL editor (in this order):
 3. `scripts/053-line-items-item-date-currency.sql`
 4. `scripts/054-billing-rls.sql`
 5. `scripts/055-issue-paid-checkout-document-service.sql`
+6. `scripts/061-issue-paid-checkout-invoice-receipt.sql` (replaces RPC to issue invoice_receipt)
+7. `scripts/062-billing-failures.sql` (failure logging for post-payment issues)
 
 ---
 
