@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
 import { Loader2, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -11,8 +10,11 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
 function ForgotPasswordForm() {
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -24,24 +26,31 @@ function ForgotPasswordForm() {
     setError(null)
     setSuccess(false)
 
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError("נא להזין כתובת אימייל")
+      setIsLoading(false)
+      return
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      setError("כתובת אימייל לא תקינה")
+      setIsLoading(false)
+      return
+    }
+
     try {
       const supabase = createClient()
 
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      // Supabase Auth Redirect URLs must include:
+      // http://localhost:3000/auth/callback
+      // https://app.vow.co.il/auth/callback
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       })
 
       if (resetError) {
-        console.error("🔴 Password reset error:", resetError)
-        let errorMsg = "שגיאה בשליחת קישור איפוס סיסמה"
-        if (resetError.message?.toLowerCase().includes("email not found")) {
-          errorMsg = "כתובת האימייל לא נמצאה במערכת"
-        } else if (resetError.message) {
-          errorMsg = `שגיאה: ${resetError.message}`
-        }
-        setError(errorMsg)
-        setIsLoading(false)
-        return
+        // Keep response generic to avoid leaking account existence.
+        console.warn("Password reset request returned an auth error", resetError.message)
       }
 
       setSuccess(true)
@@ -74,7 +83,7 @@ function ForgotPasswordForm() {
                   className="bg-success/10 border border-success/20 text-success px-4 py-3 rounded-ui text-sm font-medium text-right"
                   role="alert"
                 >
-                  קישור לאיפוס הסיסמה נשלח לכתובת {email}. נא לבדוק את תיבת הדואר הנכנס ולפעול לפי ההוראות.
+                  אם כתובת האימייל קיימת במערכת, נשלח אליך קישור לאיפוס סיסמה. נא לבדוק את תיבת הדואר הנכנס.
                 </div>
 
                 <div className="pt-4">

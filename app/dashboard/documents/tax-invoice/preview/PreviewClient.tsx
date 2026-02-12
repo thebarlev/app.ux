@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { ReceiptStyleSettings } from "@/lib/types/receipt-style";
+import { getFooterSignatureText } from "@/lib/pdf/footer-text";
 
 function getCurrencyCode(currencySymbol: string): string {
   const map: Record<string, string> = {
@@ -314,32 +315,32 @@ export default function PreviewClient({
   };
 
   const generatePaymentsRowsHTML = () => {
-    if (items.length === 0) return "";
+    if (payments.length === 0) return "";
 
-    return items
-      .map((item) => {
-        const qty = Number.isFinite(item.quantity) ? item.quantity : 0;
-        const unit = Number(item.unitPrice || 0);
-        const lineTotal = Number(item.lineTotal || unit * qty);
-        const formattedUnit = formatMoney(unit, item.currency || currency, language);
-        const formattedTotal = formatMoney(lineTotal, item.currency || currency, language);
+    return payments
+      .map((p) => {
+        const method = p.method || "";
+        const details = buildPaymentDetails(p);
+        const date = formatDate(p.date, language);
+        const amount = formatMoney(p.amount, p.currency || currency, language);
 
-        const escapedQty = escapeHtml(String(qty));
-        const escapedDetails = escapeHtml(item.description || item.label || "");
-        const escapedUnit = escapeHtml(formattedUnit);
-        const escapedTotal = escapeHtml(formattedTotal);
+        const escapedMethod = escapeHtml(method);
+        const escapedDetails = escapeHtml(details);
+        const escapedDate = escapeHtml(date);
+        const escapedAmount = escapeHtml(amount);
 
         return `<tr>
-  <td>${escapedQty}</td>
+  <td>${escapedMethod}</td>
   <td>${escapedDetails}</td>
-  <td>${escapedUnit}</td>
-  <td>${escapedTotal}</td>
+  <td>${escapedDate}</td>
+  <td>${escapedAmount}</td>
 </tr>`;
       })
       .join("\n");
   };
 
   const paymentsRowsHTML = generatePaymentsRowsHTML();
+  const paymentsTotal = payments.reduce((acc, p) => acc + (Number(p.amount || 0) || 0), 0);
 
   const templateData = {
     t: systemTexts,
@@ -422,6 +423,7 @@ export default function PreviewClient({
     })),
 
     PAYMENTS_ROWS_HTML: paymentsRowsHTML,
+    PAYMENTS_TOTAL: formatMoney(paymentsTotal, currency, language),
 
     formatted_total: formatMoney(total, currency, language),
     formatted_date: formatDate(documentDate, language),
@@ -545,6 +547,23 @@ export default function PreviewClient({
       let processed = html;
 
       console.log("🔵 [processTemplate] Starting with template length:", html.length);
+
+      // Normalize legacy syntax used by some DB templates:
+      // - {{if VAR#}} -> {{#if VAR}}
+      // - {{VAR#}} -> {{VAR}}
+      // - "{{{{PAYMENTS_ROWS_HTML}}" -> "{{{PAYMENTS_ROWS_HTML}}}"
+      // - Ensure HTML row placeholders are triple-stash for raw injection.
+      processed = processed
+        .replace(/\{\{\s*if\s+([^}]+?)\s*\}\}/gi, (_m, expr) => {
+          const cleaned = String(expr).trim().replace(/\#\s*$/, "");
+          return `{{#if ${cleaned}}}`;
+        })
+        .replace(/\{\{\s*endif\s*\}\}/gi, "{{/if}}")
+        .replace(/\{\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\#\s*\}\}\}/g, (_m, k) => `{{{${k}}}}`)
+        .replace(/\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\#\s*\}\}/g, (_m, k) => `{{${k}}}`)
+        .replace(/\{\{\{\{\s*([A-Z0-9_]+)\s*\}\}\}\}/g, (_m, k) => `{{{${k}}}}`)
+        .replace(/\{\{\{\{\s*([A-Z0-9_]+)\s*\}\}\s*/g, (_m, k) => `{{{${k}}}}`)
+        .replace(/\{\{\s*(TI_ROWS_HTML|PAYMENTS_ROWS_HTML|SKU_ROWS_HTML)\s*\}\}/g, (_m, k) => `{{{${k}}}}`);
 
       processed = processed.replace(
         /\{\{\{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*\}\}\}/g,
@@ -977,6 +996,7 @@ export default function PreviewClient({
     body {
       padding-top: 100px;
       box-sizing: border-box;
+      padding-bottom: 80px; /* room for preview footer */
     }
     
     img[src=""],
@@ -1009,6 +1029,27 @@ export default function PreviewClient({
     }
     
     ${templateCss || ""}
+
+    /* Preview-only footer (matches PDF language) */
+    #__preview_footer__ {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 8mm;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      font-family: Heebo, Assistant, Arial, sans-serif;
+      font-size: 10px;
+      color: #111;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      box-sizing: border-box;
+    }
+    #__preview_footer__ .left { justify-self: start; }
+    #__preview_footer__ .center { justify-self: center; }
+    #__preview_footer__ .right { justify-self: end; }
   </style>
   <script>
     window.addEventListener('error', function(e) {
@@ -1039,6 +1080,11 @@ export default function PreviewClient({
 </head>
 <body>
   ${processedHtml}
+  <div id="__preview_footer__">
+    <span class="left">${language === "en" ? "Generated at" : "הופק ב-"} ${(templateData as any).CURRENT_DATE_TIME || ""}</span>
+    <span class="center">${language === "en" ? "Page 1 of 1" : "עמוד 1 מתוך 1"}</span>
+    <span class="right">${getFooterSignatureText(language).body}</span>
+  </div>
 </body>
 </html>`}
               />

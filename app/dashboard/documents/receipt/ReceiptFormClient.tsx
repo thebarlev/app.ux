@@ -1595,7 +1595,8 @@ export default function ReceiptFormClient({
               documentId={successModalData.documentId}
               baseLanguage={successModalData.language}
               onViewDocument={async () => {
-                window.location.href = `/dashboard/documents/receipt/${successModalData.documentId}/summary`;
+                const target = `/dashboard/documents/receipt/${successModalData.documentId}/summary`;
+                window.location.href = target;
               }}
               onDownloadHebrew={async (opts) => {
                 try {

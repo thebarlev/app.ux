@@ -126,6 +126,17 @@ function firstDayOfMonthUtcIso(now = new Date()): string {
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+function currentCalendarMonthRangeYmd(now = new Date()): { fromDate: string; toDate: string } {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+  const from = new Date(Date.UTC(y, m, 1));
+  const to = new Date(Date.UTC(y, m + 1, 0));
+  return {
+    fromDate: from.toISOString().slice(0, 10),
+    toDate: to.toISOString().slice(0, 10),
+  };
+}
+
 async function precheckSubscriptionEligibility(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   companyId: string;
@@ -150,7 +161,7 @@ async function precheckSubscriptionEligibility(params: {
 
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
-    .select("plan_id,status,trial_ends_at,current_period_end")
+    .select("plan_id,status,trial_ends_at,current_period_end,plan_snapshot_documents_limit")
     .eq("company_id", companyId)
     .maybeSingle();
 
@@ -165,7 +176,7 @@ async function precheckSubscriptionEligibility(params: {
         ok: false,
         reason: "unknown",
         message:
-          "חסרות טבלאות מנויים (subscriptions/plans/usage_monthly) בפרויקט Supabase המחובר. " +
+          "חסרות טבלאות מנויים (subscriptions/plans) בפרויקט Supabase המחובר. " +
           "נא להריץ בסדר הזה: scripts/045-subscriptions-schema-v1.sql ואז scripts/046-subscriptions-rls-v1.sql, " +
           "להמתין לרענון schema cache, ואז לנסות שוב.",
       }
@@ -198,31 +209,27 @@ async function precheckSubscriptionEligibility(params: {
     }
   }
 
-  const { data: plan, error: planError } = await supabase
-    .from("plans")
-    .select("documents_per_month")
-    .eq("id", planId)
-    .maybeSingle();
-
-  if (planError || !plan) {
-    return { ok: false, reason: "unknown", message: "לא ניתן לאמת תכנית מנוי. נסה שוב בעוד רגע." };
+  const rawSnapshotLimit = (sub as any).plan_snapshot_documents_limit;
+  if (rawSnapshotLimit === null || rawSnapshotLimit === undefined) {
+    return { ok: false, reason: "unknown", message: "לא ניתן לאמת snapshot מנוי. נסה שוב בעוד רגע." };
   }
-
-  const documentsLimit = Number((plan as any).documents_per_month ?? 0) || 0;
+  const documentsLimit = Number(rawSnapshotLimit) || 0;
   const yearMonth = firstDayOfMonthUtcIso(now);
-  const { data: usage, error: usageError } = await supabase
-    .from("usage_monthly")
-    .select("documents_count")
+  const { fromDate, toDate } = currentCalendarMonthRangeYmd(now);
+  const { count, error: usageError } = await supabase
+    .from("documents")
+    .select("id", { count: "exact", head: true })
     .eq("company_id", companyId)
-    .eq("year_month", yearMonth)
-    .maybeSingle();
+    .eq("document_status", "final")
+    .gte("issue_date", fromDate)
+    .lte("issue_date", toDate);
 
   if (usageError) {
     return { ok: false, reason: "unknown", message: "לא ניתן לאמת שימוש חודשי. נסה שוב בעוד רגע." };
   }
 
-  const documentsUsed = Number((usage as any)?.documents_count ?? 0) || 0;
-  if (documentsLimit > 0 && documentsUsed >= documentsLimit) {
+  const documentsUsed = Number(count || 0) || 0;
+  if (planId === "free" && documentsLimit > 0 && documentsUsed >= documentsLimit) {
     return {
       ok: false,
       reason: "limit_reached",
@@ -1094,8 +1101,8 @@ export async function issueDocumentAction(
         createdByName,
         createdByEmail,
       });
-      
-                
+
+
       console.log(`${logPrefix} finalizeDocument result`, {
         ok: result.ok,
         documentNumber: result.documentNumber,
@@ -1293,7 +1300,8 @@ export async function issueDocumentAction(
       createdByName,
       createdByEmail,
     });
-    
+
+
     console.log(`${logPrefix} finalizeDocument result`, {
       ok: result.ok,
       documentNumber: result.documentNumber,
@@ -1308,6 +1316,7 @@ export async function issueDocumentAction(
       const errorResponse = {
         ok: false as const,
         message: result.message ?? "Failed to finalize document",
+        reason: (result as any)?.reason ?? null,
       };
       return errorResponse;
     }

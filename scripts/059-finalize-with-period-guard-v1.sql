@@ -75,11 +75,8 @@ begin
     return;
   end if;
 
-  -- Resolve quota from plan (still returned even for paid plans)
-  select p.documents_per_month
-    into v_limit
-  from public.plans p
-  where p.id = v_sub.plan_id;
+  -- Resolve quota from frozen subscription snapshot (not from plans catalog).
+  v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);
 
   if v_limit is null then
     return query select false, 'account_blocked', null::integer, null::integer;

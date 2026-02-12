@@ -1,6 +1,6 @@
 "use client";
 
-import { X, CheckCircle2, Eye, Download, FileText } from "lucide-react";
+import { X, CheckCircle2, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef, useState } from "react";
 import type React from "react";
@@ -12,7 +12,7 @@ type Props = {
   companyName: string;
   documentId: string;
   documentTypeLabel: string;
-  onViewDocument: () => void;
+  onViewDocument?: () => void;
   onDownloadHebrew: (opts?: { issue?: "original" | "copy" }) => void;
   onDownloadEnglish: (opts?: { issue?: "original" | "copy" }) => void;
   baseLanguage: "he" | "en";
@@ -25,7 +25,6 @@ export default function ReceiptSuccessModal({
   companyName,
   documentId,
   documentTypeLabel,
-  onViewDocument,
   onDownloadHebrew,
   onDownloadEnglish,
   baseLanguage,
@@ -132,18 +131,9 @@ export default function ReceiptSuccessModal({
     baseLanguage: "he" | "en";
     originalIssued: boolean | null;
   }): {
-    topRow: [ModalAction, ModalAction, ModalAction];
+    topRow: [ModalAction, ModalAction];
   } => {
     const hasDownloadedOriginal = args.originalIssued === true;
-
-    const view: ModalAction = {
-      id: "view",
-      label: "צפייה בעמוד המסמך",
-      icon: <Eye className="h-6 w-6 text-modal-fg" />,
-      onClick: onViewDocument,
-      title: "צפייה בעמוד המסמך",
-      variant: "secondary",
-    };
 
     // Always show 3 active buttons: after original is downloaded, 
     // the "original" button becomes "copy" but stays active
@@ -194,18 +184,12 @@ export default function ReceiptSuccessModal({
 
     if (args.baseLanguage === "en") {
       return {
-        // EN: 3 actions in one row (RTL): View, Hebrew original/copy, English copy
-        topRow: [
-          view,
-          hebrewOriginal,
-          englishCopy,
-        ],
+        topRow: [hebrewOriginal, englishCopy],
       };
     }
 
-    // HE: Always keep 3 actions in one row: View, Original/Copy, Copy (HE)
     return {
-      topRow: [view, hebrewOriginal, hebrewCopy],
+      topRow: [hebrewOriginal, hebrewCopy],
     };
   };
 
@@ -233,6 +217,7 @@ export default function ReceiptSuccessModal({
       >
         {/* Close Button */}
         <button
+          type="button"
           ref={closeButtonRef}
           onClick={onClose}
           className="absolute top-4 left-4 z-10 p-2 rounded-full hover:bg-black/10 transition-colors"
@@ -269,11 +254,14 @@ export default function ReceiptSuccessModal({
           {/* Actions Grid */}
           <div className="mt-8 mb-6">
             {/* Top actions (regulatory + UX) */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {actions.topRow.map((a) => (
                 <button
+                  type="button"
                   key={a.id}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (a.disabled) return;
                     a.onClick();
                   }}
@@ -298,15 +286,13 @@ export default function ReceiptSuccessModal({
           {/* Action Buttons */}
           <div className="flex gap-4">
             <Button
-              variant="primary"
-              onClick={onViewDocument}
-              className="flex-1"
-            >
-              צפייה במסמך
-            </Button>
-            <Button
+              type="button"
               variant="secondary"
-              onClick={onClose}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
               className="flex-1"
             >
               סגירה

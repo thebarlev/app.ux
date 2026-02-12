@@ -43,6 +43,14 @@ on conflict (id) do nothing;
 create table if not exists public.subscriptions (
   company_id uuid primary key references public.companies(id) on delete cascade,
   plan_id text not null references public.plans(id),
+  -- Snapshot fields: commercial values are frozen at enrollment/change time.
+  plan_snapshot_name text not null default 'Free',
+  plan_snapshot_price numeric not null default 0,
+  plan_snapshot_documents_limit integer not null default 0,
+  plan_snapshot_overage_unit_price numeric not null default 0,
+  plan_snapshot_currency text not null default 'ILS',
+  plan_snapshot_billing_period text not null default 'month' check (plan_snapshot_billing_period in ('month','year')),
+  plan_snapshot_created_at timestamptz not null default now(),
   status text not null check (status in ('trial','active','blocked','canceled','past_due')),
 
   trial_starts_at timestamptz not null,
@@ -133,10 +141,25 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_free_name text := 'Free';
+  v_free_docs integer := 10;
 begin
+  select p.name, p.documents_per_month
+    into v_free_name, v_free_docs
+  from public.plans p
+  where p.id = 'free';
+
   insert into public.subscriptions (
     company_id,
     plan_id,
+    plan_snapshot_name,
+    plan_snapshot_price,
+    plan_snapshot_documents_limit,
+    plan_snapshot_overage_unit_price,
+    plan_snapshot_currency,
+    plan_snapshot_billing_period,
+    plan_snapshot_created_at,
     status,
     trial_starts_at,
     trial_ends_at,
@@ -145,6 +168,13 @@ begin
   ) values (
     new.id,
     'free',
+    coalesce(v_free_name, 'Free'),
+    0,
+    coalesce(v_free_docs, 10),
+    0,
+    'ILS',
+    'month',
+    now(),
     'trial',
     now(),
     now() + interval '1 year',
@@ -165,11 +195,20 @@ create trigger trigger_create_trial_subscription_for_company
 
 -- Backfill for existing companies (idempotent)
 insert into public.subscriptions (
-  company_id, plan_id, status, trial_starts_at, trial_ends_at, current_period_start, current_period_end
+  company_id, plan_id, plan_snapshot_name, plan_snapshot_price, plan_snapshot_documents_limit,
+  plan_snapshot_overage_unit_price, plan_snapshot_currency, plan_snapshot_billing_period, plan_snapshot_created_at,
+  status, trial_starts_at, trial_ends_at, current_period_start, current_period_end
 )
 select
   c.id,
   'free',
+  'Free',
+  0,
+  10,
+  0,
+  'ILS',
+  'month',
+  now(),
   'trial',
   coalesce(c.created_at, now()),
   coalesce(c.created_at, now()) + interval '1 year',

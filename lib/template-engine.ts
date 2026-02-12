@@ -72,6 +72,43 @@ function registerHelpers() {
 // Initialize helpers on module load
 registerHelpers()
 
+// ==================== DEBUG/ANALYSIS HELPERS ====================
+
+export type HandlebarsBlockCounters = {
+  openIf: number
+  closeIf: number
+  openEach: number
+  closeEach: number
+}
+
+export function countHandlebarsBlocks(src: string): HandlebarsBlockCounters {
+  const s = String(src || "")
+  return {
+    openIf: (s.match(/\{\{#if\b/g) || []).length,
+    closeIf: (s.match(/\{\{\/if\}\}/g) || []).length,
+    openEach: (s.match(/\{\{#each\b/g) || []).length,
+    closeEach: (s.match(/\{\{\/each\}\}/g) || []).length,
+  }
+}
+
+export function stripHtmlToText(html: string): string {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export function redactDigits(text: string): string {
+  return String(text || "").replace(/\d/g, "")
+}
+
+export function safeExcerptNoDigits(text: string, maxChars: number): string {
+  const noDigits = redactDigits(text)
+  return noDigits.slice(0, Math.max(0, maxChars))
+}
+
 // ==================== TEMPLATE COMPILATION ====================
 
 /**
@@ -115,8 +152,88 @@ export function compileAndRender(
   data: ReceiptTemplateData
 ): string {  
   try {
-    const compiled = compileTemplate(templateHtml)    
-    const rendered = renderTemplate(compiled, data)    
+    // #region agent log
+    const hasLegacyIf = typeof templateHtml === "string" && /\{\{\s*if\s+[^}]+\}\}/i.test(templateHtml)
+    const hasHashSuffix = typeof templateHtml === "string" && /\{\{\{?[\w.]+\#\}?\}\}/.test(templateHtml)
+    const hasLegacyHtmlVars =
+      typeof templateHtml === "string" &&
+      (templateHtml.includes("TI_ROWS_HTML#") || templateHtml.includes("PAYMENTS_ROWS_HTML#") || templateHtml.includes("SKU_ROWS_HTML#"))
+    const hasQuadBraces = typeof templateHtml === "string" && templateHtml.includes("{{{{")
+    const hasEmptyIf = typeof templateHtml === "string" && /\{\{\s*if\s*\}\}/i.test(templateHtml)
+    const hasEndIf = typeof templateHtml === "string" && /\{\{\s*(endif|\/if)\s*\}\}/i.test(templateHtml)
+    const hasLegacyIfCloseToken = typeof templateHtml === "string" && /\{\{\s*if\s*\/\s*#?\s*\}\}/i.test(templateHtml)
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'template-engine.ts:compileAndRender:pre',message:'Template preflight',data:{hasLegacyIf,hasHashSuffix,hasLegacyHtmlVars,hasQuadBraces,hasEmptyIf,hasEndIf,hasLegacyIfCloseToken,htmlLength:typeof templateHtml==="string"?templateHtml.length:0},timestamp:Date.now(),hypothesisId:'H_TEMPLATE_SYNTAX'})}).catch(()=>{});
+    // #endregion
+
+    // Normalize legacy template syntax seen in older DB templates:
+    // - {{if VAR#}}  -> {{#if VAR}}
+    // - {{VAR#}}     -> {{VAR}}
+    // - {{TI_ROWS_HTML#}} -> {{{TI_ROWS_HTML}}} (raw HTML injection for rows)
+    const normalized = (() => {
+      let s = String(templateHtml || "")
+
+      const countBlocks = (src: string) => {
+        const openIf = (src.match(/\{\{#if\b/g) || []).length
+        const closeIf = (src.match(/\{\{\/if\}\}/g) || []).length
+        const openEach = (src.match(/\{\{#each\b/g) || []).length
+        const closeEach = (src.match(/\{\{\/each\}\}/g) || []).length
+        return { openIf, closeIf, openEach, closeEach }
+      }
+
+      const before = countBlocks(s)
+
+      // if blocks
+      s = s.replace(/\{\{\s*if\s+([^}]+?)\s*\}\}/gi, (_m, expr) => {
+        const cleaned = String(expr).trim().replace(/\#\s*$/, "")
+        return `{{#if ${cleaned}}}`
+      })
+      s = s.replace(/\{\{\s*endif\s*\}\}/gi, "{{/if}}")
+      // Legacy close token variants used in some templates:
+      // - {{if/}} or {{if/#}}  -> {{/if}}
+      s = s.replace(/\{\{\s*if\s*\/\s*#?\s*\}\}/gi, "{{/if}}")
+      // Some templates contain stray {{if}} / {{/if}} without an expression.
+      // These are invalid in Handlebars and must never render as text.
+      s = s.replace(/\{\{\s*if\s*\}\}/gi, "")
+      // NOTE: Do NOT remove "{{/if}}" generally; that deletes valid closing blocks.
+      // hash suffix vars
+      s = s.replace(/\{\{\{\s*([\w.]+)\#\s*\}\}\}/g, (_m, k) => `{{{${k}}}}`)
+      s = s.replace(/\{\{\s*([\w.]+)\#\s*\}\}/g, (_m, k) => `{{${k}}}`)
+      // known HTML row vars should be raw
+      s = s.replace(/\{\{\s*(TI_ROWS_HTML|PAYMENTS_ROWS_HTML|SKU_ROWS_HTML)\s*\}\}/g, (_m, k) => `{{{${k}}}}`)
+
+      // Handle a common broken pattern in some templates:
+      // - "{{{{PAYMENTS_ROWS_HTML}}" or "{{{{PAYMENTS_ROWS_HTML}}}}" (quad braces) which Handlebars treats as a raw block opener.
+      // For our variables, this is always a mistake; normalize to triple-stash variable output.
+      s = s.replace(/\{\{\{\{\s*([A-Z0-9_]+)\s*\}\}\}\}/g, (_m, k) => `{{{${k}}}}`)
+      s = s.replace(/\{\{\{\{\s*([A-Z0-9_]+)\s*\}\}\s*/g, (_m, k) => `{{{${k}}}}`)
+
+      // Ensure the HTML row vars are triple-stash even if they were wrapped strangely.
+      s = s.replace(/\{\{\{?\s*(TI_ROWS_HTML|PAYMENTS_ROWS_HTML|SKU_ROWS_HTML)\s*\}?\}\}/g, (_m, k) => `{{{${k}}}}`)
+
+      const after = countBlocks(s)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'template-engine.ts:compileAndRender:counters',message:'Handlebars block counters (pre/post normalization)',data:{before,after},timestamp:Date.now(),hypothesisId:'H_TEMPLATE_COUNTERS'})}).catch(()=>{});
+      // #endregion
+      return s
+    })()
+
+    const compiled = compileTemplate(normalized)
+    const rendered = renderTemplate(compiled, data)
+
+    // #region agent log
+    const renderedHasMustache = typeof rendered === "string" && rendered.includes("{{")
+    const renderedTextLen =
+      typeof rendered === "string"
+        ? rendered
+            .replace(/<script[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim().length
+        : 0
+    fetch('http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'template-engine.ts:compileAndRender:post',message:'Template rendered',data:{renderedHasMustache,renderedLength:typeof rendered==="string"?rendered.length:0,renderedTextLen},timestamp:Date.now(),hypothesisId:'H_TEMPLATE_SYNTAX'})}).catch(()=>{});
+    // #endregion
+
     return rendered
   } catch (error: any) {    
     // Re-throw with clear message for template errors

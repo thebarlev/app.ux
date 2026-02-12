@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { Trash2, Save, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { SubscriptionBlockModal, type SubscriptionBlockKind } from "@/components/subscription/SubscriptionBlockModal";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 type ItemRow = {
   label: string;
@@ -51,7 +52,7 @@ function todayYmd() {
 
 function formatMoney(amount: number, currency: string) {
   const n = Number.isFinite(amount) ? amount : 0;
-  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currencySymbol(currency || "ILS")}`;
 }
 
 export default function CreditNoteFormClient({
@@ -1042,7 +1043,7 @@ export default function CreditNoteFormClient({
                                     <SelectContent>
                                       {allowedCurrencies.map((c) => (
                                         <SelectItem key={c} value={c}>
-                                          {c}
+                                          {currencySymbol(c)}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>

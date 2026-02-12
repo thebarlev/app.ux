@@ -68,11 +68,9 @@ begin
   where s.company_id = p_company_id
   for update;
 
-  -- Resolve limit from plan
-  select p.documents_per_month
-  into v_limit
-  from public.plans p
-  where p.id = v_sub.plan_id;
+  -- Resolve limit from frozen subscription snapshot.
+  -- `plan_id` remains trace-only and must not drive guard calculations.
+  v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);
 
   if v_limit is null then
     -- Defensive fallback: treat as blocked if plan missing

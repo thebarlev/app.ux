@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   const isProd = process.env.NODE_ENV === "production"
 
   // Ensure Cardcom is configured (env-only, VOW-only)
-  getCardcomConfig()
+  const cardcomCfg = getCardcomConfig()
 
   // Regulatory: do not accept payments in production without a configured issuer company
   if (isProd && (!process.env.VOW_BILLING_COMPANY_ID || !String(process.env.VOW_BILLING_COMPANY_ID).trim())) {
@@ -94,6 +94,23 @@ export async function POST(req: Request) {
 
   const companyId = await getCompanyIdForUser()
   const publicBaseUrl = getPublicBaseUrl(req)
+  const isLocalBaseUrl = (() => {
+    try {
+      const u = new URL(publicBaseUrl)
+      return u.hostname === "localhost" || u.hostname === "127.0.0.1"
+    } catch {
+      return false
+    }
+  })()
+
+  // Cardcom server callbacks must never target localhost in production mode.
+  if (cardcomCfg.mode === "prod" && isLocalBaseUrl) {
+    console.error("[BILLING_CHECKOUT_CREATE] Invalid PUBLIC_BASE_URL for Cardcom callback (localhost)")
+    return NextResponse.json(
+      { ok: false, message: "Configuration error: Cardcom callback URL must be publicly reachable (not localhost)" },
+      { status: 500 }
+    )
+  }
 
   // CRITICAL: In production, IndicatorUrl must point to a publicly reachable domain (Cardcom callback).
   // localhost is NOT reachable from Cardcom servers. Enforce PUBLIC_BASE_URL.
@@ -165,7 +182,7 @@ export async function POST(req: Request) {
   const checkoutSessionId = String(cs.id)
 
   // Cardcom LowProfile open page
-  const cfg = getCardcomConfig()
+  const cfg = cardcomCfg
   const cardcomUrl = "https://secure.cardcom.solutions/Interface/LowProfile.aspx"
 
   const sumToBill = amount.toFixed(2)

@@ -390,34 +390,57 @@ export async function finalizeDocument(
         String(signing.code || "") === "http_error"
 
       if (looksLikeSigningFailed && (rendered as any).rawPdfBytes && (rendered as any).rawPdfSha256) {
-        // Retry with an ASCII-only stamped footer so the final signed PDF still contains a footer.
-        // (DSIGN sometimes rejects PDFs with embedded Hebrew fonts.)
+        // Retry once with the stamped PDF before falling back to RAW.
+        // This mitigates transient signing failures without losing the footer.
         try {
-          const rawBytes: Buffer = (rendered as any).rawPdfBytes
-          const asciiStamped = await stampPdfFooter({
-            pdfBytes: rawBytes,
-            language: "en",
-            generatedAtText: String((rendered as any).frozenNowIso || ""),
-            generatedByText: "VOW",
-          })
-          const asciiSha = sha256HexFromSigningClient(asciiStamped)
-          const asciiTry = await attemptSign(asciiStamped, asciiSha, "ascii")
-          if (asciiTry.ok) {
+          const stampedRetry = await attemptSign(rendered.pdfBytes, rendered.pdfSha256, "stamped")
+          if ((stampedRetry as any)?.ok) {
             return {
               ok: true as const,
-              unsignedSha256: asciiSha,
-              signedSha256: asciiTry.signedPdfSha256,
+              unsignedSha256: rendered.pdfSha256,
+              signedSha256: (stampedRetry as any).signedPdfSha256,
               templateVersionId: rendered.templateVersionId,
-              certInfo: asciiTry.certInfo,
-              hashes: asciiTry.hashes,
-              events: asciiTry.events,
-              requestId: asciiTry.requestId || null,
-              signedPdfBytes: asciiTry.signedPdfBytes,
-              signedPdfBase64: asciiTry.signedPdfBytes.toString("base64"),
+              certInfo: (stampedRetry as any).certInfo,
+              hashes: (stampedRetry as any).hashes,
+              events: (stampedRetry as any).events,
+              requestId: (stampedRetry as any).requestId || null,
+              signedPdfBytes: (stampedRetry as any).signedPdfBytes,
+              signedPdfBase64: (stampedRetry as any).signedPdfBytes.toString("base64"),
             }
           }
         } catch {
-          // ignore, proceed to raw fallback
+          // ignore and proceed to other fallbacks
+        }
+
+        // Retry with an ASCII-only stamped footer so the final signed PDF still contains a footer.
+        // (DSIGN sometimes rejects PDFs with embedded Hebrew fonts.)
+        if (args.language === "en") {
+          try {
+            const rawBytes: Buffer = (rendered as any).rawPdfBytes
+            const asciiStamped = await stampPdfFooter({
+              pdfBytes: rawBytes,
+              language: "en",
+              generatedAtText: String((rendered as any).frozenNowIso || ""),
+            })
+            const asciiSha = sha256HexFromSigningClient(asciiStamped)
+            const asciiTry = await attemptSign(asciiStamped, asciiSha, "ascii")
+            if (asciiTry.ok) {
+              return {
+                ok: true as const,
+                unsignedSha256: asciiSha,
+                signedSha256: asciiTry.signedPdfSha256,
+                templateVersionId: rendered.templateVersionId,
+                certInfo: asciiTry.certInfo,
+                hashes: asciiTry.hashes,
+                events: asciiTry.events,
+                requestId: asciiTry.requestId || null,
+                signedPdfBytes: asciiTry.signedPdfBytes,
+                signedPdfBase64: asciiTry.signedPdfBytes.toString("base64"),
+              }
+            }
+          } catch {
+            // ignore, proceed to raw fallback
+          }
         }
 
         const retry = await attemptSign((rendered as any).rawPdfBytes, (rendered as any).rawPdfSha256, "raw")
@@ -434,6 +457,23 @@ export async function finalizeDocument(
             signedPdfBytes: retry.signedPdfBytes,
             signedPdfBase64: retry.signedPdfBytes.toString("base64"),
           }
+        }
+      }
+
+      // Local/dev resilience: do not block standard document issuance if DSIGN is unavailable.
+      if (process.env.NODE_ENV !== "production") {
+        return {
+          ok: true as const,
+          unsignedSha256: rendered.pdfSha256,
+          signedSha256: rendered.pdfSha256,
+          templateVersionId: rendered.templateVersionId,
+          certInfo: null,
+          hashes: null,
+          events: null,
+          requestId: null,
+          signedPdfBytes: rendered.pdfBytes,
+          signedPdfBase64: rendered.pdfBytes.toString("base64"),
+          unsignedFallback: true as const,
         }
       }
 
@@ -597,6 +637,7 @@ export async function finalizeDocument(
     if (!upEn.ok) return { ok: false, message: `Failed to upload signed PDF (copy_en): ${upEn.message}` }
   }
 
+  const usedUnsignedFallback = !!(originalFinal as any)?.unsignedFallback || !!(copyFinal as any)?.unsignedFallback
   const certFingerprint =
     (originalFinal as any)?.certInfo?.fingerprint_sha256 ||
     (originalFinal as any)?.certInfo?.fingerprint ||
@@ -608,7 +649,7 @@ export async function finalizeDocument(
     signed_pdf_sha256: originalFinal.signedSha256,
     signing_cert_fingerprint: certFingerprint,
     signed_at: nowIso,
-    signature_provider: "secure_signature",
+    signature_provider: usedUnsignedFallback ? "unsigned_dev_fallback" : "secure_signature",
     signature_certificate_id: certFingerprint,
     pdf_storage_key: originalStorageKey,
     pdf_storage_key_he_copy: copyHeStorageKey,

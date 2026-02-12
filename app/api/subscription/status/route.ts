@@ -19,6 +19,15 @@ function deriveAnniversaryMonthWindow(now: Date, anchor: Date): { start: Date; e
   return { start, end }
 }
 
+function currentCalendarMonthRangeYmd(now: Date): { fromDate: string; toDate: string } {
+  const year = now.getUTCFullYear()
+  const month = now.getUTCMonth()
+  const from = new Date(Date.UTC(year, month, 1))
+  const to = new Date(Date.UTC(year, month + 1, 0))
+  const toYmd = (d: Date) => d.toISOString().slice(0, 10)
+  return { fromDate: toYmd(from), toDate: toYmd(to) }
+}
+
 export async function GET(request: Request) {
   const ip = getClientIp(request)
   const rl = rateLimit({ key: `subscription-status:${ip}`, limit: 60, windowMs: 60_000 })
@@ -37,7 +46,10 @@ export async function GET(request: Request) {
 
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
-    .select("company_id, plan_id, status, trial_starts_at, trial_ends_at, current_period_start, current_period_end")
+    .select(
+      "company_id, plan_id, status, trial_starts_at, trial_ends_at, current_period_start, current_period_end, " +
+      "plan_snapshot_documents_limit"
+    )
     .eq("company_id", companyId)
     .maybeSingle()
 
@@ -55,19 +67,9 @@ export async function GET(request: Request) {
   const currentPeriodStart = (sub as any).current_period_start ? String((sub as any).current_period_start) : null
   const currentPeriodEnd = (sub as any).current_period_end ? String((sub as any).current_period_end) : null
 
-  const { data: plan, error: planError } = await supabase
-    .from("plans")
-    .select("documents_per_month")
-    .eq("id", planId)
-    .maybeSingle()
-
-  if (planError || !plan) {
-    return NextResponse.json({ ok: false, message: "Plan not available" }, { status: 500 })
-  }
-
   const VOW_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
   const documentsLimit =
-    companyId === VOW_COMPANY_ID ? 1_000_000 : Number((plan as any).documents_per_month ?? 0) || 0
+    companyId === VOW_COMPANY_ID ? 1_000_000 : Number((sub as any).plan_snapshot_documents_limit ?? 0) || 0
 
   // Period-based usage: count finalized docs within the current subscription period
   let periodStartIso: string | null = null
@@ -91,16 +93,17 @@ export async function GET(request: Request) {
     periodEndIso = currentPeriodEnd
   }
 
-  // Count ALL finalized docs (receipt, invoice_receipt, negative_receipt, tax_invoice, etc.). No exemptions.
+  // Count finalized docs in the current CALENDAR month (align with Revenue report/source-of-truth query).
   let documentsUsed = 0
-  if (periodStartIso && periodEndIso) {
+  {
+    const { fromDate, toDate } = currentCalendarMonthRangeYmd(now)
     const { count, error: countErr } = await supabase
       .from("documents")
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .eq("document_status", "final")
-      .gte("finalized_at", periodStartIso)
-      .lt("finalized_at", periodEndIso)
+      .gte("issue_date", fromDate)
+      .lte("issue_date", toDate)
     if (countErr) {
       return NextResponse.json({ ok: false, message: "Usage not available" }, { status: 500 })
     }

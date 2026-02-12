@@ -31,12 +31,22 @@ import { selectUnderline } from "@/components/ui/field-styles";
 import { currencySymbol } from "@/lib/currency/symbol";
 import { cn } from "@/lib/utils";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
-import { getDocumentPreviewUrlAction, closeDocumentAction } from "@/lib/documents/actions";
+import { closeDocumentAction } from "@/lib/documents/actions";
 import ChainNewDocumentDialog, { type ChainNewDocumentKind } from "@/components/documents/ChainNewDocumentDialog";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
 );
+
+function agentLogNav(payload: any) {
+  // #region agent log
+  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+  // #endregion
+}
 
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
@@ -1582,10 +1592,14 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                             e.stopPropagation();
                             const config = DOCUMENT_CONFIGS_BY_DB.get(doc.document_type);
                             if (config) {
-                              const basePath =
-                                config.category === "business"
-                                  ? "/business/documents"
-                                  : "/dashboard/documents";
+                              const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+                              agentLogNav({
+                                location: "DocumentsListClient.tsx:numberClick",
+                                message: "Navigate to summary from number click",
+                                data: { documentId: doc.id, documentType: doc.document_type, category: config.category, basePath, routeSegment: config.routeSegment },
+                                timestamp: Date.now(),
+                                hypothesisId: "H_NAV_BASEPATH",
+                              });
                               router.push(`${basePath}/${config.routeSegment}/${doc.id}/summary`);
                               return;
                             }
@@ -1796,8 +1810,20 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                 setIsQuickViewOpen(false);
                 const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
                 if (!config) return;
-                const basePath =
-                  config.category === "business" ? "/business/documents" : "/dashboard/documents";
+                const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+                agentLogNav({
+                  location: "DocumentsListClient.tsx:onOpenSummary",
+                  message: "Navigate to summary from drawer open summary",
+                  data: {
+                    documentId: selectedDocumentId,
+                    documentType: selectedDocSnapshot.document_type,
+                    category: config.category,
+                    basePath,
+                    routeSegment: config.routeSegment,
+                  },
+                  timestamp: Date.now(),
+                  hypothesisId: "H_NAV_BASEPATH",
+                });
                 router.push(`${basePath}/${config.routeSegment}/${selectedDocumentId}/summary`);
               }
             : undefined
@@ -1805,17 +1831,24 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
         onViewDocument={
           selectedDocSnapshot?.document_type && selectedDocumentId
             ? async () => {
+                setIsQuickViewOpen(false);
                 const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
                 if (!config) return;
-                const result = await getDocumentPreviewUrlAction(
-                  config.uiKey as any,
-                  selectedDocumentId
-                );
-                if (result.ok && result.url) {
-                  window.open(result.url, "_blank");
-                } else {
-                  alert(result.message || "שגיאה בפתיחת תצוגה מקדימה");
-                }
+                const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+                agentLogNav({
+                  location: "DocumentsListClient.tsx:onViewDocument",
+                  message: "Navigate to summary from drawer eye button",
+                  data: {
+                    documentId: selectedDocumentId,
+                    documentType: selectedDocSnapshot.document_type,
+                    category: config.category,
+                    basePath,
+                    routeSegment: config.routeSegment,
+                  },
+                  timestamp: Date.now(),
+                  hypothesisId: "H_NAV_BASEPATH",
+                });
+                router.push(`${basePath}/${config.routeSegment}/${selectedDocumentId}/summary`);
               }
             : undefined
         }

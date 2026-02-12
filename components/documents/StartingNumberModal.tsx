@@ -90,7 +90,12 @@ export default function StartingNumberModal({
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={(e) => e.target === e.currentTarget && !loading && onClose()}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          // Backdrop clicks are ignored to avoid accidental immediate-close
+          // from click carry-over during route transitions.
+        }
+      }}
       role="presentation"
       dir="rtl"
     >

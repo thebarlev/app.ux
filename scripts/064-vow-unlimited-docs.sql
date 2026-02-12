@@ -69,14 +69,11 @@ begin
     return;
   end if;
 
-  -- Resolve quota from plan. VOW company: unlimited (1,000,000).
+  -- Resolve quota from frozen subscription snapshot. VOW company: unlimited (1,000,000).
   if p_company_id = v_vow_company_id then
     v_limit := 1000000;
   else
-    select p.documents_per_month
-      into v_limit
-    from public.plans p
-    where p.id = v_sub.plan_id;
+    v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);
   end if;
 
   if v_limit is null then

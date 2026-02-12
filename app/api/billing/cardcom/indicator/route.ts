@@ -4,7 +4,20 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { createServiceRoleClient } from "@/lib/supabase/server"
+import { generateDocumentPDF } from "@/lib/pdf-service"
+import { changePlanSnapshot } from "@/lib/subscriptions/change-plan"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
+import fs from "node:fs"
+
+const AGENT_DEBUG_LOG_PATH = "/Users/uxellent/v0-system-owner-admin-panel/.cursor/debug.log"
+
+function agentAppendLog(payload: any) {
+  try {
+    fs.appendFileSync(AGENT_DEBUG_LOG_PATH, JSON.stringify(payload) + "\n")
+  } catch {
+    // ignore
+  }
+}
 
 function getCardcomConfig() {
   const terminalNumber = process.env.CARDCOM_TERMINAL_NUMBER
@@ -97,20 +110,48 @@ function extractTokenFromIndicator(indicator: Record<string, any>): {
   return { token, tokenExDate, brand, cardNumStart, cardNumEnd }
 }
 
+function normalizeIndicatorForStorage(
+  indicator: Record<string, any>,
+  tokenInfo: ReturnType<typeof extractTokenFromIndicator>
+): Record<string, any> {
+  const normalizedLast4 = firstNonEmptyString(
+    indicator.CardLast4,
+    indicator.CardLastDigits,
+    indicator.Last4Digits,
+    tokenInfo?.cardNumEnd
+  )
+  const normalizedBrand = firstNonEmptyString(
+    indicator.CardBrand,
+    indicator.CardType,
+    indicator.CardName,
+    tokenInfo?.brand
+  )
+
+  return {
+    ...indicator,
+    CardLast4: normalizedLast4 ?? null,
+    CardBrand: normalizedBrand ?? null,
+  }
+}
+
 async function handleIndicator(req: Request) {
   // #region agent log (safe)
   try {
+    const payload = {
+      location: "indicator/route.ts:handleIndicator:entry",
+      message: "Indicator called",
+      data: { hasUrl: !!req.url, hasIssuer: !!String(process.env.VOW_BILLING_COMPANY_ID || "").trim() },
+      timestamp: Date.now(),
+      hypothesisId: "H1",
+    }
     fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        location: "indicator/route.ts:handleIndicator:entry",
-        message: "Indicator called",
-        data: { hasUrl: !!req.url },
-        timestamp: Date.now(),
-        hypothesisId: "H1",
+        ...payload,
       }),
     }).catch(() => {})
+    agentAppendLog(payload)
   } catch {
     // ignore
   }
@@ -189,25 +230,31 @@ async function handleIndicator(req: Request) {
   const operationResponse = Number((indicator as any).OperationResponse ?? NaN)
   const internalDealNumber = String((indicator as any).InternalDealNumber ?? "").trim() || null
   const tokenInfo = extractTokenFromIndicator(indicator)
+  const indicatorForStorage = normalizeIndicatorForStorage(indicator, tokenInfo)
 
   // #region agent log (safe)
   try {
+    const payload = {
+      location: "indicator/route.ts:afterCardcomPull",
+      message: "Cardcom indicator parsed",
+      data: {
+        lowProfileCode,
+        returnValue,
+        operationResponse,
+        paid: Number.isFinite(operationResponse) && operationResponse === 0,
+        hasToken: !!tokenInfo?.token,
+      },
+      timestamp: Date.now(),
+      hypothesisId: "H5",
+    }
     fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        location: "indicator/route.ts:afterCardcomPull",
-        message: "Cardcom indicator parsed",
-        data: {
-          lowProfileCode,
-          returnValue,
-          operationResponse,
-          paid: Number.isFinite(operationResponse) && operationResponse === 0,
-        },
-        timestamp: Date.now(),
-        hypothesisId: "H5",
+        ...payload,
       }),
     }).catch(() => {})
+    agentAppendLog(payload)
   } catch {
     // ignore
   }
@@ -240,17 +287,21 @@ async function handleIndicator(req: Request) {
   if (!checkout?.id) {
     // #region agent log (safe)
     try {
+      const payload = {
+        location: "indicator/route.ts:checkoutNotFound",
+        message: "Checkout not found",
+        data: { lowProfileCode, returnValue },
+        timestamp: Date.now(),
+        hypothesisId: "H2",
+      }
       fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          location: "indicator/route.ts:checkoutNotFound",
-          message: "Checkout not found",
-          data: { lowProfileCode, returnValue },
-          timestamp: Date.now(),
-          hypothesisId: "H2",
+          ...payload,
         }),
       }).catch(() => {})
+      agentAppendLog(payload)
     } catch {
       // ignore
     }
@@ -293,7 +344,7 @@ async function handleIndicator(req: Request) {
     .update({
       status: paid ? "paid" : "failed",
       provider_internal_deal_number: internalDealNumber,
-      raw_indicator_json: indicator,
+      raw_indicator_json: indicatorForStorage,
     })
     .eq("id", String(checkout.id))
 
@@ -302,36 +353,47 @@ async function handleIndicator(req: Request) {
     const endIso = addPeriod(now, interval).toISOString()
 
     // 1) Activate subscription for buyer company (must succeed)
-    const { error: subErr } = await adminDb
+    const snapshotUpdate = await changePlanSnapshot({
+      supabase: adminDb,
+      companyId: String(checkout.company_id),
+      newPlanId: String(checkout.plan_id),
+      billingPeriod: interval,
+      status: "active",
+      currentPeriodStart: nowIso,
+      currentPeriodEnd: endIso,
+    })
+
+    const { error: providerErr } = await adminDb
       .from("subscriptions")
-      .update({
-        plan_id: checkout.plan_id,
-        status: "active",
-        provider: "cardcom",
-        billing_interval: interval,
-        current_period_start: nowIso,
-        current_period_end: endIso,
-      })
+      .update({ provider: "cardcom" })
       .eq("company_id", String(checkout.company_id))
+
+    const subErr = !snapshotUpdate.ok
+      ? new Error(snapshotUpdate.message)
+      : providerErr
 
     // #region agent log (safe)
     try {
+      const payload = {
+        location: "indicator/route.ts:subscriptionUpdate",
+        message: "Subscription update result",
+        data: {
+          checkoutId: checkout.id,
+          companyId: checkout.company_id,
+          planId: checkout.plan_id,
+          subErr: subErr ? String(subErr) : null,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H4",
+      }
       fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          location: "indicator/route.ts:subscriptionUpdate",
-          message: "Subscription update result",
-          data: {
-            checkoutId: checkout.id,
-            companyId: checkout.company_id,
-            planId: checkout.plan_id,
-            subErr: subErr ? String(subErr) : null,
-          },
-          timestamp: Date.now(),
-          hypothesisId: "H4",
+          ...payload,
         }),
       }).catch(() => {})
+      agentAppendLog(payload)
     } catch {
       // ignore
     }
@@ -389,22 +451,26 @@ async function handleIndicator(req: Request) {
 
     // #region agent log (safe)
     try {
+      const payload = {
+        location: "indicator/route.ts:documentIssuance",
+        message: "Document issuance result",
+        data: {
+          checkoutId: checkout.id,
+          issuerCompanyId: !!issuerCompanyId,
+          issueErr: issueErr ? String(issueErr) : null,
+          issuedOk: Array.isArray(issued) && issued[0] ? issued[0].ok : null,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H3",
+      }
       fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          location: "indicator/route.ts:documentIssuance",
-          message: "Document issuance result",
-          data: {
-            checkoutId: checkout.id,
-            issuerCompanyId: !!issuerCompanyId,
-            issueErr: issueErr ? String(issueErr) : null,
-            issuedOk: Array.isArray(issued) && issued[0] ? issued[0].ok : null,
-          },
-          timestamp: Date.now(),
-          hypothesisId: "H3",
+          ...payload,
         }),
       }).catch(() => {})
+      agentAppendLog(payload)
     } catch {
       // ignore
     }
@@ -419,6 +485,51 @@ async function handleIndicator(req: Request) {
     } else if (Array.isArray(issued) && issued[0] && issued[0].ok !== true) {
       console.error("[CARDCOM_INDICATOR] issuance returned not-ok", issued[0])
       await logBillingFailure("document_issuance", new Error(JSON.stringify(issued[0])))
+    } else if (Array.isArray(issued) && issued[0]?.ok === true && issued[0]?.document_id) {
+      const issuedDocumentId = String(issued[0].document_id)
+      const [origRes, copyRes] = await Promise.allSettled([
+        generateDocumentPDF(issuedDocumentId, {
+          language: "he",
+          mode: "recovery",
+          context: "issue",
+          variant: "original",
+          isIssuance: true,
+          requestId: `indicator-orig-${String(checkout.id)}`,
+        }),
+        generateDocumentPDF(issuedDocumentId, {
+          language: "he",
+          mode: "recovery",
+          context: "download",
+          variant: "copy",
+          isIssuance: true,
+          requestId: `indicator-copy-${String(checkout.id)}`,
+        }),
+      ])
+
+      const payload = {
+        location: "indicator/route.ts:issuancePdfPreGen",
+        message: "Issuance PDF pre-generation result",
+        data: {
+          checkoutId: checkout.id,
+          documentId: issuedDocumentId,
+          original:
+            origRes.status === "fulfilled"
+              ? { ok: !!origRes.value?.success, error: origRes.value?.success ? null : String(origRes.value?.error || "unknown") }
+              : { ok: false, error: String((origRes as PromiseRejectedResult).reason?.message || (origRes as PromiseRejectedResult).reason || "rejected") },
+          copy:
+            copyRes.status === "fulfilled"
+              ? { ok: !!copyRes.value?.success, error: copyRes.value?.success ? null : String(copyRes.value?.error || "unknown") }
+              : { ok: false, error: String((copyRes as PromiseRejectedResult).reason?.message || (copyRes as PromiseRejectedResult).reason || "rejected") },
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H_ISSUANCE_PDF_PREGEN",
+      }
+      fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch(() => {})
+      agentAppendLog(payload)
     }
   }
 
@@ -427,7 +538,7 @@ async function handleIndicator(req: Request) {
     .update({
       status: paid ? "ok" : "ignored",
       processed_at: new Date().toISOString(),
-      payload: { indicator, checkout_session_id: String(checkout.id) },
+      payload: { indicator: indicatorForStorage, checkout_session_id: String(checkout.id) },
     })
     .eq("provider", providerKey)
     .eq("event_id", eventId)

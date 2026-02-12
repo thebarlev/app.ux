@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { createDocumentLinkAction, getDocumentForChainingAction } from "@/lib/documents/actions";
 import { FxRateDialog } from "@/components/payments/FxRateDialog";
 import { SubscriptionBlockModal, type SubscriptionBlockKind } from "@/components/subscription/SubscriptionBlockModal";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 const PAYMENT_METHODS = [
   "העברה בנקאית",
@@ -79,7 +80,7 @@ function todayYmd() {
 
 function formatMoney(amount: number, currency: string) {
   const n = Number.isFinite(amount) ? amount : 0;
-  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currency}`;
+  return `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ${currencySymbol(currency || "ILS")}`;
 }
 
 export default function InvoiceReceiptFormClient({
@@ -121,8 +122,9 @@ export default function InvoiceReceiptFormClient({
   const documentLabel = "חשבונית מס / קבלה";
   const basePath = "/dashboard/documents";
 
+  const shouldShowStartingNumberOnInit = initial.ok && !initial.sequenceLocked && !draftId;
   const [sequenceLocked, setSequenceLocked] = useState(initial.ok ? initial.sequenceLocked : true);
-  const [showStartingNumberModal, setShowStartingNumberModal] = useState(false);
+  const [showStartingNumberModal, setShowStartingNumberModal] = useState(shouldShowStartingNumberOnInit);
 
   const minAllowedDate = initial.ok ? initial.minAllowedDate : null;
 
@@ -208,12 +210,6 @@ export default function InvoiceReceiptFormClient({
   const summaryOuterRef = useRef<HTMLDivElement | null>(null);
   const summaryLabelRefs = useRef<Array<HTMLDivElement | null>>([]);
   const summaryValueContainerRefs = useRef<Array<HTMLDivElement | null>>([]);
-
-  useEffect(() => {
-    if (initial.ok && !initial.sequenceLocked && !draftId) {
-      setShowStartingNumberModal(true);
-    }
-  }, [initial, draftId]);
 
   useEffect(() => {
     if (editData) {
@@ -1250,7 +1246,7 @@ export default function InvoiceReceiptFormClient({
                                     <SelectContent>
                                       {allowedCurrencies.map((c) => (
                                         <SelectItem key={c} value={c}>
-                                          {c}
+                                          {currencySymbol(c)}
                                         </SelectItem>
                                       ))}
                                     </SelectContent>
@@ -1685,7 +1681,7 @@ export default function InvoiceReceiptFormClient({
                               <SelectContent>
                                 {allowedCurrencies.map((c) => (
                                   <SelectItem key={c} value={c}>
-                                    {c}
+                                    {currencySymbol(c)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -1868,7 +1864,7 @@ export default function InvoiceReceiptFormClient({
                                   <SelectContent>
                                     {allowedCurrencies.map((c) => (
                                       <SelectItem key={c} value={c}>
-                                        {c}
+                                        {currencySymbol(c)}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>

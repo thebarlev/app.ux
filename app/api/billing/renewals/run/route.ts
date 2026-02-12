@@ -39,6 +39,15 @@ function yyyymmddFromIso(iso: string): string {
   return `${yyyy}${mm}${dd}`
 }
 
+function calendarMonthRangeYmdForDate(date: Date): { fromDate: string; toDate: string } {
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  const from = new Date(Date.UTC(year, month, 1))
+  const to = new Date(Date.UTC(year, month + 1, 0))
+  const toYmd = (d: Date) => d.toISOString().slice(0, 10)
+  return { fromDate: toYmd(from), toDate: toYmd(to) }
+}
+
 function uniqAsmachta(companyId: string, periodStartIso: string): string {
   const compact = String(companyId).replaceAll("-", "")
   const shortId = compact.slice(0, 12) // 12 hex chars
@@ -64,6 +73,7 @@ function getCardcomConfig() {
 
 async function chargeToken(args: {
   token: string
+  tokenExDate?: string | null
   sumToBill: number
   coinId: number
   uniqAsmachta: string
@@ -83,6 +93,10 @@ async function chargeToken(args: {
     "TokenToCharge.UserPassword": cfg.apiPassword!,
   } as Record<string, string>)
 
+  if (args.tokenExDate) {
+    form.set("TokenToCharge.TokenExDate", args.tokenExDate)
+  }
+
   const r = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded; charset=utf-8" },
@@ -92,6 +106,41 @@ async function chargeToken(args: {
   const raw = await r.text()
   const parsed = parseNameValueResponse(raw)
   return { raw, parsed }
+}
+
+function normalizeCardcomTokenExDate(raw: string | null | undefined): string | null {
+  const s = String(raw || "").trim()
+  if (!s) return null
+  const digits = s.replace(/\D/g, "")
+
+  // 20280201 -> 0228
+  if (digits.length === 8) {
+    const year = digits.slice(2, 4)
+    const month = digits.slice(4, 6)
+    if (Number(month) >= 1 && Number(month) <= 12) return `${month}${year}`
+  }
+
+  // 202802 -> 0228
+  if (digits.length === 6) {
+    const year = digits.slice(2, 4)
+    const month = digits.slice(4, 6)
+    if (Number(month) >= 1 && Number(month) <= 12) return `${month}${year}`
+  }
+
+  // MMYYYY -> MMYY
+  if (digits.length === 6) {
+    const month = digits.slice(0, 2)
+    const year = digits.slice(4, 6)
+    if (Number(month) >= 1 && Number(month) <= 12) return `${month}${year}`
+  }
+
+  // MMYY
+  if (digits.length === 4) {
+    const month = digits.slice(0, 2)
+    if (Number(month) >= 1 && Number(month) <= 12) return digits
+  }
+
+  return null
 }
 
 export async function POST(req: Request) {
@@ -105,7 +154,10 @@ export async function POST(req: Request) {
   // Find due subscriptions (paid plans only)
   const { data: subs, error: subsErr } = await admin
     .from("subscriptions")
-    .select("company_id, plan_id, status, current_period_start, current_period_end")
+    .select(
+      "company_id, plan_id, status, billing_interval, current_period_start, current_period_end, " +
+      "plan_snapshot_price, plan_snapshot_documents_limit, plan_snapshot_overage_unit_price, plan_snapshot_billing_period"
+    )
     .neq("plan_id", "free")
     .not("current_period_end", "is", null)
     .lte("current_period_end", nowIso)
@@ -137,29 +189,37 @@ export async function POST(req: Request) {
       continue
     }
 
-    // Load plan pricing + quota
-    const { data: plan, error: planErr } = await admin
-      .from("plans")
-      .select("id, name, price_monthly, documents_per_month, overage_unit_price")
-      .eq("id", planId)
-      .maybeSingle()
-    if (planErr || !plan) {
-      results.push({ company_id: companyId, period_start: periodStartIso, ok: false, reason: "plan_missing" })
+    // Billing math MUST use frozen subscription snapshot values only.
+    const baseAmount = Number((sub as any).plan_snapshot_price ?? 0)
+    const included = Number((sub as any).plan_snapshot_documents_limit ?? 0)
+    const unit = Number((sub as any).plan_snapshot_overage_unit_price ?? 0)
+    const renewalPeriod = String((sub as any).plan_snapshot_billing_period || (sub as any).billing_interval || "month")
+
+    if (
+      !Number.isFinite(baseAmount) ||
+      !Number.isFinite(included) ||
+      !Number.isFinite(unit) ||
+      (renewalPeriod !== "month" && renewalPeriod !== "year")
+    ) {
+      results.push({ company_id: companyId, period_start: periodStartIso, ok: false, reason: "snapshot_missing" })
       continue
     }
 
-    const baseAmount = Number((plan as any).price_monthly ?? 0) || 0
-    const included = Number((plan as any).documents_per_month ?? 0) || 0
-    const unit = Number((plan as any).overage_unit_price ?? 0) || 0
-
-    // Count ALL finalized docs in the ended period (receipt, invoice_receipt, negative_receipt, etc.). No exemptions.
+    // Count ALL finalized docs in the billing month (by issue_date, all document types).
+    // We anchor the month to the ended cycle so overages are billed on the NEXT renewal charge.
+    const periodEndDate = new Date(periodEndIso)
+    const monthAnchor =
+      Number.isFinite(periodEndDate.getTime()) && periodEndDate.getTime() > 0
+        ? new Date(periodEndDate.getTime() - 1)
+        : new Date(nowIso)
+    const { fromDate, toDate } = calendarMonthRangeYmdForDate(monthAnchor)
     const { count: usedCount, error: countErr } = await admin
       .from("documents")
       .select("id", { count: "exact", head: true })
       .eq("company_id", companyId)
       .eq("document_status", "final")
-      .gte("finalized_at", periodStartIso)
-      .lt("finalized_at", periodEndIso)
+      .gte("issue_date", fromDate)
+      .lte("issue_date", toDate)
 
     if (countErr) {
       results.push({ company_id: companyId, period_start: periodStartIso, ok: false, reason: "count_failed" })
@@ -193,7 +253,7 @@ export async function POST(req: Request) {
     // Token: latest active
     const { data: tokenRow } = await admin
       .from("customer_payment_methods")
-      .select("token")
+      .select("token, token_ex_date")
       .eq("company_id", companyId)
       .eq("provider", "cardcom")
       .eq("status", "active")
@@ -202,6 +262,7 @@ export async function POST(req: Request) {
       .maybeSingle()
 
     const token = tokenRow?.token ? String(tokenRow.token) : null
+    const tokenExDate = normalizeCardcomTokenExDate((tokenRow as any)?.token_ex_date ?? null)
     if (!token) {
       await admin
         .from("billing_renewal_events")
@@ -218,7 +279,7 @@ export async function POST(req: Request) {
     // Charge Cardcom token
     let charge: any = null
     try {
-      charge = await chargeToken({ token, sumToBill: totalAmount, coinId: 1, uniqAsmachta: uniq })
+      charge = await chargeToken({ token, tokenExDate, sumToBill: totalAmount, coinId: 1, uniqAsmachta: uniq })
     } catch (e: any) {
       await admin
         .from("billing_renewal_events")
@@ -250,10 +311,14 @@ export async function POST(req: Request) {
       continue
     }
 
-    // Success: advance subscription period (anniversary: now -> now+1 month)
+    // Success: advance subscription period using frozen subscription billing cadence.
     const newStartIso = nowIso
     const end = new Date()
-    end.setUTCMonth(end.getUTCMonth() + 1)
+    if (renewalPeriod === "year") {
+      end.setUTCFullYear(end.getUTCFullYear() + 1)
+    } else {
+      end.setUTCMonth(end.getUTCMonth() + 1)
+    }
     const newEndIso = end.toISOString()
 
     await admin

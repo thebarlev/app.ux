@@ -78,6 +78,7 @@ export interface CustomerData {
   customer_address?: string | null;
   customer_phone?: string | null;
   customer_email?: string | null;
+  customer_website?: string | null;
 }
 
 export interface DocumentData {

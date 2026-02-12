@@ -4,6 +4,7 @@ import { X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { currencySymbol } from "@/lib/currency/symbol";
 
 const DOCUMENT_TYPE_LABELS = {
   invoice: "חשבונית מס",
@@ -146,7 +147,8 @@ export default function ReceiptConfirmationModal({
 
   // Format money
   const formatMoney = (amount: number, curr: string) => {
-    return `${curr}${amount.toLocaleString("he-IL", { maximumFractionDigits: 2 })}`;
+    const formatted = amount.toLocaleString("he-IL", { maximumFractionDigits: 2 });
+    return `${formatted} ${currencySymbol(curr || "ILS")}`;
   };
 
   return (
@@ -176,6 +178,7 @@ export default function ReceiptConfirmationModal({
       >
         {/* Close Button */}
         <button
+          type="button"
           ref={closeButtonRef}
           onClick={onClose}
           disabled={isLoading}

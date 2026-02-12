@@ -6,7 +6,14 @@ export const metadata: Metadata = {
     default: "מערכת ניהול עסקי - Business Management System",
     template: "%s | מערכת ניהול עסקי",
   },
-  description: "מערכת ניהול מסמכים, קבלות וחשבוניות לעסקים - Business document and invoice management system",
+  description:
+    "מערכת ניהול מסמכים, קבלות וחשבוניות לעסקים - Business document and invoice management system",
+  icons: {
+    // שובר Cache אגרסיבי של דפדפנים ל-favicon
+    icon: "/favicon.ico?v=2",
+    shortcut: "/favicon.ico?v=2",
+    // אם אין לך apple-icon.png – אל תוסיף apple כאן
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +22,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body>
         {/* Skip to main content link - WCAG 2.1 AA requirement */}

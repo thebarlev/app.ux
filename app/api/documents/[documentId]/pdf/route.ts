@@ -2,11 +2,21 @@ import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { generatePreviewPDF } from "@/lib/pdf-service"
+import { generateDocumentPDF, generatePreviewPDF, getPdfDebugInfo, renderRemotePdfWithMeta } from "@/lib/pdf-service"
 import { isPdfDebugEnabled, logPdfEvent } from "@/lib/pdf-logger"
 import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 import { logSecurityEvent } from "@/lib/security/audit-log"
+import fs from "node:fs"
+
+const AGENT_DEBUG_LOG_PATH = "/Users/uxellent/v0-system-owner-admin-panel/.cursor/debug.log"
+function agentAppendLog(payload: any) {
+  try {
+    fs.appendFileSync(AGENT_DEBUG_LOG_PATH, JSON.stringify(payload) + "\n")
+  } catch {
+    // ignore
+  }
+}
 
 /**
  * Format download filename:
@@ -80,6 +90,13 @@ export async function GET(
     
     if (authError || !auth?.user) {
       console.error("[PDF] Unauthorized:", { authError, documentId: (await params).documentId })
+      agentAppendLog({
+        location: "api/documents/[documentId]/pdf:unauthorized",
+        message: "PDF download unauthorized",
+        data: { documentId: (await params).documentId },
+        timestamp: Date.now(),
+        hypothesisId: "H1",
+      })
       logSecurityEvent({
         event: "auth_denied",
         outcome: "denied",
@@ -99,6 +116,20 @@ export async function GET(
     const requestedLanguage = requestedLangParam === "en" ? "en" : requestedLangParam === "he" ? "he" : null
     const issueParam = requestUrl.searchParams.get("issue")
     const issueMode: "original" | "copy" = issueParam === "original" ? "original" : "copy"
+    const inlineParam = requestUrl.searchParams.get("inline")
+    const shouldInline = inlineParam === "1" || inlineParam === "true"
+    const debugParam = requestUrl.searchParams.get("debug")
+    const debug = debugParam === "1" || debugParam === "true"
+    const debugRenderParam = requestUrl.searchParams.get("render")
+    const debugRender = debugRenderParam === "1" || debugRenderParam === "true"
+
+    agentAppendLog({
+      location: "api/documents/[documentId]/pdf:entry",
+      message: "PDF download requested",
+      data: { documentId, userId: auth.user.id, issueMode, requestedLanguage, debug, debugRender, shouldInline },
+      timestamp: Date.now(),
+      hypothesisId: "H2",
+    })
 
     if (pdfDebugEnabled) {
       console.log("[PDF] Start:", { documentId, userId: auth.user.id })
@@ -115,8 +146,23 @@ export async function GET(
 
     if (docError || !doc) {
       console.error("[PDF] Document lookup failed:", { docError, documentId })
+      agentAppendLog({
+        location: "api/documents/[documentId]/pdf:docLookupFailed",
+        message: "Document lookup failed (RLS?)",
+        data: { documentId, docError: docError ? { message: docError.message, code: (docError as any).code } : null },
+        timestamp: Date.now(),
+        hypothesisId: "H3",
+      })
       return NextResponse.json({ error: "Document not found" }, { status: 404 })
     }
+
+    agentAppendLog({
+      location: "api/documents/[documentId]/pdf:docLookupOk",
+      message: "Document lookup ok",
+      data: { documentId, companyId: (doc as any)?.company_id, status: (doc as any)?.document_status, type: (doc as any)?.document_type },
+      timestamp: Date.now(),
+      hypothesisId: "H3",
+    })
 
     // Allow draft previews; finalized/pdf_ready serve immutable stored PDFs.
     // NOTE: cancelled documents must remain downloadable (original PDF is immutable).
@@ -172,6 +218,54 @@ export async function GET(
       )
     }
 
+    // For COPY debug mode: expose template/render diagnostics without serving storage.
+    // Normal COPY flow is storage-first below (immutable file generated during issuance/recovery).
+    if (effectiveIssue === "copy" && debug) {
+      if (debug) {
+        const info = await getPdfDebugInfo({
+          documentId,
+          language: targetLanguage,
+          issue: "copy",
+          templateVersionId: (doc as any)?.template_version_id ? String((doc as any).template_version_id) : null,
+        })
+
+        if (!debugRender) {
+          return NextResponse.json({ ok: true, ...info }, { status: 200 })
+        }
+
+        // Optional: call renderer in debug mode and capture response metadata.
+        if (info.rendered_text_length < (info.min_text_length || 50)) {
+          return NextResponse.json(
+            {
+              ok: false,
+              code: "PDF_RENDER_EMPTY",
+              message: "Rendered text length below threshold; refusing to call renderer",
+              details: {
+                template_source: info.template_source,
+                rendered_text_length: info.rendered_text_length,
+                counters: info.counters,
+              },
+            },
+            { status: 422 }
+          )
+        }
+
+        const meta = await renderRemotePdfWithMeta({
+          html: info.final_html_for_renderer,
+          css: info.final_css_for_renderer,
+          footer_html: "",
+          footer_css: "",
+          options: { format: "A4", printBackground: true },
+          artifactLabel: `pdf-debug-${documentId}`,
+          templateSource: info.template_source,
+          htmlCharLen: info.rendered_html_length,
+          htmlTextLen: info.rendered_text_length,
+        })
+
+        return NextResponse.json({ ok: true, ...info, renderer: meta }, { status: 200 })
+      }
+    }
+
     // Draft: preview only (no storage, no signing)
     if (doc.document_status === "draft") {
       const preview = await generatePreviewPDF(documentId, { language: targetLanguage, requestId, context: "preview" })
@@ -191,11 +285,41 @@ export async function GET(
       return new NextResponse(body as any, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${fileName}"`,
+          'Content-Disposition': `${shouldInline ? "inline" : "attachment"}; filename="${fileName}"`,
           'Content-Length': preview.buffer.length.toString(),
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
       })
+    }
+
+    // For certified copies, always generate on-the-fly in requested language.
+    // This avoids stale storage variants and keeps footer language consistent with screen/request language.
+    if (effectiveIssue === "copy") {
+      const copy = await generateDocumentPDF(documentId, {
+        language: targetLanguage,
+        mode: "copy",
+        requestId,
+        context: "download",
+        variant: "copy",
+      })
+
+      if (copy.success && copy.buffer) {
+        const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)
+        const body = (copy.buffer as any).buffer
+          ? (copy.buffer as any).buffer.slice(
+              (copy.buffer as any).byteOffset || 0,
+              ((copy.buffer as any).byteOffset || 0) + (copy.buffer as any).byteLength
+            )
+          : copy.buffer
+        return new NextResponse(body as any, {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `${shouldInline ? "inline" : "attachment"}; filename="${fileName}"`,
+            "Content-Length": String(copy.buffer.length),
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        })
+      }
     }
 
     // Finalized/cancelled: serve the immutable stored PDF (generated/signed during finalization).
@@ -256,6 +380,96 @@ export async function GET(
     }
 
     if (dlError || !file) {
+      agentAppendLog({
+        location: "api/documents/[documentId]/pdf:storageMissing",
+        message: "PDF not found in storage; attempting recovery generation",
+        data: {
+          documentId,
+          bucket: primaryBucket,
+          key: scopedStorageKey,
+          legacyTried: true,
+          dlError: dlError ? { message: String(dlError.message || ""), name: String((dlError as any)?.name || "") } : null,
+          issue: effectiveIssue,
+          lang: targetLanguage,
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H_PDF_RECOVERY",
+      })
+
+      // Recovery fallback: generate immutable PDF on-demand, then re-download from storage.
+      // This covers auto-issued documents that bypass finalizeDocument and thus lack pdf_storage_key files.
+      const gen = await generateDocumentPDF(documentId, {
+        language: targetLanguage,
+        mode: "recovery",
+        context: "download",
+        variant: effectiveIssue,
+        isIssuance: true,
+        allowEnInFinalization: targetLanguage === "en",
+        requestId,
+      })
+
+      agentAppendLog({
+        location: "api/documents/[documentId]/pdf:recoveryResult",
+        message: "Recovery PDF generation finished",
+        data: {
+          documentId,
+          ok: !!gen?.success,
+          error: gen?.success ? null : String((gen as any)?.error || "unknown"),
+        },
+        timestamp: Date.now(),
+        hypothesisId: "H_PDF_RECOVERY",
+      })
+
+      // Local/dev fallback: if signing is not configured, serve a preview PDF so downloads still work.
+      // (Regulatory signing is enforced by env in production.)
+      const genErrorStr = gen?.success ? "" : String((gen as any)?.error || "")
+      const signingMissing =
+        genErrorStr.includes("SIGNING_P12_BASE64") ||
+        genErrorStr.includes("SIGNING_P12_PASSWORD") ||
+        genErrorStr.includes("Missing env var: SIGNING_P12")
+
+      if (!gen?.success && signingMissing && process.env.NODE_ENV !== "production") {
+        agentAppendLog({
+          location: "api/documents/[documentId]/pdf:devSigningFallback",
+          message: "Signing env missing; serving COPY PDF fallback (with footer, no draft watermark)",
+          data: { documentId, issue: effectiveIssue, lang: targetLanguage },
+          timestamp: Date.now(),
+          hypothesisId: "H_PDF_SIGNING_ENV",
+        })
+
+        const copy = await generateDocumentPDF(documentId, {
+          language: targetLanguage,
+          mode: "copy",
+          requestId,
+          context: "download",
+          variant: effectiveIssue,
+        })
+        if (copy.success && copy.buffer) {
+          const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)
+          const body = (copy.buffer as any).buffer
+            ? (copy.buffer as any).buffer.slice(
+                (copy.buffer as any).byteOffset || 0,
+                ((copy.buffer as any).byteOffset || 0) + (copy.buffer as any).byteLength
+              )
+            : copy.buffer
+          return new NextResponse(body as any, {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": `attachment; filename="${fileName}"`,
+              "Content-Length": String(copy.buffer.length),
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+          })
+        }
+      }
+
+      if (gen?.success) {
+        // Retry download from storage (should exist now).
+        ;({ data: file, error: dlError } = await adminClient.storage.from(primaryBucket).download(scopedStorageKey))
+      }
+    }
+
+    if (dlError || !file) {
       return NextResponse.json(
         { error: "PDF_NOT_AVAILABLE", code: "PDF_NOT_AVAILABLE" },
         { status: 404 }
@@ -304,13 +518,20 @@ export async function GET(
     return new NextResponse(buf as any, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `${shouldInline ? "inline" : "attachment"}; filename="${fileName}"`,
         "Content-Length": String(buf.length),
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     })
   } catch (e: any) {
     console.error("[PDF] Route crashed:", e?.stack || e)
+    agentAppendLog({
+      location: "api/documents/[documentId]/pdf:crash",
+      message: "PDF route crashed",
+      data: { error: String(e?.message || e) },
+      timestamp: Date.now(),
+      hypothesisId: "H4",
+    })
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

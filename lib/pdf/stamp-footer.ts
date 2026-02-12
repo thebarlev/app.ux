@@ -4,6 +4,7 @@ import path from "node:path"
 import { readFile } from "node:fs/promises"
 import { PDFDocument, rgb } from "pdf-lib"
 import fontkit from "@pdf-lib/fontkit"
+import { getFooterSignatureText } from "@/lib/pdf/footer-text"
 
 const mmToPt = (mm: number) => (mm * 72) / 25.4
 
@@ -46,17 +47,10 @@ async function loadHebrewTtf(): Promise<{ name: string; buf: Buffer } | null> {
   return null
 }
 
-function reverseStringForRtlVisual(text: string): string {
-  // pdf-lib draws text left-to-right. For simple Hebrew phrases we reverse the string
-  // so it appears visually right-to-left on the page.
-  return String(text || "").split("").reverse().join("")
-}
-
 export async function stampPdfFooter(params: {
   pdfBytes: Buffer
   language: "he" | "en"
   generatedAtText: string
-  generatedByText: string
 }): Promise<Buffer> {
   try {
     const doc = await PDFDocument.load(new Uint8Array(params.pdfBytes))
@@ -94,28 +88,17 @@ export async function stampPdfFooter(params: {
       const page = pages[i]
       const w = page.getWidth()
 
-      const pageNumberText =
-        params.language === "he" && hasUnicodeFont
-          ? `עמוד ${i + 1} מתוך ${total}`
-          : `Page ${i + 1} of ${total}`
+      const pageNumberTextRaw =
+        params.language === "he" && hasUnicodeFont ? `עמוד ${i + 1} מתוך ${total}` : `Page ${i + 1} of ${total}`
 
+      const resolvedFooterLang: "he" | "en" = params.language === "he" && hasUnicodeFont ? "he" : "en"
+      const footerText = getFooterSignatureText(resolvedFooterLang)
       // Avoid non-ASCII text when we don't have a Unicode font embedded (prevents WinAnsi encode errors).
-      const badgeTitleRaw =
-        params.language === "he" && hasUnicodeFont ? "חתימה דיגיטלית מאובטחת" : "Secure digital signature"
-      const badgeBodyRaw =
-        params.language === "he" && hasUnicodeFont
-          ? (() => {
-              // Prefer keeping the Latin brand token readable inside the RTL phrase.
-              const brand = String(params.generatedByText || "").trim().split(/\s+/).pop() || "VOW"
-              // Visually-correct RTL for: "מסמך ממוחשב הופק על ידי <brand>"
-              return `${brand} ידי על הופק ממוחשב מסמך`
-            })()
-          : String(params.generatedByText || "Computerized document generated")
-
-      const badgeTitle = params.language === "he" && hasUnicodeFont ? reverseStringForRtlVisual(badgeTitleRaw) : badgeTitleRaw
-      const badgeBody = params.language === "he" && hasUnicodeFont ? badgeBodyRaw : badgeBodyRaw
-
-      const leftText = `${params.generatedAtText || ""}`
+      const badgeTitle = footerText.title
+      const badgeBody = footerText.body
+      const pageNumberText = pageNumberTextRaw
+      const leftTextRaw = `${params.generatedAtText || ""}`
+      const leftText = leftTextRaw
 
       // separator line
       page.drawLine({
