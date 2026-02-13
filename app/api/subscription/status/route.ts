@@ -1,8 +1,32 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { signUpgradeState } from "@/lib/billing/upgrade-state"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
+
+async function getCompanyIdForUserMinimal(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  userId: string
+}): Promise<string> {
+  // Prefer membership (multi-tenant)
+  const { data: membership } = await params.supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("user_id", params.userId)
+    .maybeSingle()
+
+  if (membership?.company_id) return String(membership.company_id)
+
+  // Fallback to owner company
+  const { data: company } = await params.supabase
+    .from("companies")
+    .select("id")
+    .eq("auth_user_id", params.userId)
+    .maybeSingle()
+
+  if (company?.id) return String(company.id)
+
+  throw new Error("company_not_found")
+}
 
 function deriveAnniversaryMonthWindow(now: Date, anchor: Date): { start: Date; end: Date } {
   // Compute rolling [start, end) monthly window anchored at `anchor` day-of-month.
@@ -41,7 +65,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 })
   }
 
-  const companyId = await getCompanyIdForUser()
+  const companyId = await getCompanyIdForUserMinimal({ supabase, userId: auth.user.id })
   const now = new Date()
 
   const { data: sub, error: subError } = await supabase

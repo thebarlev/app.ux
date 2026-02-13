@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -202,10 +203,26 @@ export default async function SettingsPage() {
     };
 
     return (
-      <SettingsClient 
-        company={companyForClient as any} 
-        initialTemplates={templates || []}
-      />
+      <>
+        {/* Minimal navigation entry (Phase 1): Integrations */}
+        <div dir="rtl" className="ui-container pt-6">
+          <div className="mb-4 rounded-[14px] border border-border/60 bg-white/80 p-4 flex items-center justify-between gap-4">
+            <div className="text-right">
+              <div className="text-sm text-muted-fg">אינטגרציות</div>
+              <div className="font-semibold">ניהול חיבורים לשירותים חיצוניים</div>
+            </div>
+            <Link
+              href="/dashboard/settings/integrations"
+              className="inline-flex items-center justify-center rounded-[5px] h-[50px] px-5 text-[18px] font-medium text-white"
+              style={{ backgroundColor: "#5389BB" }}
+            >
+              מעבר לאינטגרציות
+            </Link>
+          </div>
+        </div>
+
+        <SettingsClient company={companyForClient as any} initialTemplates={templates || []} />
+      </>
     );
   } catch (error: any) {
     return (
