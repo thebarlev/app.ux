@@ -1,3 +1,6 @@
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+
 import { createClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { NextResponse } from "next/server"

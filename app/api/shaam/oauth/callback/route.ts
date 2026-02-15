@@ -2,17 +2,15 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
+import { Agent } from "undici"
 import { createClient } from "@/lib/supabase/server"
 import { getShaamConfig } from "@/lib/shaam/config"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
 function redirectToSettings(url: URL, params: Record<string, string>) {
-  const target = new URL(
-  "/dashboard/settings/integrations/shaam",
-  (process.env.PUBLIC_BASE_URL || url.origin).trim()
-)
-
+  // Always prefer the callback origin to avoid cross-domain session/cookie issues.
+  const target = new URL("/dashboard/settings/integrations/shaam", url.origin)
   for (const [k, v] of Object.entries(params)) target.searchParams.set(k, v)
   return NextResponse.redirect(target)
 }
@@ -37,13 +35,15 @@ export async function GET(req: Request) {
   try {
     cfg = getShaamConfig()
   } catch (e: any) {
-    return NextResponse.json({ ok: false, message: "shaam_misconfigured" }, { status: 500 })
+    const url = new URL(req.url)
+    return redirectToSettings(url, { error: "shaam_misconfigured" })
   }
 
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
   if (!user) {
     // Hard requirement: callback must require authenticated user
     return loginRedirectForRequest(req)
@@ -76,17 +76,36 @@ export async function GET(req: Request) {
   body.set("client_id", cfg.clientId)
   body.set("client_secret", cfg.clientSecret)
 
-  const res = await fetch(cfg.tokenUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      accept: "application/json",
-    },
-    body,
-    cache: "no-store",
-  })
+  // Force IPv4 (common fix for connect timeouts to some government domains)
+  const dispatcher = new Agent({ connect: { family: 4 } })
 
-  const json: any = await res.json().catch(() => null)
+  let res: Response
+  let json: any = null
+
+  try {
+    res = await fetch(cfg.tokenUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        accept: "application/json",
+      },
+      body,
+      cache: "no-store",
+      // @ts-expect-error - undici extension supported in Node runtime
+      dispatcher,
+      signal: AbortSignal.timeout(20_000),
+    })
+
+    json = await res.json().catch(() => null)
+  } catch (e: any) {
+    await markConnectionError({
+      companyId,
+      status: "error",
+      errorCode: "token_fetch_failed",
+      errorMessage: e?.cause?.code || e?.code || e?.message || "fetch_failed",
+    })
+    return redirectToSettings(url, { error: "token_fetch_failed" })
+  }
 
   if (!res.ok) {
     const errorCode = typeof json?.error === "string" ? json.error : `http_${res.status}`
@@ -136,4 +155,3 @@ export async function GET(req: Request) {
 
   return redirectToSettings(url, { connected: "1" })
 }
-
