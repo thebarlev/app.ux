@@ -16,7 +16,7 @@ export type ShaamConfig = {
 
 const SANDBOX = {
   baseUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox",
-  authUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
+  authUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
   tokenUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
 } as const
 
@@ -24,12 +24,12 @@ function normalizePath(p: string): string {
   return p.replace(/\/+$/, "")
 }
 
-function isSandboxShaamUrl(input: string, requiredPath: string): boolean {
+function isSandboxShaamUrl(input: string, requiredPath: string, requiredHost?: string): boolean {
   try {
     const u = new URL(input)
     if (u.protocol !== "https:") return false
-    // Allow sandbox endpoints across official subdomains (e.g. openapi, ita-api).
     if (!u.hostname.endsWith("taxes.gov.il")) return false
+    if (requiredHost && u.hostname !== requiredHost) return false
     const pathname = normalizePath(u.pathname)
     return pathname === requiredPath
   } catch {
@@ -37,12 +37,16 @@ function isSandboxShaamUrl(input: string, requiredPath: string): boolean {
   }
 }
 
-function assertSandboxUrl(name: "SHAAM_BASE_URL" | "SHAAM_AUTH_URL" | "SHAAM_TOKEN_URL", value: string, requiredPath: string) {
-  if (!isSandboxShaamUrl(value, requiredPath)) {
+function assertSandboxUrl(
+  name: "SHAAM_BASE_URL" | "SHAAM_AUTH_URL" | "SHAAM_TOKEN_URL",
+  value: string,
+  requiredPath: string,
+  requiredHost?: string
+) {
+  if (!isSandboxShaamUrl(value, requiredPath, requiredHost)) {
     throw new Error(`${name} must be SANDBOX in Phase 1`)
   }
 }
-
 
 function req(name: string): string {
   const v = process.env[name]
@@ -75,10 +79,20 @@ export function getShaamConfig(): ShaamConfig {
   const authUrl = req("SHAAM_AUTH_URL")
   const tokenUrl = req("SHAAM_TOKEN_URL")
 
-  // Phase 1 hard-guard: sandbox endpoints only.
-  assertSandboxUrl("SHAAM_BASE_URL", baseUrl, "/shaam/tsandbox")
-  assertSandboxUrl("SHAAM_AUTH_URL", authUrl, "/shaam/tsandbox/longtimetoken/oauth2/authorize")
-  assertSandboxUrl("SHAAM_TOKEN_URL", tokenUrl, "/shaam/tsandbox/longtimetoken/oauth2/token")
+  // Phase 1 hard-guard: sandbox endpoints only (with explicit hosts).
+  assertSandboxUrl("SHAAM_BASE_URL", baseUrl, "/shaam/tsandbox", "ita-api.taxes.gov.il")
+  assertSandboxUrl(
+    "SHAAM_AUTH_URL",
+    authUrl,
+    "/shaam/tsandbox/longtimetoken/oauth2/authorize",
+    "openapi.taxes.gov.il"
+  )
+  assertSandboxUrl(
+    "SHAAM_TOKEN_URL",
+    tokenUrl,
+    "/shaam/tsandbox/longtimetoken/oauth2/token",
+    "ita-api.taxes.gov.il"
+  )
 
   // Allow SHAAM redirect base to be configured separately from other systems (e.g., Cardcom).
   // If omitted, fall back to PUBLIC_BASE_URL.
@@ -98,4 +112,3 @@ export function getShaamConfig(): ShaamConfig {
     refreshCooldownSeconds: parseCooldownSeconds(process.env.SHAAM_REFRESH_COOLDOWN_SECONDS),
   }
 }
-
