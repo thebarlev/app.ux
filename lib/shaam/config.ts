@@ -15,10 +15,11 @@ export type ShaamConfig = {
 }
 
 const SANDBOX = {
-  baseUrl: "https://t-ita-api.taxes.gov.il/shaam/tsandbox",
+  baseUrl: "https://openapi.taxes.gov.il/shaam/tsandbox",
   authUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
-  tokenUrl: "https://t-ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
+  tokenUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
 } as const
+
 
 function req(name: string): string {
   const v = process.env[name]

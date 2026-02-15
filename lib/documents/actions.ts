@@ -1127,7 +1127,13 @@ export async function issueDocumentAction(
           message: rawMessage,
           draftId,
         });
-        return { ok: false as const, message: rawMessage, reason: (result as any)?.reason ?? null };
+        return {
+          ok: false as const,
+          message: rawMessage,
+          reason: (result as any)?.reason ?? null,
+          shaam: (result as any)?.shaam ?? null,
+          documentId: draftId,
+        };
       }
 
       const { data: company } = await supabase
@@ -1317,6 +1323,8 @@ export async function issueDocumentAction(
         ok: false as const,
         message: result.message ?? "Failed to finalize document",
         reason: (result as any)?.reason ?? null,
+        shaam: (result as any)?.shaam ?? null,
+        documentId: draft.id,
       };
       return errorResponse;
     }

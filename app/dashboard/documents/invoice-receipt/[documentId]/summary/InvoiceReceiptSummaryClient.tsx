@@ -17,6 +17,7 @@ type InvoiceReceiptRow = {
   customer_name: string | null;
   customer_id?: string | null;
   document_description: string | null;
+  allocation_number?: string | null;
   subtotal?: number | null;
   vat_rate?: number | null;
   vat_amount?: number | null;
@@ -361,6 +362,9 @@ export default function InvoiceReceiptSummaryClient(props: {
               <span>תאריך מסמך: {formatDate(props.invoiceReceipt.issue_date)}</span>
               {props.invoiceReceipt.created_at ? (
                 <span> | הופק ב- {formatDateTime(props.invoiceReceipt.created_at)}</span>
+              ) : null}
+              {props.invoiceReceipt.allocation_number ? (
+                <span> | מספר הקצאה: {props.invoiceReceipt.allocation_number}</span>
               ) : null}
             </div>
           </div>

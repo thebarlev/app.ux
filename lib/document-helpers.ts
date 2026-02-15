@@ -10,6 +10,8 @@ import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flag
 import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from "./documents/signing/secure-signature-client"
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
+import { callShaamConfirmationNumber } from "@/lib/shaam/invoice-allocation"
+import { getDecryptedTokensForCompany, markConnectionError, recordShaamEvent, refreshShaamTokenManual } from "@/lib/shaam/tokens"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -195,6 +197,7 @@ export async function finalizeDocument(
   documentNumber?: string
   message?: string
   reason?: string | null
+  shaam?: { kind: "decision_required"; error_id: string } | { kind: "reconnect_required"; redirect_to: string } | null
   signing?: {
     pdf_hashes: {
       original_he_sha256: string
@@ -265,6 +268,325 @@ export async function finalizeDocument(
     }
     
     console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
+  }
+
+  // ====================================================
+  // Phase 2 (SHAAM): allocation number for high-value invoices (sandbox only)
+  // Applies ONLY to: tax_invoice, invoice_receipt (invoiceReceipt)
+  // Business rule precision:
+  // - Apply only from invoice_date >= 2026-01-01
+  // - Require when subtotal (before VAT) >= global threshold (invoice_allocation_threshold_ils)
+  // - Exempt issuer business_type == 'osek_patur'
+  // ====================================================
+  if (documentType === "tax_invoice" || documentType === "invoiceReceipt") {
+    const redirectTo = "/dashboard/settings/integrations/shaam"
+    const nowIso = new Date().toISOString()
+
+    // Load issuer + document + customer tax ids needed for SHAAM payload
+    const [{ data: companyRow, error: companyErr }, { data: docRow, error: docErr }, { data: thresholdRow }] = await Promise.all([
+      adminClient
+        .from("companies")
+        .select("business_type, tax_id, registration_number, company_number")
+        .eq("id", companyId)
+        .maybeSingle(),
+      adminClient
+        .from("documents")
+        .select(
+          "id, document_type, issue_date, document_number, subtotal, vat_amount, total_amount, customer_id, customer_tax_id, requires_allocation_number, allocation_status, allocation_number, shaam_error_id, invoice_decision_type"
+        )
+        .eq("id", draftId)
+        .eq("company_id", companyId)
+        .maybeSingle(),
+      adminClient
+        .from("global_settings")
+        .select("setting_value")
+        .eq("setting_key", "invoice_allocation_threshold_ils")
+        .maybeSingle(),
+    ])
+
+    if (!companyErr && !docErr && companyRow && docRow) {
+      const dbDocType = String((docRow as any).document_type || "")
+      const isInvoiceLike = dbDocType === "tax_invoice" || dbDocType === "invoice_receipt"
+
+      const issueDateYmd = (docRow as any).issue_date ? String((docRow as any).issue_date).slice(0, 10) : ""
+      const isInEffect = issueDateYmd >= "2026-01-01"
+
+      const businessType = typeof (companyRow as any).business_type === "string" ? String((companyRow as any).business_type) : ""
+      const isExemptOsekPatur = businessType === "osek_patur"
+
+      const thresholdRaw = thresholdRow?.setting_value ? String(thresholdRow.setting_value) : "10000"
+      const thresholdIls = Number(thresholdRaw)
+      const thresholdSafe = Number.isFinite(thresholdIls) && thresholdIls > 0 ? thresholdIls : 10000
+
+      const subtotalRaw = (docRow as any).subtotal
+      const vatAmountRaw = (docRow as any).vat_amount
+      const totalRaw = (docRow as any).total_amount
+      const subtotal =
+        typeof subtotalRaw === "number"
+          ? subtotalRaw
+          : subtotalRaw !== null && subtotalRaw !== undefined
+            ? Number(subtotalRaw)
+            : NaN
+      const vatAmount =
+        typeof vatAmountRaw === "number"
+          ? vatAmountRaw
+          : vatAmountRaw !== null && vatAmountRaw !== undefined
+            ? Number(vatAmountRaw)
+            : 0
+      const totalAmount =
+        typeof totalRaw === "number" ? totalRaw : totalRaw !== null && totalRaw !== undefined ? Number(totalRaw) : 0
+
+      const paymentAmountBeforeVat = Number.isFinite(subtotal) ? subtotal : totalAmount - (Number.isFinite(vatAmount) ? vatAmount : 0)
+      const paymentAmountSafe = Number.isFinite(paymentAmountBeforeVat) ? Number(paymentAmountBeforeVat.toFixed(2)) : 0
+      const vatAmountSafe = Number.isFinite(vatAmount) ? Number(vatAmount.toFixed(2)) : 0
+
+      const requiresAllocation =
+        isInvoiceLike && isInEffect && !isExemptOsekPatur && paymentAmountSafe >= thresholdSafe
+
+      // Persist informational flags early (best-effort; never block issuance on this update).
+      try {
+        await adminClient
+          .from("documents")
+          .update({
+            requires_allocation_number: requiresAllocation,
+            allocation_status: requiresAllocation ? String((docRow as any).allocation_status || "pending") : "not_required",
+          } as any)
+          .eq("id", draftId)
+          .eq("company_id", companyId)
+      } catch {
+        // ignore
+      }
+
+      if (requiresAllocation) {
+        const currentStatus = String((docRow as any).allocation_status || "pending")
+        const existingAllocationNumber = (docRow as any).allocation_number ? String((docRow as any).allocation_number) : null
+        const existingErrorId = (docRow as any).shaam_error_id ? String((docRow as any).shaam_error_id) : null
+        const existingDecision = (docRow as any).invoice_decision_type ? String((docRow as any).invoice_decision_type) : null
+
+        // If user previously chose CONTINUE, we allow finalization without allocation number.
+        if (existingDecision === "CONTINUE" || currentStatus === "skipped_by_user") {
+          // proceed
+        } else if (existingAllocationNumber && currentStatus === "received") {
+          // proceed (idempotent)
+        } else if (currentStatus === "pending_decision" && existingErrorId) {
+          return {
+            ok: false,
+            message: "shaam_decision_required",
+            reason: "shaam_decision_required",
+            shaam: { kind: "decision_required", error_id: existingErrorId },
+          }
+        } else {
+          // Build VAT numbers (digits-only) and validate.
+          const issuerTaxIdRaw =
+            (companyRow as any).tax_id || (companyRow as any).registration_number || (companyRow as any).company_number || ""
+          const issuerVatDigits = String(issuerTaxIdRaw || "").replace(/\D/g, "")
+          const issuerVat = issuerVatDigits ? Number(issuerVatDigits) : NaN
+
+          const customerTaxIdRaw = (docRow as any).customer_tax_id || null
+          let customerVatDigits = customerTaxIdRaw ? String(customerTaxIdRaw).replace(/\D/g, "") : ""
+          if (!customerVatDigits && (docRow as any).customer_id) {
+            const { data: customerRow } = await adminClient
+              .from("customers")
+              .select("tax_id")
+              .eq("id", (docRow as any).customer_id)
+              .eq("company_id", companyId)
+              .maybeSingle()
+            customerVatDigits = customerRow?.tax_id ? String(customerRow.tax_id).replace(/\D/g, "") : ""
+          }
+          const customerVat = customerVatDigits ? Number(customerVatDigits) : NaN
+
+          const invoiceReference = String(docNumber || "").trim()
+          const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceReference)
+          if (!invoiceReference || looksLikeUuid || invoiceReference.length > 20) {
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, reason: "invalid_invoice_reference_number" },
+            })
+            return { ok: false, message: "מספר מסמך לא תקין להקצאה. נסה שוב.", reason: "shaam_allocation_invalid_reference" }
+          }
+
+          if (!Number.isInteger(issuerVat) || issuerVat <= 0 || !Number.isInteger(customerVat) || customerVat <= 0) {
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, reason: "missing_vat_numbers" },
+            })
+            return { ok: false, message: "חסר מספר עוסק ללקוח או לעסק. עדכן פרטי לקוח ונסה שוב.", reason: "shaam_allocation_missing_vat" }
+          }
+
+          // Ensure we have tokens; refresh proactively if expired.
+          const tokens0 = await getDecryptedTokensForCompany({ companyId })
+          if (!tokens0.ok) {
+            return {
+              ok: false,
+              message: "יש להתחבר לרשות המסים כדי להפיק מסמך זה.",
+              reason: "shaam_reconnect_required",
+              shaam: { kind: "reconnect_required", redirect_to: redirectTo },
+            }
+          }
+
+          const expiresAt = tokens0.expiresAt ? new Date(tokens0.expiresAt).getTime() : NaN
+          if (Number.isFinite(expiresAt) && expiresAt < Date.now()) {
+            const refreshed = await refreshShaamTokenManual({ companyId, ignoreCooldown: true })
+            if (!refreshed.ok) {
+              await markConnectionError({
+                companyId,
+                status: "expired",
+                errorCode: "refresh_failed",
+                errorMessage: "refresh_failed",
+              })
+              return {
+                ok: false,
+                message: "תוקף החיבור לרשות המסים פג. התחבר מחדש כדי להמשיך.",
+                reason: "shaam_reconnect_required",
+                shaam: { kind: "reconnect_required", redirect_to: redirectTo },
+              }
+            }
+          }
+
+          // Mark as pending + audit request (token-free)
+          await adminClient
+            .from("documents")
+            .update({
+              requires_allocation_number: true,
+              allocation_status: "pending",
+              allocation_requested_at: nowIso,
+              allocation_provider_response: null,
+            } as any)
+            .eq("id", draftId)
+            .eq("company_id", companyId)
+
+          await recordShaamEvent({
+            companyId,
+            eventType: "allocation_request",
+            payload: { document_id: draftId, document_type: dbDocType, payment_amount: paymentAmountSafe, vat_amount: vatAmountSafe, issue_date: issueDateYmd },
+          })
+
+          const makeCall = async () => {
+            const tokens = await getDecryptedTokensForCompany({ companyId })
+            if (!tokens.ok) return { ok: false as const, kind: "unauthorized" as const, provider_json: { error: "missing_tokens" } }
+            return await callShaamConfirmationNumber({
+              accessToken: tokens.accessToken,
+              payload: {
+                customer_vat_number: customerVat,
+                vat_number: issuerVat,
+                payment_amount: paymentAmountSafe,
+                vat_amount: vatAmountSafe,
+                invoice_date: issueDateYmd,
+                invoice_reference_number: invoiceReference,
+              },
+            })
+          }
+
+          let callRes = await makeCall()
+          if (!callRes.ok && callRes.kind === "unauthorized") {
+            // 401 handling: refresh ONCE then retry ONCE
+            const refreshed = await refreshShaamTokenManual({ companyId, ignoreCooldown: true })
+            if (refreshed.ok) {
+              callRes = await makeCall()
+            }
+          }
+
+          if (callRes.ok && callRes.kind === "received") {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "received",
+                allocation_number: callRes.confirmation_number,
+                allocation_requested_at: nowIso,
+                allocation_provider_response: callRes.provider_json,
+                shaam_error_id: null,
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_received",
+              payload: { document_id: draftId, confirmation_number: callRes.confirmation_number },
+            })
+          } else if (!callRes.ok && callRes.kind === "decision_required") {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "pending_decision",
+                allocation_requested_at: nowIso,
+                allocation_provider_response: callRes.provider_json,
+                shaam_error_id: callRes.error_id,
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, http_status: 406, error_id: callRes.error_id },
+            })
+
+            return {
+              ok: false,
+              message: "shaam_decision_required",
+              reason: "shaam_decision_required",
+              shaam: { kind: "decision_required", error_id: callRes.error_id },
+            }
+          } else if (!callRes.ok && callRes.kind === "unauthorized") {
+            await markConnectionError({
+              companyId,
+              status: "expired",
+              errorCode: "unauthorized",
+              errorMessage: "unauthorized",
+            })
+            return {
+              ok: false,
+              message: "תוקף החיבור לרשות המסים פג. התחבר מחדש כדי להמשיך.",
+              reason: "shaam_reconnect_required",
+              shaam: { kind: "reconnect_required", redirect_to: redirectTo },
+            }
+          } else if (!callRes.ok && callRes.kind === "bad_request") {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "failed",
+                allocation_requested_at: nowIso,
+                allocation_provider_response: callRes.provider_json,
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, http_status: 400 },
+            })
+
+            return { ok: false, message: "נתונים לא תקינים. בדוק את פרטי הלקוח ונסה שוב.", reason: "shaam_allocation_bad_request" }
+          } else if (!callRes.ok) {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "failed",
+                allocation_requested_at: nowIso,
+                allocation_provider_response: (callRes as any).provider_json ?? null,
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, http_status: 500 },
+            })
+
+            return { ok: false, message: "בעיה זמנית בהקצאת מספר. נסה שוב בעוד רגע.", reason: "shaam_allocation_temporary" }
+          }
+        }
+      }
+    }
   }
 
   console.log(`[finalizeDocument] Generating deterministic PDF + signing for document ${draftId}...`)

@@ -14,6 +14,7 @@ import StartingNumberModal from "@/components/documents/StartingNumberModal";
 import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
 import ReceiptConfirmationModal from "@/components/documents/ReceiptConfirmationModal";
 import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
+import { InvoiceDecisionModal, type InvoiceDecisionType } from "@/components/documents/InvoiceDecisionModal";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import PaymentDetailsSection from "../receipt/PaymentDetailsSection";
 import { FloatingInput } from "@/components/ui/floating-input";
@@ -198,6 +199,15 @@ export default function InvoiceReceiptFormClient({
     documentTypeLabel: string;
     language: "he" | "en";
   } | null>(null);
+
+  const [shaamReconnectRequired, setShaamReconnectRequired] = useState(false);
+  const [shaamDecision, setShaamDecision] = useState<{
+    open: boolean;
+    errorId: string;
+    documentId: string;
+    payload: InvoiceReceiptDraftPayload | null;
+    draftId: string | undefined;
+  }>({ open: false, errorId: "", documentId: "", payload: null, draftId: undefined });
 
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -867,10 +877,30 @@ export default function InvoiceReceiptFormClient({
 
     setBusy("issue");
     try {
-      const result = await issueInvoiceReceiptAction(payload);
+      const effectiveDraftId = draftId || (editData as any)?.id || undefined;
+      const result = await issueInvoiceReceiptAction(payload, effectiveDraftId);
 
       if (!result || !result.ok) {
         const reason = (result as any)?.reason as string | null | undefined;
+        const shaam = (result as any)?.shaam as any;
+        if (shaam?.kind === "reconnect_required") {
+          setShaamReconnectRequired(true);
+          toast.error("יצירת מסמך זה דורשת חיבור לרשות המסים.");
+        } else if (shaam?.kind === "decision_required") {
+          setShaamReconnectRequired(false);
+          const docIdForDecision =
+            String((result as any)?.documentId || effectiveDraftId || "").trim() || "";
+          setShaamDecision({
+            open: true,
+            errorId: String(shaam?.error_id || "").trim(),
+            documentId: docIdForDecision,
+            payload,
+            draftId: effectiveDraftId,
+          });
+          setBusy(null);
+          setIsFinalizing(false);
+          return;
+        }
         if (reason === "limit_reached") {
           setBlockModalKind("free_quota");
         } else if (reason === "subscription_expired" || reason === "past_due" || reason === "account_blocked") {
@@ -885,6 +915,7 @@ export default function InvoiceReceiptFormClient({
 
       setConfirmationModalOpen(false);
       setBusy(null);
+      setShaamReconnectRequired(false);
 
       if (chainSourceDocumentId) {
         // Fetch source document to check if we should create payment link
@@ -936,6 +967,66 @@ export default function InvoiceReceiptFormClient({
 
   return (
     <main dir="rtl" className="min-h-screen ui-document-form">
+      <InvoiceDecisionModal
+        open={shaamDecision.open}
+        errorId={shaamDecision.errorId}
+        onOpenChange={(open) => setShaamDecision((s) => ({ ...s, open }))}
+        onSelect={async (decision: InvoiceDecisionType) => {
+          const docId = String(shaamDecision.documentId || "").trim();
+          if (!docId) {
+            toast.error("חסר מזהה מסמך לשליחת החלטה");
+            return;
+          }
+
+          const res = await fetch("/api/shaam/invoice-decision", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ document_id: docId, decision }),
+          });
+          const json = await res.json().catch(() => null);
+          if (!res.ok || !json?.ok) {
+            const msg = (json && (json.message || json.details)) || "שליחת החלטה נכשלה";
+            toast.error(msg);
+            return;
+          }
+
+          if (decision === "CONTINUE") {
+            setShaamDecision((s) => ({ ...s, open: false }));
+            const p = shaamDecision.payload;
+            const dId = shaamDecision.draftId;
+            if (p) {
+              setBusy("issue");
+              const retry = await issueInvoiceReceiptAction(p, dId);
+              setBusy(null);
+              if (!retry || !retry.ok) {
+                toast.error(retry?.message || "הפקת המסמך נכשלה לאחר המשך ללא מספר הקצאה");
+                return;
+              }
+              setSuccessModalData({
+                documentId: retry.documentId || "",
+                documentNumber: retry.documentNumber || "",
+                companyName: retry.companyName || "העסק שלי",
+                documentTypeLabel: "חשבונית מס / קבלה",
+                language,
+              });
+              setSuccessModalOpen(true);
+              return;
+            }
+          }
+
+          if (decision === "CANCEL") {
+            setShaamDecision((s) => ({ ...s, open: false }));
+            toast.success("המסמך בוטל");
+            return;
+          }
+
+          if (decision === "FURTHEROBJECTION") {
+            setShaamDecision((s) => ({ ...s, open: false }));
+            toast.success("נשלחה בקשת שימוע. לא ניתן להפיק את המסמך עד להמשך טיפול.");
+            return;
+          }
+        }}
+      />
       <SubscriptionBlockModal
         isOpen={blockModalKind !== null}
         kind={blockModalKind || "free_quota"}
@@ -947,6 +1038,21 @@ export default function InvoiceReceiptFormClient({
       />
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
+          {shaamReconnectRequired ? (
+            <Card className="mb-6 border-danger bg-danger/10">
+              <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-right">
+                  <div className="font-semibold">יצירת מסמך זה דורשת חיבור לרשות המסים.</div>
+                </div>
+                <Button
+                  onClick={() => router.push("/dashboard/settings/integrations/shaam")}
+                  className="w-full sm:w-auto"
+                >
+                  התחבר עכשיו
+                </Button>
+              </CardContent>
+            </Card>
+          ) : null}
           {message && (
             <Card
               className={cn(

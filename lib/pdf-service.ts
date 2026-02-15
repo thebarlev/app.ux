@@ -1662,11 +1662,17 @@ export async function prepareDocumentData(
     const sku = item.item_sku || null
     return sku && String(sku).trim().length > 0
   })
+
+  const allocationNumberRaw = (doc as any)?.allocation_number
+  const allocation_number =
+    allocationNumberRaw === null || allocationNumberRaw === undefined ? null : String(allocationNumberRaw).trim() || null
   
   const templateData: ReceiptTemplateData & Record<string, any> = {
     t,
     DOCUMENT_COPY_LABEL: options?.documentCopyLabel ?? "",
     HAS_SKU_DATA: hasSkuData, // ✅ משתנה חדש - האם יש מק"ט בשורות
+    allocation_number,
+    HAS_ALLOCATION_NUMBER: !!allocation_number,
     company: {
       company_name: companyNameLocalized,
       company_name_he: companyNameHe,

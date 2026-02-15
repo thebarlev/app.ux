@@ -44,7 +44,19 @@ function safeErrorFromTokenEndpoint(params: { status: number; json: any }): { co
 
 export async function recordShaamEvent(params: {
   companyId: string
-  eventType: "oauth_start" | "oauth_connected" | "oauth_error" | "oauth_refresh" | "oauth_expired" | "oauth_revoked"
+  eventType:
+    | "oauth_start"
+    | "oauth_connected"
+    | "oauth_error"
+    | "oauth_refresh"
+    | "oauth_expired"
+    | "oauth_revoked"
+    | "allocation_request"
+    | "allocation_received"
+    | "allocation_failed"
+    | "decision_cancel"
+    | "decision_continue"
+    | "decision_further_objection"
   payload?: Record<string, any> | null
 }) {
   const admin = createServiceRoleClient()
@@ -177,7 +189,7 @@ export async function getDecryptedTokensForCompany(params: { companyId: string }
   }
 }
 
-export async function refreshShaamTokenManual(params: { companyId: string }): Promise<
+export async function refreshShaamTokenManual(params: { companyId: string; ignoreCooldown?: boolean }): Promise<
   | { ok: true; connected: boolean; status: ShaamConnectionStatus; expires_at: string | null }
   | { ok: false; connected: boolean; status: ShaamConnectionStatus | "missing"; expires_at: string | null; message: string; cooldown_seconds_remaining?: number }
 > {
@@ -196,23 +208,26 @@ export async function refreshShaamTokenManual(params: { companyId: string }): Pr
   const status = String((row as any).status || "error") as ShaamConnectionStatus
   const expiresAt = (row as any).expires_at ? String((row as any).expires_at) : null
 
-  // Cooldown (DB-based)
-  const lastRefreshAtIso = (row as any).last_refresh_at ? String((row as any).last_refresh_at) : null
-  if (lastRefreshAtIso) {
-    const last = new Date(lastRefreshAtIso).getTime()
-    if (Number.isFinite(last)) {
-      const now = Date.now()
-      const cooldownMs = cfg.refreshCooldownSeconds * 1000
-      const ageMs = now - last
-      if (ageMs >= 0 && ageMs < cooldownMs) {
-        const remaining = Math.max(1, Math.ceil((cooldownMs - ageMs) / 1000))
-        return {
-          ok: false,
-          connected: status === "active",
-          status,
-          expires_at: expiresAt,
-          message: "cooldown",
-          cooldown_seconds_remaining: remaining,
+  // Cooldown (DB-based) — used for manual refresh endpoint and UI button.
+  // Phase 2 issuance flow may bypass this by passing ignoreCooldown=true.
+  if (!params.ignoreCooldown) {
+    const lastRefreshAtIso = (row as any).last_refresh_at ? String((row as any).last_refresh_at) : null
+    if (lastRefreshAtIso) {
+      const last = new Date(lastRefreshAtIso).getTime()
+      if (Number.isFinite(last)) {
+        const now = Date.now()
+        const cooldownMs = cfg.refreshCooldownSeconds * 1000
+        const ageMs = now - last
+        if (ageMs >= 0 && ageMs < cooldownMs) {
+          const remaining = Math.max(1, Math.ceil((cooldownMs - ageMs) / 1000))
+          return {
+            ok: false,
+            connected: status === "active",
+            status,
+            expires_at: expiresAt,
+            message: "cooldown",
+            cooldown_seconds_remaining: remaining,
+          }
         }
       }
     }

@@ -19,6 +19,7 @@ type TaxInvoiceRow = {
   created_at: string | null;
   customer_name: string | null;
   document_description: string | null;
+  allocation_number?: string | null;
   subtotal?: number | null;
   vat_rate?: number | null;
   vat_amount?: number | null;
@@ -348,6 +349,9 @@ export default function TaxInvoiceSummaryClient(props: {
             <div className="mt-2 text-right text-muted-foreground" style={{ fontSize: "16px" }}>
               <span>תאריך מסמך: {formatDate(props.taxInvoice.issue_date)}</span>
               {props.taxInvoice.created_at ? <span> | הופק ב- {formatDateTime(props.taxInvoice.created_at)}</span> : null}
+              {props.taxInvoice.allocation_number ? (
+                <span> | מספר הקצאה: {props.taxInvoice.allocation_number}</span>
+              ) : null}
             </div>
           </div>
 

@@ -8,7 +8,11 @@ import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
 function redirectToSettings(url: URL, params: Record<string, string>) {
-  const target = new URL("/dashboard/settings/integrations/shaam", url.origin)
+  const target = new URL(
+  "/dashboard/settings/integrations/shaam",
+  (process.env.PUBLIC_BASE_URL || url.origin).trim()
+)
+
   for (const [k, v] of Object.entries(params)) target.searchParams.set(k, v)
   return NextResponse.redirect(target)
 }

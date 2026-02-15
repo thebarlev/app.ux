@@ -1,0 +1,72 @@
+import "server-only"
+
+const SHAAM_INVOICE_SANDBOX_BASE_URL = "https://t-ita-api.taxes.gov.il/shaam/tsandbox" as const
+
+export type ShaamInvoiceDecisionType = "CANCEL" | "CONTINUE" | "FURTHEROBJECTION"
+
+export type ShaamInvoiceDecisionPayload = {
+  invoice_id: string // <= 50, non-empty
+  vat_number: number
+  authorized_company: number | null
+  user_id: number | null
+  user_name: string | null
+  accounting_software_number: number
+}
+
+export type ShaamInvoiceDecisionCallResult =
+  | { ok: true; provider_json: any }
+  | { ok: false; kind: "unauthorized" | "bad_request" | "temporary_failure"; provider_json: any }
+
+function endpointForDecision(decision: ShaamInvoiceDecisionType): string {
+  if (decision === "CANCEL") return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/Cancel`
+  if (decision === "CONTINUE") return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/Continue`
+  return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/FurtherObjection`
+}
+
+function validatePayload(p: ShaamInvoiceDecisionPayload) {
+  const invoiceId = String(p.invoice_id || "").trim()
+  if (!invoiceId) throw new Error("invalid_invoice_id")
+  if (invoiceId.length > 50) throw new Error("invalid_invoice_id_length")
+  if (!Number.isInteger(p.vat_number) || p.vat_number <= 0) throw new Error("invalid_vat_number")
+  if (!Number.isInteger(p.accounting_software_number) || p.accounting_software_number <= 0) {
+    throw new Error("invalid_accounting_software_number")
+  }
+}
+
+export async function callShaamInvoiceDecision(params: {
+  accessToken: string
+  decision: ShaamInvoiceDecisionType
+  payload: ShaamInvoiceDecisionPayload
+}): Promise<ShaamInvoiceDecisionCallResult> {
+  validatePayload(params.payload)
+
+  const url = endpointForDecision(params.decision)
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${params.accessToken}`,
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(params.payload),
+    cache: "no-store",
+  })
+
+  const json = await res.json().catch(() => ({}))
+  const status = res.status
+
+  if (status >= 200 && status < 300) {
+    return { ok: true, provider_json: json }
+  }
+
+  if (status === 401) {
+    return { ok: false, kind: "unauthorized", provider_json: json }
+  }
+
+  if (status >= 400 && status < 500) {
+    return { ok: false, kind: "bad_request", provider_json: json }
+  }
+
+  return { ok: false, kind: "temporary_failure", provider_json: json }
+}
+

@@ -27,8 +27,8 @@ export async function saveInvoiceReceiptDraftAction(payload: InvoiceReceiptDraft
   return saveDocumentDraftAction("invoiceReceipt", payload);
 }
 
-export async function issueInvoiceReceiptAction(payload: InvoiceReceiptDraftPayload) {
-  return issueDocumentAction("invoiceReceipt", payload);
+export async function issueInvoiceReceiptAction(payload: InvoiceReceiptDraftPayload, draftId?: string) {
+  return issueDocumentAction("invoiceReceipt", payload, draftId);
 }
 
 export async function updateInvoiceReceiptDraftAction(draftId: string, payload: InvoiceReceiptDraftPayload) {
