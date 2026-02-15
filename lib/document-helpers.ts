@@ -10,7 +10,7 @@ import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flag
 import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from "./documents/signing/secure-signature-client"
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
-import { callShaamConfirmationNumber } from "@/lib/shaam/invoice-allocation"
+import { callShaamInvoiceApprovalV2, type ShaamApprovalV2Payload } from "@/lib/shaam/invoice-allocation"
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 
@@ -283,6 +283,21 @@ export async function finalizeDocument(
     const redirectTo = "/dashboard/settings/integrations/shaam"
     const nowIso = new Date().toISOString()
 
+    const reqEnvInt = (name: string): number => {
+      const raw = String(process.env[name] || "").trim()
+      const n = Number(raw)
+      if (!Number.isFinite(n) || !Number.isInteger(n)) {
+        throw new Error(`Missing or invalid ${name}`)
+      }
+      return n
+    }
+
+    const reqEnvString = (name: string): string => {
+      const v = String(process.env[name] || "").trim()
+      if (!v) throw new Error(`Missing or invalid ${name}`)
+      return v
+    }
+
     // Load issuer + document + customer tax ids needed for SHAAM payload
     const [{ data: companyRow, error: companyErr }, { data: docRow, error: docErr }, { data: thresholdRow }] = await Promise.all([
       adminClient
@@ -293,7 +308,7 @@ export async function finalizeDocument(
       adminClient
         .from("documents")
         .select(
-          "id, document_type, issue_date, document_number, subtotal, vat_amount, total_amount, customer_id, customer_tax_id, requires_allocation_number, allocation_status, allocation_number, shaam_error_id, invoice_decision_type"
+          "id, document_type, issue_date, document_number, subtotal, vat_rate, vat_amount, total_amount, customer_id, customer_name, customer_tax_id, document_description, internal_notes, requires_allocation_number, allocation_status, allocation_number, shaam_error_id, invoice_decision_type"
         )
         .eq("id", draftId)
         .eq("company_id", companyId)
@@ -385,14 +400,18 @@ export async function finalizeDocument(
 
           const customerTaxIdRaw = (docRow as any).customer_tax_id || null
           let customerVatDigits = customerTaxIdRaw ? String(customerTaxIdRaw).replace(/\D/g, "") : ""
-          if (!customerVatDigits && (docRow as any).customer_id) {
-            const { data: customerRow } = await adminClient
-              .from("customers")
-              .select("tax_id")
-              .eq("id", (docRow as any).customer_id)
-              .eq("company_id", companyId)
-              .maybeSingle()
-            customerVatDigits = customerRow?.tax_id ? String(customerRow.tax_id).replace(/\D/g, "") : ""
+          const customerId = (docRow as any).customer_id ? String((docRow as any).customer_id) : null
+          const { data: customerRow } = customerId
+            ? await adminClient
+                .from("customers")
+                .select("tax_id, name, address_country")
+                .eq("id", customerId)
+                .eq("company_id", companyId)
+                .maybeSingle()
+            : { data: null as any }
+
+          if (!customerVatDigits && customerRow?.tax_id) {
+            customerVatDigits = String(customerRow.tax_id).replace(/\D/g, "")
           }
           const customerVat = customerVatDigits ? Number(customerVatDigits) : NaN
 
@@ -414,6 +433,156 @@ export async function finalizeDocument(
               payload: { document_id: draftId, reason: "missing_vat_numbers" },
             })
             return { ok: false, message: "חסר מספר עוסק ללקוח או לעסק. עדכן פרטי לקוח ונסה שוב.", reason: "shaam_allocation_missing_vat" }
+          }
+
+          // Build full Approval v2 payload (spec-compliant, snake_case, no undefined).
+          const toFiniteNumber = (v: any, fallback = 0): number => {
+            const n = typeof v === "number" ? v : v !== null && v !== undefined ? Number(v) : NaN
+            return Number.isFinite(n) ? n : fallback
+          }
+
+          const toStrOrEmpty = (v: any): string => (v === null || v === undefined ? "" : String(v))
+
+          const accountingSoftwareNumber = reqEnvInt("SHAAM_ACCOUNTING_SOFTWARE_NUMBER")
+          const clientSoftwareKey = reqEnvString("SHAAM_CLIENT_SOFTWARE_KEY")
+
+          const invoiceTypeTaxInvoice = reqEnvInt("SHAAM_APPROVAL_INVOICE_TYPE_TAX_INVOICE")
+          const invoiceTypeInvoiceReceipt = reqEnvInt("SHAAM_APPROVAL_INVOICE_TYPE_INVOICE_RECEIPT")
+          const invoiceType = dbDocType === "tax_invoice" ? invoiceTypeTaxInvoice : invoiceTypeInvoiceReceipt
+
+          const branchId = String(process.env.SHAAM_APPROVAL_BRANCH_ID || "0").trim() || "0"
+          const action = (() => {
+            const raw = String(process.env.SHAAM_APPROVAL_ACTION || "1").trim()
+            const n = Number(raw)
+            return Number.isFinite(n) && Number.isInteger(n) ? n : 1
+          })()
+
+          const defaultCategory = (() => {
+            const raw = String(process.env.SHAAM_APPROVAL_DEFAULT_ITEM_CATEGORY || "0").trim()
+            const n = Number(raw)
+            return Number.isFinite(n) && Number.isInteger(n) ? n : 0
+          })()
+          const measureUnitDescription = String(process.env.SHAAM_APPROVAL_DEFAULT_MEASURE_UNIT_DESCRIPTION || "יחידה").trim() || "יחידה"
+
+          const userName =
+            (opts?.createdByName && String(opts.createdByName).trim()) ||
+            (opts?.createdByEmail && String(opts.createdByEmail).trim()) ||
+            "system"
+          const userId = (() => {
+            const raw = String(process.env.SHAAM_APPROVAL_USER_ID || "").trim()
+            const n = raw ? Number(raw) : NaN
+            if (!Number.isFinite(n) || !Number.isInteger(n)) {
+              throw new Error("Missing or invalid SHAAM_APPROVAL_USER_ID")
+            }
+            return n
+          })()
+
+          const authorizedCompany = (() => {
+            const raw = String(process.env.SHAAM_APPROVAL_AUTHORIZED_COMPANY || "").trim()
+            const n = raw ? Number(raw) : NaN
+            if (!Number.isFinite(n) || !Number.isInteger(n)) {
+              // Fallback to issuer VAT to avoid sending undefined.
+              return issuerVat
+            }
+            return n
+          })()
+
+          const customerName =
+            (docRow as any).customer_name ? String((docRow as any).customer_name).trim() :
+            customerRow?.name ? String(customerRow.name).trim() :
+            ""
+          const customerCountryCode = customerRow?.address_country ? String(customerRow.address_country).trim() : "IL"
+
+          const vatRate = toFiniteNumber((docRow as any).vat_rate, 0)
+
+          const { data: lineRows, error: lineErr } = await adminClient
+            .from("document_line_items")
+            .select("line_number, description, quantity, unit_price, discount_amount, line_total, item_code, item_sku")
+            .eq("document_id", draftId)
+            .eq("company_id", companyId)
+            .order("line_number", { ascending: true })
+
+          if (lineErr) {
+            return { ok: false, message: "בעיה זמנית בהכנת שורות למסמך. נסה שוב בעוד רגע.", reason: "shaam_allocation_line_items_failed" }
+          }
+          const lineItems = Array.isArray(lineRows) ? lineRows : []
+          if (lineItems.length === 0) {
+            return { ok: false, message: "חובה להוסיף לפחות שורה אחת למסמך כדי לקבל מספר הקצאה.", reason: "shaam_allocation_items_empty" }
+          }
+
+          const items: ShaamApprovalV2Payload["items"] = lineItems.map((row: any) => {
+            const index = Number.isInteger(row?.line_number) ? Number(row.line_number) : Number(row?.line_number || 0)
+            const quantity = toFiniteNumber(row?.quantity, 0)
+            const price_per_unit = toFiniteNumber(row?.unit_price, 0)
+            const discount = toFiniteNumber(row?.discount_amount, 0)
+            const total_amount = toFiniteNumber(row?.line_total, 0)
+            const vat_amount = Number.isFinite(vatRate) ? Number((total_amount * (vatRate / 100)).toFixed(2)) : 0
+            const catalog_id =
+              (row?.item_code && String(row.item_code).trim()) ||
+              (row?.item_sku && String(row.item_sku).trim()) ||
+              String(index || 0)
+            return {
+              index,
+              catalog_id,
+              category: defaultCategory,
+              description: String(row?.description || "").trim() || "-",
+              measure_unit_description: measureUnitDescription,
+              quantity,
+              price_per_unit,
+              discount,
+              total_amount,
+              vat_rate: vatRate,
+              vat_amount,
+            }
+          })
+
+          const grossBeforeDiscount = lineItems.reduce((sum: number, row: any) => {
+            const q = toFiniteNumber(row?.quantity, 0)
+            const u = toFiniteNumber(row?.unit_price, 0)
+            return sum + q * u
+          }, 0)
+          const discountTotal = lineItems.reduce((sum: number, row: any) => sum + toFiniteNumber(row?.discount_amount, 0), 0)
+
+          const invoiceNote =
+            (docRow as any).internal_notes ? String((docRow as any).internal_notes) :
+            (docRow as any).document_description ? String((docRow as any).document_description) :
+            ""
+
+          const approvalPayload: ShaamApprovalV2Payload = {
+            invoice_id: toStrOrEmpty((docRow as any).id).trim() || String(draftId),
+            invoice_type: invoiceType,
+            vat_number: issuerVat,
+            union_vat_number: null,
+            authorized_company: authorizedCompany,
+            user_id: userId,
+            user_name: String(userName).slice(0, 80),
+            invoice_reference_number: invoiceReference,
+            customer_vat_number: customerVat,
+            customer_name: customerName,
+            customer_country_code: customerCountryCode || "IL",
+            invoice_date: issueDateYmd,
+            invoice_issuance_date: issueDateYmd,
+            branch_id: branchId,
+            accounting_software_number: accountingSoftwareNumber,
+            client_software_key: clientSoftwareKey,
+            amount_before_discount: Number(grossBeforeDiscount.toFixed(2)),
+            discount: Number(discountTotal.toFixed(2)),
+            payment_amount: paymentAmountSafe,
+            vat_amount: vatAmountSafe,
+            payment_amount_including_vat: Number((paymentAmountSafe + vatAmountSafe).toFixed(2)),
+            invoice_note: String(invoiceNote || ""),
+            action,
+            vehicle_license_number: null,
+            phone_of_driver: null,
+            arrival_date: null,
+            estimated_arrival_time: null,
+            transition_location: null,
+            delivery_address: null,
+            additional_information: null,
+            additional_information_1: null,
+            additional_information_2: null,
+            additional_information_3: null,
+            items,
           }
 
           // Ensure we have a valid token (server-only); refreshes if needed.
@@ -454,20 +623,28 @@ export async function finalizeDocument(
           })
 
           const makeCall = async (token: string) => {
-            return await callShaamConfirmationNumber({
+            return await callShaamInvoiceApprovalV2({
               accessToken: token,
-              payload: {
-                customer_vat_number: customerVat,
-                vat_number: issuerVat,
-                payment_amount: paymentAmountSafe,
-                vat_amount: vatAmountSafe,
-                invoice_date: issueDateYmd,
-                invoice_reference_number: invoiceReference,
-              },
+              payload: approvalPayload,
             })
           }
 
-          let callRes = await makeCall(accessToken)
+          let callRes: Awaited<ReturnType<typeof makeCall>>
+          try {
+            callRes = await makeCall(accessToken)
+          } catch (e: any) {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "failed",
+                allocation_requested_at: nowIso,
+                allocation_provider_response: { error: "payload_validation_failed", message: String(e?.message || e).slice(0, 500) },
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+            return { ok: false, message: "נתונים לא תקינים לבקשת הקצאה. בדוק את פרטי המסמך ונסה שוב.", reason: "shaam_allocation_payload_invalid" }
+          }
           if (!callRes.ok && callRes.kind === "unauthorized") {
             // 401 handling: refresh ONCE then retry ONCE
             try {
@@ -478,7 +655,7 @@ export async function finalizeDocument(
             }
           }
 
-          if (callRes.ok && callRes.kind === "received") {
+          if (callRes.ok && callRes.kind === "approved") {
             await adminClient
               .from("documents")
               .update({
@@ -497,6 +674,25 @@ export async function finalizeDocument(
               eventType: "allocation_received",
               payload: { document_id: draftId, confirmation_number: callRes.confirmation_number },
             })
+          } else if (callRes.ok && callRes.kind === "rejected") {
+            await adminClient
+              .from("documents")
+              .update({
+                requires_allocation_number: true,
+                allocation_status: "failed",
+                allocation_requested_at: nowIso,
+                allocation_provider_response: callRes.provider_json,
+              } as any)
+              .eq("id", draftId)
+              .eq("company_id", companyId)
+
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: { document_id: draftId, approved: false },
+            })
+
+            return { ok: false, message: "רשות המסים דחתה את בקשת ההקצאה. לא ניתן להמשיך.", reason: "shaam_allocation_rejected" }
           } else if (!callRes.ok && callRes.kind === "decision_required") {
             await adminClient
               .from("documents")
