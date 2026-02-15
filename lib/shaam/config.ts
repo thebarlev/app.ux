@@ -15,8 +15,8 @@ export type ShaamConfig = {
 }
 
 const SANDBOX = {
-  baseUrl: "https://openapi.taxes.gov.il/shaam/tsandbox",
-  authUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
+  baseUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox",
+  authUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
   tokenUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
 } as const
 
