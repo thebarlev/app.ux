@@ -33,6 +33,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, message: "shaam_misconfigured" }, { status: 500 })
   }
 
+  // Request context (useful on Vercel/proxies)
+  console.log("[shaam][start] request", {
+    url: req.url,
+    host: req.headers.get("host"),
+    "x-forwarded-host": req.headers.get("x-forwarded-host"),
+    "x-forwarded-proto": req.headers.get("x-forwarded-proto"),
+    "x-forwarded-for": req.headers.get("x-forwarded-for") ? "[present]" : null,
+    "user-agent": req.headers.get("user-agent"),
+  })
+
   // DEBUG (Phase 1): print what we actually send to SHAAM (no secrets)
   console.log("[shaam][start] env=", cfg.env)
   console.log("[shaam][start] authUrl=", cfg.authUrl)
@@ -76,6 +86,17 @@ export async function GET(req: Request) {
   url.searchParams.set("redirect_uri", cfg.redirectUri)
   url.searchParams.set("scope", cfg.scopes)
   url.searchParams.set("state", state)
+
+  // Do not log state value (contains signed payload), only metadata.
+  console.log("[shaam][start] authorize_redirect", {
+    origin: url.origin,
+    pathname: url.pathname,
+    response_type: url.searchParams.get("response_type"),
+    client_id: cfg.clientId,
+    redirect_uri: cfg.redirectUri,
+    scope: cfg.scopes,
+    stateLength: state.length,
+  })
 
   return NextResponse.redirect(url)
 }
