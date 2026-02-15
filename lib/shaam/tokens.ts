@@ -78,31 +78,37 @@ export async function upsertConnectionFromTokenResponse(params: {
   const expiresAt = toExpiresAtIso(issuedAt, params.token.expires_in)
   const admin = createServiceRoleClient()
 
-  await admin.from("company_shaam_connections").upsert(
-    {
-      company_id: params.companyId,
-      provider: "shaam",
-      access_token: encryptSecret(params.token.access_token),
-      refresh_token: encryptSecret(params.token.refresh_token),
-      token_type: params.token.token_type || "Bearer",
-      issued_at: issuedAt.toISOString(),
-      expires_at: expiresAt,
-      connected_at: nowIso(),
-      last_refresh_at: null,
-      revoked_at: null,
-      scopes: params.token.scope || null,
-      status: "active",
-      last_error_code: null,
-      last_error_message: null,
-    },
-    { onConflict: "company_id" }
-  )
+  const { data: savedRow } = await admin
+    .from("company_shaam_connections")
+    .upsert(
+      {
+        company_id: params.companyId,
+        provider: "shaam",
+        access_token: encryptSecret(params.token.access_token),
+        refresh_token: encryptSecret(params.token.refresh_token),
+        token_type: params.token.token_type || "Bearer",
+        issued_at: issuedAt.toISOString(),
+        expires_at: expiresAt,
+        connected_at: nowIso(),
+        last_refresh_at: null,
+        revoked_at: null,
+        scopes: params.token.scope || null,
+        status: "active",
+        last_error_code: null,
+        last_error_message: null,
+      },
+      { onConflict: "company_id" }
+    )
+    .select("company_id")
+    .maybeSingle()
 
   await recordShaamEvent({
     companyId: params.companyId,
     eventType: "oauth_connected",
     payload: { status: "active", expires_at: expiresAt, scopes: params.token.scope || null },
   })
+
+  return savedRow
 }
 
 export async function markConnectionError(params: {

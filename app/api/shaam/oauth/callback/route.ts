@@ -8,6 +8,19 @@ import { getShaamConfig } from "@/lib/shaam/config"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
+function redactUrlEncodedParam(input: string, key: string): string {
+  const re = new RegExp(`(^|&)${key}=[^&]*`, "g")
+  return input.replace(re, `$1${key}=<redacted>`)
+}
+
+function safeBodyPreview(params: URLSearchParams): string {
+  let s = params.toString()
+  s = redactUrlEncodedParam(s, "code")
+  s = redactUrlEncodedParam(s, "client_secret")
+  s = redactUrlEncodedParam(s, "refresh_token")
+  return s
+}
+
 function redactTokenLikeFields(input: any): any {
   if (!input || typeof input !== "object") return input
   if (Array.isArray(input)) return input.map(redactTokenLikeFields)
@@ -105,12 +118,12 @@ export async function GET(req: Request) {
   body.set("client_id", cfg.clientId)
   body.set("client_secret", cfg.clientSecret)
 
-  console.log("[shaam][callback] Token request params:", {
+  console.log("[shaam][callback] Token request sanity:", {
     tokenUrl: cfg.tokenUrl,
     redirectUri: cfg.redirectUri,
-    clientId: cfg.clientId,
-    codeLength: code.length,
-    grantType: "authorization_code",
+    hasAuthorizationHeader: false,
+    contentType: "application/x-www-form-urlencoded",
+    bodyPreview: safeBodyPreview(body),
   })
 
   // Force IPv4 (common fix for connect timeouts to some government domains)
@@ -132,8 +145,6 @@ export async function GET(req: Request) {
       dispatcher,
       signal: AbortSignal.timeout(20_000),
     })
-
-    json = await res.json().catch(() => null)
   } catch (e: any) {
     console.error("[shaam][callback] Fetch error:", {
       message: e?.message,
@@ -150,6 +161,24 @@ export async function GET(req: Request) {
   }
 
   if (!res.ok) {
+    const contentType = res.headers.get("content-type") || ""
+    const text = await res.text().catch(() => "")
+
+    console.error("[shaam][callback] Token request failed (raw):", {
+      status: res.status,
+      statusText: res.statusText,
+      contentType,
+      bodyPreview: String(text || "").slice(0, 2000),
+    })
+
+    if (contentType.includes("application/json")) {
+      try {
+        json = text ? JSON.parse(text) : null
+      } catch {
+        json = null
+      }
+    }
+
     console.error("[shaam][callback] Token request failed:", {
       status: res.status,
       statusText: res.statusText,
@@ -175,7 +204,18 @@ export async function GET(req: Request) {
     return redirectToSettings(url, { error: "1" })
   }
 
+  json = await res.json().catch(() => null)
+
   console.log("[shaam][callback] Token response received successfully")
+
+  console.info("[shaam][callback] token success meta", {
+    companyId,
+    hasAccessToken: Boolean(json?.access_token),
+    hasRefreshToken: Boolean(json?.refresh_token),
+    tokenType: (json as any)?.token_type ?? null,
+    expiresIn: (json as any)?.expires_in ?? null,
+    scope: (json as any)?.scope ?? null,
+  })
 
   const accessToken = typeof json?.access_token === "string" ? json.access_token : null
   const refreshToken = typeof json?.refresh_token === "string" ? json.refresh_token : null
@@ -194,7 +234,7 @@ export async function GET(req: Request) {
     return redirectToSettings(url, { error: "1" })
   }
 
-  await upsertConnectionFromTokenResponse({
+  const savedRow = await upsertConnectionFromTokenResponse({
     companyId,
     token: {
       access_token: accessToken,
@@ -203,6 +243,12 @@ export async function GET(req: Request) {
       expires_in: expiresIn,
       scope: scope || undefined,
     },
+  })
+
+  console.info("[shaam][callback] token saved", {
+    companyId,
+    saved: true,
+    connectionId: (savedRow as any)?.company_id ?? null,
   })
 
   console.log("[shaam][callback] Connection saved successfully")
