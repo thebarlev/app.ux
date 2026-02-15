@@ -3,6 +3,7 @@ import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-li
 
 // Force Node.js runtime
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   request: NextRequest,
