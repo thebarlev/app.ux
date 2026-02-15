@@ -11,7 +11,8 @@ import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from ".
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { callShaamConfirmationNumber } from "@/lib/shaam/invoice-allocation"
-import { getDecryptedTokensForCompany, markConnectionError, recordShaamEvent, refreshShaamTokenManual } from "@/lib/shaam/tokens"
+import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
+import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -415,34 +416,23 @@ export async function finalizeDocument(
             return { ok: false, message: "חסר מספר עוסק ללקוח או לעסק. עדכן פרטי לקוח ונסה שוב.", reason: "shaam_allocation_missing_vat" }
           }
 
-          // Ensure we have tokens; refresh proactively if expired.
-          const tokens0 = await getDecryptedTokensForCompany({ companyId })
-          if (!tokens0.ok) {
-            return {
-              ok: false,
-              message: "יש להתחבר לרשות המסים כדי להפיק מסמך זה.",
-              reason: "shaam_reconnect_required",
-              shaam: { kind: "reconnect_required", redirect_to: redirectTo },
-            }
-          }
-
-          const expiresAt = tokens0.expiresAt ? new Date(tokens0.expiresAt).getTime() : NaN
-          if (Number.isFinite(expiresAt) && expiresAt < Date.now()) {
-            const refreshed = await refreshShaamTokenManual({ companyId, ignoreCooldown: true })
-            if (!refreshed.ok) {
-              await markConnectionError({
-                companyId,
-                status: "expired",
-                errorCode: "refresh_failed",
-                errorMessage: "refresh_failed",
-              })
+          // Ensure we have a valid token (server-only); refreshes if needed.
+          let accessToken: string
+          try {
+            accessToken = await getValidShaamAccessToken(companyId)
+          } catch (e: any) {
+            if (e instanceof NeedsReauthError) {
               return {
                 ok: false,
-                message: "תוקף החיבור לרשות המסים פג. התחבר מחדש כדי להמשיך.",
+                message: "יש להתחבר לרשות המסים כדי להפיק מסמך זה.",
                 reason: "shaam_reconnect_required",
                 shaam: { kind: "reconnect_required", redirect_to: redirectTo },
               }
             }
+            if (e instanceof ShaamTransientError) {
+              return { ok: false, message: "בעיה זמנית בחיבור לרשות המסים. נסה שוב בעוד רגע.", reason: "shaam_token_transient" }
+            }
+            return { ok: false, message: "בעיה זמנית בחיבור לרשות המסים. נסה שוב בעוד רגע.", reason: "shaam_token_transient" }
           }
 
           // Mark as pending + audit request (token-free)
@@ -463,11 +453,9 @@ export async function finalizeDocument(
             payload: { document_id: draftId, document_type: dbDocType, payment_amount: paymentAmountSafe, vat_amount: vatAmountSafe, issue_date: issueDateYmd },
           })
 
-          const makeCall = async () => {
-            const tokens = await getDecryptedTokensForCompany({ companyId })
-            if (!tokens.ok) return { ok: false as const, kind: "unauthorized" as const, provider_json: { error: "missing_tokens" } }
+          const makeCall = async (token: string) => {
             return await callShaamConfirmationNumber({
-              accessToken: tokens.accessToken,
+              accessToken: token,
               payload: {
                 customer_vat_number: customerVat,
                 vat_number: issuerVat,
@@ -479,12 +467,14 @@ export async function finalizeDocument(
             })
           }
 
-          let callRes = await makeCall()
+          let callRes = await makeCall(accessToken)
           if (!callRes.ok && callRes.kind === "unauthorized") {
             // 401 handling: refresh ONCE then retry ONCE
-            const refreshed = await refreshShaamTokenManual({ companyId, ignoreCooldown: true })
-            if (refreshed.ok) {
-              callRes = await makeCall()
+            try {
+              const refreshedToken = await getValidShaamAccessToken(companyId, { forceRefresh: true })
+              callRes = await makeCall(refreshedToken)
+            } catch {
+              // fall through
             }
           }
 

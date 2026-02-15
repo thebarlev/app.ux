@@ -3,19 +3,39 @@ import { getCompanyIdForUser } from "@/lib/document-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const ip = getClientIp(request);
-    const rl = rateLimit({ key: `customers-search:${ip}`, limit: 60, windowMs: 60_000 });
+    const rl = rateLimit({
+      key: `customers-search:${ip}`,
+      limit: 60,
+      windowMs: 60_000,
+    });
+
     if (!rl.allowed) {
-      return NextResponse.json({ customers: [] }, { status: 429, headers: rateLimitHeaders(rl) });
+      return NextResponse.json(
+        { customers: [] },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
     }
 
     const supabase = await createClient();
     const companyId = await getCompanyIdForUser();
 
+    if (!companyId) {
+      return NextResponse.json(
+        { error: "Unauthorized", customers: [] },
+        { status: 401 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get("q") || "";
+    const rawQuery = searchParams.get("q") || "";
+
+    // sanitize basic special chars to avoid breaking .or() filter
+    const query = rawQuery.replace(/[,%()]/g, "").trim();
 
     let dbQuery = supabase
       .from("customers")
@@ -24,8 +44,7 @@ export async function GET(request: NextRequest) {
       .order("name", { ascending: true })
       .limit(5);
 
-    // If query is provided, filter by name, tax_id, or external_account_key
-    if (query.trim().length > 0) {
+    if (query.length > 0) {
       dbQuery = dbQuery.or(
         `name.ilike.%${query}%,tax_id.ilike.%${query}%,external_account_key.ilike.%${query}%`
       );
@@ -34,34 +53,37 @@ export async function GET(request: NextRequest) {
     const { data, error } = await dbQuery;
 
     if (error) {
-      console.error("Customer search error:", error);
+      console.error("Customer search error:", {
+        message: error.message,
+        code: error.code,
+      });
+
       return NextResponse.json(
-        { error: "Failed to search customers" },
+        { error: "Failed to search customers", customers: [] },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ customers: data || [] });
+    return NextResponse.json(
+      { customers: data || [] },
+      { headers: rateLimitHeaders(rl) }
+    );
   } catch (error: any) {
-    console.error("Customer search error:", error);
-    
-    // Handle network/DNS errors gracefully
-    if (error?.cause?.code === 'ENOTFOUND' || error?.code === 'ENOTFOUND') {
-      console.error("Network error (ENOTFOUND)");
+    console.error("Customer search fatal error:", {
+      message: error?.message,
+      code: error?.code,
+      cause: error?.cause?.code,
+    });
+
+    if (error?.cause?.code === "ENOTFOUND" || error?.code === "ENOTFOUND") {
       return NextResponse.json(
-        { 
-          error: "Service unavailable",
-          customers: [] 
-        },
+        { error: "Service unavailable", customers: [] },
         { status: 503 }
       );
     }
-    
+
     return NextResponse.json(
-      { 
-        error: "Internal Server Error",
-        customers: []
-      },
+      { error: "Internal Server Error", customers: [] },
       { status: 500 }
     );
   }

@@ -1,7 +1,7 @@
 import "server-only"
 
 import { getShaamConfig } from "@/lib/shaam/config"
-import { getDecryptedTokensForCompany } from "@/lib/shaam/tokens"
+import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 
 async function callJson(url: string, accessToken: string): Promise<{ ok: boolean; status: number; json: any | null }> {
   const res = await fetch(url, {
@@ -22,11 +22,17 @@ export async function shaamHealthCheck(params: { companyId: string }): Promise<
   | { ok: false; status: number; message: string }
 > {
   const cfg = getShaamConfig()
-  const tokens = await getDecryptedTokensForCompany({ companyId: params.companyId })
-  if (!tokens.ok) return { ok: false, status: 401, message: tokens.message }
+  let accessToken: string
+  try {
+    accessToken = await getValidShaamAccessToken(params.companyId)
+  } catch (e: any) {
+    if (e instanceof NeedsReauthError) return { ok: false, status: 401, message: "needs_reauth" }
+    if (e instanceof ShaamTransientError) return { ok: false, status: 503, message: "transient_error" }
+    return { ok: false, status: 503, message: "transient_error" }
+  }
 
   const url = `${cfg.baseUrl}/invoice-information/v2/health`
-  const r = await callJson(url, tokens.accessToken)
+  const r = await callJson(url, accessToken)
   if (!r.ok) return { ok: false, status: r.status, message: "health_failed" }
   return { ok: true, status: r.status, json: r.json }
 }
@@ -36,11 +42,17 @@ export async function shaamAliveCheck(params: { companyId: string }): Promise<
   | { ok: false; status: number; message: string }
 > {
   const cfg = getShaamConfig()
-  const tokens = await getDecryptedTokensForCompany({ companyId: params.companyId })
-  if (!tokens.ok) return { ok: false, status: 401, message: tokens.message }
+  let accessToken: string
+  try {
+    accessToken = await getValidShaamAccessToken(params.companyId)
+  } catch (e: any) {
+    if (e instanceof NeedsReauthError) return { ok: false, status: 401, message: "needs_reauth" }
+    if (e instanceof ShaamTransientError) return { ok: false, status: 503, message: "transient_error" }
+    return { ok: false, status: 503, message: "transient_error" }
+  }
 
   const url = `${cfg.baseUrl}/invoice-information/v2/alive`
-  const r = await callJson(url, tokens.accessToken)
+  const r = await callJson(url, accessToken)
   if (!r.ok) return { ok: false, status: r.status, message: "alive_failed" }
   return { ok: true, status: r.status, json: r.json }
 }

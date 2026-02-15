@@ -6,8 +6,9 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import { callShaamInvoiceDecision, type ShaamInvoiceDecisionType } from "@/lib/shaam/invoice-decision"
-import { getDecryptedTokensForCompany, markConnectionError, recordShaamEvent, refreshShaamTokenManual } from "@/lib/shaam/tokens"
+import { recordShaamEvent } from "@/lib/shaam/tokens"
 import { markDocumentCancelledAction } from "@/lib/documents/actions"
+import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 
 function reqEnvInt(name: string): number {
   const raw = String(process.env[name] || "").trim()
@@ -94,11 +95,9 @@ export async function POST(req: Request) {
     (user.email ? String(user.email) : null) ||
     null
 
-  const makeCall = async () => {
-    const tokens = await getDecryptedTokensForCompany({ companyId })
-    if (!tokens.ok) return { ok: false as const, kind: "unauthorized" as const, provider_json: { error: "not_connected" } }
+  const makeCall = async (accessToken: string) => {
     return await callShaamInvoiceDecision({
-      accessToken: tokens.accessToken,
+      accessToken: accessToken,
       decision,
       payload: {
         invoice_id: invoiceId,
@@ -111,17 +110,37 @@ export async function POST(req: Request) {
     })
   }
 
-  let callRes = await makeCall()
+  let accessToken: string | null = null
+  try {
+    accessToken = await getValidShaamAccessToken(companyId)
+  } catch (e: any) {
+    if (e instanceof NeedsReauthError) accessToken = null
+    else if (e instanceof ShaamTransientError) {
+      return NextResponse.json({ ok: false, message: "shaam_transient_error" }, { status: 503 })
+    } else {
+      return NextResponse.json({ ok: false, message: "shaam_transient_error" }, { status: 503 })
+    }
+  }
+
+  if (!accessToken) {
+    return NextResponse.json(
+      { ok: false, message: "shaam_reconnect_required", redirect_to: "/dashboard/settings/integrations/shaam" },
+      { status: 403 }
+    )
+  }
+
+  let callRes = await makeCall(accessToken)
   if (!callRes.ok && callRes.kind === "unauthorized") {
     // 401 handling: refresh ONCE then retry ONCE
-    const refreshed = await refreshShaamTokenManual({ companyId, ignoreCooldown: true })
-    if (refreshed.ok) {
-      callRes = await makeCall()
+    try {
+      const refreshedAccessToken = await getValidShaamAccessToken(companyId, { forceRefresh: true })
+      callRes = await makeCall(refreshedAccessToken)
+    } catch {
+      // fall through; handled below as reconnect requirement
     }
   }
 
   if (!callRes.ok && callRes.kind === "unauthorized") {
-    await markConnectionError({ companyId, status: "expired", errorCode: "unauthorized", errorMessage: "unauthorized" })
     return NextResponse.json(
       { ok: false, message: "shaam_reconnect_required", redirect_to: "/dashboard/settings/integrations/shaam" },
       { status: 403 }
