@@ -118,12 +118,21 @@ export async function GET(req: Request) {
   body.set("client_id", cfg.clientId)
   body.set("client_secret", cfg.clientSecret)
 
-  console.log("[shaam][callback] Token request sanity:", {
+  const requestHeaders = {
+    "content-type": "application/x-www-form-urlencoded",
+    accept: "application/json",
+  } as const
+
+  const bodyString = body.toString()
+  const hasAuthorization = Boolean((requestHeaders as any)?.authorization)
+  const hasScopeInBody = bodyString.includes("scope=")
+
+  console.log("[shaam][callback] token request sanity:", {
     tokenUrl: cfg.tokenUrl,
     redirectUri: cfg.redirectUri,
-    hasAuthorizationHeader: false,
-    contentType: "application/x-www-form-urlencoded",
-    bodyPreview: safeBodyPreview(body),
+    hasAuthorization,
+    hasScopeInBody,
+    contentType: requestHeaders["content-type"],
   })
 
   // Force IPv4 (common fix for connect timeouts to some government domains)
@@ -135,10 +144,7 @@ export async function GET(req: Request) {
   try {
     res = await fetch(cfg.tokenUrl, {
       method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        accept: "application/json",
-      },
+      headers: requestHeaders,
       body,
       cache: "no-store",
       // @ts-expect-error - undici extension supported in Node runtime
@@ -164,7 +170,7 @@ export async function GET(req: Request) {
     const contentType = res.headers.get("content-type") || ""
     const text = await res.text().catch(() => "")
 
-    console.error("[shaam][callback] Token request failed (raw):", {
+    console.error("[shaam][callback] token failed body:", {
       status: res.status,
       statusText: res.statusText,
       contentType,
@@ -178,6 +184,11 @@ export async function GET(req: Request) {
         json = null
       }
     }
+
+    // Additional safe debug: body preview with secrets redacted.
+    console.error("[shaam][callback] token request body preview:", {
+      bodyPreview: safeBodyPreview(new URLSearchParams(bodyString)),
+    })
 
     console.error("[shaam][callback] Token request failed:", {
       status: res.status,
