@@ -17,8 +17,31 @@ export type ShaamConfig = {
 const SANDBOX = {
   baseUrl: "https://openapi.taxes.gov.il/shaam/tsandbox",
   authUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/authorize",
-  tokenUrl: "https://openapi.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
+  tokenUrl: "https://ita-api.taxes.gov.il/shaam/tsandbox/longtimetoken/oauth2/token",
 } as const
+
+function normalizePath(p: string): string {
+  return p.replace(/\/+$/, "")
+}
+
+function isSandboxShaamUrl(input: string, requiredPath: string): boolean {
+  try {
+    const u = new URL(input)
+    if (u.protocol !== "https:") return false
+    // Allow sandbox endpoints across official subdomains (e.g. openapi, ita-api).
+    if (!u.hostname.endsWith("taxes.gov.il")) return false
+    const pathname = normalizePath(u.pathname)
+    return pathname === requiredPath
+  } catch {
+    return false
+  }
+}
+
+function assertSandboxUrl(name: "SHAAM_BASE_URL" | "SHAAM_AUTH_URL" | "SHAAM_TOKEN_URL", value: string, requiredPath: string) {
+  if (!isSandboxShaamUrl(value, requiredPath)) {
+    throw new Error(`${name} must be SANDBOX in Phase 1`)
+  }
+}
 
 
 function req(name: string): string {
@@ -53,9 +76,9 @@ export function getShaamConfig(): ShaamConfig {
   const tokenUrl = req("SHAAM_TOKEN_URL")
 
   // Phase 1 hard-guard: sandbox endpoints only.
-  if (baseUrl !== SANDBOX.baseUrl) throw new Error("SHAAM_BASE_URL must be SANDBOX in Phase 1")
-  if (authUrl !== SANDBOX.authUrl) throw new Error("SHAAM_AUTH_URL must be SANDBOX in Phase 1")
-  if (tokenUrl !== SANDBOX.tokenUrl) throw new Error("SHAAM_TOKEN_URL must be SANDBOX in Phase 1")
+  assertSandboxUrl("SHAAM_BASE_URL", baseUrl, "/shaam/tsandbox")
+  assertSandboxUrl("SHAAM_AUTH_URL", authUrl, "/shaam/tsandbox/longtimetoken/oauth2/authorize")
+  assertSandboxUrl("SHAAM_TOKEN_URL", tokenUrl, "/shaam/tsandbox/longtimetoken/oauth2/token")
 
   // Allow SHAAM redirect base to be configured separately from other systems (e.g., Cardcom).
   // If omitted, fall back to PUBLIC_BASE_URL.
