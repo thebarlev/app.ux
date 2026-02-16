@@ -4,6 +4,7 @@ import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -89,6 +90,25 @@ export function SettingsPanel({ open, onOpenChange, settings }: SettingsPanelPro
         </SheetHeader>
 
         <div className="flex flex-col gap-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <Shield className="h-4 w-4 text-primary" />
+              </div>
+              <h3 className="font-semibold">Admin Access</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Manage the current admin authentication details (email / password).
+            </p>
+            <Link href="/admin/manage-auth">
+              <Button type="button" variant="secondary" className="w-full sm:w-auto">
+                Open admin password page
+              </Button>
+            </Link>
+          </div>
+
+          <Separator />
+
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
