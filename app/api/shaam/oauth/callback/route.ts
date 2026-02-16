@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getShaamConfig } from "@/lib/shaam/config"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
+import { shaamDebugFetch } from "@/lib/shaam-debug-fetch"
 
 function redactUrlEncodedParam(input: string, key: string): string {
   const re = new RegExp(`(^|&)${key}=[^&]*`, "g")
@@ -142,15 +143,20 @@ export async function GET(req: Request) {
   let json: any = null
 
   try {
-    res = await fetch(cfg.tokenUrl, {
-      method: "POST",
-      headers: requestHeaders,
-      body,
-      cache: "no-store",
-      // @ts-expect-error - undici extension supported in Node runtime
-      dispatcher,
-      signal: AbortSignal.timeout(20_000),
+    const out = await shaamDebugFetch({
+      url: cfg.tokenUrl,
+      init: {
+        method: "POST",
+        headers: requestHeaders,
+        body,
+        cache: "no-store",
+        dispatcher,
+        signal: AbortSignal.timeout(20_000),
+      } as any,
+      surface: "oauth_callback_token_exchange",
     })
+    res = out.res
+    json = out.json
   } catch (e: any) {
     console.error("[shaam][callback] Fetch error:", {
       message: e?.message,
@@ -177,7 +183,8 @@ export async function GET(req: Request) {
       bodyPreview: String(text || "").slice(0, 2000),
     })
 
-    if (contentType.includes("application/json")) {
+    // json might already be available from shaamDebugFetch(); only parse if needed.
+    if (!json && contentType.includes("application/json")) {
       try {
         json = text ? JSON.parse(text) : null
       } catch {
