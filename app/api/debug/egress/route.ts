@@ -17,7 +17,6 @@ function proxyDetected() {
 }
 
 export async function GET() {
-  // Production-safe: only expose when explicitly enabled.
   if (!debugEnabled()) {
     return new Response("Not Found", { status: 404 })
   }
@@ -28,12 +27,13 @@ export async function GET() {
 
   let egress_ip: string | null = null
   try {
-    const res = await fetch("https://api.ipify.org?format=json", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+    const res = await fetch("https://api.ipify.org?format=json", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    })
     const json: any = await res.json().catch(() => null)
     if (json?.ip && typeof json.ip === "string") egress_ip = json.ip
-  } catch {
-    // ignore
-  }
+  } catch {}
 
   console.log("[SHAAM DEBUG] egress", {
     timestamp: new Date().toISOString(),
@@ -45,4 +45,3 @@ export async function GET() {
 
   return NextResponse.json({ egress_ip, region, runtime, proxyDetected: proxy })
 }
-
