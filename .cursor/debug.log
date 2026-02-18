@@ -1,0 +1,1 @@
+{"location":"DocumentsListClient.tsx:onViewDocument","message":"Navigate to summary from drawer eye button","data":{"documentId":"ee399a09-ef6f-4e40-9ac2-a67812c377ba","documentType":"invoice_receipt","category":"income","basePath":"/dashboard/documents","routeSegment":"invoice-receipt"},"timestamp":1771409618207,"hypothesisId":"H_NAV_BASEPATH"}

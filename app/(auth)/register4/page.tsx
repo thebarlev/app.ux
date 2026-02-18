@@ -305,7 +305,7 @@ export default function Register4Page() {
     <div className="auth-scope">
       <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
         <div className="w-full max-w-[420px]">
-          <div className="mb-[70px] -mt-[80px] flex justify-center">
+        <div className="mb-8 mt-6 flex justify-center">
             <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
           </div>
 
