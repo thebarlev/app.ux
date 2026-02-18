@@ -1,5 +1,5 @@
 "use client"
-
+import Link from "next/link"
 import type React from "react"
 import { useState } from "react"
 import Image from "next/image"
@@ -28,50 +28,68 @@ export function HomeLanding() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+  
     const normalizedEmail = email.trim().toLowerCase()
-
+  
     if (!normalizedEmail) {
       setError("נא להזין כתובת אימייל")
       return
     }
+  
     if (!isValidEmail(normalizedEmail)) {
       setError("כתובת אימייל לא תקינה")
       return
     }
-
+  
     setError(null)
     setLoading(true)
+  
     try {
       const supabase = createClient()
-      // IMPORTANT: This redirect URL must be whitelisted in Supabase Auth settings.
-      // e.g. http://localhost:3000/auth/callback
+  
       const siteUrl = getSiteUrl()
       const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/register4")}`
+  
+      // 🔎 DEBUG — חשוב
+      console.log("========== MAGIC LINK DEBUG ==========")
+      console.log("window.location.origin:", typeof window !== "undefined" ? window.location.origin : "no-window")
+      console.log("NEXT_PUBLIC_SITE_URL:", process.env.NEXT_PUBLIC_SITE_URL)
+      console.log("siteUrl used:", siteUrl)
+      console.log("emailRedirectTo:", emailRedirectTo)
+      console.log("======================================")
+  
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        options: { emailRedirectTo },
+        options: {
+          emailRedirectTo,
+        },
       })
-
+  
       if (otpError) {
+        console.error("OTP ERROR:", otpError)
         setError(otpError.message || "שגיאה בשליחת המייל. נסה שוב.")
         setLoading(false)
         return
       }
-
+  
       setSentTo(normalizedEmail)
       setModalOpen(true)
-    } catch {
+    } catch (err) {
+      console.error("UNEXPECTED ERROR:", err)
       setError("שגיאה לא צפויה. נסה שוב.")
     } finally {
       setLoading(false)
     }
   }
+  
 
   return (
     <main className="min-h-svh bg-bg px-4 py-10">
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-10 flex justify-center">
-          <Image src="/brand/vow_black.svg" alt="VOW" width={140} height={56} priority />
+        <Link href="https://vow.co.il">
+    <Image src="/brand/vow_black.svg" alt="VOW" width={140} height={56} priority />
+  </Link>
         </div>
 
         {/* Card layout controlled as LTR so image stays on the left */}
@@ -100,6 +118,7 @@ export function HomeLanding() {
             </p>
 
             <form onSubmit={onSubmit} className="mt-8 flex flex-col gap-4">
+              
               <div>
                 <label htmlFor="home-email" className="block text-right text-[18px] font-medium">
                   כתובת אימייל
