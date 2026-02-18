@@ -81,7 +81,7 @@ export function HomeLanding() {
       setLoading(false)
     }
   }
-  
+    
 
   return (
     <main className="min-h-svh bg-bg px-4 py-10">
