@@ -22,14 +22,23 @@ function getKeyBytes(): Buffer {
   return crypto.createHash("sha256").update(raw, "utf8").digest()
 }
 
+function asUint8Array(buf: Buffer): Uint8Array {
+  // TS-safe conversion for Node 22 crypto types (CipherKey/BinaryLike)
+  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+}
+
 export function tokenHashSha256(token: string): string {
   const normalized = String(token || "").trim()
   return crypto.createHash("sha256").update(normalized, "utf8").digest("hex")
 }
 
 export function encryptToken(token: string): string {
-  const key = getKeyBytes()
-  const iv = crypto.randomBytes(12)
+  const keyBuf = getKeyBytes()
+  const ivBuf = crypto.randomBytes(12)
+
+  const key = asUint8Array(keyBuf)
+  const iv = asUint8Array(ivBuf)
+
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv)
   const ct = Buffer.concat([cipher.update(String(token || ""), "utf8"), cipher.final()])
   const tag = cipher.getAuthTag()
@@ -37,7 +46,7 @@ export function encryptToken(token: string): string {
   const payload: EncryptedTokenV1 = {
     v: 1,
     alg: "A256GCM",
-    iv_b64: iv.toString("base64"),
+    iv_b64: ivBuf.toString("base64"),
     ct_b64: ct.toString("base64"),
     tag_b64: tag.toString("base64"),
   }
@@ -45,18 +54,22 @@ export function encryptToken(token: string): string {
 }
 
 export function decryptToken(tokenEnc: string): string {
-  const key = getKeyBytes()
+  const keyBuf = getKeyBytes()
+
   const parsed = JSON.parse(String(tokenEnc || "")) as Partial<EncryptedTokenV1>
   if (parsed?.v !== 1 || parsed?.alg !== "A256GCM") throw new Error("Invalid encrypted token format")
   if (!parsed.iv_b64 || !parsed.ct_b64 || !parsed.tag_b64) throw new Error("Invalid encrypted token payload")
 
-  const iv = Buffer.from(parsed.iv_b64, "base64")
+  const ivBuf = Buffer.from(parsed.iv_b64, "base64")
   const ct = Buffer.from(parsed.ct_b64, "base64")
   const tag = Buffer.from(parsed.tag_b64, "base64")
 
+  const key = asUint8Array(keyBuf)
+  const iv = asUint8Array(ivBuf)
+
   const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv)
   decipher.setAuthTag(tag)
+
   const pt = Buffer.concat([decipher.update(ct), decipher.final()])
   return pt.toString("utf8")
 }
-
