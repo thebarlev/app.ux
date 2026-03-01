@@ -1,17 +1,17 @@
-import { createClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 export async function auditorLog(params: {
   scanId: string
-  companyId: string
+  companyId: string | null
   level?: "debug" | "info" | "warn" | "error"
   message: string
   data?: Record<string, any>
+  supabase: SupabaseClient
 }) {
-  const supabase = await createClient()
   const level = params.level ?? "info"
   const data = params.data ?? {}
 
-  const { error } = await supabase.from("auditor_scan_logs").insert({
+  const { error } = await params.supabase.from("auditor_scan_logs").insert({
     scan_id: params.scanId,
     company_id: params.companyId,
     level,

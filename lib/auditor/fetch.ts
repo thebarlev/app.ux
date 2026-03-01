@@ -4,6 +4,7 @@ export type FetchTextResult =
       status: number
       url: string
       contentType: string | null
+      headers: Record<string, string>
       bytes: number
       text: string
       elapsedMs: number
@@ -35,6 +36,15 @@ export async function fetchTextBounded(params: {
     })
 
     const contentType = res.headers.get("content-type")
+    const headers: Record<string, string> = {}
+    for (const [k, v] of res.headers.entries()) {
+      const key = String(k || "").toLowerCase()
+      if (!key) continue
+      // Keep a small, safe subset by default.
+      if (key === "content-type" || key === "x-robots-tag" || key === "cache-control" || key === "server") {
+        headers[key] = String(v || "").slice(0, 500)
+      }
+    }
     const status = res.status
 
     if (params.method === "HEAD") {
@@ -43,6 +53,7 @@ export async function fetchTextBounded(params: {
         status,
         url: params.url,
         contentType,
+        headers,
         bytes: 0,
         text: "",
         elapsedMs: Date.now() - started,
@@ -85,13 +96,14 @@ export async function fetchTextBounded(params: {
       }
     }
 
-    const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)))
+    const buf = Buffer.concat(chunks as readonly Uint8Array[])
     const text = buf.toString("utf-8")
     return {
       ok: true,
       status,
       url: params.url,
       contentType,
+      headers,
       bytes: total,
       text,
       elapsedMs: Date.now() - started,

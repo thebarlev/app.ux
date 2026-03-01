@@ -4,11 +4,20 @@ type Extracted = {
   title: string | null
   metaDescription: string | null
   canonical: string | null
+  metaRobots: string | null
+  viewportPresent: boolean
   lang: string | null
   dir: string | null
   hasOg: boolean
   hasTwitter: boolean
   jsonldTypes: string[]
+  hasFAQPage: boolean
+  hasArticle: boolean
+  h1Count: number
+  headingsOutline: { h1: number; h2: number; h3: number }
+  imagesMissingAltCount: number
+  internalLinksCount: number
+  questionHeadingsCount: number
   tracking: {
     hasGtm: boolean
     hasGa4: boolean
@@ -65,6 +74,11 @@ export function extractFromHtml(html: string): Extracted {
     null
 
   const canonical = $("link[rel='canonical']").attr("href")?.trim() || null
+  const metaRobots =
+    $("meta[name='robots']").attr("content")?.trim() ||
+    $("meta[name='ROBOTS']").attr("content")?.trim() ||
+    null
+  const viewportPresent = $("meta[name='viewport']").length > 0
   const lang = $("html").attr("lang")?.trim() || null
   const dir = $("html").attr("dir")?.trim() || null
 
@@ -77,6 +91,25 @@ export function extractFromHtml(html: string): Extracted {
     if (!text) return
     parseJsonldTypes(text).forEach((t) => jsonldTypes.push(t))
   })
+  const jsonldTypesUniq = uniqStrings(jsonldTypes)
+  const hasFAQPage = jsonldTypesUniq.some((t) => t.toLowerCase() === "faqpage")
+  const hasArticle = jsonldTypesUniq.some((t) => t.toLowerCase() === "article")
+
+  const h1Count = $("h1").length
+  const headingsOutline = { h1: h1Count, h2: $("h2").length, h3: $("h3").length }
+
+  const imagesMissingAltCount = $("img").filter((_, el) => !String($(el).attr("alt") || "").trim()).length
+  const internalLinksCount = $("a[href]")
+    .map((_, el) => String($(el).attr("href") || "").trim())
+    .toArray()
+    .filter((href) => href.startsWith("/"))
+    .length
+
+  const questionHeadingsCount = $("h2, h3")
+    .map((_, el) => String($(el).text() || "").trim())
+    .toArray()
+    .filter((t) => t.endsWith("?"))
+    .length
 
   const bodyText = html || ""
   const gtmIds = uniqStrings(Array.from(bodyText.matchAll(/GTM-[0-9A-Z]+/g)).map((m) => m[0]))
@@ -98,11 +131,20 @@ export function extractFromHtml(html: string): Extracted {
     title,
     metaDescription,
     canonical,
+    metaRobots,
+    viewportPresent,
     lang,
     dir,
     hasOg,
     hasTwitter,
-    jsonldTypes: uniqStrings(jsonldTypes),
+    jsonldTypes: jsonldTypesUniq,
+    hasFAQPage,
+    hasArticle,
+    h1Count,
+    headingsOutline,
+    imagesMissingAltCount,
+    internalLinksCount,
+    questionHeadingsCount,
     tracking: {
       hasGtm,
       hasGa4,

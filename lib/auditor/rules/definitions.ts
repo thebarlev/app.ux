@@ -24,6 +24,7 @@ export type AuditorRulesContext = {
     title: string | null
     meta_description: string | null
     canonical: string | null
+    extracted: any
     lang: string | null
     dir: string | null
     has_og: boolean | null
@@ -55,15 +56,80 @@ export function evaluateAllRules(ctx: AuditorRulesContext): AuditorRuleResult[] 
   const ai = artifacts.ai_files || artifacts.ai || {}
   const robots = artifacts.robots || {}
   const sitemap = artifacts.sitemap || {}
+  const origin = typeof ctx.scan.normalized_url === "string" ? ctx.scan.normalized_url : ""
+  const hostLock = typeof ctx.scan.hostname === "string" ? ctx.scan.hostname : ""
 
   const hpTypes = hp ? asStringArray(hp.jsonld_types) : []
   const tracking = hp?.tracking || {}
   const gtmIds = asStringArray(tracking?.gtmIds)
   const ga4Ids = asStringArray(tracking?.ga4Ids)
+  const hpExtracted = hp?.extracted || {}
 
   const results: AuditorRuleResult[] = []
 
   // ---------- Technical SEO ----------
+  {
+    const metaRobots = typeof hpExtracted?.metaRobots === "string" ? hpExtracted.metaRobots.toLowerCase() : ""
+    const ok = !metaRobots.includes("noindex")
+    results.push({
+      rule_key: "tech.noindex_present",
+      category: "technical",
+      weight: 12,
+      status: ok ? "pass" : "fail",
+      impact: "high",
+      effort: "low",
+      evidence: { meta_robots: hpExtracted?.metaRobots || null },
+      recommendation_he: ok ? "אין סימון noindex בעמוד הבית." : "להסיר noindex (meta robots / headers) כדי לאפשר אינדוקס והופעה בתוצאות.",
+    })
+  }
+  {
+    const httpsOk = origin.startsWith("https://")
+    results.push({
+      rule_key: "tech.https_enforced",
+      category: "technical",
+      weight: 10,
+      status: httpsOk ? "pass" : "warn",
+      impact: "high",
+      effort: "medium",
+      evidence: { normalized_url: origin || null },
+      recommendation_he: httpsOk ? "האתר נסרק ב-HTTPS." : "מומלץ לאכוף HTTPS ולוודא הפניות עקביות לגרסה מאובטחת.",
+    })
+  }
+  {
+    let canonicalHost: string | null = null
+    try {
+      if (hp?.canonical) canonicalHost = new URL(String(hp.canonical), origin || undefined).hostname
+    } catch {
+      canonicalHost = null
+    }
+    const ok = !hostLock || !canonicalHost ? true : canonicalHost.toLowerCase() === hostLock.toLowerCase()
+    results.push({
+      rule_key: "tech.canonical_host_match",
+      category: "technical",
+      weight: 8,
+      status: ok ? "pass" : "warn",
+      impact: "high",
+      effort: "low",
+      evidence: { canonical: hp?.canonical || null, canonical_host: canonicalHost, host: hostLock || null },
+      recommendation_he: ok ? "Canonical נראה עקבי עם הדומיין." : "להתאים canonical כך שיצביע על הדומיין הראשי (למניעת כפילויות).",
+    })
+  }
+  {
+    const preview = String(artifacts?.robots_preview || "")
+    const blocksAll = /user-agent:\s*\*/i.test(preview) && /disallow:\s*\/\s*$/im.test(preview)
+    results.push({
+      rule_key: "tech.robots_block_all",
+      category: "technical",
+      weight: 10,
+      status: blocksAll ? "fail" : "pass",
+      impact: "high",
+      effort: "low",
+      evidence: { robots_preview_present: !!preview },
+      recommendation_he: blocksAll
+        ? "robots.txt חוסם את כל האתר (Disallow: /). יש להסיר/לצמצם כדי לאפשר סריקה."
+        : "robots.txt לא חוסם את כל האתר.",
+    })
+  }
   {
     const ok = !!(hp?.title && hp.title.trim())
     results.push({
@@ -258,6 +324,67 @@ export function evaluateAllRules(ctx: AuditorRulesContext): AuditorRuleResult[] 
       recommendation_he: ok
         ? "תגיות OpenGraph/Twitter קיימות."
         : "מומלץ להוסיף תגיות OpenGraph + Twitter כדי לשפר תצוגה בשיתופים (ולשפר CTR ברשתות).",
+    })
+  }
+
+  // ---------- On-page / AEO heuristics ----------
+  {
+    const ok = hpExtracted?.viewportPresent === true
+    results.push({
+      rule_key: "onpage.viewport_present",
+      category: "technical",
+      weight: 6,
+      status: ok ? "pass" : "fail",
+      impact: "high",
+      effort: "low",
+      evidence: { viewportPresent: hpExtracted?.viewportPresent ?? null },
+      recommendation_he: ok ? "Viewport קיים." : "להוסיף meta viewport כדי לשפר מובייל וקריאות.",
+    })
+  }
+  {
+    const h1Count = typeof hpExtracted?.h1Count === "number" ? hpExtracted.h1Count : null
+    const ok = h1Count === 1
+    results.push({
+      rule_key: "onpage.single_h1",
+      category: "technical",
+      weight: 6,
+      status: ok ? "pass" : "warn",
+      impact: "medium",
+      effort: "low",
+      evidence: { h1Count },
+      recommendation_he: ok ? "H1 אחד בעמוד הבית." : "מומלץ H1 אחד ברור בעמוד (והיררכיית H2/H3 מסודרת).",
+    })
+  }
+  {
+    const missingAlt = typeof hpExtracted?.imagesMissingAltCount === "number" ? hpExtracted.imagesMissingAltCount : null
+    const ok = missingAlt === 0
+    results.push({
+      rule_key: "onpage.images_alt",
+      category: "technical",
+      weight: 5,
+      status: ok ? "pass" : "warn",
+      impact: "medium",
+      effort: "medium",
+      evidence: { imagesMissingAltCount: missingAlt },
+      recommendation_he: ok ? "תמונות עם alt תקין." : "להוסיף alt לתמונות חשובות כדי לשפר נגישות ו-SEO.",
+    })
+  }
+  {
+    const hasFaqOrArticle = ctx.pages.some((p) => {
+      const ex = p.extracted || {}
+      return ex.hasFAQPage === true || ex.hasArticle === true
+    })
+    results.push({
+      rule_key: "schema.faq_or_article",
+      category: "schema",
+      weight: 6,
+      status: hasFaqOrArticle ? "pass" : "warn",
+      impact: "medium",
+      effort: "medium",
+      evidence: { hasFaqOrArticle },
+      recommendation_he: hasFaqOrArticle
+        ? "נמצאה סכמה (FAQ/Article) בעמודים."
+        : "מומלץ להוסיף FAQPage/Article Schema בעמודים רלוונטיים כדי לשפר AEO.",
     })
   }
 

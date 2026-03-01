@@ -1,7 +1,16 @@
-import AuditorScanClient from "./AuditorScanClient"
+import { notFound, redirect } from "next/navigation"
 
-export default async function AuditorScanPage({ params }: { params: Promise<{ scanId: string }> }) {
+export default async function AuditorScanPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ scanId: string }>
+  searchParams: Promise<{ token?: string }>
+}) {
   const { scanId } = await params
-  return <AuditorScanClient scanId={scanId} />
+  const { token } = await searchParams
+  const t = typeof token === "string" ? token.trim() : ""
+  if (!t) notFound()
+  redirect(`/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(t)}`)
 }
 

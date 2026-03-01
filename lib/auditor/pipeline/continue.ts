@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto"
 import { createClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { auditorLog } from "../log"
 import { fetchTextBounded } from "../fetch"
 import { followRedirectsWithValidation, normalizeInputUrl } from "../ssrf"
@@ -7,6 +8,9 @@ import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
 import { runRulesAndScore } from "../rules/runner"
+import { buildPublicReport, type ConfidenceLevel } from "../report/public"
+import { applyCompanyWhere, applyScanWhere } from "../db/scanWhere"
+import { captureSiteScreenshot } from "../screenshot"
 
 type ContinueOk =
   | { ok: true; kind: "progressed"; scan: any }
@@ -45,13 +49,32 @@ function parseRobotsSitemaps(text: string, origin: string): string[] {
 
 export async function continueAuditorScan(params: {
   scanId: string
-  companyId: string
+  companyId?: string | null
+  supabase?: SupabaseClient
   requestId?: string
 }): Promise<ContinueOk> {
-  const supabase = await createClient()
+  const supabase = params.supabase ?? (await createClient())
   const requestId = params.requestId ?? randomUUID()
   const lockedAt = nowIso()
   const staleBefore = new Date(Date.now() - 30_000).toISOString()
+
+  // Idempotency: avoid lock acquisition for terminal scans.
+  // Also fixes "not found" vs "busy" ambiguity for missing scans.
+  {
+    let q = supabase.from("auditor_scans").select("id,status,step,company_id").eq("id", params.scanId)
+    if (params.companyId !== undefined) {
+      q = params.companyId === null ? q.is("company_id", null) : q.eq("company_id", params.companyId)
+    }
+    const { data: pre, error } = await q.maybeSingle()
+    if (error) {
+      console.error("[auditor] pre-check error", { message: error.message, code: error.code })
+      return { ok: false, kind: "invalid_state", message: "precheck_failed" }
+    }
+    if (!pre) return { ok: false, kind: "not_found" }
+    const st = String((pre as any).status || "")
+    if (st === "done") return { ok: true, kind: "progressed", scan: pre }
+    if (st === "failed") return { ok: false, kind: "invalid_state", message: "scan_failed" }
+  }
 
   // Acquire lock.
   // Try: (A) unlocked, then (B) stale takeover. Avoid PostgREST .or(...) edge-cases.
@@ -65,15 +88,17 @@ export async function continueAuditorScan(params: {
   // (A) Acquire when unlocked
   let lockedScan: any = null
   {
-    const { data, error } = await supabase
+    let q = supabase
       .from("auditor_scans")
       .update(lockPatch)
       .eq("id", params.scanId)
-      .eq("company_id", params.companyId)
       .in("status", ["queued", "running"])
       .is("locked_at", null)
       .select("*")
-      .maybeSingle()
+    if (params.companyId !== undefined) {
+      q = params.companyId === null ? q.is("company_id", null) : q.eq("company_id", params.companyId)
+    }
+    const { data, error } = await q.maybeSingle()
 
     if (error) {
       console.error("[auditor] lock acquisition error(A)", { message: error.message, code: error.code })
@@ -84,15 +109,17 @@ export async function continueAuditorScan(params: {
 
   // (B) Take over stale lock
   if (!lockedScan) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("auditor_scans")
       .update(lockPatch)
       .eq("id", params.scanId)
-      .eq("company_id", params.companyId)
       .in("status", ["queued", "running"])
       .lt("locked_at", staleBefore)
       .select("*")
-      .maybeSingle()
+    if (params.companyId !== undefined) {
+      q = params.companyId === null ? q.is("company_id", null) : q.eq("company_id", params.companyId)
+    }
+    const { data, error } = await q.maybeSingle()
 
     if (error) {
       console.error("[auditor] lock acquisition error(B)", { message: error.message, code: error.code })
@@ -104,7 +131,7 @@ export async function continueAuditorScan(params: {
   if (!lockedScan) return { ok: false, kind: "busy" }
 
   const scanId = String(lockedScan.id)
-  const companyId = String(lockedScan.company_id)
+  const companyId = lockedScan.company_id ? String(lockedScan.company_id) : null
 
   const releaseLock = async (patch: Record<string, any> = {}) => {
     await supabase
@@ -116,7 +143,6 @@ export async function continueAuditorScan(params: {
         updated_at: nowIso(),
       })
       .eq("id", scanId)
-      .eq("company_id", companyId)
       .eq("locked_by", requestId)
   }
 
@@ -127,7 +153,8 @@ export async function continueAuditorScan(params: {
     const normalizedUrl = lockedScan.normalized_url ? String(lockedScan.normalized_url) : null
     const hostname = lockedScan.hostname ? String(lockedScan.hostname) : null
 
-    await auditorLog({ scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
+    await supabase.from("auditor_scans").update({ heartbeat_at: nowIso() }).eq("id", scanId).eq("locked_by", requestId)
+    await auditorLog({ supabase, scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
 
     // Step: normalize
     if (step === "normalize") {
@@ -135,20 +162,44 @@ export async function continueAuditorScan(params: {
       const { finalUrl, redirects } = await followRedirectsWithValidation({ startUrl: input, maxRedirects: 5, timeoutMs: 1500 })
       const origin = finalUrl.origin.replace(/\/+$/, "")
 
-      await supabase
-        .from("auditor_scans")
-        .update({
+      const nextArtifacts = { ...artifacts, redirects }
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           normalized_url: origin,
           hostname: finalUrl.hostname,
           started_at: lockedScan.started_at || nowIso(),
           step: "robots",
-          artifacts: { ...artifacts, redirects },
+          artifacts: nextArtifacts,
           updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+
+      // Best-effort screenshot capture (do NOT fail scan if it errors).
+      try {
+        const { publicPath } = await captureSiteScreenshot({ scanId, url: origin })
+        await applyScanWhere(
+          supabase.from("auditor_scans").update({
+            artifacts: { ...nextArtifacts, screenshot_url: publicPath },
+            updated_at: nowIso(),
+          }),
+          scanId,
+          companyId
+        )
+      } catch (e: any) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "screenshot:failed",
+          data: { message: String(e?.message || e) },
         })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+      }
 
       await auditorLog({
+        supabase,
         scanId,
         companyId,
         message: "normalize:ok",
@@ -193,17 +244,18 @@ export async function continueAuditorScan(params: {
         sitemap_hints: sitemapHints,
       }
 
-      await supabase
-        .from("auditor_scans")
-        .update({
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           artifacts: nextArtifacts,
           step: "sitemap",
           updated_at: nowIso(),
-        })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+        }),
+        scanId,
+        companyId
+      )
 
       await auditorLog({
+        supabase,
         scanId,
         companyId,
         message: "robots:done",
@@ -269,13 +321,10 @@ export async function continueAuditorScan(params: {
           },
         }
 
-        await supabase
-          .from("auditor_scans")
-          .update({ artifacts: nextArtifacts, updated_at: nowIso() })
-          .eq("id", scanId)
-          .eq("company_id", companyId)
+        await applyScanWhere(supabase.from("auditor_scans").update({ artifacts: nextArtifacts, updated_at: nowIso() }), scanId, companyId)
 
         await auditorLog({
+          supabase,
           scanId,
           companyId,
           message: "sitemap:primary_done",
@@ -284,8 +333,8 @@ export async function continueAuditorScan(params: {
 
         // If not an index, we can advance immediately.
         if (childSitemaps.length === 0) {
-          await supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-          await auditorLog({ scanId, companyId, message: "sitemap:done" })
+          await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
+          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done" })
         }
 
         await releaseLock()
@@ -312,14 +361,14 @@ export async function continueAuditorScan(params: {
             url_count: acc.length,
           },
         }
-        await supabase.from("auditor_scans").update({ artifacts: nextArtifacts, updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-        await auditorLog({ scanId, companyId, message: "sitemap:child_processed", data: { childIndex, childUrl, urlCount: acc.length } })
+        await applyScanWhere(supabase.from("auditor_scans").update({ artifacts: nextArtifacts, updated_at: nowIso() }), scanId, companyId)
+        await auditorLog({ supabase, scanId, companyId, message: "sitemap:child_processed", data: { childIndex, childUrl, urlCount: acc.length } })
 
         // Advance when finished children or hit cap.
         const done = childIndex + 1 >= existingChild.length || acc.length >= cap
         if (done) {
-          await supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-          await auditorLog({ scanId, companyId, message: "sitemap:done", data: { urlCount: acc.length } })
+          await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
+          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done", data: { urlCount: acc.length } })
         }
 
         await releaseLock()
@@ -328,8 +377,8 @@ export async function continueAuditorScan(params: {
       }
 
       // Nothing left to do.
-      await supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-      await auditorLog({ scanId, companyId, message: "sitemap:done" })
+      await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
+      await auditorLog({ supabase, scanId, companyId, message: "sitemap:done" })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -365,17 +414,17 @@ export async function continueAuditorScan(params: {
         },
       }
 
-      await supabase
-        .from("auditor_scans")
-        .update({
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           artifacts: nextArtifacts,
           step: "sample",
           updated_at: nowIso(),
-        })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+        }),
+        scanId,
+        companyId
+      )
 
-      await auditorLog({ scanId, companyId, message: "ai_files:done" })
+      await auditorLog({ supabase, scanId, companyId, message: "ai_files:done" })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -398,7 +447,7 @@ export async function continueAuditorScan(params: {
       if (rows.length > 0) {
         const { error } = await supabase.from("auditor_scan_pages").upsert(rows, { onConflict: "scan_id,url" })
         if (error) {
-          await auditorLog({ scanId, companyId, level: "error", message: "sample:upsert_failed", data: { message: error.message } })
+          await auditorLog({ supabase, scanId, companyId, level: "error", message: "sample:upsert_failed", data: { message: error.message } })
         }
       }
 
@@ -407,17 +456,17 @@ export async function continueAuditorScan(params: {
         sample: { urls: sample, count: sample.length },
       }
 
-      await supabase
-        .from("auditor_scans")
-        .update({
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           artifacts: nextArtifacts,
           step: "fetch_pages",
           updated_at: nowIso(),
-        })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+        }),
+        scanId,
+        companyId
+      )
 
-      await auditorLog({ scanId, companyId, message: "sample:done", data: { count: sample.length } })
+      await auditorLog({ supabase, scanId, companyId, message: "sample:done", data: { count: sample.length } })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -426,24 +475,20 @@ export async function continueAuditorScan(params: {
 
     // Step: fetch_pages (fetch one queued page per continue for time budget)
     if (step === "fetch_pages") {
-      const { data: queuedPages } = await supabase
-        .from("auditor_scan_pages")
-        .select("id,url")
-        .eq("scan_id", scanId)
-        .eq("company_id", companyId)
-        .eq("state", "queued")
-        .limit(1)
+      let q = supabase.from("auditor_scan_pages").select("id,url").eq("scan_id", scanId).eq("state", "queued").limit(1)
+      q = applyCompanyWhere(q, companyId)
+      const { data: queuedPages } = await q
 
       const pages = Array.isArray(queuedPages) ? queuedPages : []
       if (pages.length === 0) {
-        await supabase.from("auditor_scans").update({ step: "extract", updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-        await auditorLog({ scanId, companyId, message: "fetch_pages:none_left" })
+        await applyScanWhere(supabase.from("auditor_scans").update({ step: "extract", updated_at: nowIso() }), scanId, companyId)
+        await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:none_left" })
         await releaseLock()
         const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
         return { ok: true, kind: "progressed", scan }
       }
 
-      await auditorLog({ scanId, companyId, message: "fetch_pages:start", data: { count: pages.length } })
+      await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:start", data: { count: pages.length } })
 
       for (const p of pages) {
         const url = String((p as any).url)
@@ -458,51 +503,51 @@ export async function continueAuditorScan(params: {
         const isHtml = contentType ? contentType.toLowerCase().includes("text/html") : true
 
         if (res.ok && res.status >= 200 && res.status < 300 && isHtml) {
-          await supabase
-            .from("auditor_scan_pages")
-            .update({
+          await applyCompanyWhere(
+            supabase.from("auditor_scan_pages").update({
               state: "fetched",
               status_code: res.status,
               content_type: contentType,
+              headers: res.headers || {},
               fetch_ms: res.elapsedMs,
               content_bytes: res.bytes,
               html: res.text,
               fetched_at: nowIso(),
-            })
-            .eq("id", (p as any).id)
-            .eq("company_id", companyId)
+            }).eq("id", (p as any).id),
+            companyId
+          )
         } else if (res.ok && res.status >= 200 && res.status < 300 && !isHtml) {
-          await supabase
-            .from("auditor_scan_pages")
-            .update({
+          await applyCompanyWhere(
+            supabase.from("auditor_scan_pages").update({
               state: "skipped",
               status_code: res.status,
               content_type: contentType,
+              headers: res.headers || {},
               fetch_ms: res.elapsedMs,
               content_bytes: res.bytes,
               error: "non_html",
               fetched_at: nowIso(),
-            })
-            .eq("id", (p as any).id)
-            .eq("company_id", companyId)
+            }).eq("id", (p as any).id),
+            companyId
+          )
         } else {
-          await supabase
-            .from("auditor_scan_pages")
-            .update({
+          await applyCompanyWhere(
+            supabase.from("auditor_scan_pages").update({
               state: "failed",
               status_code: res.ok ? res.status : null,
               content_type: contentType,
+              headers: res.ok ? res.headers || {} : {},
               fetch_ms: res.elapsedMs,
               content_bytes: res.ok ? res.bytes : null,
               error: res.ok ? `http_${res.status}` : res.error,
               fetched_at: nowIso(),
-            })
-            .eq("id", (p as any).id)
-            .eq("company_id", companyId)
+            }).eq("id", (p as any).id),
+            companyId
+          )
         }
       }
 
-      await auditorLog({ scanId, companyId, message: "fetch_pages:batch_done" })
+      await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:batch_done" })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -511,32 +556,27 @@ export async function continueAuditorScan(params: {
 
     // Step: extract (extract up to 5 fetched pages)
     if (step === "extract") {
-      const { data: fetchedPages } = await supabase
-        .from("auditor_scan_pages")
-        .select("id,url,path,html")
-        .eq("scan_id", scanId)
-        .eq("company_id", companyId)
-        .eq("state", "fetched")
-        .limit(5)
+      let q = supabase.from("auditor_scan_pages").select("id,url,path,html").eq("scan_id", scanId).eq("state", "fetched").limit(5)
+      q = applyCompanyWhere(q, companyId)
+      const { data: fetchedPages } = await q
 
       const pages = Array.isArray(fetchedPages) ? fetchedPages : []
       if (pages.length === 0) {
-        await supabase.from("auditor_scans").update({ step: "rules", updated_at: nowIso() }).eq("id", scanId).eq("company_id", companyId)
-        await auditorLog({ scanId, companyId, message: "extract:none_left" })
+        await applyScanWhere(supabase.from("auditor_scans").update({ step: "rules", updated_at: nowIso() }), scanId, companyId)
+        await auditorLog({ supabase, scanId, companyId, message: "extract:none_left" })
         await releaseLock()
         const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
         return { ok: true, kind: "progressed", scan }
       }
 
-      await auditorLog({ scanId, companyId, message: "extract:start", data: { count: pages.length } })
+      await auditorLog({ supabase, scanId, companyId, message: "extract:start", data: { count: pages.length } })
 
       for (const p of pages) {
         const html = String((p as any).html || "")
         const extracted = extractFromHtml(html)
 
-        await supabase
-          .from("auditor_scan_pages")
-          .update({
+        await applyCompanyWhere(
+          supabase.from("auditor_scan_pages").update({
             state: "extracted",
             html: null,
             title: extracted.title,
@@ -548,13 +588,24 @@ export async function continueAuditorScan(params: {
             has_twitter: extracted.hasTwitter,
             jsonld_types: extracted.jsonldTypes,
             tracking: extracted.tracking,
+            extracted: {
+              metaRobots: extracted.metaRobots,
+              viewportPresent: extracted.viewportPresent,
+              hasFAQPage: extracted.hasFAQPage,
+              hasArticle: extracted.hasArticle,
+              h1Count: extracted.h1Count,
+              headingsOutline: extracted.headingsOutline,
+              imagesMissingAltCount: extracted.imagesMissingAltCount,
+              internalLinksCount: extracted.internalLinksCount,
+              questionHeadingsCount: extracted.questionHeadingsCount,
+            },
             extracted_at: nowIso(),
-          })
-          .eq("id", (p as any).id)
-          .eq("company_id", companyId)
+          }).eq("id", (p as any).id),
+          companyId
+        )
       }
 
-      await auditorLog({ scanId, companyId, message: "extract:batch_done" })
+      await auditorLog({ supabase, scanId, companyId, message: "extract:batch_done" })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -563,15 +614,14 @@ export async function continueAuditorScan(params: {
 
     // Step: rules (compute + persist rule rows + score)
     if (step === "rules") {
-      const { data: pages } = await supabase
+      let q = supabase
         .from("auditor_scan_pages")
-        .select(
-          "url,path,title,meta_description,canonical,lang,dir,has_og,has_twitter,jsonld_types,tracking"
-        )
+        .select("url,path,title,meta_description,canonical,extracted,lang,dir,has_og,has_twitter,jsonld_types,tracking")
         .eq("scan_id", scanId)
-        .eq("company_id", companyId)
         .eq("state", "extracted")
         .limit(50)
+      q = applyCompanyWhere(q, companyId)
+      const { data: pages } = await q
 
       const ctx = {
         scan: {
@@ -585,7 +635,7 @@ export async function continueAuditorScan(params: {
 
       const { rules, scoreTotal, scoreBreakdown } = runRulesAndScore(ctx)
 
-      await supabase.from("auditor_scan_rules").delete().eq("scan_id", scanId).eq("company_id", companyId)
+      await supabase.from("auditor_scan_rules").delete().eq("scan_id", scanId)
 
       if (rules.length > 0) {
         const rows = rules.map((r) => ({
@@ -603,18 +653,61 @@ export async function continueAuditorScan(params: {
         await supabase.from("auditor_scan_rules").insert(rows)
       }
 
-      await supabase
-        .from("auditor_scans")
-        .update({
+      // Persist findings (admin/internal)
+      await supabase.from("auditor_scan_findings").delete().eq("scan_id", scanId)
+      if (rules.length > 0) {
+        const findingsRows = rules.map((r) => ({
+          scan_id: scanId,
+          company_id: companyId,
+          rule_key: r.rule_key,
+          severity: r.status === "fail" ? "high" : r.status === "warn" ? "medium" : "low",
+          status: r.status,
+          scope: "site",
+          url: null,
+          title: r.recommendation_he,
+          summary: r.recommendation_he,
+          recommendation: r.recommendation_he,
+          evidence: r.evidence,
+        }))
+        await supabase.from("auditor_scan_findings").insert(findingsRows)
+      }
+
+      // Coverage/confidence (simple)
+      const { data: pageStates } = await supabase.from("auditor_scan_pages").select("state").eq("scan_id", scanId)
+      const states = Array.isArray(pageStates) ? pageStates.map((r: any) => String(r.state)) : []
+      const extractedCount = states.filter((s) => s === "extracted").length
+      const totalCount = states.length
+      const confidenceLevel: ConfidenceLevel = extractedCount >= 10 ? "high" : extractedCount >= 5 ? "medium" : "low"
+      const warning = confidenceLevel === "low" ? "לא הצלחנו למשוך מספיק עמודים, התוצאה חלקית." : undefined
+
+      const scoreSearch = Math.round(((scoreBreakdown.technical ?? 0) + (scoreBreakdown.schema ?? 0)) / 2)
+      const scoreAi = Math.round(scoreBreakdown.ai_readiness ?? 0)
+
+      const publicReport = buildPublicReport({
+        score_total: scoreTotal,
+        score_search: scoreSearch,
+        score_ai: scoreAi,
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        findings: rules.map((r) => ({ rule_key: r.rule_key, severity: "medium", status: r.status })),
+        confidence_level: confidenceLevel,
+        warning,
+      })
+
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           score_total: scoreTotal,
           score_breakdown: scoreBreakdown,
+          coverage: { total_pages: totalCount, extracted_pages: extractedCount },
+          confidence: { level: confidenceLevel, warning },
+          report_public: publicReport,
           step: "persist",
           updated_at: nowIso(),
-        })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+        }),
+        scanId,
+        companyId
+      )
 
-      await auditorLog({ scanId, companyId, message: "rules:done", data: { scoreTotal, scoreBreakdown } })
+      await auditorLog({ supabase, scanId, companyId, message: "rules:done", data: { scoreTotal, scoreBreakdown } })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -623,18 +716,18 @@ export async function continueAuditorScan(params: {
 
     // Step: persist (finalize scan)
     if (step === "persist") {
-      await supabase
-        .from("auditor_scans")
-        .update({
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
           status: "done",
           step: "done",
           finished_at: nowIso(),
           updated_at: nowIso(),
-        })
-        .eq("id", scanId)
-        .eq("company_id", companyId)
+        }),
+        scanId,
+        companyId
+      )
 
-      await auditorLog({ scanId, companyId, message: "scan:done" })
+      await auditorLog({ supabase, scanId, companyId, message: "scan:done" })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -648,19 +741,19 @@ export async function continueAuditorScan(params: {
   } catch (e: any) {
     const msg = String(e?.message || e)
     console.error("[auditor] continue failed", { scanId: params.scanId, message: msg })
-    await auditorLog({ scanId: params.scanId, companyId: params.companyId, level: "error", message: "scan:failed", data: { error: msg } })
-    await supabase
-      .from("auditor_scans")
-      .update({
+    await auditorLog({ supabase, scanId: params.scanId, companyId: null, level: "error", message: "scan:failed", data: { error: msg } })
+    await applyScanWhere(
+      supabase.from("auditor_scans").update({
         status: "failed",
-        error: msg.slice(0, 500),
+        last_error: msg.slice(0, 500),
         finished_at: nowIso(),
         locked_at: null,
         locked_by: null,
         updated_at: nowIso(),
-      })
-      .eq("id", params.scanId)
-      .eq("company_id", params.companyId)
+      }),
+      params.scanId,
+      params.companyId
+    )
     return { ok: false, kind: "invalid_state", message: msg }
   }
 }

@@ -1,164 +1,1427 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
+import { useEffect, useMemo, useRef, useState } from "react"
+import Image from "next/image"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
-type ScanRow = {
-  id: string
-  target_url: string
-  normalized_url: string | null
-  hostname: string | null
-  status: string
-  step: string
-  score_total: number | null
-  created_at: string
-  finished_at: string | null
-  error: string | null
+type Step = 1 | 2 | 3
+
+type StatusResponse =
+  | {
+      ok: true
+      status: string
+      step: string
+      screenshot_url?: string | null
+      score_total: number | null
+      score_search: number | null
+      score_ai: number | null
+      category_scores: Record<string, number>
+      issues_overview: string[]
+      confidence_level: string | null
+      warning: string | null
+      done: boolean
+      report_public: any | null
+      updated_at: string
+      finished_at: string | null
+    }
+  | { ok: false; error: string }
+
+// ─── AI Score Hero Component ──────────────────────────────────────────────
+const AI_SCORE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@500&display=swap');
+@keyframes scoreReveal {
+  from { opacity:0; transform: scale(.72) translateY(8px); }
+  to   { opacity:1; transform: scale(1) translateY(0); }
+}
+@keyframes badgeIn {
+  from { opacity:0; transform: translateY(6px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+@keyframes counterFlicker {
+  0%  { opacity: 1; }
+  48% { opacity: 1; }
+  50% { opacity: .3; }
+  52% { opacity: 1; }
+  100%{ opacity: 1; }
+}
+@keyframes scanLine {
+  0%   { transform: translateY(-100%); opacity: .6; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+@keyframes msgFade {
+  0%   { opacity: 0; transform: translateY(4px); }
+  15%  { opacity: 1; transform: translateY(0); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.aisc-wrap { width: 100%; }
+.aisc-card {
+  border-radius: 20px;
+  padding: 44px 28px 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  background: #faf8f5;
+  border: 1px solid rgba(0,0,0,.08);
+  box-shadow: 0 4px 32px rgba(0,0,0,.07);
+  position: relative;
+  overflow: hidden;
+  font-family: 'Syne', sans-serif;
+}
+.aisc-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,.18) 0%, transparent 60%);
+  pointer-events: none;
+}
+.aisc-scanline {
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(45,90,78,.18), transparent);
+  animation: scanLine 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+.aisc-eyebrow {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: #9b8e82;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.aisc-eyebrow::before, .aisc-eyebrow::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 1px;
+  background: #c8bfb6;
+}
+.aisc-number-wrap {
+  position: relative;
+  z-index: 1;
+  line-height: 1;
+}
+.aisc-number-final {
+  font-size: 8rem;
+  font-weight: 800;
+  letter-spacing: -.05em;
+  font-variant-numeric: tabular-nums;
+  animation: scoreReveal .55s cubic-bezier(.22,.68,0,1.3) both;
+  line-height: 1;
+}
+.aisc-number-counter {
+  font-size: 8rem;
+  font-weight: 800;
+  letter-spacing: -.05em;
+  font-variant-numeric: tabular-nums;
+  color: #c8bfb6;
+  animation: counterFlicker 1.8s ease-in-out infinite;
+  line-height: 1;
+  font-family: 'DM Mono', monospace;
+}
+.aisc-badge {
+  font-size: .84rem;
+  font-weight: 700;
+  border-radius: 99px;
+  padding: 5px 18px;
+  letter-spacing: .03em;
+  animation: badgeIn .4s .12s ease both;
+  position: relative;
+  z-index: 1;
+}
+.aisc-desc {
+  font-size: .9rem;
+  color: #6b6359;
+  max-width: 290px;
+  text-align: center;
+  line-height: 1.55;
+  animation: badgeIn .4s .22s ease both;
+  position: relative;
+  z-index: 1;
+}
+.aisc-scanning-msg {
+  font-size: .8rem;
+  color: #9b8e82;
+  animation: msgFade 2.8s ease both;
+  min-height: 1.2em;
+  position: relative;
+  z-index: 1;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: .02em;
+}
+`
+
+const SCAN_MESSAGES = [
+  "בודק מבנה דפים…",
+  "מנתח תוכן לכלי AI…",
+  "בודק schema markup…",
+  "מעריך נראות ב-ChatGPT…",
+  "סורק מטא-דאטה…",
+  "בודק structured data…",
+  "מנתח ביצועי טעינה…",
+  "בוחן קישורים פנימיים…",
+  "בודק נגישות תוכן…",
+  "מחשב ציון AI…",
+]
+
+type Grade = { label: string; desc: string; color: string; bg: string; border: string; scoreColor: string }
+
+function getGrade(score: number): Grade {
+  if (score < 25) return {
+    label: "גרוע",
+    desc: "האתר שלך כמעט בלתי נראה לכלי AI — דחוף לטפל בזה",
+    color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", scoreColor: "#b91c1c",
+  }
+  if (score < 50) return {
+    label: "חלש",
+    desc: "נוכחות AI מינימלית — המתחרים שלכם כבר שם",
+    color: "#b45309", bg: "#fffbeb", border: "#fcd34d", scoreColor: "#c2740a",
+  }
+  if (score < 75) return {
+    label: "לא סביר",
+    desc: "יש בסיס טוב, אבל עדיין לא מספיק כדי שה-AI ימצא אתכם",
+    color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", scoreColor: "#1d4ed8",
+  }
+  return {
+    label: "מעולה",
+    desc: "האתר שלך מוכן היטב לעידן ה-AI",
+    color: "#15803d", bg: "#f0fdf4", border: "#86efac", scoreColor: "#15803d",
+  }
 }
 
-export default function AuditorHomeClient() {
-  const [url, setUrl] = useState("")
-  const [isCreating, setIsCreating] = useState(false)
-  const [createError, setCreateError] = useState<string | null>(null)
+function AiScoreHero({ status }: { status: StatusResponse | null }) {
+  const okStatus = status && status.ok === true ? status : null
+  const finalScore = okStatus && typeof okStatus.score_ai === "number" ? okStatus.score_ai : null
+  const isReady = finalScore !== null
 
-  const [scans, setScans] = useState<ScanRow[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [counter, setCounter] = useState(0)
+  const [msgIdx, setMsgIdx] = useState(0)
 
-  const canCreate = useMemo(() => url.trim().length > 0 && !isCreating, [url, isCreating])
-
-  const loadScans = async () => {
-    setIsLoading(true)
-    setLoadError(null)
-    try {
-      const r = await fetch("/api/auditor/scans", { method: "GET" })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
-      setScans(Array.isArray(j?.scans) ? j.scans : [])
-    } catch (e: any) {
-      setLoadError(String(e?.message || e))
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
+  // Random counter effect while scanning
   useEffect(() => {
-    loadScans()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const onCreate = async () => {
-    setCreateError(null)
-    setIsCreating(true)
-    try {
-      const r = await fetch("/api/auditor/scans", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+    if (isReady) return
+    const id = setInterval(() => {
+      setCounter(prev => {
+        // Drift upward slowly with random jumps — feels like scanning
+        const jump = Math.floor(Math.random() * 12) - 3
+        const next = prev + jump
+        return Math.max(1, Math.min(next, 89)) // cap at 89 so real score is always a reveal
       })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
-      const scanId = String(j?.scanId || "")
-      if (!scanId) throw new Error("Missing scanId")
-      window.location.href = `/auditor/${scanId}`
-    } catch (e: any) {
-      setCreateError(String(e?.message || e))
-      setIsCreating(false)
-    }
-  }
+    }, 160)
+    return () => clearInterval(id)
+  }, [isReady])
+
+  // Cycle through scanning messages
+  useEffect(() => {
+    if (isReady) return
+    const id = setInterval(() => {
+      setMsgIdx(i => (i + 1) % SCAN_MESSAGES.length)
+    }, 2800)
+    return () => clearInterval(id)
+  }, [isReady])
+
+  const grade = isReady ? getGrade(finalScore!) : null
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-6">
-        <div className="text-right">
-          <h1 className="text-2xl font-semibold">SEO/AEO + AI Readiness Auditor</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            POC פנימי: סריקה עדינה (ללא crawl אגרסיבי), יצירת צ&apos;קליסט והמלצות בעברית.
-          </p>
-        </div>
-      </div>
+    <div className="aisc-wrap">
+      <style>{AI_SCORE_CSS}</style>
+      <div className="aisc-card">
+        {!isReady && <div className="aisc-scanline" />}
 
-      <Card>
-        <CardHeader className="text-right">
-          <CardTitle>סריקה חדשה</CardTitle>
-          <CardDescription>הדבק URL של אתר (כולל או בלי https://)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="example.com"
-              dir="ltr"
-              className="sm:flex-1"
-            />
-            <Button onClick={onCreate} disabled={!canCreate}>
-              {isCreating ? "יוצר סריקה..." : "התחל סריקה"}
-            </Button>
-            <Button variant="secondary" onClick={loadScans} disabled={isLoading}>
-              רענן
-            </Button>
-          </div>
-          {createError && <div className="mt-3 text-sm text-danger text-right">{createError}</div>}
-        </CardContent>
-      </Card>
+        <div className="aisc-eyebrow">ציון נוכחות AI</div>
 
-      <Card>
-        <CardHeader className="text-right">
-          <CardTitle>סריקות אחרונות</CardTitle>
-          <CardDescription>רשימת סריקות עבור החברה הפעילה</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loadError && <div className="mb-3 text-sm text-danger text-right">{loadError}</div>}
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground text-right">טוען...</div>
-          ) : scans.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-right">אין סריקות עדיין.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="py-2 text-right font-medium">יעד</th>
-                    <th className="py-2 text-right font-medium">סטטוס</th>
-                    <th className="py-2 text-right font-medium">ציון</th>
-                    <th className="py-2 text-right font-medium">נוצר</th>
-                    <th className="py-2 text-right font-medium">קישור</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scans.map((s) => (
-                    <tr key={s.id} className="border-b border-border/60">
-                      <td className="py-2 text-right">
-                        <div className="font-medium">{s.hostname || s.target_url}</div>
-                        <div className="text-xs text-muted-foreground break-all" dir="ltr">
-                          {s.target_url}
-                        </div>
-                        {s.error ? <div className="text-xs text-danger mt-1">{s.error}</div> : null}
-                      </td>
-                      <td className="py-2 text-right">
-                        <div className="font-medium">{s.status}</div>
-                        <div className="text-xs text-muted-foreground">{s.step}</div>
-                      </td>
-                      <td className="py-2 text-right">{typeof s.score_total === "number" ? s.score_total : "-"}</td>
-                      <td className="py-2 text-right">{new Date(s.created_at).toLocaleString()}</td>
-                      <td className="py-2 text-right">
-                        <Link href={`/auditor/${s.id}`} className="underline underline-offset-4">
-                          פתח
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="aisc-number-wrap">
+          {isReady ? (
+            <div className="aisc-number-final" dir="ltr" style={{ color: grade!.scoreColor }}>
+              {finalScore}
             </div>
+          ) : (
+            <div className="aisc-number-counter" dir="ltr">{counter}</div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {isReady ? (
+          <>
+            <div
+              className="aisc-badge"
+              style={{ color: grade!.color, background: grade!.bg, border: `1px solid ${grade!.border}` }}
+            >
+              {grade!.label}
+            </div>
+            <div className="aisc-desc">{grade!.desc}</div>
+          </>
+        ) : (
+          <div className="aisc-scanning-msg" key={msgIdx}>
+            {SCAN_MESSAGES[msgIdx]}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
+// ─── Step 3 Dashboard styles ───────────────────────────────────────────────
+const dashboardCss = `
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;500&display=swap');
+
+.audit-root {
+  --bg: #f4f1ed;
+  --surface: #faf8f5;
+  --surface-2: #ede9e3;
+  --border: rgba(0,0,0,0.09);
+  --accent: #2d5a4e;
+  --accent-dim: rgba(45,90,78,0.09);
+  --amber: #b45309;
+  --amber-dim: rgba(180,83,9,0.09);
+  --red: #c0392b;
+  --text-1: #1a1714;
+  --text-2: #6b6359;
+  --radius: 14px;
+  font-family: 'Syne', sans-serif;
+  color: var(--text-1);
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  direction: rtl;
+}
+
+.audit-card {
+  max-width: 780px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,.04), 0 12px 40px rgba(0,0,0,.08);
+  animation: fadeUp .45s cubic-bezier(.22,.68,0,1.2) both;
+}
+
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(24px) scale(.98); }
+  to   { opacity:1; transform: translateY(0) scale(1); }
+}
+
+.audit-header {
+  position: relative;
+  padding: 28px 28px 24px;
+  background: linear-gradient(135deg, #ede9e3 0%, #e8e3dc 100%);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.audit-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 100% at 90% 50%, rgba(45,90,78,.06), transparent);
+  pointer-events: none;
+}
+
+.audit-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--text-1);
+  margin: 0;
+}
+
+.audit-scan-id {
+  font-family: 'DM Mono', monospace;
+  font-size: .7rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(45,90,78,.2);
+  border-radius: 6px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  letter-spacing: .04em;
+  align-self: flex-start;
+}
+
+.audit-scan-id.generating {
+  color: var(--text-2);
+  background: rgba(0,0,0,.04);
+  border-color: var(--border);
+  animation: blink 1.4s ease-in-out infinite;
+}
+
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.audit-body {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.audit-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-2);
+  font-size: .875rem;
+}
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.audit-progress-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .8rem;
+}
+
+.progress-label { color: var(--text-2); }
+
+.progress-step {
+  font-family: 'DM Mono', monospace;
+  font-size: .72rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: 4px;
+  padding: 2px 8px;
+  direction: ltr;
+}
+
+.progress-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #3d7a6a);
+  border-radius: 99px;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%   { width: 15%; opacity: .7; }
+  50%  { width: 72%; opacity: 1; }
+  100% { width: 15%; opacity: .7; }
+}
+
+.audit-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--amber-dim);
+  border: 1px solid rgba(245,166,35,.22);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: .84rem;
+  color: var(--amber);
+  line-height: 1.55;
+}
+
+.audit-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat-cell {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 14px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stat-value {
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value.teal  { color: var(--accent);  }
+.stat-value.amber { color: var(--amber); }
+.stat-value.red   { color: var(--red);   }
+.stat-value.muted { color: var(--text-2); font-size: .9rem; font-family: 'DM Mono', monospace; margin-top: 4px; }
+
+.stat-label {
+  font-size: .68rem;
+  color: var(--text-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.audit-divider {
+  height: 1px;
+  background: var(--border);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.section-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: .76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--text-2);
+}
+
+.audit-empty {
+  background: var(--surface-2);
+  border: 1px dashed rgba(255,255,255,.07);
+  border-radius: 10px;
+  padding: 24px 20px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: .84rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.audit-empty-icon { font-size: 1.5rem; opacity: .5; }
+
+.audit-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.audit-issue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 13px 16px;
+  font-size: .84rem;
+  line-height: 1.55;
+  color: var(--text-1);
+  animation: fadeItem .3s ease both;
+}
+
+.audit-issue-item:nth-child(1){ animation-delay:.05s }
+.audit-issue-item:nth-child(2){ animation-delay:.10s }
+.audit-issue-item:nth-child(3){ animation-delay:.15s }
+.audit-issue-item:nth-child(4){ animation-delay:.20s }
+.audit-issue-item:nth-child(5){ animation-delay:.25s }
+
+@keyframes fadeItem {
+  from { opacity:0; transform: translateX(8px); }
+  to   { opacity:1; transform: translateX(0); }
+}
+
+.issue-number {
+  font-family: 'DM Mono', monospace;
+  font-size: .68rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: 5px;
+  padding: 2px 7px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.audit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-new-scan {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #f4f1ed;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: .84rem;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: opacity .18s, transform .18s;
+  white-space: nowrap;
+}
+
+.btn-new-scan:hover { opacity:.88; transform: translateY(-1px); }
+.btn-new-scan:active { transform: translateY(0); }
+
+.btn-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Syne', sans-serif;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid rgba(45,90,78,.25);
+  border-radius: 8px;
+  padding: 9px 18px;
+  transition: background .18s, transform .18s;
+}
+
+.btn-share:hover { background: var(--accent-dim); transform: translateY(-1px); }
+
+.pricing-wrap {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.pricing-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.pricing-subtitle {
+  margin-top: 6px;
+  font-size: .85rem;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.pricing-grid {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.plan-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 16px 14px;
+  text-align: right;
+  position: relative;
+  cursor: pointer;
+  transition: transform .18s, border-color .18s, box-shadow .18s;
+}
+
+.plan-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0,0,0,.06);
+}
+
+.plan-card.selected {
+  border-color: rgba(45,90,78,.5);
+  box-shadow: 0 0 0 3px rgba(45,90,78,.10);
+}
+
+.plan-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: .72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #2d5a4e;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.plan-name {
+  font-weight: 800;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.plan-price {
+  margin-top: 6px;
+  font-size: .9rem;
+  color: var(--text-2);
+}
+
+.plan-price strong {
+  font-size: 1.05rem;
+  color: var(--text-1);
+}
+
+.plan-radio {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.plan-features {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  font-size: .82rem;
+  color: var(--text-2);
+}
+
+.plan-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.35;
+}
+
+.plan-feature .check {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.pricing-cta-row {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pricing-note {
+  font-size: .78rem;
+  color: var(--text-2);
+}
+
+.btn-checkout {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 18px;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .18s, transform .18s;
+}
+
+.btn-checkout:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.btn-checkout:active { transform: translateY(1px); }
+
+@media (max-width: 520px) {
+  .audit-stats { grid-template-columns: repeat(2, 1fr); }
+  .audit-footer { flex-direction: column-reverse; align-items: stretch; }
+  .btn-new-scan, .btn-share { justify-content: center; }
+}
+
+@media (max-width: 860px) {
+  .pricing-grid { grid-template-columns: 1fr; }
+}
+`
+
+export default function AuditorHomeClient() {
+  const router = useRouter()
+  const sp = useSearchParams()
+
+  const [step, setStep] = useState<Step>(1)
+
+  // Step 1
+  const [siteUrl, setSiteUrl] = useState("")
+
+  // Step 2
+  const [fullName, setFullName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [consentTerms, setConsentTerms] = useState(false)
+  const [consentContact, setConsentContact] = useState(false)
+
+  // Step 3
+  const [scanId, setScanId] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [status, setStatus] = useState<StatusResponse | null>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState<"basic" | "pro" | "premium">("pro")
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false)
+
+  const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const continuingRef = useRef(false)
+
+  const canGoToDetails = useMemo(() => siteUrl.trim().length > 0 && !isSubmitting, [siteUrl, isSubmitting])
+  const canSubmitLead = useMemo(() => {
+    if (isSubmitting) return false
+    if (!siteUrl.trim()) return false
+    if (!fullName.trim()) return false
+    if (!email.trim()) return false
+    if (!phone.trim()) return false
+    if (!consentTerms) return false
+    return true
+  }, [isSubmitting, siteUrl, fullName, email, phone, consentTerms, consentContact])
+
+  const step2OkStatus = useMemo(() => (step === 2 && status && status.ok === true ? status : null), [step, status])
+  const step2HasScreenshot = Boolean(step2OkStatus?.screenshot_url)
+  const step2HasAllScores =
+    typeof step2OkStatus?.score_total === "number" &&
+    typeof step2OkStatus?.score_search === "number" &&
+    typeof step2OkStatus?.score_ai === "number"
+  const step2IsFailed = Boolean(step2OkStatus && step2OkStatus.status === "failed")
+  const step2IsDone = Boolean(
+    step2OkStatus && (step2OkStatus.done === true || step2OkStatus.status === "done" || step2OkStatus.status === "failed")
+  )
+  const step2IsWorking =
+    step === 2 && Boolean(scanId && token) && !step2IsFailed && !step2IsDone && (!step2HasScreenshot || !step2HasAllScores)
+
+  // Resume from query params: /auditor?scanId=...&token=...
+  useEffect(() => {
+    const qsScanId = String(sp.get("scanId") || "").trim()
+    const qsToken = String(sp.get("token") || "").trim()
+    if (qsScanId && qsToken) {
+      setScanId(qsScanId)
+      setToken(qsToken)
+      setStep(3)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const onStart = async () => {
+    setError(null)
+    if (!siteUrl.trim()) return
+    setIsSubmitting(true)
+    try {
+      const r = await fetch("/api/auditor/pre-scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ url: siteUrl.trim() }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
+      const sid = String(j?.scanId || "").trim()
+      const t = String(j?.scanAccessToken || "").trim()
+      if (!sid || !t) throw new Error("Missing scanId/token")
+
+      setScanId(sid)
+      setToken(t)
+      setStep(2)
+
+      for (let i = 0; i < 3; i++) {
+        await triggerContinue(sid, t)
+        await new Promise((res) => setTimeout(res, 1200))
+        const st = await loadStatus(sid, t)
+        if ((st as any)?.ok === true && (st as any).screenshot_url) break
+      }
+    } catch (e: any) {
+      setError(String(e?.message || e))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const onSubmit = async () => {
+    setError(null)
+    setIsSubmitting(true)
+    try {
+      const r = await fetch("/api/auditor/lead-and-scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          url: siteUrl.trim(),
+          full_name: fullName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          consent_terms: consentTerms,
+          consent_contact: consentContact,
+          scanId: scanId || undefined,
+          scanAccessToken: token || undefined,
+        }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
+      const newScanId = String(j?.scanId || "").trim()
+      const newToken = String(j?.scanAccessToken || "").trim()
+      if (!newScanId || !newToken) throw new Error("Missing scanId/token")
+
+      setScanId(newScanId)
+      setToken(newToken)
+      setStep(3)
+      router.replace(`/auditor?scanId=${encodeURIComponent(newScanId)}&token=${encodeURIComponent(newToken)}`)
+    } catch (e: any) {
+      setError(String(e?.message || e))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const startCheckout = async () => {
+    setError(null)
+    if (!scanId || !token) {
+      setError("חסר מזהה סריקה/טוקן. נסו לבצע סריקה מחדש.")
+      return
+    }
+
+    setIsStartingCheckout(true)
+    try {
+      const r = await fetch("/api/auditor/billing/checkout/create", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan_id: selectedPlanId, scanId, token }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
+      const redirectUrl = String(j?.redirect_url || "").trim()
+      if (!redirectUrl) throw new Error("Missing redirect_url")
+      window.location.href = redirectUrl
+    } catch (e: any) {
+      setError(String(e?.message || e))
+      setIsStartingCheckout(false)
+    }
+  }
+
+  const loadStatus = async (sid: string, t: string): Promise<StatusResponse> => {
+    const r = await fetch(`/api/auditor/status?scanId=${encodeURIComponent(sid)}&token=${encodeURIComponent(t)}`, {
+      method: "GET",
+    })
+    const j = (await r.json().catch(() => null)) as any
+    if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
+    const next = j as StatusResponse
+    setStatus(next)
+    return next
+  }
+
+  const triggerContinue = async (sid: string, t: string) => {
+    if (continuingRef.current) return
+    continuingRef.current = true
+    try {
+      const r = await fetch("/api/auditor/continue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ scanId: sid, scanAccessToken: t }),
+      })
+      if (r.status === 409) return
+    } finally {
+      continuingRef.current = false
+    }
+  }
+
+  // Step 3 polling + gentle self-continue.
+  useEffect(() => {
+    if (step !== 3) return
+    if (!scanId || !token) return
+
+    let cancelled = false
+    let interval: ReturnType<typeof setInterval> | null = null
+    const stop = () => {
+      if (interval) clearInterval(interval)
+      interval = null
+    }
+    const tick = async () => {
+      let next: StatusResponse
+      try {
+        next = await loadStatus(scanId, token)
+      } catch (e: any) {
+        if (!cancelled) setError(String(e?.message || e))
+        return
+      }
+
+      if (cancelled) return
+      const done =
+        (next as any)?.ok === true &&
+        ((next as any).done === true || (next as any).status === "done" || (next as any).status === "failed")
+      if (done) {
+        stop()
+        return
+      }
+
+      await triggerContinue(scanId, token)
+    }
+
+    tick()
+    interval = setInterval(tick, 2000)
+    return () => {
+      cancelled = true
+      stop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, scanId, token])
+
+  // Step 2: keep progressing scan so score strip can populate.
+  useEffect(() => {
+    if (step !== 2) return
+    if (!scanId || !token) return
+
+    let cancelled = false
+    let interval: ReturnType<typeof setInterval> | null = null
+    const stop = () => {
+      if (interval) clearInterval(interval)
+      interval = null
+    }
+    const tick = async () => {
+      let next: StatusResponse
+      try {
+        next = await loadStatus(scanId, token)
+      } catch (e: any) {
+        if (!cancelled) setError(String(e?.message || e))
+        return
+      }
+      if (cancelled) return
+
+      const okStatus = next && (next as any).ok === true ? (next as any) : null
+      const done = okStatus && (okStatus.done === true || okStatus.status === "done" || okStatus.status === "failed")
+      const hasAllScores =
+        okStatus &&
+        typeof okStatus.score_total === "number" &&
+        typeof okStatus.score_search === "number" &&
+        typeof okStatus.score_ai === "number"
+      const hasScreenshot = okStatus && typeof okStatus.screenshot_url === "string" && okStatus.screenshot_url.trim().length > 0
+
+      // Stop polling once we can render the "Step 2" preview (or once scan is terminal).
+      if (done || (hasAllScores && hasScreenshot)) {
+        stop()
+        return
+      }
+
+      await triggerContinue(scanId, token)
+    }
+
+    tick()
+    interval = setInterval(tick, 2500)
+    return () => {
+      cancelled = true
+      stop()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, scanId, token])
+
+  // ─── Step 3 dashboard ─────────────────────────────────────────────────────
+  const renderStep3 = () => {
+    const okStatus = status && status.ok === true ? status : null
+    const issueCount = okStatus?.done ? (okStatus.issues_overview?.length ?? 0) : 0
+
+    return (
+      <>
+        <style>{dashboardCss}</style>
+        <div className="audit-root">
+          <div className="audit-card">
+
+            {/* Header */}
+            <div className="audit-header">
+              <h2 className="audit-title">דוח ביקורת</h2>
+              {scanId
+                ? <span className="audit-scan-id"># {scanId}</span>
+                : <span className="audit-scan-id generating">מייצר סריקה…</span>
+              }
+            </div>
+
+            {/* Body */}
+            <div className="audit-body">
+
+              {/* Loading — no status yet */}
+              {!okStatus && (
+                <div className="audit-loading">
+                  <div className="spinner" />
+                  <span>טוען סטטוס סריקה…</span>
+                </div>
+              )}
+
+              {/* In-progress */}
+              {okStatus && !okStatus.done && (
+                <div className="audit-progress-block">
+                  <div className="progress-meta">
+                    <span className="progress-label">סריקה פעילה</span>
+                    <span className="progress-step" dir="ltr">{okStatus.status} · {okStatus.step}</span>
+                  </div>
+                  <div className="progress-bar-track">
+                    <div className="progress-bar-fill" />
+                  </div>
+                </div>
+              )}
+
+              {/* Done */}
+              {okStatus?.done && (
+                <>
+                  {/* Warning banner */}
+                  {okStatus.warning && (
+                    <div className="audit-warning">
+                      <span style={{ flexShrink: 0 }}>⚠</span>
+                      <span>{okStatus.warning}</span>
+                    </div>
+                  )}
+
+                  {/* Stats row — AI + SEO + Total */}
+                  <div className="audit-stats">
+                    <div className="stat-cell">
+                      <span className="stat-label">AI Readiness</span>
+                      <span className={`stat-value ${
+                        typeof (okStatus as any).score_ai === "number"
+                          ? (okStatus as any).score_ai < 25 ? "red"
+                          : (okStatus as any).score_ai < 50 ? "amber"
+                          : "teal"
+                          : "muted"
+                      }`}>
+                        {typeof (okStatus as any).score_ai === "number" ? (okStatus as any).score_ai : "—"}
+                      </span>
+                    </div>
+                    <div className="stat-cell">
+                      <span className="stat-label">SEO Readiness</span>
+                      <span className={`stat-value ${
+                        typeof (okStatus as any).score_search === "number"
+                          ? (okStatus as any).score_search < 25 ? "red"
+                          : (okStatus as any).score_search < 50 ? "amber"
+                          : "teal"
+                          : "muted"
+                      }`}>
+                        {typeof (okStatus as any).score_search === "number" ? (okStatus as any).score_search : "—"}
+                      </span>
+                    </div>
+                    <div className="stat-cell">
+                      <span className="stat-label">ציון כללי</span>
+                      <span className={`stat-value ${
+                        typeof (okStatus as any).score_total === "number"
+                          ? (okStatus as any).score_total < 25 ? "red"
+                          : (okStatus as any).score_total < 50 ? "amber"
+                          : "teal"
+                          : "muted"
+                      }`}>
+                        {typeof (okStatus as any).score_total === "number" ? (okStatus as any).score_total : "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="audit-divider" />
+
+                  {/* Issues section */}
+                  <div>
+                    <div className="section-header">
+                      <div className="section-dot" />
+                      <span className="section-title">דברים שכדאי לשפר</span>
+                    </div>
+
+                    {issueCount === 0 ? (
+                      <div className="audit-empty">
+                        <span className="audit-empty-icon">🟢</span>
+                        <span>לא נמצאו בעיות כלליות משמעותיות</span>
+                      </div>
+                    ) : (
+                      <div className="audit-issues">
+                        {okStatus.issues_overview.map((issue, idx) => (
+                          <div className="audit-issue-item" key={idx}>
+                            <span className="issue-number">{String(idx + 1).padStart(2, "0")}</span>
+                            <span>{issue}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="audit-divider" />
+
+                  {/* Footer actions */}
+                  <div className="pricing-wrap" aria-label="Pricing">
+                    <h3 className="pricing-title">מחירון — SEO / AI אורגני</h3>
+                    <div className="pricing-subtitle">
+                      בחרו חבילה כדי לראות את הדוח המלא ולקבל תכנית שיפור. החיוב חודשי ומתחדש, וכולל מע״מ.
+                    </div>
+
+                    <div className="pricing-grid">
+                      <div
+                        className={`plan-card ${selectedPlanId === "basic" ? "selected" : ""}`}
+                        onClick={() => setSelectedPlanId("basic")}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <input className="plan-radio" type="radio" checked={selectedPlanId === "basic"} readOnly />
+                        <h4 className="plan-name">בסיסי</h4>
+                        <div className="plan-price">
+                          <strong>97 ₪</strong> לחודש
+                        </div>
+                        <div className="plan-features">
+                          <div className="plan-feature"><span className="check">✓</span><span>סריקה אוטומטית (עד 20 עמודים)</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>ציון SEO תקני (0–100)</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>בדיקות robots + sitemap</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>Schema בסיסית</span></div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`plan-card ${selectedPlanId === "pro" ? "selected" : ""}`}
+                        onClick={() => setSelectedPlanId("pro")}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <span className="plan-badge">המומלץ ביותר</span>
+                        <input className="plan-radio" type="radio" checked={selectedPlanId === "pro"} readOnly />
+                        <h4 className="plan-name">מקצועי</h4>
+                        <div className="plan-price">
+                          <strong>197 ₪</strong> לחודש
+                        </div>
+                        <div className="plan-features">
+                          <div className="plan-feature"><span className="check">✓</span><span>כולל את כל מה שקיים בבסיסי</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>ניתוח מבנה Titles/Descriptions</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>אבחון Meta Titles/Descriptions</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>FAQ + שאלות ותשובות</span></div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`plan-card ${selectedPlanId === "premium" ? "selected" : ""}`}
+                        onClick={() => setSelectedPlanId("premium")}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <input className="plan-radio" type="radio" checked={selectedPlanId === "premium"} readOnly />
+                        <h4 className="plan-name">מומחים</h4>
+                        <div className="plan-price">
+                          החל מ־<strong>997 ₪</strong> לחודש
+                        </div>
+                        <div className="plan-features">
+                          <div className="plan-feature"><span className="check">✓</span><span>כולל הכל + ליווי אנושי</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>ניתוח עומק של עמודי האתר</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>שיחת אסטרטגיה 1:1</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>התאמה לחשיפה ב‑AI</span></div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pricing-cta-row">
+                      <div className="pricing-note">מיד לאחר התשלום נשלח אליכם מייל עם קישור להתחברות ולהמשך.</div>
+                      <button className="btn-checkout" onClick={startCheckout} disabled={isStartingCheckout}>
+                        {isStartingCheckout ? (
+                          <>
+                            <span className="spinner" />
+                            ממשיכים לתשלום…
+                          </>
+                        ) : (
+                          <>המשך לתשלום</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="audit-divider" />
+
+                  <div className="audit-footer">
+                    <a
+                      className="btn-share"
+                      href={
+                        scanId && token
+                          ? `/auditor/${encodeURIComponent(scanId)}?token=${encodeURIComponent(token)}`
+                          : "/auditor"
+                      }
+                    >
+                      <span>🔗</span>
+                      שיתוף הדוח
+                    </a>
+                    <button
+                      className="btn-new-scan"
+                      onClick={() => {
+                        setStep(1)
+                        setError(null)
+                        setStatus(null)
+                        setScanId(null)
+                        setToken(null)
+                        router.replace("/auditor")
+                      }}
+                    >
+                      <span>＋</span>
+                      סריקה חדשה
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ─── Main render ───────────────────────────────────────────────────────────
+  return (
+    <div dir="rtl" className="space-y-6">
+      {error ? (
+        <div className="rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger text-right">{error}</div>
+      ) : null}
+
+      {/* ── Step 1 ── */}
+      {step === 1 && (
+        <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col items-center justify-center gap-10 text-center">
+          <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority />
+
+          <h1 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">
+            כמה סיכוי יש לאתר שלך להופיע
+            <br />
+            בגוגל ובחיפוש AI?
+          </h1>
+
+          <div className="w-full max-w-xl">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={!canGoToDetails}
+                aria-label="המשך"
+                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowLeft className="h-5 w-5" />}
+              </button>
+              <Input
+                value={siteUrl}
+                onChange={(e) => setSiteUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
+                placeholder="כתובת אתר / עמוד נחיתה"
+                dir="ltr"
+                className="h-12 rounded-full bg-white pl-12 text-right shadow-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 2 ── */}
+      {step === 2 && (
+        <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
+          <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority={false} />
+
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold md:text-4xl">קבלו ציון לאתר</h1>
+            <p className="text-sm font-medium text-muted-foreground md:text-base">
+              מהם הסיכויים של האתר שלכם להופיע בגוגל ו-AI
+            </p>
+          </div>
+
+          {/* Screenshot preview */}
+          <div className="w-full">
+            <div className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-ui border border-border bg-white shadow-sm">
+              {status && status.ok === true && status.screenshot_url ? (
+                <Image
+                  src={status.screenshot_url}
+                  alt="Site preview"
+                  width={1440}
+                  height={900}
+                  className="h-auto w-full"
+                />
+              ) : (
+                <div className="aspect-[16/9] w-full bg-gradient-to-b from-white to-muted" />
+              )}
+              {step2IsWorking && (
+                <div className="absolute right-3 top-3 rounded-full border border-border bg-white/80 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    סורקים…
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* AI Score Hero */}
+          <AiScoreHero status={status} />
+
+          <div className="w-full max-w-md space-y-1 text-center">
+            <h2 className="">רוצים לראות את הדוח המלא?</h2>
+            <h3 className="text-[18px] ">
+              השאירו פרטים ונציג לכם מה צריך לשפר כדי להופיע יותר בגוגל וב‑AI. מיד לאחר מכן תעברו לשלב הדוח.
+            </h3>
+          </div>
+
+          {/* Lead form */}
+          <div className="w-full max-w-md space-y-5 text-right">
+          <div className="space-y-1">
+    <div className="text-[18px] text-sm font-medium">שם מלא</div>
+    <Input value={fullName} onChange={(e) => setFullName(e.target.value)}
+      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-right focus-visible:ring-0" />
+  </div>
+  <div className="space-y-1">
+    <div className="text-[18px] text-sm font-medium">דוא״ל</div>
+    <Input value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr"
+      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-left focus-visible:ring-0" />
+  </div>
+  <div className="space-y-1">
+    <div className="text-[18px] text-sm font-medium">נייד</div>
+    <Input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr"
+      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-left focus-visible:ring-0" />
+  </div>
+            <div className="space-y-3 pt-2 w-full" dir="rtl">
+  <label className="flex items-start gap-2 text-xs md:text-sm w-full">
+    <Checkbox checked={consentTerms} onCheckedChange={(v) => setConsentTerms(Boolean(v))} />
+    <span>אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות.</span>
+  </label>
+  <label className="flex items-start gap-2 text-xs md:text-sm w-full">
+    <Checkbox checked={consentContact} onCheckedChange={(v) => setConsentContact(Boolean(v))} />
+    <span>אני רוצה לקבל מכם מייל עם מידע שיווקי*</span>
+  </label>
+</div>
+
+            <Button
+              onClick={onSubmit}
+              disabled={!canSubmitLead}
+              className="h-14 w-full rounded-none bg-black text-base text-white hover:bg-black/90"
+            >
+              {isSubmitting ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  שולח...
+                </span>
+              ) : (
+                "הרשמה"
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 3 ── */}
+      {step === 3 && renderStep3()}
+    </div>
+  )
+}

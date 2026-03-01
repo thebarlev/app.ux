@@ -1,3 +1,5 @@
+# Auditor screenshots (generated at runtime)
+public/auditor-screenshots/
 # Environment variables (סודי!)
 .env.local
 .env.*

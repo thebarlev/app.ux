@@ -6,18 +6,24 @@ import { existsSync } from "node:fs";
 // which are often missing in CI/serverless runtimes.
 const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: "0" };
 
-// If Playwright Core isn't installed (e.g. deps pruned), don't fail install step.
-// Runtime PDF generation requires `playwright-core` to be present.
-if (!existsSync("node_modules/playwright-core/cli.js")) {
+// Prefer full Playwright CLI when available (keeps browser/channel set in sync),
+// otherwise fall back to playwright-core.
+const cliPath = existsSync("node_modules/playwright/cli.js")
+  ? "node_modules/playwright/cli.js"
+  : existsSync("node_modules/playwright-core/cli.js")
+    ? "node_modules/playwright-core/cli.js"
+    : null;
+
+if (!cliPath) {
   process.stdout.write(
-    "[postinstall] playwright-core CLI not found at node_modules/playwright-core/cli.js; skipping browser install.\n"
+    "[postinstall] Playwright CLI not found; skipping browser install.\n"
   );
   process.exit(0);
 }
 
 const result = spawnSync(
   process.execPath,
-  ["node_modules/playwright-core/cli.js", "install", "chromium"],
+  [cliPath, "install", "chromium", "chromium-headless-shell"],
   { stdio: "inherit", env }
 );
 
