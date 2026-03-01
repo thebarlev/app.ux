@@ -22,9 +22,22 @@ function getKeyBytes(): Buffer {
   return crypto.createHash("sha256").update(raw, "utf8").digest()
 }
 
-function asUint8Array(buf: Buffer): Uint8Array {
-  // TS-safe conversion for Node 22 crypto types (CipherKey/BinaryLike)
-  return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+function toUint8Copy(bytes: ArrayLike<number>): Uint8Array {
+  // TS-safe copy into a "plain" Uint8Array (ArrayBuffer-backed).
+  // This avoids Buffer<ArrayBufferLike> vs ArrayBufferView typing issues in newer Node typings.
+  return Uint8Array.from(bytes)
+}
+
+function concatToBuffer(chunks: Array<Uint8Array>): Buffer {
+  let total = 0
+  for (const c of chunks) total += c.byteLength
+  const out = Buffer.allocUnsafe(total)
+  let off = 0
+  for (const c of chunks) {
+    out.set(c, off)
+    off += c.byteLength
+  }
+  return out
 }
 
 export function tokenHashSha256(token: string): string {
@@ -36,11 +49,14 @@ export function encryptToken(token: string): string {
   const keyBuf = getKeyBytes()
   const ivBuf = crypto.randomBytes(12)
 
-  const key = asUint8Array(keyBuf)
-  const iv = asUint8Array(ivBuf)
+  const key = toUint8Copy(keyBuf)
+  const iv = toUint8Copy(ivBuf)
 
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv)
-  const ct = Buffer.concat([cipher.update(String(token || ""), "utf8"), cipher.final()])
+  const ct = concatToBuffer([
+    toUint8Copy(cipher.update(String(token || ""), "utf8")),
+    toUint8Copy(cipher.final()),
+  ])
   const tag = cipher.getAuthTag()
 
   const payload: EncryptedTokenV1 = {
@@ -64,12 +80,15 @@ export function decryptToken(tokenEnc: string): string {
   const ct = Buffer.from(parsed.ct_b64, "base64")
   const tag = Buffer.from(parsed.tag_b64, "base64")
 
-  const key = asUint8Array(keyBuf)
-  const iv = asUint8Array(ivBuf)
+  const key = toUint8Copy(keyBuf)
+  const iv = toUint8Copy(ivBuf)
 
   const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv)
-  decipher.setAuthTag(tag)
+  decipher.setAuthTag(toUint8Copy(tag))
 
-  const pt = Buffer.concat([decipher.update(ct), decipher.final()])
+  const pt = concatToBuffer([
+    toUint8Copy(decipher.update(toUint8Copy(ct))),
+    toUint8Copy(decipher.final()),
+  ])
   return pt.toString("utf8")
 }
