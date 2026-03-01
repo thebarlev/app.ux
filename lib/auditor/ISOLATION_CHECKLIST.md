@@ -1,0 +1,15 @@
+- [ ] All new pages are under `app/auditor/*`
+- [ ] All new API routes are under `app/api/auditor/*`
+- [ ] All new auditor logic is under `lib/auditor/*`
+- [ ] All new DB objects are prefixed `auditor_*` (tables + RPCs + policies)
+- [ ] `AUDITOR_ENABLED !== "true"` returns 404 on both UI and API
+- [ ] Supabase Auth only (no new login flows/pages)
+- [ ] Allowlist enforced: UI shows `אין הרשאה`, API returns 403
+- [ ] Daily limits enforced via DB RPCs (not in-memory)
+- [ ] SSRF mitigations: dns resolve + block private/metadata + 80/443 + max redirects + host lock for crawl
+- [ ] No edits to invoicing/subscription/billing routes (`/api/billing/*`, `/api/subscription/*`, etc.)
+- [ ] No edits to invoice/subscription/billing DB tables/triggers/policies
+- [ ] No edits to `lib/supabase/*` (reuse existing clients as-is)
+- [ ] No new imports added into billing/invoicing libs
+- [ ] Build passes (`npm run build`)
+
