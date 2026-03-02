@@ -19,6 +19,9 @@ interface RegistrationFlowClientProps {
   marketingText: string
   requireLegalTermsRequired: boolean
   requireMarketingRequired: boolean
+  basePath?: string
+  afterCompleteRedirectTo?: string
+  signOutBeforeRedirect?: boolean
 }
 
 export function RegistrationFlowClient({ 
@@ -26,8 +29,13 @@ export function RegistrationFlowClient({
   marketingText,
   requireLegalTermsRequired,
   requireMarketingRequired,
+  basePath,
+  afterCompleteRedirectTo,
+  signOutBeforeRedirect,
 }: RegistrationFlowClientProps) {
   const { currentStep, setCurrentStep } = useRegistration()
+  const bp = String(basePath || "").trim().replace(/\/+$/, "")
+  const loginHref = `${bp}/login` || "/login"
 
   const handleStepChange = (stepId: number) => {
     setCurrentStep(stepId)
@@ -42,10 +50,16 @@ export function RegistrationFlowClient({
             marketingText={marketingText}
             requireLegalTermsRequired={requireLegalTermsRequired}
             requireMarketingRequired={requireMarketingRequired}
+            loginHref={loginHref}
           />
         )
       case 2:
-        return <StepBusinessProfile />
+        return (
+          <StepBusinessProfile
+            afterCompleteRedirectTo={afterCompleteRedirectTo || loginHref}
+            signOutBeforeRedirect={typeof signOutBeforeRedirect === "boolean" ? signOutBeforeRedirect : true}
+          />
+        )
       default:
         return (
           <StepPersonalDetails 
@@ -53,10 +67,20 @@ export function RegistrationFlowClient({
             marketingText={marketingText}
             requireLegalTermsRequired={requireLegalTermsRequired}
             requireMarketingRequired={requireMarketingRequired}
+            loginHref={loginHref}
           />
         )
     }
-  }, [currentStep, legalTermsText, marketingText, requireLegalTermsRequired, requireMarketingRequired])
+  }, [
+    currentStep,
+    legalTermsText,
+    marketingText,
+    requireLegalTermsRequired,
+    requireMarketingRequired,
+    loginHref,
+    afterCompleteRedirectTo,
+    signOutBeforeRedirect,
+  ])
 
   return (
     <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
@@ -89,7 +113,7 @@ export function RegistrationFlowClient({
         <div className="mt-6 pt-5">
           <p className="text-center">
             כבר יש לך חשבון?{" "}
-            <Link href="/login" className="auth-link">
+            <Link href={loginHref} className="auth-link">
               התחברות לחשבון
             </Link>
           </p>

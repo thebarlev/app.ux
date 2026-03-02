@@ -2,7 +2,7 @@
  * API Route: /api/system-texts
  * Returns all system texts for client-side components
  */
-
+export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";

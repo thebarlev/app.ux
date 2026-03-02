@@ -131,74 +131,89 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, paid: true })
   }
 
-  // Load lead + plan
-  const { data: lead } = await admin
-    .from("auditor_leads")
-    .select("id,full_name,email,phone,normalized_host")
-    .eq("id", String(checkout.lead_id))
-    .maybeSingle()
-
   const { data: plan } = await admin
     .from("auditor_plans")
     .select("id,name,monthly_amount,currency,is_active")
     .eq("id", String(checkout.plan_id))
     .maybeSingle()
 
-  if (!lead?.id || !plan?.id) {
+  if (!plan?.id) {
     await admin
       .from("auditor_billing_events")
-      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "lead_or_plan_missing" } } as any)
+      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "plan_missing" } } as any)
       .eq("provider", providerKey)
       .eq("event_id", eventId)
     return NextResponse.json({ ok: true, paid: true })
   }
 
-  const leadEmail = String((lead as any).email || "").trim()
-  const leadName = String((lead as any).full_name || "").trim()
-  const leadPhone = String((lead as any).phone || "").trim()
-  const normalizedHost = String((lead as any).normalized_host || "").trim()
-
-  if (!leadEmail) {
-    await admin
-      .from("auditor_billing_events")
-      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "lead_email_missing" } } as any)
-      .eq("provider", providerKey)
-      .eq("event_id", eventId)
-    return NextResponse.json({ ok: true, paid: true })
-  }
-
-  // Create or reuse buyer company (companies.email is unique in this repo).
-  const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmail).maybeSingle()
-  let companyId: string | null = existingCompany?.id ? String(existingCompany.id) : null
+  // Two flows:
+  // - Auth-first marketing checkout: checkout.company_id is present (preferred).
+  // - Lead-first scan checkout: checkout.company_id is null and we derive company from lead email.
+  let companyId: string | null = checkout.company_id ? String(checkout.company_id) : null
+  let userId: string | null = checkout.user_id ? String(checkout.user_id) : null
 
   if (!companyId) {
-    const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
-    const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
+    const { data: lead } = await admin
+      .from("auditor_leads")
+      .select("id,full_name,email,phone,normalized_host")
+      .eq("id", String(checkout.lead_id))
+      .maybeSingle()
 
-    const { data: insertedCompany, error: insErr } = await admin
-      .from("companies")
-      .insert({
-        company_name: companyName,
-        business_type: "other",
-        tax_id: null,
-        contact_first_name: firstName,
-        contact_full_name: leadName || firstName,
-        email: leadEmail,
-        mobile_phone: leadPhone || null,
-        status: "active",
-        auth_user_id: null,
-      } as any)
-      .select("id")
-      .single()
-
-    if (insErr || !insertedCompany?.id) {
-      // Race: someone else created the company; retry select.
-      const { data: again } = await admin.from("companies").select("id").eq("email", leadEmail).maybeSingle()
-      companyId = again?.id ? String(again.id) : null
-    } else {
-      companyId = String(insertedCompany.id)
+    if (!lead?.id) {
+      await admin
+        .from("auditor_billing_events")
+        .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "lead_missing" } } as any)
+        .eq("provider", providerKey)
+        .eq("event_id", eventId)
+      return NextResponse.json({ ok: true, paid: true })
     }
-  }
+
+    const leadEmail = String((lead as any).email || "").trim()
+    const leadName = String((lead as any).full_name || "").trim()
+    const leadPhone = String((lead as any).phone || "").trim()
+    const normalizedHost = String((lead as any).normalized_host || "").trim()
+
+    if (!leadEmail) {
+      await admin
+        .from("auditor_billing_events")
+        .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "lead_email_missing" } } as any)
+        .eq("provider", providerKey)
+        .eq("event_id", eventId)
+      return NextResponse.json({ ok: true, paid: true })
+    }
+
+    // Create or reuse buyer company (companies.email is unique in this repo).
+    const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmail).maybeSingle()
+    companyId = existingCompany?.id ? String(existingCompany.id) : null
+
+    if (!companyId) {
+      const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
+      const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
+
+      const { data: insertedCompany, error: insErr } = await admin
+        .from("companies")
+        .insert({
+          company_name: companyName,
+          business_type: "other",
+          tax_id: null,
+          contact_first_name: firstName,
+          contact_full_name: leadName || firstName,
+          email: leadEmail,
+          mobile_phone: leadPhone || null,
+          status: "active",
+          auth_user_id: null,
+        } as any)
+        .select("id")
+        .single()
+
+      if (insErr || !insertedCompany?.id) {
+        // Race: someone else created the company; retry select.
+        const { data: again } = await admin.from("companies").select("id").eq("email", leadEmail).maybeSingle()
+        companyId = again?.id ? String(again.id) : null
+      } else {
+        companyId = String(insertedCompany.id)
+      }
+    }
 
   if (!companyId) {
     await admin
@@ -209,55 +224,57 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, paid: true })
   }
 
-  // Attach lead + checkout session to company for internal traceability.
-  try {
-    await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String(lead.id))
-  } catch {
-    // ignore
-  }
-  try {
-    await admin.from("auditor_checkout_sessions").update({ company_id: companyId } as any).eq("id", String(checkout.id))
-  } catch {
-    // ignore
-  }
-
-  // Invite (magic link) user to access dashboard; if fails, subscription is still created for the company.
-  let invitedUserId: string | null = null
-  try {
-    const billingCfg = getAuditorBillingConfig()
-    const redirectTo = `${String(billingCfg.publicBaseUrl || new URL(req.url).origin).replace(/\/+$/, "")}/auditor/dashboard`
-    const inv = await (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
-      data: { full_name: leadName || null },
-      redirectTo,
-    })
-    invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
-  } catch {
-    invitedUserId = null
-  }
-
-  if (invitedUserId) {
+    // Attach lead + checkout session to company for internal traceability.
     try {
-      await admin.from("companies").update({ auth_user_id: invitedUserId } as any).eq("id", companyId)
+      await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
     } catch {
       // ignore
     }
     try {
-      await admin.from("company_members").upsert(
-        {
-          company_id: companyId,
-          user_id: invitedUserId,
-          role: "owner",
-          accepted_at: new Date().toISOString(),
-        } as any,
-        { onConflict: "company_id,user_id" }
-      )
+      await admin.from("auditor_checkout_sessions").update({ company_id: companyId } as any).eq("id", String(checkout.id))
     } catch {
       // ignore
     }
+
+    // Invite (magic link) user to access dashboard; if fails, subscription is still created for the company.
+    let invitedUserId: string | null = null
     try {
-      await admin.from("auditor_checkout_sessions").update({ user_id: invitedUserId } as any).eq("id", String(checkout.id))
+      const billingCfg = getAuditorBillingConfig()
+      const redirectTo = `${String(billingCfg.publicBaseUrl || new URL(req.url).origin).replace(/\/+$/, "")}/auditor/dashboard`
+      const inv = await (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
+        data: { full_name: leadName || null },
+        redirectTo,
+      })
+      invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
     } catch {
-      // ignore
+      invitedUserId = null
+    }
+
+    if (invitedUserId) {
+      userId = invitedUserId
+      try {
+        await admin.from("companies").update({ auth_user_id: invitedUserId } as any).eq("id", companyId)
+      } catch {
+        // ignore
+      }
+      try {
+        await admin.from("company_members").upsert(
+          {
+            company_id: companyId,
+            user_id: invitedUserId,
+            role: "owner",
+            accepted_at: new Date().toISOString(),
+          } as any,
+          { onConflict: "company_id,user_id" }
+        )
+      } catch {
+        // ignore
+      }
+      try {
+        await admin.from("auditor_checkout_sessions").update({ user_id: invitedUserId } as any).eq("id", String(checkout.id))
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -271,7 +288,7 @@ export async function GET(req: Request) {
     .upsert(
       {
         company_id: companyId,
-        user_id: invitedUserId,
+        user_id: userId,
         provider: "cardcom",
         token_enc: tokenEnc,
         token_hash: tokenHash,

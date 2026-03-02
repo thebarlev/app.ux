@@ -7,7 +7,7 @@ export default async function AuditorDashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  if (!user) redirect("/auditor/login")
 
   // Paid read-only: list scans by company via existing membership function.
   const { data: companyRows } = await supabase.rpc("user_company_ids")

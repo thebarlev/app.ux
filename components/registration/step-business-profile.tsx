@@ -42,7 +42,7 @@ const INDUSTRIES = [
   "אירועים",
 ]
 
-export function StepBusinessProfile() {
+export function StepBusinessProfile(props?: { afterCompleteRedirectTo?: string; signOutBeforeRedirect?: boolean }) {
   const router = useRouter()
   const { data, updateData, prevStep, isLoading, setIsLoading, error, setError } = useRegistration()
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -205,11 +205,16 @@ export function StepBusinessProfile() {
       }
 
       // 3) Requirement: after Step 2 approval go to login.
-      try {
-        await supabase.auth.signOut()
-      } catch {}
+      const redirectTo = String(props?.afterCompleteRedirectTo || "/login")
+      const shouldSignOut = typeof props?.signOutBeforeRedirect === "boolean" ? props.signOutBeforeRedirect : true
 
-      router.replace("/login")
+      if (shouldSignOut) {
+        try {
+          await supabase.auth.signOut()
+        } catch {}
+      }
+
+      router.replace(redirectTo)
     } catch (e: any) {
       setError(e?.message ? `שגיאה: ${e.message}` : "שגיאה לא צפויה")
       setIsLoading(false)

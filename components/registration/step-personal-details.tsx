@@ -18,6 +18,7 @@ interface StepPersonalDetailsProps {
   marketingText: string
   requireLegalTermsRequired: boolean
   requireMarketingRequired: boolean
+  loginHref?: string
 }
 
 export function StepPersonalDetails({ 
@@ -25,6 +26,7 @@ export function StepPersonalDetails({
   marketingText,
   requireLegalTermsRequired,
   requireMarketingRequired,
+  loginHref,
 }: StepPersonalDetailsProps) {
   const { data, updateData, nextStep, error, setError } = useRegistration()
   const [showPassword, setShowPassword] = useState(false)
@@ -196,7 +198,7 @@ export function StepPersonalDetails({
           {errors.email && emailExists && (
             <div className="mt-2">
               <Link 
-                href="/login" 
+                href={loginHref || "/login"}
                 className="auth-link inline-flex items-center gap-1"
               >
                 ← חזרה להתחברות
