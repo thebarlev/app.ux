@@ -1,7 +1,5 @@
-import { getSystemText } from "@/lib/system-texts"
-import { RegistrationProvider } from "@/components/registration/registration-context"
-import { RegistrationFlowClient } from "@/components/registration/registration-flow-client"
 import { createClient } from "@/lib/supabase/server"
+import AuditorRegisterClient from "./AuditorRegisterClient"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -13,24 +11,19 @@ export default async function AuditorRegisterPage({
 }) {
   const sp = await searchParams
   const linkId = typeof sp?.link_id === "string" ? sp.link_id.trim() : ""
-  const loginHref = linkId ? `/auditor/login?link_id=${encodeURIComponent(linkId)}` : "/auditor/login"
-  const afterCompleteRedirectTo = linkId ? `/auditor/checkout?link_id=${encodeURIComponent(linkId)}` : "/auditor/checkout"
 
   const supabase = await createClient()
 
-  const legalTermsText = await getSystemText(
-    "registration_legal_terms_text",
-    "אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות, ולנספח שימוש בשירות הפקת מסמכים דיגיטליים",
-    "he",
-    "registration"
-  )
-
-  const marketingText = await getSystemText(
-    "registration_marketing_text",
-    "אני רוצה לקבל מכם למייל הטבות ומידע שיווקי",
-    "he",
-    "registration"
-  )
+  // NOTE: For Auditor marketing flow, all strings are owned by this page (not system-texts),
+  // so changes are fully controlled per product/route.
+  const titleText = "הרשמה ל‑Auditor"
+  const descriptionText = "השאירו פרטים כדי להמשיך לתשלום מאובטח"
+  const legalTermsText = "אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות, ולנספח שימוש בשירות"
+  const marketingText = "אני רוצה לקבל מכם למייל הטבות ומידע שיווקי"
+  const submitButtonText = "המשך לתשלום"
+  const submitLoadingText = "נרשמים…"
+  const footerQuestion = "כבר יש לך חשבון?"
+  const footerLoginLinkText = "התחברות"
 
   const { data: legalTermsSetting } = await supabase
     .from("global_settings")
@@ -48,21 +41,18 @@ export default async function AuditorRegisterPage({
   const requireMarketingRequired = marketingSetting?.setting_value === "true"
 
   return (
-    <div className="auth-scope">
-      <RegistrationProvider>
-        <RegistrationFlowClient
-          legalTermsText={legalTermsText}
-          marketingText={marketingText}
-          requireLegalTermsRequired={requireLegalTermsRequired}
-          requireMarketingRequired={requireMarketingRequired}
-          basePath="/auditor"
-          afterCompleteRedirectTo={afterCompleteRedirectTo}
-          signOutBeforeRedirect={false}
-        />
-      </RegistrationProvider>
-      {/* Force correct login link for this context (registration-flow also has a footer link). */}
-      <style>{""}</style>
-    </div>
+    <AuditorRegisterClient
+      titleText={titleText}
+      descriptionText={descriptionText}
+      legalTermsText={legalTermsText}
+      marketingText={marketingText}
+      submitButtonText={submitButtonText}
+      submitLoadingText={submitLoadingText}
+      footerQuestion={footerQuestion}
+      footerLoginLinkText={footerLoginLinkText}
+      requireLegalTermsRequired={requireLegalTermsRequired}
+      requireMarketingRequired={requireMarketingRequired}
+    />
   )
 }
 
