@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -780,12 +781,7 @@ export default function AuditorHomeClient() {
   // Step 1
   const [siteUrl, setSiteUrl] = useState("")
 
-  // Step 2
-  const [fullName, setFullName] = useState("")
-  const [email, setEmail] = useState("")
-  const [phone, setPhone] = useState("")
-  const [consentTerms, setConsentTerms] = useState(false)
-  const [consentContact, setConsentContact] = useState(false)
+  // Step 2: no lead form — user goes to /auditor/register
 
   // Step 3
   const [scanId, setScanId] = useState<string | null>(null)
@@ -799,15 +795,6 @@ export default function AuditorHomeClient() {
   const continuingRef = useRef(false)
 
   const canGoToDetails = useMemo(() => siteUrl.trim().length > 0 && !isSubmitting, [siteUrl, isSubmitting])
-  const canSubmitLead = useMemo(() => {
-    if (isSubmitting) return false
-    if (!siteUrl.trim()) return false
-    if (!fullName.trim()) return false
-    if (!email.trim()) return false
-    if (!phone.trim()) return false
-    if (!consentTerms) return false
-    return true
-  }, [isSubmitting, siteUrl, fullName, email, phone, consentTerms, consentContact])
 
   const step2OkStatus = useMemo(() => (step === 2 && status && status.ok === true ? status : null), [step, status])
   const step2HasScreenshot = Boolean(step2OkStatus?.screenshot_url)
@@ -860,41 +847,6 @@ export default function AuditorHomeClient() {
         const st = await loadStatus(sid, t)
         if ((st as any)?.ok === true && (st as any).screenshot_url) break
       }
-    } catch (e: any) {
-      setError(String(e?.message || e))
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const onSubmit = async () => {
-    setError(null)
-    setIsSubmitting(true)
-    try {
-      const r = await fetch("/api/auditor/lead-and-scan", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          url: siteUrl.trim(),
-          full_name: fullName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          consent_terms: consentTerms,
-          consent_contact: consentContact,
-          scanId: scanId || undefined,
-          scanAccessToken: token || undefined,
-        }),
-      })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
-      const newScanId = String(j?.scanId || "").trim()
-      const newToken = String(j?.scanAccessToken || "").trim()
-      if (!newScanId || !newToken) throw new Error("Missing scanId/token")
-
-      setScanId(newScanId)
-      setToken(newToken)
-      setStep(3)
-      router.replace(`/auditor?scanId=${encodeURIComponent(newScanId)}&token=${encodeURIComponent(newToken)}`)
     } catch (e: any) {
       setError(String(e?.message || e))
     } finally {
@@ -1369,53 +1321,23 @@ export default function AuditorHomeClient() {
 
           <div className="w-full max-w-md space-y-1 text-center">
             <h2 className="">רוצים לראות את הדוח המלא?</h2>
-            <h3 className="text-[18px] ">
-              השאירו פרטים ונציג לכם מה צריך לשפר כדי להופיע יותר בגוגל וב‑AI. מיד לאחר מכן תעברו לשלב הדוח.
+            <h3 className="text-[18px]">
+              הירשמו, שלמו ותעברו ישר לדוח המלא עם כל התוצאות וההמלצות.
             </h3>
           </div>
 
-          {/* Lead form */}
-          <div className="w-full max-w-md space-y-5 text-right">
-          <div className="space-y-1">
-    <div className="text-[18px] text-sm font-medium">שם מלא</div>
-    <Input value={fullName} onChange={(e) => setFullName(e.target.value)}
-      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-right focus-visible:ring-0" />
-  </div>
-  <div className="space-y-1">
-    <div className="text-[18px] text-sm font-medium">דוא״ל</div>
-    <Input value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr"
-      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-left focus-visible:ring-0" />
-  </div>
-  <div className="space-y-1">
-    <div className="text-[18px] text-sm font-medium">נייד</div>
-    <Input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr"
-      className="bg-white h-12 rounded-none border border-black/40 bg-transparent text-left focus-visible:ring-0" />
-  </div>
-            <div className="space-y-3 pt-2 w-full" dir="rtl">
-  <label className="flex items-start gap-2 text-xs md:text-sm w-full">
-    <Checkbox checked={consentTerms} onCheckedChange={(v) => setConsentTerms(Boolean(v))} />
-    <span>אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות.</span>
-  </label>
-  <label className="flex items-start gap-2 text-xs md:text-sm w-full">
-    <Checkbox checked={consentContact} onCheckedChange={(v) => setConsentContact(Boolean(v))} />
-    <span>אני רוצה לקבל מכם מייל עם מידע שיווקי*</span>
-  </label>
-</div>
-
-            <Button
-              onClick={onSubmit}
-              disabled={!canSubmitLead}
-              className="h-14 w-full rounded-none bg-black text-base text-white hover:bg-black/90"
+          {/* CTA: go to register → payment → Step 3 */}
+          <div className="w-full max-w-md">
+            <Link
+              href={
+                scanId && token
+                  ? `/auditor/register?link_id=a_basic&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : "/auditor/register?link_id=a_basic"
+              }
+              className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
             >
-              {isSubmitting ? (
-                <span className="inline-flex items-center justify-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  שולח...
-                </span>
-              ) : (
-                "הרשמה"
-              )}
-            </Button>
+              הרשמה והמשך לתשלום
+            </Link>
           </div>
         </div>
       )}

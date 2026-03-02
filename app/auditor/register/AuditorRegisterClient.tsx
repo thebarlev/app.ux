@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
@@ -12,6 +12,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
 
 export default function AuditorRegisterClient(props: {
+  linkId: string
+  scanId: string
+  token: string
   titleText: string
   descriptionText: string
   legalTermsText: string
@@ -24,11 +27,21 @@ export default function AuditorRegisterClient(props: {
   requireMarketingRequired: boolean
 }) {
   const router = useRouter()
-  const sp = useSearchParams()
 
-  const linkId = useMemo(() => String(sp.get("link_id") || "").trim(), [sp])
+  const linkId = String(props.linkId || "").trim()
+  const scanId = String(props.scanId || "").trim()
+  const token = String(props.token || "").trim()
+
   const loginHref = linkId ? `/auditor/login?link_id=${encodeURIComponent(linkId)}` : "/auditor/login"
-  const after = linkId ? `/auditor/checkout?link_id=${encodeURIComponent(linkId)}` : "/auditor/checkout"
+  const afterCheckout = useMemo(() => {
+    const base = "/auditor/checkout"
+    const params = new URLSearchParams()
+    if (linkId) params.set("link_id", linkId)
+    if (scanId) params.set("scanId", scanId)
+    if (token) params.set("token", token)
+    const qs = params.toString()
+    return qs ? `${base}?${qs}` : base
+  }, [linkId, scanId, token])
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
@@ -42,7 +55,7 @@ export default function AuditorRegisterClient(props: {
 
   useEffect(() => {
     setError(null)
-  }, [linkId])
+  }, [linkId, scanId, token])
 
   const validate = () => {
     if (!fullName.trim()) return "נא למלא שם מלא"
@@ -96,7 +109,7 @@ export default function AuditorRegisterClient(props: {
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
 
-      router.replace(after)
+      router.replace(afterCheckout)
       router.refresh()
       return
     } catch (e: any) {

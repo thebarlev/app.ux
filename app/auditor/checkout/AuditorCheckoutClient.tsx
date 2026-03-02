@@ -4,12 +4,19 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 
-export default function AuditorCheckoutClient(props: { linkId: string; checkout: string }) {
+export default function AuditorCheckoutClient(props: {
+  linkId: string
+  checkout: string
+  scanId: string
+  token: string
+}) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(true)
 
   const linkId = useMemo(() => String(props.linkId || "").trim(), [props.linkId])
+  const scanId = useMemo(() => String(props.scanId || "").trim(), [props.scanId])
+  const token = useMemo(() => String(props.token || "").trim(), [props.token])
 
   useEffect(() => {
     let cancelled = false
@@ -18,14 +25,18 @@ export default function AuditorCheckoutClient(props: { linkId: string; checkout:
       setIsWorking(true)
       setError(null)
 
-      // If already subscribed, go to dashboard.
+      // If already subscribed: go to Step 3 (scan report) when scanId+token, else dashboard.
       try {
         const r = await fetch("/api/auditor/billing/subscription/status", { method: "GET" })
         const j = await r.json().catch(() => null)
         if (r.ok && j?.ok === true && j?.has_subscription === true) {
           const status = String(j?.status || "")
           if (status === "active") {
-            router.replace("/auditor/dashboard")
+            if (scanId && token) {
+              router.replace(`/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`)
+            } else {
+              router.replace("/auditor/dashboard")
+            }
             return
           }
         }
@@ -40,11 +51,20 @@ export default function AuditorCheckoutClient(props: { linkId: string; checkout:
       }
 
       try {
+        const origin = typeof window !== "undefined" ? window.location.origin : ""
+        const successUrl =
+          scanId && token
+            ? `${origin}/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+            : `${origin}/auditor/dashboard?checkout=success`
+        const errorParams = new URLSearchParams({ checkout: "error" })
+        if (linkId) errorParams.set("link_id", linkId)
+        if (scanId) errorParams.set("scanId", scanId)
+        if (token) errorParams.set("token", token)
         const body = {
           link_id: linkId,
           created_from_url: typeof window !== "undefined" ? window.location.href : null,
-          success_url: `${window.location.origin}/auditor/dashboard?checkout=success`,
-          error_url: `${window.location.origin}/auditor/checkout?checkout=error&link_id=${encodeURIComponent(linkId)}`,
+          success_url: successUrl,
+          error_url: `${origin}/auditor/checkout?${errorParams.toString()}`,
         }
 
         const r = await fetch("/api/auditor/billing/checkout/start", {
@@ -69,7 +89,7 @@ export default function AuditorCheckoutClient(props: { linkId: string; checkout:
     return () => {
       cancelled = true
     }
-  }, [linkId, router])
+  }, [linkId, scanId, token, router])
 
   return (
     <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">

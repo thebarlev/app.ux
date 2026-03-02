@@ -7,10 +7,12 @@ export const dynamic = "force-dynamic"
 export default async function AuditorRegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ link_id?: string }>
+  searchParams: Promise<{ link_id?: string; scanId?: string; token?: string }>
 }) {
   const sp = await searchParams
-  const linkId = typeof sp?.link_id === "string" ? sp.link_id.trim() : ""
+  const linkId = (typeof sp?.link_id === "string" ? sp.link_id.trim() : "") || "a_basic"
+  const scanId = typeof sp?.scanId === "string" ? sp.scanId.trim() : ""
+  const token = typeof sp?.token === "string" ? sp.token.trim() : ""
 
   const supabase = await createClient()
 
@@ -42,6 +44,9 @@ export default async function AuditorRegisterPage({
 
   return (
     <AuditorRegisterClient
+      linkId={linkId}
+      scanId={scanId}
+      token={token}
       titleText={titleText}
       descriptionText={descriptionText}
       legalTermsText={legalTermsText}
