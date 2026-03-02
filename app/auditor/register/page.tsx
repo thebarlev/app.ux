@@ -1,7 +1,6 @@
 import { getSystemText } from "@/lib/system-texts"
-import { RegistrationProvider } from "@/components/registration/registration-context"
-import { RegistrationFlowClient } from "@/components/registration/registration-flow-client"
 import { createClient } from "@/lib/supabase/server"
+import AuditorRegisterClient from "./AuditorRegisterClient"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -11,11 +10,6 @@ export default async function AuditorRegisterPage({
 }: {
   searchParams: Promise<{ link_id?: string }>
 }) {
-  const sp = await searchParams
-  const linkId = typeof sp?.link_id === "string" ? sp.link_id.trim() : ""
-  const loginHref = linkId ? `/auditor/login?link_id=${encodeURIComponent(linkId)}` : "/auditor/login"
-  const afterCompleteRedirectTo = linkId ? `/auditor/checkout?link_id=${encodeURIComponent(linkId)}` : "/auditor/checkout"
-
   const supabase = await createClient()
 
   const legalTermsText = await getSystemText(
@@ -48,21 +42,12 @@ export default async function AuditorRegisterPage({
   const requireMarketingRequired = marketingSetting?.setting_value === "true"
 
   return (
-    <div className="auth-scope">
-      <RegistrationProvider>
-        <RegistrationFlowClient
-          legalTermsText={legalTermsText}
-          marketingText={marketingText}
-          requireLegalTermsRequired={requireLegalTermsRequired}
-          requireMarketingRequired={requireMarketingRequired}
-          basePath="/auditor"
-          afterCompleteRedirectTo={afterCompleteRedirectTo}
-          signOutBeforeRedirect={false}
-        />
-      </RegistrationProvider>
-      {/* Force correct login link for this context (registration-flow also has a footer link). */}
-      <style>{""}</style>
-    </div>
+    <AuditorRegisterClient
+      legalTermsText={legalTermsText}
+      marketingText={marketingText}
+      requireLegalTermsRequired={requireLegalTermsRequired}
+      requireMarketingRequired={requireMarketingRequired}
+    />
   )
 }
 
