@@ -15,6 +15,8 @@ export function LoginForm(props: {
   afterLoginRedirectTo: string
   registerHref: string
   forgotPasswordHref?: string
+  titleText?: string
+  descriptionText?: string
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -94,6 +96,8 @@ export function LoginForm(props: {
   }
 
   const forgotHref = props.forgotPasswordHref || "/forgot-password"
+  const titleText = (props.titleText || "התחברות לחשבון").trim()
+  const descriptionText = (props.descriptionText || "הזן את פרטי ההתחברות שלך כדי להמשיך").trim()
 
   return (
     <div className="auth-scope">
@@ -106,9 +110,9 @@ export function LoginForm(props: {
           <Card className="shadow-ui-lg auth-card">
             <CardHeader className="pb-4 mb-[15px]">
               <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
-                התחברות לחשבון
+                {titleText}
               </CardTitle>
-              <CardDescription className="mr-6  text-right">הזן את פרטי ההתחברות שלך כדי להמשיך</CardDescription>
+              <CardDescription className="mr-6  text-right">{descriptionText}</CardDescription>
             </CardHeader>
 
             <CardContent>

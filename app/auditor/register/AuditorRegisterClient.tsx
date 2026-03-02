@@ -12,8 +12,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
 
 export default function AuditorRegisterClient(props: {
+  titleText: string
+  descriptionText: string
   legalTermsText: string
   marketingText: string
+  submitButtonText: string
+  submitLoadingText: string
+  footerQuestion: string
+  footerLoginLinkText: string
   requireLegalTermsRequired: boolean
   requireMarketingRequired: boolean
 }) {
@@ -62,7 +68,7 @@ export default function AuditorRegisterClient(props: {
     try {
       const supabase = createClient()
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -82,7 +88,6 @@ export default function AuditorRegisterClient(props: {
         return
       }
 
-      // Ensure company exists for this user (service-side bootstrap).
       const r = await fetch("/api/auditor/auth/bootstrap-company", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -91,7 +96,6 @@ export default function AuditorRegisterClient(props: {
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
 
-      // Proceed to checkout (user is signed-in after signUp in most Supabase configs).
       router.replace(after)
       router.refresh()
       return
@@ -113,9 +117,9 @@ export default function AuditorRegisterClient(props: {
           <Card className="shadow-ui-lg auth-card">
             <CardHeader className="pb-4 mb-[15px]">
               <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
-                הרשמה ל‑Auditor
+                {props.titleText}
               </CardTitle>
-              <CardDescription className="mr-6 text-right">השאירו פרטים כדי להמשיך לתשלום מאובטח</CardDescription>
+              <CardDescription className="mr-6 text-right">{props.descriptionText}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="auth-form" noValidate>
@@ -128,7 +132,7 @@ export default function AuditorRegisterClient(props: {
                     {String(error || "").includes("כבר רשומה") ? (
                       <span className="inline-flex gap-1">
                         <Link className="auth-link underline" href={loginHref}>
-                          התחברות
+                          {props.footerLoginLinkText}
                         </Link>
                       </span>
                     ) : null}
@@ -228,17 +232,17 @@ export default function AuditorRegisterClient(props: {
                   {isLoading ? (
                     <>
                       <Loader2 size={19} className="h-[19px] w-[19px] shrink-0 animate-spin ml-2" />
-                      נרשמים…
+                      {props.submitLoadingText}
                     </>
                   ) : (
-                    "המשך לתשלום"
+                    props.submitButtonText
                   )}
                 </Button>
 
                 <div className="mt-4 text-center text-sm">
-                  כבר יש לך חשבון?{" "}
+                  {props.footerQuestion}{" "}
                   <Link href={loginHref} className="auth-link">
-                    התחברות
+                    {props.footerLoginLinkText}
                   </Link>
                 </div>
               </form>
