@@ -7,9 +7,7 @@ export default async function AuditorLayout({ children }: { children: React.Reac
   if (!cfg.enabled) notFound()
 
   return (
-    <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">
-      <div className="mx-auto max-w-5xl">{children}</div>
-    </main>
+    <main className="min-h-svh bg-[#F7F3EE]">{children}</main>
   )
 }
 
