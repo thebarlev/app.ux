@@ -8,18 +8,28 @@ import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { processCardcomIndicatorEvent } from "@/lib/auditor/billing/process-indicator-event"
 
 const BATCH_LIMIT = 3
-const MAX_MS = 240_000 // 240 seconds - stop before 300s Vercel limit
+const MAX_MS = 240_000 // stop before 300s Vercel limit
+
+// Read once (avoid throwing inside auth checks)
+let CRON_SECRET: string | null = null
+try {
+  CRON_SECRET = getAuditorBillingConfig().cronSecret || null
+} catch {
+  CRON_SECRET = null
+}
 
 function isAuthorized(req: Request): boolean {
-  // Vercel Cron sends this header (no secret)
-  const isVercelCron = req.headers.get("x-vercel-cron") === "1"
+  // Vercel Cron identification
+  const ua = req.headers.get("user-agent") || ""
+  const isVercelCron = ua.startsWith("vercel-cron/") || !!req.headers.get("x-vercel-cron-schedule")
   if (isVercelCron) return true
 
   // Optional: external cron with secret
-  const billingSecret = getAuditorBillingConfig().cronSecret
-  const got = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
-  if (billingSecret && got === billingSecret) return true
+  const got =
+    req.headers.get("x-cron-secret") ||
+    (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "")
 
+  if (CRON_SECRET && got && got === CRON_SECRET) return true
   return false
 }
 
@@ -31,43 +41,26 @@ async function handler(req: Request) {
   const admin = createAdminClient()
   const t0 = Date.now()
 
-  // 1) Atomic claim via RPC (run script 085 first). Fallback: select + update if RPC missing.
-  let events: { provider: string; event_id: string; payload: any }[] = []
+  // 1) Atomic claim via RPC (script 085)
   const { data: toProcess, error: lockErr } = await admin.rpc("auditor_billing_events_claim_pending", {
     p_provider: "cardcom",
     p_limit: BATCH_LIMIT,
   } as any)
 
-  if (!lockErr && Array.isArray(toProcess) && toProcess.length > 0) {
-    events = toProcess
-  } else {
-    // Fallback before migration 085: select + update. Run script 085 for atomic lock.
-    const { data: rows } = await admin
-      .from("auditor_billing_events")
-      .select("provider, event_id, payload")
-      .eq("provider", "cardcom")
-      .eq("status", "received")
-      .is("processed_at", null)
-      .order("received_at", { ascending: true })
-      .limit(BATCH_LIMIT)
+  const events: { provider: string; event_id: string; payload: any }[] =
+    !lockErr && Array.isArray(toProcess) ? toProcess : []
 
-    if (rows?.length) {
-      const eventIds = rows.map((r: any) => r.event_id)
-      const { error: updErr } = await admin
-        .from("auditor_billing_events")
-        .update({ status: "processing", processing_started_at: new Date().toISOString() } as any)
-        .eq("provider", "cardcom")
-        .in("event_id", eventIds)
-
-      if (!updErr) events = rows
-    }
+  // If RPC missing, fail fast (avoid non-atomic double-processing in prod)
+  if (events.length === 0 && lockErr) {
+    console.error("[AUDITOR_PROCESS] claim RPC failed", { error: (lockErr as any)?.message || String(lockErr) })
+    return NextResponse.json({ ok: false, error: "claim_failed" }, { status: 500 })
   }
 
   const results: { event_id: string; ok: boolean; error?: string }[] = []
 
   for (const ev of events) {
     if (Date.now() - t0 > MAX_MS) {
-      console.warn("[AUDITOR_PROCESS] Stopping: time limit reached", { processed: results.length })
+      console.warn("[AUDITOR_PROCESS] stop: time limit reached", { processed: results.length })
       break
     }
 
@@ -75,10 +68,10 @@ async function handler(req: Request) {
     const payload = (ev as any).payload || {}
 
     try {
-      const result = await processCardcomIndicatorEvent(admin, eventId, payload)
-      results.push({ event_id: eventId, ok: result.ok, error: result.error })
+      const r = await processCardcomIndicatorEvent(admin, eventId, payload)
+      results.push({ event_id: eventId, ok: !!r.ok, error: r.error })
     } catch (e: any) {
-      console.error("[AUDITOR_PROCESS] Event failed", { eventId, error: e?.message })
+      console.error("[AUDITOR_PROCESS] event failed", { eventId, error: String(e?.message || e) })
       results.push({ event_id: eventId, ok: false, error: String(e?.message || e) })
     }
   }
@@ -87,10 +80,6 @@ async function handler(req: Request) {
 }
 
 export async function GET(req: Request) {
-  console.log("[CRON DEBUG]", {
-    x_vercel_cron: req.headers.get("x-vercel-cron"),
-    headers: Object.fromEntries(req.headers.entries()),
-  })
   return handler(req)
 }
 
