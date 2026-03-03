@@ -9,6 +9,7 @@ import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
 import { runRulesAndScore } from "../rules/runner"
 import { buildPublicReport, type ConfidenceLevel } from "../report/public"
+import { buildAdminReport } from "../report/admin"
 import { applyCompanyWhere, applyScanWhere } from "../db/scanWhere"
 import { captureSiteScreenshot } from "../screenshot"
 
@@ -614,6 +615,15 @@ export async function continueAuditorScan(params: {
 
     // Step: rules (compute + persist rule rows + score)
     if (step === "rules") {
+      // Load existing rules BEFORE delete (fallback if runRulesAndScore returns empty)
+      let rulesFromDb: Array<{ rule_key: string; category: string; status: string; impact: string; effort: string; recommendation_he: string; evidence: unknown }> = []
+      {
+        let qRules = supabase.from("auditor_scan_rules").select("rule_key,category,status,impact,effort,recommendation_he,evidence").eq("scan_id", scanId)
+        qRules = applyCompanyWhere(qRules, companyId)
+        const { data: existing } = await qRules
+        rulesFromDb = Array.isArray(existing) ? existing : []
+      }
+
       let q = supabase
         .from("auditor_scan_pages")
         .select("url,path,title,meta_description,canonical,extracted,lang,dir,has_og,has_twitter,jsonld_types,tracking")
@@ -623,6 +633,7 @@ export async function continueAuditorScan(params: {
       q = applyCompanyWhere(q, companyId)
       const { data: pages } = await q
 
+      const pagesArr = Array.isArray(pages) ? pages : []
       const ctx = {
         scan: {
           target_url: targetUrl,
@@ -630,10 +641,27 @@ export async function continueAuditorScan(params: {
           hostname: hostLock,
           artifacts: artifacts,
         },
-        pages: (pages || []) as any[],
+        pages: pagesArr as any[],
       }
 
       const { rules, scoreTotal, scoreBreakdown } = runRulesAndScore(ctx)
+
+      // Guardrails: log when rules unexpectedly empty (no sensitive data)
+      const rulesRawCount = rules.length
+      const pagesCount = pagesArr.length
+      if (rulesRawCount === 0 && (pagesCount > 0 || rulesFromDb.length > 0)) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "rules:empty_unexpected",
+          data: { rulesRawCount, pagesCount, rulesFromDbCount: rulesFromDb.length },
+        })
+        if (process.env.NODE_ENV === "development" && process.env.AUDITOR_STRICT_REPORT === "1") {
+          throw new Error(`[auditor] rules empty but pages=${pagesCount} rulesFromDb=${rulesFromDb.length}`)
+        }
+      }
 
       await supabase.from("auditor_scan_rules").delete().eq("scan_id", scanId)
 
@@ -693,21 +721,84 @@ export async function continueAuditorScan(params: {
         warning,
       })
 
-      await applyScanWhere(
+      // Use rules from runRulesAndScore; fallback to DB if empty (e.g. crash recovery)
+      const rulesForReport =
+        rules.length > 0
+          ? rules.map((r) => ({
+              rule_key: r.rule_key,
+              category: r.category,
+              status: r.status,
+              impact: r.impact,
+              effort: r.effort,
+              recommendation_he: r.recommendation_he,
+              evidence: r.evidence,
+            }))
+          : rulesFromDb.map((r) => ({
+              rule_key: r.rule_key,
+              category: r.category,
+              status: r.status,
+              impact: r.impact,
+              effort: r.effort,
+              recommendation_he: r.recommendation_he,
+              evidence: r.evidence,
+            }))
+
+      const issuesOverview =
+        rulesForReport.length > 0
+          ? rulesForReport
+              .filter((r) => r.status === "fail" || r.status === "warn")
+              .map((r) => r.recommendation_he)
+              .filter(Boolean)
+          : []
+      const adminReport = buildAdminReport({
+        score_total: scoreTotal,
+        score_search: scoreSearch,
+        score_ai: scoreAi,
+        score_breakdown: scoreBreakdown,
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        rules: rulesForReport,
+        total_pages: totalCount,
+        extracted_pages: extractedCount,
+        confidence_level: confidenceLevel,
+        warning,
+        issues_overview: issuesOverview.length > 0 ? issuesOverview : ["לא נמצאו בעיות מהותיות בבדיקה הראשונית."],
+      })
+
+      const updateQuery = applyScanWhere(
         supabase.from("auditor_scans").update({
           score_total: scoreTotal,
           score_breakdown: scoreBreakdown,
           coverage: { total_pages: totalCount, extracted_pages: extractedCount },
           confidence: { level: confidenceLevel, warning },
           report_public: publicReport,
+          report_admin: adminReport,
           step: "persist",
           updated_at: nowIso(),
         }),
         scanId,
         companyId
       )
+      const { error: updateErr } = await updateQuery
 
-      await auditorLog({ supabase, scanId, companyId, message: "rules:done", data: { scoreTotal, scoreBreakdown } })
+      if (updateErr) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "rules:update_failed",
+          data: { message: updateErr.message, code: updateErr.code },
+        })
+        throw new Error(`auditor_scans update failed: ${updateErr.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "rules:done",
+        data: { scoreTotal, scoreBreakdown, rulesCount: rulesForReport.length },
+      })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
