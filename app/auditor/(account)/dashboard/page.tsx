@@ -29,7 +29,6 @@ export default async function AuditorDashboardPage() {
 
   return (
     <div dir="rtl" className="space-y-6">
-      {/* Score card + CTA text */}
       <div className="space-y-4">
         <p className="text-right text-lg text-muted-foreground">
           אנחנו מתחילים לשפר את החשיפה של העסק שלך ב-AI וב-SEO
@@ -80,7 +79,6 @@ export default async function AuditorDashboardPage() {
         )}
       </div>
 
-      {/* Company guard */}
       {!companyId ? (
         <Card>
           <CardHeader className="text-right">
@@ -134,4 +132,3 @@ export default async function AuditorDashboardPage() {
     </div>
   )
 }
-

@@ -1,8 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
-import Image from "next/image"
 import { Loader2 } from "lucide-react"
 
 type Invoice = {
@@ -53,14 +51,7 @@ export default function AuditorInvoicesClient() {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div className="flex items-center justify-between">
-        <Link href="/auditor" className="shrink-0">
-          <Image src="/brand/vow.svg" alt="VOW" width={100} height={36} />
-        </Link>
-        <h1 className="text-2xl font-semibold">חשבוניות</h1>
-      </div>
-
+    <>
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -104,10 +95,6 @@ export default function AuditorInvoicesClient() {
           ))}
         </div>
       )}
-
-      <Link href="/auditor" className="inline-block text-sm text-muted-foreground hover:underline">
-        ← חזרה לדוח
-      </Link>
-    </div>
+    </>
   )
 }

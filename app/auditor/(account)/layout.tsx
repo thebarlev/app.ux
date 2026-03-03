@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { AuditorDashboardLayout } from "@/components/layout/AuditorDashboardLayout"
 import { getAuditorConfig } from "@/lib/auditor/env"
 
-export default async function AuditorDashboardLayoutWrapper({
+export default async function AuditorAccountLayout({
   children,
 }: {
   children: React.ReactNode
