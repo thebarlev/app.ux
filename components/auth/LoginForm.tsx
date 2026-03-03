@@ -70,21 +70,35 @@ export function LoginForm(props: {
         return
       }
 
-      // Check if user has a company (business owner). This matches existing behavior.
-      const { data: companyData } = await supabase
-        .from("companies")
-        .select("id, company_name")
-        .eq("auth_user_id", data.user.id)
-        .single()
-
-      if (!companyData) {
+      // Check if user has a company (owner via auth_user_id OR member via company_members).
+      // This allows team members / system admins (e.g. itzik@uxellent.com) who are members
+      // but not owners to log in and access the dashboard.
+      let companyId: string | null = null
+      const { data: membership } = await supabase
+        .from("company_members")
+        .select("company_id")
+        .eq("user_id", data.user.id)
+        .limit(1)
+        .maybeSingle()
+      if (membership?.company_id) {
+        companyId = membership.company_id
+      }
+      if (!companyId) {
+        const { data: companyData } = await supabase
+          .from("companies")
+          .select("id")
+          .eq("auth_user_id", data.user.id)
+          .maybeSingle()
+        companyId = companyData?.id ?? null
+      }
+      if (!companyId) {
         await supabase.auth.signOut()
         setError("לא נמצא חשבון עסקי. נא להירשם תחילה.")
         setIsLoading(false)
         return
       }
 
-      await supabase.from("companies").update({ last_login_at: new Date().toISOString() }).eq("id", companyData.id)
+      await supabase.from("companies").update({ last_login_at: new Date().toISOString() }).eq("id", companyId)
 
       router.push(props.afterLoginRedirectTo)
       router.refresh()
