@@ -2,11 +2,13 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { isSystemAdmin } from "@/lib/security/system-admin"
 
 export default async function AuditorDashboardPage() {
   const supabase = await createClient()
   const { data: companyRows } = await supabase.rpc("user_company_ids")
   const companyId = Array.isArray(companyRows) ? (companyRows[0] as any)?.company_id : null
+  const canViewFullReport = await isSystemAdmin()
 
   let lastScan: { id: string; report_public: any; normalized_host: string } | null = null
   let scans: any[] = []
@@ -60,11 +62,13 @@ export default async function AuditorDashboardPage() {
                   </div>
                 )}
               </div>
-              <Link href={`/auditor/dashboard/scan/${lastScan.id}`} className="mt-4 inline-block">
-                <Button variant="outline" size="sm">
-                  צפה בדוח המלא
-                </Button>
-              </Link>
+              {canViewFullReport && (
+                <Link href={`/auditor/dashboard/scan/${lastScan.id}`} className="mt-4 inline-block">
+                  <Button variant="outline" size="sm">
+                    צפה בדוח המלא (Admin)
+                  </Button>
+                </Link>
+              )}
             </CardContent>
           </Card>
         ) : (

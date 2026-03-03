@@ -25,18 +25,14 @@ export default function AuditorCheckoutClient(props: {
       setIsWorking(true)
       setError(null)
 
-      // If already subscribed: go to Step 3 (scan report) when scanId+token, else dashboard.
+      // If already subscribed: go to dashboard.
       try {
         const r = await fetch("/api/auditor/billing/subscription/status", { method: "GET" })
         const j = await r.json().catch(() => null)
         if (r.ok && j?.ok === true && j?.has_subscription === true) {
           const status = String(j?.status || "")
           if (status === "active") {
-            if (scanId && token) {
-              router.replace(`/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`)
-            } else {
-              router.replace("/auditor/dashboard")
-            }
+            router.replace("/auditor/dashboard")
             return
           }
         }
@@ -52,10 +48,7 @@ export default function AuditorCheckoutClient(props: {
 
       try {
         const origin = typeof window !== "undefined" ? window.location.origin : ""
-        const successUrl =
-          scanId && token
-            ? `${origin}/auditor/success?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-            : `${origin}/auditor/success`
+        const successUrl = `${origin}/auditor/dashboard`
         const errorParams = new URLSearchParams({ checkout: "error" })
         if (linkId) errorParams.set("link_id", linkId)
         if (scanId) errorParams.set("scanId", scanId)

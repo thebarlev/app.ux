@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
 
-  const successUrl = `${publicBaseUrl}/auditor/success?scanId=${encodeURIComponent(parsed.data.scanId)}&token=${encodeURIComponent(parsed.data.token)}`
+  const successUrl = `${publicBaseUrl}/auditor/dashboard`
   const errorUrl = `${publicBaseUrl}/auditor?checkout=error&scanId=${encodeURIComponent(parsed.data.scanId)}&token=${encodeURIComponent(parsed.data.token)}`
   const indicatorUrl = `${publicBaseUrl}/api/auditor/billing/cardcom/indicator`
 

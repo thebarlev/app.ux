@@ -65,3 +65,15 @@ export async function requireSystemAdmin(): Promise<SystemAdminUser> {
   return { userId: user.id, adminId: admin.id, email: (admin as any)?.email ?? user.email ?? null }
 }
 
+/**
+ * Check if current user is system admin (non-throwing).
+ */
+export async function isSystemAdmin(): Promise<boolean> {
+  try {
+    await requireSystemAdmin()
+    return true
+  } catch {
+    return false
+  }
+}
+

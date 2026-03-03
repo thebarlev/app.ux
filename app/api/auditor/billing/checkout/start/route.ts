@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
 
-  const defaultSuccessUrl = `${publicBaseUrl}/auditor/success`
+  const defaultSuccessUrl = `${publicBaseUrl}/auditor/dashboard`
   const defaultErrorUrl = `${publicBaseUrl}/auditor/checkout?checkout=error`
   const indicatorUrl = `${publicBaseUrl}/api/auditor/billing/cardcom/indicator`
 

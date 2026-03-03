@@ -1,7 +1,22 @@
+import { redirect } from "next/navigation"
 import AuditorHomeClient from "./AuditorHomeClient"
 import { Suspense } from "react"
+import { isSystemAdmin } from "@/lib/security/system-admin"
 
-export default function AuditorHomePage() {
+export default async function AuditorHomePage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
+  const scanId = typeof sp?.scanId === "string" ? sp.scanId.trim() : ""
+  const token = typeof sp?.token === "string" ? sp.token.trim() : ""
+
+  if (scanId && token) {
+    const isAdmin = await isSystemAdmin()
+    if (!isAdmin) redirect("/auditor/dashboard")
+  }
+
   return (
     <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">
       <div className="mx-auto max-w-5xl">

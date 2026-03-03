@@ -18,18 +18,8 @@ export default async function AuditorSuccessPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const scanId = typeof searchParams?.scanId === "string" ? searchParams.scanId : null
-  const token = typeof searchParams?.token === "string" ? searchParams.token : null
-
   if (!user) {
-    const returnTo = scanId && token
-      ? `/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-      : "/auditor/dashboard"
-    redirect(`/auditor/login?returnTo=${encodeURIComponent(returnTo)}`)
-  }
-
-  if (scanId && token) {
-    redirect(`/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`)
+    redirect(`/auditor/login?returnTo=${encodeURIComponent("/auditor/dashboard")}`)
   }
 
   redirect("/auditor/dashboard")
