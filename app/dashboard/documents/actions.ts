@@ -121,7 +121,8 @@ export async function getAllDocumentsListAction(
     if (documentStatusFilter === "draft") {
       query = query.eq("document_status", "draft");
     } else if (documentStatusFilter === "nonDraft") {
-      query = query.neq("document_status", "draft");
+      // Include documents where status != 'draft' OR status is null (e.g. auditor-issued invoices)
+      query = query.or("document_status.neq.draft,document_status.is.null");
     }
 
     // Document type filter

@@ -9,6 +9,8 @@
 -- Notes:
 -- - Prices are inclusive of VAT (Israel) per product display; we store totals,
 --   and compute subtotal/vat_amount when these columns exist.
+-- - Create as 'draft' first, insert line items, then finalize (trigger blocks
+--   line-item inserts when parent document_status = 'final').
 -- ====================================================
 
 begin;
@@ -216,7 +218,7 @@ begin
 
   if v_status_col is not null then
     v_cols := array_append(v_cols, v_status_col);
-    v_vals := array_append(v_vals, quote_literal(case when v_status_col = 'status' then 'closed' else 'final' end));
+    v_vals := array_append(v_vals, quote_literal(case when v_status_col = 'status' then 'open' else 'draft' end));
   end if;
 
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='issue_date') then
@@ -289,10 +291,7 @@ begin
     v_vals := array_append(v_vals, quote_literal(0));
   end if;
 
-  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_at') then
-    v_cols := array_append(v_cols, 'finalized_at');
-    v_vals := array_append(v_vals, 'now()');
-  end if;
+  -- finalized_at set in finalize step below (after line items)
 
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_by') then
     v_cols := array_append(v_cols, 'finalized_by');
@@ -307,7 +306,7 @@ begin
   v_sql := 'insert into public.documents (' || array_to_string(v_cols, ',') || ') values (' || array_to_string(v_vals, ',') || ') returning id';
   execute v_sql into v_doc_id;
 
-  -- Line item: plan / period
+  -- Line item: plan / period (must be inserted while document is draft – trigger blocks if final)
   insert into public.document_line_items (
     document_id,
     company_id,
@@ -338,6 +337,17 @@ begin
       'chargeId', p_auditor_charge_id
     )
   );
+
+  -- Finalize document (set status + finalized_at so it appears in non-draft lists)
+  if v_status_col = 'document_status' then
+    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_at') then
+      update public.documents set document_status = 'final', finalized_at = now() where id = v_doc_id;
+    else
+      update public.documents set document_status = 'final' where id = v_doc_id;
+    end if;
+  elsif v_status_col = 'status' then
+    update public.documents set status = 'closed' where id = v_doc_id;
+  end if;
 
   update public.auditor_subscription_charges
   set issued_invoice_id = v_doc_id

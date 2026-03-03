@@ -26,6 +26,11 @@ const toSequenceDocumentType = (documentType: string) => {
   return documentType
 }
 
+/** Auditor billing company ID – invoices are issued under this company. Prefer it when user has access. */
+const AUDITOR_BILLING_COMPANY_ID =
+  (typeof process !== "undefined" && process.env?.AUDITOR_BILLING_ACCOUNT_ID?.trim()) ||
+  "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+
 export async function getCompanyIdForUser(): Promise<string> {
   const supabase = await createClient()
 
@@ -35,40 +40,45 @@ export async function getCompanyIdForUser(): Promise<string> {
     throw new Error("not_authenticated");
   }
 
-  console.log("[getCompanyIdForUser] User ID:", user.id);
+  const companyIds = new Set<string>()
 
-  const { data: membership, error: membershipError } = await supabase
+  // Companies from company_members
+  const { data: memberships, error: membershipError } = await supabase
     .from("company_members")
     .select("company_id")
     .eq("user_id", user.id)
-    .maybeSingle()
 
   if (membershipError) {
     console.error("[getCompanyIdForUser] company_members error:", membershipError)
   }
-
-  if (membership?.company_id) {
-    console.log("[getCompanyIdForUser] ✅ Found via company_members:", membership.company_id);
-    return membership.company_id
+  for (const m of memberships || []) {
+    if (m?.company_id) companyIds.add(m.company_id)
   }
 
-  const { data: company, error: companyError } = await supabase
+  // Companies from auth_user_id (owner)
+  const { data: ownedCompanies, error: companyError } = await supabase
     .from("companies")
     .select("id")
     .eq("auth_user_id", user.id)
-    .maybeSingle()
 
   if (companyError) {
     console.error("[getCompanyIdForUser] companies error:", companyError)
   }
-
-  if (company?.id) {
-    console.log("[getCompanyIdForUser] ✅ Found via companies.auth_user_id:", company.id);
-    return company.id
+  for (const c of ownedCompanies || []) {
+    if (c?.id) companyIds.add(c.id)
   }
 
-  console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
-  throw new Error("company_not_found")
+  if (companyIds.size === 0) {
+    console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
+    throw new Error("company_not_found")
+  }
+
+  // Prefer auditor billing company when user has access – ensures auditor invoices are visible
+  if (companyIds.has(AUDITOR_BILLING_COMPANY_ID)) {
+    return AUDITOR_BILLING_COMPANY_ID
+  }
+
+  return Array.from(companyIds)[0]
 }
 
 export async function initializeSequence(
