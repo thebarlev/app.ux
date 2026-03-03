@@ -87,6 +87,10 @@ async function handler(req: Request) {
 }
 
 export async function GET(req: Request) {
+  console.log("[CRON DEBUG]", {
+    x_vercel_cron: req.headers.get("x-vercel-cron"),
+    headers: Object.fromEntries(req.headers.entries()),
+  })
   return handler(req)
 }
 
