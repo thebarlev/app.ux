@@ -48,7 +48,7 @@ export default function AuditorCheckoutClient(props: {
 
       try {
         const origin = typeof window !== "undefined" ? window.location.origin : ""
-        const successUrl = `${origin}/auditor/dashboard`
+        const successUrl = `${origin}/auditor/success`
         const errorParams = new URLSearchParams({ checkout: "error" })
         if (linkId) errorParams.set("link_id", linkId)
         if (scanId) errorParams.set("scanId", scanId)

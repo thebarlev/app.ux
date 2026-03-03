@@ -321,19 +321,19 @@ export default function AdminAuditorPage() {
             {done && reportAdmin && Object.keys(reportAdmin).length > 0 && (
               <div className="space-y-2 border-t pt-4">
                 <h3 className="font-semibold">דוח מלא (report_admin)</h3>
-                {reportAdmin.coverage && typeof reportAdmin.coverage === "object" && (
+                {typeof reportAdmin.coverage === "object" && reportAdmin.coverage != null ? (
                   <div className="text-sm text-muted-foreground">
-                    כיסוי: {(reportAdmin.coverage as any).extracted_pages ?? "-"} עמודים מחולצים מתוך {(reportAdmin.coverage as any).total_pages ?? "-"}
+                    כיסוי: {String((reportAdmin.coverage as Record<string, unknown>).extracted_pages ?? "-")} עמודים מחולצים מתוך {String((reportAdmin.coverage as Record<string, unknown>).total_pages ?? "-")}
                   </div>
-                )}
-                {reportAdmin.confidence && typeof reportAdmin.confidence === "object" && (
+                ) : null}
+                {typeof reportAdmin.confidence === "object" && reportAdmin.confidence != null ? (
                   <div className="text-sm">
-                    רמת ביטחון: {(reportAdmin.confidence as any).level ?? "-"}
-                    {(reportAdmin.confidence as any).warning && (
-                      <span className="text-amber-600 mr-2"> • {(reportAdmin.confidence as any).warning}</span>
-                    )}
+                    רמת ביטחון: {String((reportAdmin.confidence as Record<string, unknown>).level ?? "-")}
+                    {(reportAdmin.confidence as Record<string, unknown>).warning ? (
+                      <span className="text-amber-600 mr-2"> • {String((reportAdmin.confidence as Record<string, unknown>).warning)}</span>
+                    ) : null}
                   </div>
-                )}
+                ) : null}
                 <pre className="p-3 rounded bg-muted text-xs overflow-auto max-h-96">
                   {JSON.stringify(reportAdmin, null, 2)}
                 </pre>
