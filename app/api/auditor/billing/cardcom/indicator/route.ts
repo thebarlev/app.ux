@@ -372,12 +372,13 @@ export async function GET(req: Request) {
         p_auditor_charge_id: chargeId,
         p_issuer_company_id: billingCfg.billingAccountId,
       } as any)
-
-      console.error("[AUDITOR_INDICATOR] Invoice issuance debug", {
-        chargeId,
-        rpcErr: rpcErr ? { message: (rpcErr as any).message, details: (rpcErr as any).details, hint: (rpcErr as any).hint, code: (rpcErr as any).code } : null,
-        rpcData,
-      })
+      const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
+      if (!ok || rpcErr) {
+        console.error("[AUDITOR_INDICATOR] Invoice issuance failed", {
+          chargeId,
+          error: rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok",
+        })
+      }
     } catch (e: any) {
       // Issuance failures should not make Cardcom retry indefinitely; keep charge succeeded for later repair.
       console.error("[AUDITOR_INDICATOR] Invoice issuance exception", {
