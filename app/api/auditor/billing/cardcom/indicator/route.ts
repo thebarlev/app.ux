@@ -368,12 +368,23 @@ export async function GET(req: Request) {
   // Issue invoice_receipt (service-only RPC). Idempotent in DB.
   if (chargeId) {
     try {
-      await admin.rpc("issue_auditor_charge_invoice_receipt_service", {
+      const { data: rpcData, error: rpcErr } = await admin.rpc("issue_auditor_charge_invoice_receipt_service", {
         p_auditor_charge_id: chargeId,
         p_issuer_company_id: billingCfg.billingAccountId,
       } as any)
-    } catch {
+      const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
+      if (!ok || rpcErr) {
+        console.error("[AUDITOR_INDICATOR] Invoice issuance failed", {
+          chargeId,
+          error: rpcErr ? String(rpcErr?.message || rpcErr) : "rpc returned not-ok",
+        })
+      }
+    } catch (e: any) {
       // Issuance failures should not make Cardcom retry indefinitely; keep charge succeeded for later repair.
+      console.error("[AUDITOR_INDICATOR] Invoice issuance exception", {
+        chargeId,
+        error: String(e?.message || e),
+      })
     }
   }
 

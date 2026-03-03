@@ -4,13 +4,29 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import ConfirmDialog from "@/components/ConfirmDialog"
 
 type Step = 1 | 2 | 3
+
+const WHATSAPP_PHONE = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE) || "972545215193"
+const WHATSAPP_URL = `https://wa.me/${String(WHATSAPP_PHONE).replace(/^0+/, "")}`
 
 type StatusResponse =
   | {
@@ -789,6 +805,12 @@ export default function AuditorHomeClient() {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [selectedPlanId, setSelectedPlanId] = useState<"basic" | "pro" | "premium">("pro")
   const [isStartingCheckout, setIsStartingCheckout] = useState(false)
+  const [hasActiveSubscription, setHasActiveSubscription] = useState<boolean | null>(null)
+  const [showChangePlanModal, setShowChangePlanModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [changePlanTarget, setChangePlanTarget] = useState<"basic" | "pro">("pro")
+  const [isChangingPlan, setIsChangingPlan] = useState(false)
+  const [isCanceling, setIsCanceling] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -994,6 +1016,62 @@ export default function AuditorHomeClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, scanId, token])
 
+  // Step 3: fetch subscription status when entering step 3
+  useEffect(() => {
+    if (step !== 3) return
+    let cancelled = false
+    fetch("/api/auditor/billing/subscription/status", { method: "GET" })
+      .then((r) => r.json().catch(() => null))
+      .then((j: any) => {
+        if (cancelled) return
+        const hasSub = j?.ok === true && j?.has_subscription === true
+        const active = String(j?.status || "").trim() === "active"
+        setHasActiveSubscription(hasSub && active)
+      })
+      .catch(() => {
+        if (!cancelled) setHasActiveSubscription(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [step])
+
+  const handleChangePlan = async () => {
+    setIsChangingPlan(true)
+    setError(null)
+    try {
+      const r = await fetch("/api/auditor/billing/subscription/change-plan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ plan_id: changePlanTarget }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || "שגיאה בהחלפת חבילה")
+      setShowChangePlanModal(false)
+      setHasActiveSubscription(true)
+    } catch (e: any) {
+      setError(String(e?.message || e))
+    } finally {
+      setIsChangingPlan(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setIsCanceling(true)
+    setError(null)
+    try {
+      const r = await fetch("/api/auditor/billing/subscription/cancel", { method: "POST" })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || "שגיאה בביטול")
+      setShowCancelModal(false)
+      setHasActiveSubscription(false)
+    } catch (e: any) {
+      setError(String(e?.message || e))
+    } finally {
+      setIsCanceling(false)
+    }
+  }
+
   // ─── Step 3 dashboard ─────────────────────────────────────────────────────
   const renderStep3 = () => {
     const okStatus = status && status.ok === true ? status : null
@@ -1003,6 +1081,48 @@ export default function AuditorHomeClient() {
       <>
         <style>{dashboardCss}</style>
         <div className="audit-root">
+          {/* Subscriber header: logo + account menu + WhatsApp */}
+          {hasActiveSubscription && (
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+              <Link href="/auditor" className="shrink-0">
+                <Image src="/brand/vow.svg" alt="VOW" width={100} height={36} />
+              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      החשבון שלי
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[200px]">
+                    <DropdownMenuItem asChild>
+                      <Link href="/auditor/invoices">צפייה והורדת חשבוניות</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/auditor/settings">עדכון פרטים אישיים</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowChangePlanModal(true)}>
+                      מעביר חבילה
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowCancelModal(true)} variant="destructive">
+                      ביטול חבילה
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <a
+                  href={WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"
+                >
+                  <span>WhatsApp</span>
+                  <span>צור קשר</span>
+                </a>
+              </div>
+            </div>
+          )}
+
           <div className="audit-card">
 
             {/* Header */}
@@ -1117,7 +1237,8 @@ export default function AuditorHomeClient() {
 
                   <div className="audit-divider" />
 
-                  {/* Footer actions */}
+                  {/* Footer actions — hide when user has active subscription */}
+                  {!hasActiveSubscription && (
                   <div className="pricing-wrap" aria-label="Pricing">
                     <h3 className="pricing-title">מחירון — SEO / AI אורגני</h3>
                     <div className="pricing-subtitle">
@@ -1198,6 +1319,7 @@ export default function AuditorHomeClient() {
                       </button>
                     </div>
                   </div>
+                  )}
 
                   <div className="audit-divider" />
 
@@ -1344,6 +1466,67 @@ export default function AuditorHomeClient() {
 
       {/* ── Step 3 ── */}
       {step === 3 && renderStep3()}
+
+      {/* Change plan modal */}
+      <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>מעביר חבילה</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה.</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setChangePlanTarget("basic")}
+                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                  changePlanTarget === "basic" ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <div className="font-semibold">בסיסי</div>
+                <div className="text-sm text-muted-foreground">97 ₪/חודש</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChangePlanTarget("pro")}
+                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                  changePlanTarget === "pro" ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <div className="font-semibold">מקצועי</div>
+                <div className="text-sm text-muted-foreground">497 ₪/חודש</div>
+              </button>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowChangePlanModal(false)}>
+                ביטול
+              </Button>
+              <Button onClick={handleChangePlan} disabled={isChangingPlan}>
+                {isChangingPlan ? (
+                  <>
+                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                    מעדכן…
+                  </>
+                ) : (
+                  "אישור"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel subscription modal */}
+      <ConfirmDialog
+        open={showCancelModal}
+        onOpenChange={setShowCancelModal}
+        title="ביטול מנוי"
+        message="המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."
+        confirmText="אשר ביטול"
+        cancelText="חזור"
+        destructive
+        onConfirm={handleCancelSubscription}
+      />
     </div>
   )
 }

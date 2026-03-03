@@ -42,6 +42,12 @@ export function getAuditorConfig(): AuditorConfig {
   return cached
 }
 
+export function getAuditorWhatsAppUrl(): string {
+  const raw = String(process.env.AUDITOR_WHATSAPP_PHONE || "972545215193").trim()
+  const phone = raw.replace(/^0+/, "")
+  return `https://wa.me/${phone}`
+}
+
 export function isAuditorAllowedEmail(email: string | null | undefined): boolean {
   const cfg = getAuditorConfig()
   const e = String(email || "").trim().toLowerCase()

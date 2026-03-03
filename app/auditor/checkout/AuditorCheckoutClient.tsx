@@ -54,8 +54,8 @@ export default function AuditorCheckoutClient(props: {
         const origin = typeof window !== "undefined" ? window.location.origin : ""
         const successUrl =
           scanId && token
-            ? `${origin}/auditor?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-            : `${origin}/auditor/dashboard?checkout=success`
+            ? `${origin}/auditor/success?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+            : `${origin}/auditor/success`
         const errorParams = new URLSearchParams({ checkout: "error" })
         if (linkId) errorParams.set("link_id", linkId)
         if (scanId) errorParams.set("scanId", scanId)
