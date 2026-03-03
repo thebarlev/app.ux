@@ -1674,6 +1674,7 @@ export async function prepareDocumentData(
     allocation_number,
     HAS_ALLOCATION_NUMBER: !!allocation_number,
     company: {
+      name: companyNameLocalized, // Required by template validation {{company.name}}
       company_name: companyNameLocalized,
       company_name_he: companyNameHe,
       company_name_en: companyNameEn,
@@ -1681,27 +1682,38 @@ export async function prepareDocumentData(
       contact_first_name_he: issuerFirstNameHe,
       contact_first_name_en: issuerFirstNameEn,
       company_tax_id: companyTaxId,
+      tax_id: companyTaxId, // Alias for {{company.tax_id}}
+      address: companyAddress || null, // For {{company.address}}
       company_address: companyAddress || null,
       company_phone: companyPhone,
       company_email: doc.company?.email || null,
       company_logo: logoUrl || null, // Use signed URL if available, null if no logo
+      logo_url: logoUrl || null, // Required by template validation {{company.logo_url}}
     } as any,
     customer: doc.customer ? {
+      name: resolvedCustomerName, // Required by template validation {{customer.name}}
       customer_name: resolvedCustomerName,
       customer_tax_id: resolvedCustomerTaxId || null,
       customer_email: resolvedCustomerEmail || null,
       customer_phone: customerPhone,
       customer_address: customerAddress,
+      address: customerAddress || null, // For {{customer.address}}
       customer_website: resolvedCustomerWebsite || null,
+      email: resolvedCustomerEmail || null, // For {{customer.email}}
     } : {
+      name: resolvedCustomerName,
       customer_name: resolvedCustomerName,
       customer_tax_id: resolvedCustomerTaxId || null,
       customer_email: resolvedCustomerEmail || null,
       customer_phone: customerPhone,
       customer_address: customerAddress,
+      address: customerAddress || null,
       customer_website: resolvedCustomerWebsite || null,
+      email: resolvedCustomerEmail || null,
     },
     document: {
+      number: doc.document_number || "", // Required by template validation {{document.number}}
+      issue_date: doc.issue_date || "", // Required by template validation {{document.issue_date}}
       document_type: doc.document_type as any,
       document_type_label: DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה",
       document_number: doc.document_number || "",
