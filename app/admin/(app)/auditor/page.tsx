@@ -88,6 +88,10 @@ export default function AdminAuditorPage() {
   const done = status?.status === "done" || status?.status === "failed"
   const reportPublic = status?.report_public as Record<string, unknown> | null | undefined
   const reportAdmin = status?.report_admin as Record<string, unknown> | null | undefined
+  const scoreBreakdown = status?.score_breakdown as Record<string, unknown> | null | undefined
+  const rules = (status?.rules as unknown[]) || []
+  const pages = (status?.pages as unknown[]) || []
+  const logs = (status?.logs as unknown[]) || []
 
   // Poll status when scan is in progress
   useEffect(() => {
@@ -200,6 +204,41 @@ export default function AdminAuditorPage() {
               )}
             </div>
 
+            {done && scoreBreakdown && Object.keys(scoreBreakdown).length > 0 && (
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="font-semibold">פירוט טכני (Admin only)</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {scoreBreakdown.technical != null && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">Technical</span>
+                      <div className="text-xl font-bold">{String(scoreBreakdown.technical)}</div>
+                    </div>
+                  )}
+                  {scoreBreakdown.schema != null && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">Schema</span>
+                      <div className="text-xl font-bold">{String(scoreBreakdown.schema)}</div>
+                    </div>
+                  )}
+                  {scoreBreakdown.ai_readiness != null && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">AI Readiness</span>
+                      <div className="text-xl font-bold">{String(scoreBreakdown.ai_readiness)}</div>
+                    </div>
+                  )}
+                  {scoreBreakdown.tracking != null && (
+                    <div>
+                      <span className="text-muted-foreground text-sm">Tracking</span>
+                      <div className="text-xl font-bold">{String(scoreBreakdown.tracking)}</div>
+                    </div>
+                  )}
+                </div>
+                <pre className="p-3 rounded bg-muted text-xs overflow-auto max-h-32">
+                  {JSON.stringify(scoreBreakdown, null, 2)}
+                </pre>
+              </div>
+            )}
+
             {done && reportPublic && (
               <div className="space-y-4 border-t pt-4">
                 <h3 className="font-semibold">תוצאות (report_public)</h3>
@@ -249,6 +288,50 @@ export default function AdminAuditorPage() {
                 <h3 className="font-semibold">פירוט מלא (report_admin)</h3>
                 <pre className="p-3 rounded bg-muted text-xs overflow-auto max-h-96">
                   {JSON.stringify(reportAdmin, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {done && rules.length > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <h3 className="font-semibold">חוקים ({rules.length})</h3>
+                <div className="space-y-2 max-h-60 overflow-auto">
+                  {rules.slice(0, 20).map((r: any, i: number) => (
+                    <div key={i} className="rounded border p-2 text-sm">
+                      <span className="font-mono">{String(r.rule_key ?? "-")}</span>
+                      <span className="mx-2 text-muted-foreground">•</span>
+                      <span>{String(r.status ?? "-")}</span>
+                      <span className="mx-2 text-muted-foreground">•</span>
+                      <span>{String(r.impact ?? "-")}</span>
+                      {r.recommendation_he && <div className="mt-1 text-muted-foreground">{String(r.recommendation_he)}</div>}
+                    </div>
+                  ))}
+                  {rules.length > 20 && <div className="text-muted-foreground text-sm">... ועוד {rules.length - 20}</div>}
+                </div>
+              </div>
+            )}
+
+            {done && pages.length > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <h3 className="font-semibold">עמודים ({pages.length})</h3>
+                <div className="space-y-1 max-h-40 overflow-auto text-xs">
+                  {pages.slice(0, 15).map((p: any, i: number) => (
+                    <div key={i} className="truncate">
+                      <span className="text-muted-foreground">{String(p.status_code ?? "-")}</span>
+                      <span className="mx-2">•</span>
+                      <span className="font-mono">{String(p.url ?? p.path ?? "-")}</span>
+                    </div>
+                  ))}
+                  {pages.length > 15 && <div className="text-muted-foreground">... ועוד {pages.length - 15}</div>}
+                </div>
+              </div>
+            )}
+
+            {done && logs.length > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <h3 className="font-semibold">לוגים ({logs.length})</h3>
+                <pre className="p-3 rounded bg-muted text-xs overflow-auto max-h-48">
+                  {logs.slice(-30).map((l: any) => `[${l?.ts ?? ""}] ${l?.level ?? ""}: ${l?.message ?? ""}`).join("\n")}
                 </pre>
               </div>
             )}

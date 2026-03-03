@@ -22,6 +22,9 @@ export async function GET(_: Request, ctx: { params: Promise<{ scanId: string }>
   if (error) return NextResponse.json({ ok: false, error: "Failed to load scan" }, { status: 500 })
   if (!scan) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
 
+  // Admin-only: score_breakdown (technical, schema, tracking) — do not expose to end user
+  const { score_breakdown: _sb, ...scanPublic } = scan as { score_breakdown?: unknown; [k: string]: unknown }
+
   const [{ data: rules }, { data: pages }, { data: logs }] = await Promise.all([
     supabase
       .from("auditor_scan_rules")
@@ -46,7 +49,7 @@ export async function GET(_: Request, ctx: { params: Promise<{ scanId: string }>
 
   return NextResponse.json({
     ok: true,
-    scan,
+    scan: scanPublic,
     rules: rules || [],
     pages: pages || [],
     logs: logs ? [...logs].reverse() : [],

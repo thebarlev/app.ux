@@ -294,6 +294,16 @@ begin
     v_vals := array_append(v_vals, 'now()');
   end if;
 
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_by') then
+    v_cols := array_append(v_cols, 'finalized_by');
+    v_vals := array_append(v_vals, 'null');
+  end if;
+
+  -- Defensive: ensure cols and vals are in sync (prevents "INSERT has more target columns than expressions")
+  if array_length(v_cols, 1) is distinct from array_length(v_vals, 1) then
+    raise exception 'cols_vals_mismatch: cols=% vals=%', array_length(v_cols, 1), array_length(v_vals, 1);
+  end if;
+
   v_sql := 'insert into public.documents (' || array_to_string(v_cols, ',') || ') values (' || array_to_string(v_vals, ',') || ') returning id';
   execute v_sql into v_doc_id;
 
