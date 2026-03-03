@@ -62,28 +62,41 @@ export interface TemplateDefinition {
 
 export interface CompanyData {
   company_name: string;
+  /** Alias for {{company.name}} template placeholder */
+  name?: string;
   company_tax_id?: string | null;
+  tax_id?: string | null; // Alias for {{company.tax_id}}
   company_number?: string | null;
   company_address?: string | null;
+  address?: string | null; // Alias for {{company.address}}
   company_phone?: string | null;
   company_mobile_phone?: string | null;
   company_email?: string | null;
   company_website?: string | null;
   company_logo?: string | null; // URL to logo
+  logo_url?: string | null; // Alias for {{company.logo_url}}
 }
 
 export interface CustomerData {
   customer_name: string;
+  /** Alias for {{customer.name}} template placeholder */
+  name?: string;
   customer_tax_id?: string | null;
   customer_address?: string | null;
+  address?: string | null; // Alias for {{customer.address}}
   customer_phone?: string | null;
   customer_email?: string | null;
+  email?: string | null; // Alias for {{customer.email}}
   customer_website?: string | null;
 }
 
 export interface DocumentData {
   document_number: string;
+  /** Alias for {{document.number}} template placeholder */
+  number?: string;
   document_date: string; // YYYY-MM-DD
+  /** Alias for {{document.issue_date}} template placeholder */
+  issue_date?: string;
   reference_number?: string | null;
   document_type: DocumentType;
 }
