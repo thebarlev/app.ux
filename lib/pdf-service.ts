@@ -1089,11 +1089,22 @@ export async function prepareDocumentData(
       // billing_documents.issuer_company_id = issuer (LEFT block); buyer = customer (RIGHT block)
       const issuerCompanyId = String((bd as any)?.issuer_company_id || "").trim()
       if (issuerCompanyId) {
-        const { data: ic } = await supabase
+        const issuerSelect =
+          "id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en"
+        const issuerSelectSafe =
+          "id, company_name, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name"
+        let { data: ic, error: icErr } = await supabase
           .from("companies")
-          .select("id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en")
+          .select(issuerSelect)
           .eq("id", issuerCompanyId)
           .maybeSingle()
+        if (icErr?.code === "42703") {
+          ;({ data: ic } = await supabase
+            .from("companies")
+            .select(issuerSelectSafe)
+            .eq("id", issuerCompanyId)
+            .maybeSingle())
+        }
         if (ic) issuerCompany = ic
       }
     } catch {
@@ -1111,11 +1122,22 @@ export async function prepareDocumentData(
       String(process.env.AUDITOR_BILLING_ACCOUNT_ID || process.env.VOW_BILLING_COMPANY_ID || "").trim() ||
       "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
     if (issuerId) {
-      const { data: ic } = await supabase
+      const issuerSelect =
+        "id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en"
+      const issuerSelectSafe =
+        "id, company_name, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name"
+      let { data: ic, error: icErr } = await supabase
         .from("companies")
-        .select("id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en")
+        .select(issuerSelect)
         .eq("id", issuerId)
         .maybeSingle()
+      if (icErr?.code === "42703") {
+        ;({ data: ic } = await supabase
+          .from("companies")
+          .select(issuerSelectSafe)
+          .eq("id", issuerId)
+          .maybeSingle())
+      }
       if (ic) issuerCompany = ic
     }
     customerCompanyForBlock = doc.company // doc.company = charge.company_id (customer)
