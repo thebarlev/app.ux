@@ -1,10 +1,11 @@
-import { mkdir } from "node:fs/promises"
-import path from "node:path"
 import sharp from "sharp"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { AUDITOR_SCREENSHOTS_BUCKET } from "@/lib/storage/buckets"
 
 export async function captureSiteScreenshot(params: {
   scanId: string
   url: string
+  supabase: SupabaseClient
 }): Promise<{ publicPath: string }> {
   // Ensure we use deploy-packaged browsers (node_modules) instead of per-user cache.
   if (!process.env.PLAYWRIGHT_BROWSERS_PATH) process.env.PLAYWRIGHT_BROWSERS_PATH = "0"
@@ -12,11 +13,7 @@ export async function captureSiteScreenshot(params: {
   // Import after env is set so Playwright resolves browsers path correctly.
   const { chromium } = await import("playwright")
 
-  const relPublicPath = `/auditor-screenshots/${params.scanId}.webp`
-  const absDir = path.join(process.cwd(), "public", "auditor-screenshots")
-  const absPath = path.join(process.cwd(), "public", "auditor-screenshots", `${params.scanId}.webp`)
-
-  await mkdir(absDir, { recursive: true })
+  const storagePath = `${params.scanId}.webp`
 
   const browser = await chromium.launch({ headless: true })
 
@@ -24,22 +21,37 @@ export async function captureSiteScreenshot(params: {
     const page = await browser.newPage({
       viewport: { width: 1440, height: 900 },
     })
-  
+
     await page.goto(params.url, {
       waitUntil: "networkidle",
       timeout: 15_000,
     })
-  
+
     const pngBuffer = await page.screenshot({
       fullPage: false,
       type: "png",
     })
-  
-    await sharp(pngBuffer)
+
+    const webpBuffer = await sharp(pngBuffer)
       .webp({ quality: 50 })
-      .toFile(absPath)
-  
-    return { publicPath: relPublicPath }
+      .toBuffer()
+
+    const { data: uploadData, error } = await params.supabase.storage
+      .from(AUDITOR_SCREENSHOTS_BUCKET)
+      .upload(storagePath, webpBuffer, {
+        contentType: "image/webp",
+        upsert: true,
+      })
+
+    if (error) {
+      throw new Error(`Storage upload failed: ${error.message}`)
+    }
+
+    const { data: publicUrlData } = params.supabase.storage
+      .from(AUDITOR_SCREENSHOTS_BUCKET)
+      .getPublicUrl(uploadData?.path || storagePath)
+
+    return { publicPath: publicUrlData.publicUrl }
   } finally {
     await browser.close()
   }

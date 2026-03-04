@@ -179,7 +179,7 @@ export async function continueAuditorScan(params: {
 
       // Best-effort screenshot capture (do NOT fail scan if it errors).
       try {
-        const { publicPath } = await captureSiteScreenshot({ scanId, url: origin })
+        const { publicPath } = await captureSiteScreenshot({ scanId, url: origin, supabase })
         await applyScanWhere(
           supabase.from("auditor_scans").update({
             artifacts: { ...nextArtifacts, screenshot_url: publicPath },

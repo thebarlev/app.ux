@@ -61,7 +61,11 @@ export async function GET(req: Request) {
   const reportAdmin = scan.report_admin && typeof scan.report_admin === "object" ? scan.report_admin : {}
   const artifacts = scan.artifacts && typeof scan.artifacts === "object" ? scan.artifacts : {}
   const screenshotUrlRaw = typeof (artifacts as any).screenshot_url === "string" ? (artifacts as any).screenshot_url : null
-  const screenshot_url = screenshotUrlRaw && String(screenshotUrlRaw).startsWith("/auditor-screenshots/") ? screenshotUrlRaw : null
+  const screenshot_url =
+    screenshotUrlRaw &&
+    (String(screenshotUrlRaw).startsWith("/auditor-screenshots/") || String(screenshotUrlRaw).startsWith("https://"))
+      ? screenshotUrlRaw
+      : null
 
   const scoreBreakdown = scan.score_breakdown && typeof scan.score_breakdown === "object" ? scan.score_breakdown : null
 

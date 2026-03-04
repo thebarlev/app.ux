@@ -11,3 +11,6 @@ export const PUBLIC_ASSETS_BUCKET = "business-assets"
 // Must be created as **private** in Supabase Storage.
 export const SECURE_ASSETS_BUCKET = "business-secure"
 
+// Public bucket for auditor scan screenshots.
+export const AUDITOR_SCREENSHOTS_BUCKET = "auditor-screenshots"
+

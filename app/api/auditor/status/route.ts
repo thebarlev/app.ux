@@ -51,7 +51,11 @@ export async function GET(req: Request) {
   const artifacts = scan.artifacts && typeof scan.artifacts === "object" ? scan.artifacts : {}
 
   const screenshotUrlRaw = typeof (artifacts as any).screenshot_url === "string" ? String((artifacts as any).screenshot_url) : null
-  const screenshot_url = screenshotUrlRaw && screenshotUrlRaw.startsWith("/auditor-screenshots/") ? screenshotUrlRaw : null
+  const screenshot_url =
+    screenshotUrlRaw &&
+    (screenshotUrlRaw.startsWith("/auditor-screenshots/") || screenshotUrlRaw.startsWith("https://"))
+      ? screenshotUrlRaw
+      : null
 
   // Allowlist sanitizer to ensure report_public never leaks identifiers even if DB contains extra keys.
   const safeReportPublic = {
