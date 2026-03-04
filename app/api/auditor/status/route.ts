@@ -19,24 +19,29 @@ function notFoundIfDisabled() {
 }
 
 export async function GET(req: Request) {
-  const nf = notFoundIfDisabled()
-  if (nf) return nf
+  try {
+    const nf = notFoundIfDisabled()
+    if (nf) return nf
 
-  const url = new URL(req.url)
-  const parsed = querySchema.safeParse({
-    scanId: url.searchParams.get("scanId"),
-    token: url.searchParams.get("token"),
-  })
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid query" }, { status: 400 })
+    const url = new URL(req.url)
+    const parsed = querySchema.safeParse({
+      scanId: url.searchParams.get("scanId"),
+      token: url.searchParams.get("token"),
+    })
+    if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid query" }, { status: 400 })
 
-  const admin = createServiceRoleClient()
-  const { data: scan } = await admin
+    const admin = createServiceRoleClient()
+    const { data: scan, error: queryError } = await admin
     .from("auditor_scans")
     .select("id,status,step,score_total,report_public,confidence,updated_at,finished_at,scan_access_token,artifacts")
     .eq("id", parsed.data.scanId)
     .maybeSingle()
 
-  if (!scan) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
+    if (queryError) {
+      console.error("[AUDITOR_STATUS] Supabase query error", { scanId: parsed.data.scanId, error: queryError })
+      return NextResponse.json({ ok: false, error: "Database error" }, { status: 500 })
+    }
+    if (!scan) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
   if (String(scan.scan_access_token || "") !== parsed.data.token) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
   }
@@ -62,30 +67,34 @@ export async function GET(req: Request) {
     warning: typeof (publicReport as any).warning === "string" ? String((publicReport as any).warning).slice(0, 140) : null,
   } as const
 
-  // SECURITY: do not leak any technical identifiers; only return the public shape.
-  return NextResponse.json(
-    {
-    ok: true,
-    status: scan.status,
-    step: scan.step,
-    screenshot_url,
-    score_total: safeReportPublic.score_total ?? scan.score_total ?? null,
-    score_search: safeReportPublic.score_search,
-    score_ai: safeReportPublic.score_ai,
-    category_scores: safeReportPublic.category_scores,
-    issues_overview: safeReportPublic.issues_overview,
-    confidence_level: safeReportPublic.confidence_level ?? (confidence as any).level ?? null,
-    warning: safeReportPublic.warning ?? (confidence as any).warning ?? null,
-    done: scan.status === "done" || scan.status === "failed",
-    report_public: scan.status === "done" ? safeReportPublic : null,
-    updated_at: scan.updated_at,
-    finished_at: scan.finished_at,
-    },
-    {
-      headers: {
-        "cache-control": "no-store",
+    // SECURITY: do not leak any technical identifiers; only return the public shape.
+    return NextResponse.json(
+      {
+        ok: true,
+        status: scan.status,
+        step: scan.step,
+        screenshot_url,
+        score_total: safeReportPublic.score_total ?? scan.score_total ?? null,
+        score_search: safeReportPublic.score_search,
+        score_ai: safeReportPublic.score_ai,
+        category_scores: safeReportPublic.category_scores,
+        issues_overview: safeReportPublic.issues_overview,
+        confidence_level: safeReportPublic.confidence_level ?? (confidence as any).level ?? null,
+        warning: safeReportPublic.warning ?? (confidence as any).warning ?? null,
+        done: scan.status === "done" || scan.status === "failed",
+        report_public: scan.status === "done" ? safeReportPublic : null,
+        updated_at: scan.updated_at,
+        finished_at: scan.finished_at,
       },
-    }
-  )
+      {
+        headers: {
+          "cache-control": "no-store",
+        },
+      }
+    )
+  } catch (e: any) {
+    console.error("[AUDITOR_STATUS] Unhandled error", { error: e?.message, stack: e?.stack })
+    return NextResponse.json({ ok: false, error: "Internal error" }, { status: 500 })
+  }
 }
 
