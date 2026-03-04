@@ -42,7 +42,8 @@ export async function GET(req: Request) {
   const eventId = `cardcom:indicator:${lowProfileCode}`
 
   // 1) Quick idempotent insert - store raw query for async processing
-  // Timeout 15s to avoid Vercel 300s hang; Cardcom may retry on failure
+  // Timeout 30s (cold start / Supabase latency); Cardcom expects 200
+  const INSERT_TIMEOUT_MS = 30_000
   console.log("[AUDITOR_INDICATOR] before insert", Date.now() - t0)
   try {
     const insertPayload = {
@@ -51,14 +52,21 @@ export async function GET(req: Request) {
       status: "received",
       payload: { query: Object.fromEntries(url.searchParams.entries()) },
     } as any
-    const { error: evErr } = await Promise.race([
+    const result = await Promise.race([
       admin.from("auditor_billing_events").insert(insertPayload),
       new Promise<{ error: { code?: string; message?: string } }>((resolve) =>
-        setTimeout(() => resolve({ error: { code: "timeout", message: "insert_timeout" } }), 15_000)
+        setTimeout(() => resolve({ error: { code: "timeout", message: "insert_timeout" } }), INSERT_TIMEOUT_MS)
       ),
     ]) as any
-    if (evErr && String(evErr?.code || "") !== "23505") {
-      console.warn("[AUDITOR_INDICATOR] insert warning", { error: evErr?.message, ms: Date.now() - t0 })
+    const evErr = result?.error
+    if (evErr) {
+      if (String(evErr?.code || "") === "23505") {
+        // Unique violation = already received, idempotent ok
+      } else {
+        console.warn("[AUDITOR_INDICATOR] insert warning", { error: evErr?.message, code: evErr?.code, ms: Date.now() - t0 })
+      }
+    } else {
+      console.log("[AUDITOR_INDICATOR] insert ok", { ms: Date.now() - t0 })
     }
   } catch (e) {
     console.warn("[AUDITOR_INDICATOR] insert exception", { error: e, ms: Date.now() - t0 })

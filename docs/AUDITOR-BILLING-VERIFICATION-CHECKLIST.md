@@ -61,7 +61,7 @@
 - [ ] `documents.company_id` = `auditor_subscription_charges.company_id` (חברת הלקוח)
 - [ ] PDF נשמר ב-Storage bucket
 
-**סיבה אפשרית:** שגיאת `INSERT has more target columns than expressions` – הרצת מיגרציה 094.
+**סיבה אפשרית:** שגיאת `INSERT has more target columns than expressions` – הרצת מיגרציה 094. RPC נכשל (timeout, sequence_missing) – הרצת Repair API `repair-missing-invoices`.
 
 ---
 
@@ -98,6 +98,7 @@
 |------|------|--------|
 | אין חברה פעילה | אין `company_members` / `auth_user_id` | Repair API או סקריפט 095 |
 | חשבונית לא נוצרת | שגיאת INSERT ב־document_line_items | הרצת מיגרציה 094 |
+| Charge ללא issued_invoice_id | RPC נכשל (timeout, sequence) | Repair API: POST /api/admin/auditor/repair-missing-invoices |
 | חשבונית לא נראית | `documents.company_id` של המנפיק | הרצת מיגרציה 091 |
 | PDF_NOT_AVAILABLE | חשבוניות ישנות ללא PDF | Repair API: POST /api/admin/auditor/repair-invoice-pdfs |
 | Timeout 300s | `listUsers`/`inviteUserByEmail` איטיים | כבר תוקן – timeouts |
@@ -117,6 +118,17 @@ curl -X POST "https://YOUR-APP/api/admin/auditor/repair-user-company" \
   -H "Content-Type: application/json" \
   -H "Cookie: ..." \
   -d '{"email": "user@example.com"}'
+
+# Repair charges ללא חשבונית (admin) – issued_invoice_id null
+curl -X POST "https://YOUR-APP/api/admin/auditor/repair-missing-invoices" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: ..." \
+  -d '{}'
+# או ל-charge ספציפי:
+curl -X POST "https://YOUR-APP/api/admin/auditor/repair-missing-invoices" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: ..." \
+  -d '{"chargeId": "CHARGE_UUID"}'
 
 # Repair חשבוניות ישנות ללא PDF (admin) – תיקון PDF_NOT_AVAILABLE
 curl -X POST "https://YOUR-APP/api/admin/auditor/repair-invoice-pdfs" \
