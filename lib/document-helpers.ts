@@ -3,7 +3,7 @@
  * Provides consistent patterns for multi-tenant document management
  */
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { randomUUID } from "crypto"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
@@ -69,8 +69,59 @@ export async function getCompanyIdForUser(): Promise<string> {
   }
 
   if (companyIds.size === 0) {
-    console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
-    throw new Error("company_not_found")
+    const admin = createServiceRoleClient()
+    const email = String(user.email || "").trim() || "unknown@email.com"
+
+    const { data: inserted, error: insErr } = await admin
+      .from("companies")
+      .insert({
+        company_name: "New Business",
+        business_type: "other",
+        contact_first_name: "Owner",
+        contact_full_name: "Business Owner",
+        email,
+        auth_user_id: user.id,
+        status: "active",
+      } as any)
+      .select("id")
+      .single()
+
+    if (!insErr && inserted?.id) {
+      companyIds.add(inserted.id)
+      try {
+        await admin.from("company_members").insert({
+          company_id: inserted.id,
+          user_id: user.id,
+          role: "owner",
+          accepted_at: new Date().toISOString(),
+        } as any)
+      } catch {
+        /* membership may already exist or schema differs */
+      }
+    } else {
+      const code = (insErr as any)?.code || ""
+      if (code === "23505") {
+        const { data: existing } = await admin
+          .from("companies")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .maybeSingle()
+        if (existing?.id) companyIds.add(existing.id)
+        else {
+          const { data: byEmail } = await admin
+            .from("companies")
+            .select("id")
+            .eq("email", email)
+            .maybeSingle()
+          if (byEmail?.id) companyIds.add(byEmail.id)
+        }
+      }
+    }
+
+    if (companyIds.size === 0) {
+      console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id)
+      throw new Error("company_not_found")
+    }
   }
 
   // Prefer auditor billing company when user has access – ensures auditor invoices are visible
