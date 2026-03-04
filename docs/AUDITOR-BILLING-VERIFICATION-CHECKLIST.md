@@ -99,6 +99,7 @@
 | אין חברה פעילה | אין `company_members` / `auth_user_id` | Repair API או סקריפט 095 |
 | חשבונית לא נוצרת | שגיאת INSERT ב־document_line_items | הרצת מיגרציה 094 |
 | חשבונית לא נראית | `documents.company_id` של המנפיק | הרצת מיגרציה 091 |
+| PDF_NOT_AVAILABLE | חשבוניות ישנות ללא PDF | Repair API: POST /api/admin/auditor/repair-invoice-pdfs |
 | Timeout 300s | `listUsers`/`inviteUserByEmail` איטיים | כבר תוקן – timeouts |
 | Checkout חסום | Setup ללא שם חברה | השלמת Setup עם שם חברה |
 
@@ -116,6 +117,17 @@ curl -X POST "https://YOUR-APP/api/admin/auditor/repair-user-company" \
   -H "Content-Type: application/json" \
   -H "Cookie: ..." \
   -d '{"email": "user@example.com"}'
+
+# Repair חשבוניות ישנות ללא PDF (admin) – תיקון PDF_NOT_AVAILABLE
+curl -X POST "https://YOUR-APP/api/admin/auditor/repair-invoice-pdfs" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: ..." \
+  -d '{}'
+# או למסמך ספציפי:
+curl -X POST "https://YOUR-APP/api/admin/auditor/repair-invoice-pdfs" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: ..." \
+  -d '{"documentId": "UUID"}'
 ```
 
 ---

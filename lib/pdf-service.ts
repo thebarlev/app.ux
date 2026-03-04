@@ -2087,7 +2087,7 @@ export async function generateDocumentPDF(
     // 1. Fetch document and verify it's finalized (using admin client - bypasses RLS)
     const { data: doc, error: docError } = await adminClient
       .from("documents")
-      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key, language, template_version_id, pdf_generated_at, finalized_at")
+      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key, language, template_version_id, pdf_generated_at, finalized_at, reference_text")
       .eq("id", documentId)
       .single()
     
@@ -2285,9 +2285,16 @@ export async function generateDocumentPDF(
     })
 
     // 3. Get appropriate template
+    // For auditor invoice_receipt: use issuer company (has template), not doc.company_id (customer)
+    const templateCompanyId =
+      (doc.document_type === "invoice_receipt" || (doc as any).document_type === "invoiceReceipt") &&
+      String((doc as any)?.reference_text || "").startsWith("auditor_charge:")
+        ? (process.env.AUDITOR_BILLING_ACCOUNT_ID || process.env.VOW_BILLING_COMPANY_ID || "4ae68334-15a0-4fa3-a9ba-fd77deccc95d").trim()
+        : doc.company_id
+
     const template = loadedTemplate
       ? { html: loadedTemplate.html, css: loadedTemplate.css, templateId: loadedTemplate.templateId, resolvedLanguage: targetLanguage, didFallbackToHe: false }
-      : await getTemplateForDocument(doc.company_id, doc.document_type as any, {
+      : await getTemplateForDocument(templateCompanyId, doc.document_type as any, {
           language: targetLanguage,
           // IMPORTANT: For issuance (copy/final/recovery), do NOT fallback across languages.
           allowFallbackToHe: false,
@@ -2341,7 +2348,7 @@ export async function generateDocumentPDF(
 
       // First fallback: resolved template selection (admin)
       try {
-        const fallback = await getTemplateForDocument(doc.company_id, doc.document_type as any, {
+        const fallback = await getTemplateForDocument(templateCompanyId, doc.document_type as any, {
           language: targetLanguage,
           allowFallbackToHe: false,
         })
