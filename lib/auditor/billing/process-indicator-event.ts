@@ -135,6 +135,28 @@ export async function processCardcomIndicatorEvent(
   let companyId: string | null = checkout.company_id ? String(checkout.company_id) : null
   let userId: string | null = checkout.user_id ? String(checkout.user_id) : null
 
+  // Resolve userId from lead email when checkout.user_id is null (e.g. existing user, inviteUserByEmail failed)
+  // Use small page + timeout to avoid Vercel 300s limit; repair API can fix if we miss
+  if (!userId) {
+    const { data: leadForUser } = await admin
+      .from("auditor_leads")
+      .select("email")
+      .eq("id", String(checkout.lead_id || ""))
+      .maybeSingle()
+    const leadEmailForUser = String((leadForUser as any)?.email || "").trim().toLowerCase()
+    if (leadEmailForUser) {
+      try {
+        const listPromise = (admin as any).auth.admin.listUsers({ perPage: 100 })
+        const timeoutPromise = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000))
+        const { data } = await Promise.race([listPromise, timeoutPromise]) as { data?: { users?: any[] } }
+        const match = data?.users?.find((u: any) => String(u?.email || "").toLowerCase() === leadEmailForUser)
+        if (match?.id) userId = String(match.id)
+      } catch {
+        /* ignore - repair API can fix */
+      }
+    }
+  }
+
   if (!companyId) {
     const { data: lead } = await admin
       .from("auditor_leads")
@@ -167,7 +189,7 @@ export async function processCardcomIndicatorEvent(
     }
 
     const ensureResult = await ensureAuditorCustomerCompanyForUser(admin, {
-      userId: checkout.user_id ? String(checkout.user_id) : null,
+      userId,
       leadId: String((lead as any).id),
       email: leadEmail,
       fullName: leadName,
@@ -213,10 +235,11 @@ export async function processCardcomIndicatorEvent(
     const redirectTo = base ? `${base}/auditor/dashboard` : "/auditor/dashboard"
     let invitedUserId: string | null = null
     try {
-      const inv = await (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
+      const invPromise = (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
         data: { full_name: leadName || null },
         redirectTo,
       })
+      const inv = await Promise.race([invPromise, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000))])
       invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
     } catch {
       invitedUserId = null

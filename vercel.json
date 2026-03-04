@@ -5,6 +5,12 @@
     "app/api/auditor/continue/route.ts": {
       "memory": 1024,
       "maxDuration": 60
+    },
+    "app/api/auditor/billing/cardcom/indicator/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/auditor/billing/process-pending/route.ts": {
+      "maxDuration": 250
     }
   },
   "crons": [

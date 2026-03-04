@@ -4,37 +4,17 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
-
-/**
- * Resolve company IDs the authenticated user has access to (user_company_ids).
- * Used to ensure we only return charges for the user's companies.
- */
-async function getUserCompanyIds(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string[]> {
-  const { data, error } = await supabase.rpc("user_company_ids")
-  if (error) return []
-  if (!Array.isArray(data)) return []
-  return data
-    .map((r: unknown) => {
-      if (r && typeof r === "object" && "company_id" in r) return (r as { company_id: string }).company_id
-      if (typeof r === "string") return r
-      if (r && typeof r === "object") {
-        const v = Object.values(r)[0]
-        if (typeof v === "string") return v
-      }
-      return null
-    })
-    .filter((id): id is string => typeof id === "string" && id.length > 0)
-}
+import { getCurrentUserId, getCompanyIdsForUser } from "@/lib/auth/getCurrentUser"
 
 export async function GET() {
   const cfg = getAuditorConfig()
   if (!cfg.enabled) return new NextResponse(null, { status: 404 })
 
   const supabase = await createClient()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth?.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
+  const userId = await getCurrentUserId()
+  if (!userId) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
 
-  const companyIds = await getUserCompanyIds(supabase)
+  const companyIds = await getCompanyIdsForUser(supabase, userId)
   if (companyIds.length === 0) {
     return NextResponse.json({ ok: false, error: "No company" }, { status: 400 })
   }

@@ -106,7 +106,10 @@ export async function pullLowProfileIndicator(lowProfileCode: string) {
   qs.set("lowprofilecode", String(lowProfileCode || ""))
   qs.set("codepage", "65001")
 
-  const r = await fetch(`${indicatorUrl}?${qs.toString()}`, { method: "GET" })
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  const r = await fetch(`${indicatorUrl}?${qs.toString()}`, { method: "GET", signal: controller.signal })
+  clearTimeout(timeout)
   const raw = await r.text()
   const parsed = parseNameValueResponse(raw)
 

@@ -42,17 +42,23 @@ export async function GET(req: Request) {
   const eventId = `cardcom:indicator:${lowProfileCode}`
 
   // 1) Quick idempotent insert - store raw query for async processing
+  // Timeout 15s to avoid Vercel 300s hang; Cardcom may retry on failure
   console.log("[AUDITOR_INDICATOR] before insert", Date.now() - t0)
   try {
-    const { error: evErr } = await admin.from("auditor_billing_events").insert({
+    const insertPayload = {
       provider: providerKey,
       event_id: eventId,
       status: "received",
       payload: { query: Object.fromEntries(url.searchParams.entries()) },
-    } as any)
-    // ignore duplicates (23505) - Cardcom may retry
-    if (evErr && String((evErr as any)?.code || "") !== "23505") {
-      console.warn("[AUDITOR_INDICATOR] insert warning", { error: (evErr as any)?.message, ms: Date.now() - t0 })
+    } as any
+    const { error: evErr } = await Promise.race([
+      admin.from("auditor_billing_events").insert(insertPayload),
+      new Promise<{ error: { code?: string; message?: string } }>((resolve) =>
+        setTimeout(() => resolve({ error: { code: "timeout", message: "insert_timeout" } }), 15_000)
+      ),
+    ]) as any
+    if (evErr && String(evErr?.code || "") !== "23505") {
+      console.warn("[AUDITOR_INDICATOR] insert warning", { error: evErr?.message, ms: Date.now() - t0 })
     }
   } catch (e) {
     console.warn("[AUDITOR_INDICATOR] insert exception", { error: e, ms: Date.now() - t0 })
