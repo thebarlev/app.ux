@@ -1,22 +1,58 @@
 -- ====================================================
--- 082 - Service-only issuance: auditor charge -> invoice_receipt
+-- 091 - Auditor invoice_receipt: fix documents.company_id
 -- ====================================================
--- Purpose:
--- - Issue a compliant `invoice_receipt` in the existing accounting system
---   for a successful `/auditor` subscription charge
--- - Idempotent and concurrency-safe (advisory lock + reference_text lookup)
--- - Links the issued document back to `auditor_subscription_charges.issued_invoice_id`
--- Notes:
--- - Prices are inclusive of VAT (Israel) per product display; we store totals,
---   and compute subtotal/vat_amount when these columns exist.
--- - Create as 'draft' first, insert line items, then finalize (trigger blocks
---   line-item inserts when parent document_status = 'final').
+-- Problem:
+-- - auditor_subscription_charges.company_id = paying customer
+-- - documents.company_id was set to issuer (admin) company
+-- - RLS blocks customer from downloading PDF (documents.company_id not in user_company_ids)
+--
+-- Fix:
+-- 1. Backfill: set documents.company_id = charge.company_id for existing rows
+-- 2. Update document_events.company_id to match
+-- 3. Replace issue_auditor_charge_invoice_receipt_service to use v_charge.company_id
+-- 4. Add trigger to prevent regression
 -- ====================================================
 
 begin;
 
-create extension if not exists pgcrypto;
+-- ==================== STEP 1: Count mismatches (verification before)
+do $$
+declare
+  v_before int;
+begin
+  select count(*) into v_before
+  from public.auditor_subscription_charges c
+  join public.documents d on d.id = c.issued_invoice_id
+  where c.issued_invoice_id is not null
+    and d.company_id is distinct from c.company_id;
+  raise notice '091: Mismatches before backfill: %', v_before;
+end $$;
 
+-- ==================== STEP 2: Backfill documents
+update public.documents d
+set company_id = c.company_id
+from public.auditor_subscription_charges c
+where c.issued_invoice_id = d.id
+  and c.issued_invoice_id is not null
+  and d.company_id is distinct from c.company_id;
+
+-- ==================== STEP 3: Backfill document_events
+update public.document_events de
+set company_id = c.company_id
+from public.auditor_subscription_charges c
+where c.issued_invoice_id = de.document_id
+  and c.issued_invoice_id is not null
+  and de.company_id is distinct from c.company_id;
+
+-- ==================== STEP 4: Backfill document_line_items (if any have wrong company_id)
+update public.document_line_items dli
+set company_id = c.company_id
+from public.auditor_subscription_charges c
+where c.issued_invoice_id = dli.document_id
+  and c.issued_invoice_id is not null
+  and dli.company_id is distinct from c.company_id;
+
+-- ==================== STEP 5: Replace function (documents.company_id = v_charge.company_id)
 create or replace function public.issue_auditor_charge_invoice_receipt_service(
   p_auditor_charge_id uuid,
   p_issuer_company_id uuid
@@ -60,7 +96,6 @@ begin
     raise exception 'missing_params';
   end if;
 
-  -- Service-role only guard
   v_role := null;
   begin
     v_role := auth.role();
@@ -82,9 +117,7 @@ begin
 
   perform pg_advisory_xact_lock(hashtextextended('issue_auditor_charge_invoice_receipt_service:' || p_auditor_charge_id::text, 0));
 
-  -- Load and lock charge row
-  select *
-    into v_charge
+  select * into v_charge
   from public.auditor_subscription_charges
   where id = p_auditor_charge_id
   for update;
@@ -99,19 +132,15 @@ begin
     return;
   end if;
 
-  -- If already linked, return existing document
   if v_charge.issued_invoice_id is not null then
     select d.document_number into v_existing_doc_number
     from public.documents d
     where d.id = v_charge.issued_invoice_id;
-
     return query select true, v_charge.issued_invoice_id, v_existing_doc_number;
     return;
   end if;
 
-  -- Idempotency: if document exists by reference_text, reuse it
-  select d.id, d.document_number
-    into v_existing_doc_id, v_existing_doc_number
+  select d.id, d.document_number into v_existing_doc_id, v_existing_doc_number
   from public.documents d
   where d.reference_text = ('auditor_charge:' || p_auditor_charge_id::text)
   limit 1;
@@ -120,12 +149,10 @@ begin
     update public.auditor_subscription_charges
     set issued_invoice_id = v_existing_doc_id
     where id = p_auditor_charge_id;
-
     return query select true, v_existing_doc_id, v_existing_doc_number;
     return;
   end if;
 
-  -- Buyer company display details
   select c.company_name, coalesce(c.registration_number, c.tax_id)
     into v_company_name, v_company_tax_id
   from public.companies c
@@ -137,31 +164,20 @@ begin
   where p.id = v_charge.plan_id;
   if v_plan_name is null then v_plan_name := v_charge.plan_id; end if;
 
-  -- Determine which status column exists on documents
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='documents' and column_name='document_status'
-  ) then
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='document_status') then
     v_status_col := 'document_status';
-  elsif exists (
-    select 1 from information_schema.columns
-    where table_schema='public' and table_name='documents' and column_name='status'
-  ) then
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='status') then
     v_status_col := 'status';
   else
     v_status_col := null;
   end if;
 
-  -- Ensure numbering series exists if document_sequences exists; otherwise fallback
   if to_regclass('public.document_sequences') is not null then
-    insert into public.document_sequences (
-      company_id, document_type, prefix, starting_number, current_number, is_locked, locked_at
-    )
+    insert into public.document_sequences (company_id, document_type, prefix, starting_number, current_number, is_locked, locked_at)
     values (p_issuer_company_id, 'invoice_receipt', '', 1000, 999, true, now())
     on conflict (company_id, document_type) do nothing;
 
-    select *
-      into v_seq
+    select * into v_seq
     from public.document_sequences
     where company_id = p_issuer_company_id and document_type = 'invoice_receipt'
     for update;
@@ -171,25 +187,17 @@ begin
     end if;
 
     if v_seq.is_locked is distinct from true then
-      update public.document_sequences
-      set is_locked = true, locked_at = now()
-      where id = v_seq.id;
+      update public.document_sequences set is_locked = true, locked_at = now() where id = v_seq.id;
     end if;
 
     if coalesce(v_seq.starting_number, 0) < 1000 then
-      update public.document_sequences
-      set starting_number = 1000
-      where id = v_seq.id;
+      update public.document_sequences set starting_number = 1000 where id = v_seq.id;
       v_seq.starting_number := 1000;
     end if;
 
     v_next_number := greatest(coalesce(v_seq.current_number, 0) + 1, coalesce(v_seq.starting_number, 1000), 1000);
     v_prefix := coalesce(v_seq.prefix, '');
-
-    update public.document_sequences
-    set current_number = v_next_number, updated_at = now()
-    where id = v_seq.id;
-
+    update public.document_sequences set current_number = v_next_number, updated_at = now() where id = v_seq.id;
     v_doc_number := v_prefix || v_next_number::text;
   else
     v_doc_number := left(replace(p_auditor_charge_id::text, '-', ''), 12);
@@ -199,11 +207,9 @@ begin
   v_subtotal := round((v_total / (1 + (v_vat_rate / 100)))::numeric, 2);
   v_vat_amount := round((v_total - v_subtotal)::numeric, 2);
 
-  -- Build dynamic INSERT for documents (only existing columns)
   v_cols := array[]::text[];
   v_vals := array[]::text[];
 
-  -- Store document under customer company so RLS allows them to download PDF
   v_cols := array_append(v_cols, 'company_id');
   v_vals := array_append(v_vals, quote_literal(v_charge.company_id));
 
@@ -292,14 +298,11 @@ begin
     v_vals := array_append(v_vals, quote_literal(0));
   end if;
 
-  -- finalized_at set in finalize step below (after line items)
-
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_by') then
     v_cols := array_append(v_cols, 'finalized_by');
     v_vals := array_append(v_vals, 'null');
   end if;
 
-  -- Defensive: ensure cols and vals are in sync (prevents "INSERT has more target columns than expressions")
   if array_length(v_cols, 1) is distinct from array_length(v_vals, 1) then
     raise exception 'cols_vals_mismatch: cols=% vals=%', array_length(v_cols, 1), array_length(v_vals, 1);
   end if;
@@ -307,39 +310,18 @@ begin
   v_sql := 'insert into public.documents (' || array_to_string(v_cols, ',') || ') values (' || array_to_string(v_vals, ',') || ') returning id';
   execute v_sql into v_doc_id;
 
-  -- Line item: plan / period (must be inserted while document is draft – trigger blocks if final)
   insert into public.document_line_items (
-    document_id,
-    company_id,
-    line_number,
-    description,
-    item_date,
-    unit_price,
-    quantity,
-    line_total,
-    currency,
-    payment_metadata
+    document_id, company_id, line_number, description, item_date, unit_price, quantity, line_total, currency, payment_metadata
   )
   values (
-    v_doc_id,
-    v_charge.company_id,
-    1,
-    'מנוי /auditor – ' || v_plan_name,
-    current_date,
-    v_total,
-    1,
-    v_total,
+    v_doc_id, v_charge.company_id, 1,
+    'מנוי /auditor – ' || v_plan_name, current_date, v_total, 1, v_total,
     coalesce(v_charge.currency, 'ILS'),
-    jsonb_build_object(
-      'kind', 'auditor_subscription',
-      'planId', v_charge.plan_id,
-      'periodStart', v_charge.subscription_period_start,
-      'periodEnd', v_charge.subscription_period_end,
-      'chargeId', p_auditor_charge_id
-    )
+    jsonb_build_object('kind', 'auditor_subscription', 'planId', v_charge.plan_id,
+      'periodStart', v_charge.subscription_period_start, 'periodEnd', v_charge.subscription_period_end,
+      'chargeId', p_auditor_charge_id)
   );
 
-  -- Finalize document (set status + finalized_at so it appears in non-draft lists)
   if v_status_col = 'document_status' then
     if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_at') then
       update public.documents set document_status = 'final', finalized_at = now() where id = v_doc_id;
@@ -350,25 +332,62 @@ begin
     update public.documents set status = 'closed' where id = v_doc_id;
   end if;
 
-  update public.auditor_subscription_charges
-  set issued_invoice_id = v_doc_id
-  where id = p_auditor_charge_id;
+  update public.auditor_subscription_charges set issued_invoice_id = v_doc_id where id = p_auditor_charge_id;
 
-  select d.document_number into v_existing_doc_number
-  from public.documents d
-  where d.id = v_doc_id;
-
+  select d.document_number into v_existing_doc_number from public.documents d where d.id = v_doc_id;
   return query select true, v_doc_id, v_existing_doc_number;
   return;
 end;
 $$;
 
-revoke all on function public.issue_auditor_charge_invoice_receipt_service(uuid, uuid) from public;
-revoke all on function public.issue_auditor_charge_invoice_receipt_service(uuid, uuid) from anon;
-revoke all on function public.issue_auditor_charge_invoice_receipt_service(uuid, uuid) from authenticated;
-grant execute on function public.issue_auditor_charge_invoice_receipt_service(uuid, uuid) to service_role;
+-- ==================== STEP 6: Trigger to prevent regression (optional)
+create or replace function public.auditor_charge_invoice_company_id_check()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_charge_company uuid;
+begin
+  select c.company_id into v_charge_company
+  from public.auditor_subscription_charges c
+  where c.issued_invoice_id = new.id;
+  if v_charge_company is not null and new.company_id is distinct from v_charge_company then
+    raise exception 'auditor_invoice_document: documents.company_id must equal auditor_subscription_charges.company_id for issued invoices';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_auditor_invoice_document_company_check on public.documents;
+create trigger trg_auditor_invoice_document_company_check
+  before update of company_id on public.documents
+  for each row
+  when (
+    exists (
+      select 1 from public.auditor_subscription_charges c
+      where c.issued_invoice_id = new.id
+    )
+  )
+  execute function public.auditor_charge_invoice_company_id_check();
+
+-- ==================== STEP 7: Verify (mismatches after should be 0)
+do $$
+declare
+  v_after int;
+begin
+  select count(*) into v_after
+  from public.auditor_subscription_charges c
+  join public.documents d on d.id = c.issued_invoice_id
+  where c.issued_invoice_id is not null
+    and d.company_id is distinct from c.company_id;
+  raise notice '091: Mismatches after backfill: %', v_after;
+  if v_after > 0 then
+    raise warning '091: Some rows still have mismatched company_id!';
+  end if;
+end $$;
 
 commit;
 
 select pg_notify('pgrst', 'reload schema');
-
