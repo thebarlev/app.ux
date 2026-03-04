@@ -126,7 +126,7 @@ export function LoginForm(props: {
               <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
                 {titleText}
               </CardTitle>
-              <CardDescription className="mr-6  text-right">{descriptionText}</CardDescription>
+              <CardDescription className="mr-6  text-right text-[24px]">{descriptionText}</CardDescription>
             </CardHeader>
 
             <CardContent>

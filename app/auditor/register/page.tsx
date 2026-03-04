@@ -18,8 +18,8 @@ export default async function AuditorRegisterPage({
 
   // NOTE: For Auditor marketing flow, all strings are owned by this page (not system-texts),
   // so changes are fully controlled per product/route.
-  const titleText = "הרשמה ל‑Auditor"
-  const descriptionText = "השאירו פרטים כדי להמשיך לתשלום מאובטח"
+  const titleText = "קידום עסקים במנועי AI"
+  const descriptionText =" הרשמה מהירה"
   const legalTermsText = "אני מסכים/ה לתנאי השימוש, למדיניות הפרטיות, ולנספח שימוש בשירות"
   const marketingText = "אני רוצה לקבל מכם למייל הטבות ומידע שיווקי"
   const submitButtonText = "המשך לתשלום"

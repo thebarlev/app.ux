@@ -132,7 +132,7 @@ export default function AuditorRegisterClient(props: {
               <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
                 {props.titleText}
               </CardTitle>
-              <CardDescription className="mr-6 text-right">{props.descriptionText}</CardDescription>
+              <CardDescription className="mr-6 text-right text-[24px]">{props.descriptionText}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="auth-form" noValidate>
