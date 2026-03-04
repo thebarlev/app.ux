@@ -6,7 +6,28 @@ import Image from "next/image"
 import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Loader2 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Loader2, Plus } from "lucide-react"
+
+const BUSINESS_TYPES = [
+  "משרד עורכי דין",
+  "רופא",
+  "רואה חשבון",
+  "חנות",
+  "מסעדה",
+  "מטפל",
+  "יועץ",
+  "אחר",
+]
+const SEO_GOALS = ["הגדלת תנועה", "מיתוג", "קידום לוקאלי", "מכירות", "אחר"]
+const REGION_TYPES = ["ארצי", "אזורי", "מקומי", "גלובלי", "אחר"]
+const REGION_VALUES = ["מרכז", "צפון", "דרום", "ירושלים", "תל אביב", "חיפה", "אחר"]
 
 export default function AuditorSetupClient(props: {
   linkId: string
@@ -30,21 +51,41 @@ export default function AuditorSetupClient(props: {
   }, [linkId, scanId, token])
 
   const [websiteUrl, setWebsiteUrl] = useState("")
-  const [keyword1, setKeyword1] = useState("")
-  const [keyword2, setKeyword2] = useState("")
-  const [keyword3, setKeyword3] = useState("")
+  const [keywords, setKeywords] = useState<string[]>([""])
   const [businessType, setBusinessType] = useState("")
+  const [businessTypeOther, setBusinessTypeOther] = useState("")
   const [seoGoal, setSeoGoal] = useState("")
+  const [seoGoalOther, setSeoGoalOther] = useState("")
   const [regionType, setRegionType] = useState("")
+  const [regionTypeOther, setRegionTypeOther] = useState("")
   const [regionValue, setRegionValue] = useState("")
+  const [regionValueOther, setRegionValueOther] = useState("")
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  const addKeyword = () => {
+    setKeywords((k) => [...k, ""])
+  }
+
+  const setKeywordAt = (i: number, v: string) => {
+    setKeywords((k) => {
+      const next = [...k]
+      next[i] = v
+      return next
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsLoading(true)
+
+    const kw = keywords.map((k) => k.trim()).filter(Boolean)
+    const businessTypeVal = businessType === "אחר" ? businessTypeOther.trim() : businessType
+    const seoGoalVal = seoGoal === "אחר" ? seoGoalOther.trim() : seoGoal
+    const regionTypeVal = regionType === "אחר" ? regionTypeOther.trim() : regionType
+    const regionValueVal = regionValue === "אחר" ? regionValueOther.trim() : regionValue
 
     try {
       const r = await fetch("/api/auditor/lead/setup", {
@@ -52,13 +93,13 @@ export default function AuditorSetupClient(props: {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           website_url: websiteUrl.trim() || undefined,
-          keyword_1: keyword1.trim() || undefined,
-          keyword_2: keyword2.trim() || undefined,
-          keyword_3: keyword3.trim() || undefined,
-          business_type: businessType.trim() || undefined,
-          seo_goal: seoGoal.trim() || undefined,
-          region_type: regionType.trim() || undefined,
-          region_value: regionValue.trim() || undefined,
+          keyword_1: kw[0] || undefined,
+          keyword_2: kw[1] || undefined,
+          keyword_3: kw[2] || undefined,
+          business_type: businessTypeVal || undefined,
+          seo_goal: seoGoalVal || undefined,
+          region_type: regionTypeVal || undefined,
+          region_value: regionValueVal || undefined,
         }),
       })
       const j = await r.json().catch(() => null)
@@ -116,95 +157,153 @@ export default function AuditorSetupClient(props: {
                   />
                 </div>
 
+                {keywords.map((kw, i) => (
+                  <div key={i} className="auth-field flex gap-2 items-end">
+                    <div className="flex-1">
+                      <FloatingInput
+                        label={`מילת מפתח ${i + 1}`}
+                        id={`keyword_${i}`}
+                        placeholder="הקלד מילת מפתח"
+                        value={kw}
+                        onChange={(e) => setKeywordAt(i, e.target.value)}
+                        className="auth-input"
+                        labelClassName="auth-label"
+                        labelPlacement="above"
+                      />
+                    </div>
+                    {i === keywords.length - 1 && kw.trim() && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addKeyword}
+                        className="shrink-0 mb-1"
+                      >
+                        <Plus className="h-4 w-4 ml-1" />
+                        הוסף מילת מפתח
+                      </Button>
+                    )}
+                  </div>
+                ))}
+
                 <div className="auth-field">
-                  <FloatingInput
-                    label="מילת מפתח 1"
-                    id="keyword_1"
-                    placeholder=""
-                    value={keyword1}
-                    onChange={(e) => setKeyword1(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
+                  <label className="auth-label block mb-1 text-right">סוג עסק</label>
+                  <Select value={businessType || ""} onValueChange={setBusinessType}>
+                    <SelectTrigger className="w-full auth-input" variant="underline">
+                      <SelectValue placeholder="בחר סוג עסק" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {businessType === "אחר" && (
+                    <div className="mt-2">
+                      <FloatingInput
+                        label="פרט סוג העסק"
+                        id="business_type_other"
+                        placeholder="הזן ידנית"
+                        value={businessTypeOther}
+                        onChange={(e) => setBusinessTypeOther(e.target.value)}
+                        className="auth-input"
+                        labelClassName="auth-label"
+                        labelPlacement="above"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="auth-field">
-                  <FloatingInput
-                    label="מילת מפתח 2"
-                    id="keyword_2"
-                    placeholder=""
-                    value={keyword2}
-                    onChange={(e) => setKeyword2(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
+                  <label className="auth-label block mb-1 text-right">מטרת SEO</label>
+                  <Select value={seoGoal || ""} onValueChange={setSeoGoal}>
+                    <SelectTrigger className="w-full auth-input" variant="underline">
+                      <SelectValue placeholder="בחר מטרה" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEO_GOALS.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {seoGoal === "אחר" && (
+                    <div className="mt-2">
+                      <FloatingInput
+                        label="פרט מטרת SEO"
+                        id="seo_goal_other"
+                        placeholder="הזן ידנית"
+                        value={seoGoalOther}
+                        onChange={(e) => setSeoGoalOther(e.target.value)}
+                        className="auth-input"
+                        labelClassName="auth-label"
+                        labelPlacement="above"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="auth-field">
-                  <FloatingInput
-                    label="מילת מפתח 3"
-                    id="keyword_3"
-                    placeholder=""
-                    value={keyword3}
-                    onChange={(e) => setKeyword3(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
+                  <label className="auth-label block mb-1 text-right">סוג אזור</label>
+                  <Select value={regionType || ""} onValueChange={setRegionType}>
+                    <SelectTrigger className="w-full auth-input" variant="underline">
+                      <SelectValue placeholder="בחר סוג אזור" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REGION_TYPES.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {regionType === "אחר" && (
+                    <div className="mt-2">
+                      <FloatingInput
+                        label="פרט סוג אזור"
+                        id="region_type_other"
+                        placeholder="הזן ידנית"
+                        value={regionTypeOther}
+                        onChange={(e) => setRegionTypeOther(e.target.value)}
+                        className="auth-input"
+                        labelClassName="auth-label"
+                        labelPlacement="above"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="auth-field">
-                  <FloatingInput
-                    label="סוג עסק"
-                    id="business_type"
-                    placeholder=""
-                    value={businessType}
-                    onChange={(e) => setBusinessType(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
-                </div>
-
-                <div className="auth-field">
-                  <FloatingInput
-                    label="מטרת SEO"
-                    id="seo_goal"
-                    placeholder=""
-                    value={seoGoal}
-                    onChange={(e) => setSeoGoal(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
-                </div>
-
-                <div className="auth-field">
-                  <FloatingInput
-                    label="סוג אזור"
-                    id="region_type"
-                    placeholder=""
-                    value={regionType}
-                    onChange={(e) => setRegionType(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
-                </div>
-
-                <div className="auth-field">
-                  <FloatingInput
-                    label="ערך אזור"
-                    id="region_value"
-                    placeholder=""
-                    value={regionValue}
-                    onChange={(e) => setRegionValue(e.target.value)}
-                    className="auth-input"
-                    labelClassName="auth-label"
-                    labelPlacement="above"
-                  />
+                  <label className="auth-label block mb-1 text-right">ערך אזור</label>
+                  <Select value={regionValue || ""} onValueChange={setRegionValue}>
+                    <SelectTrigger className="w-full auth-input" variant="underline">
+                      <SelectValue placeholder="בחר ערך אזור" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REGION_VALUES.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {regionValue === "אחר" && (
+                    <div className="mt-2">
+                      <FloatingInput
+                        label="פרט ערך אזור"
+                        id="region_value_other"
+                        placeholder="הזן ידנית"
+                        value={regionValueOther}
+                        onChange={(e) => setRegionValueOther(e.target.value)}
+                        className="auth-input"
+                        labelClassName="auth-label"
+                        labelPlacement="above"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <Button type="submit" disabled={isLoading} className="w-full auth-primary-button" variant="primary">
