@@ -11,7 +11,6 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
-import { requireSystemAdmin } from "@/lib/security/system-admin"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { generateDocumentPDF } from "@/lib/pdf-service"
@@ -20,9 +19,10 @@ export async function POST(req: Request) {
   const cfg = getAuditorConfig()
   if (!cfg.enabled) return new NextResponse(null, { status: 404 })
 
-  try {
-    await requireSystemAdmin()
-  } catch {
+  const secret = process.env.AUDITOR_REPAIR_SECRET
+  const got = req.headers.get("x-admin-secret") || ""
+
+  if (!secret || got !== secret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

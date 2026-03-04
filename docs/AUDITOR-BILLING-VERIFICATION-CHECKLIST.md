@@ -119,15 +119,15 @@ curl -X POST "https://YOUR-APP/api/admin/auditor/repair-user-company" \
   -H "Cookie: ..." \
   -d '{"email": "user@example.com"}'
 
-# Repair charges ללא חשבונית (admin) – issued_invoice_id null
+# Repair charges ללא חשבונית – issued_invoice_id null (דורש x-admin-secret = AUDITOR_REPAIR_SECRET)
 curl -X POST "https://YOUR-APP/api/admin/auditor/repair-missing-invoices" \
   -H "Content-Type: application/json" \
-  -H "Cookie: ..." \
+  -H "x-admin-secret: YOUR_AUDITOR_REPAIR_SECRET" \
   -d '{}'
 # או ל-charge ספציפי:
 curl -X POST "https://YOUR-APP/api/admin/auditor/repair-missing-invoices" \
   -H "Content-Type: application/json" \
-  -H "Cookie: ..." \
+  -H "x-admin-secret: YOUR_AUDITOR_REPAIR_SECRET" \
   -d '{"chargeId": "CHARGE_UUID"}'
 
 # Repair חשבוניות ישנות ללא PDF (admin) – תיקון PDF_NOT_AVAILABLE
