@@ -1,6 +1,12 @@
 {
   "installCommand": "pnpm install",
   "buildCommand": "pnpm build",
+  "functions": {
+    "app/api/auditor/continue/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/auditor/billing/process-pending",
