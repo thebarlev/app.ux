@@ -80,6 +80,11 @@
 - [ ] כפתור הורדה עובד
 - [ ] PDF נפתח/מורד בהצלחה
 
+### 3.3 PDF – בלוקים שמאל/ימין (issuer vs customer)
+- [ ] **בלוק שמאל (מנפיק):** מציג את חברת המנפיק (בוגו מדיה בע״מ / VOW) – `issuer_company_id`
+- [ ] **בלוק ימין (לקוח):** מציג את חברת הלקוח (מנוי) – `charge.company_id`  
+- [ ] בדיקה: charge `7f58cab5-d111-47c3-b5cf-a18b1008b467` → שמאל: `4ae68334-15a0-4fa3-a9ba-fd77deccc95d`, ימין: `a981a6e6-dd24-4db2-9cf9-8262bf49881f`
+
 **סיבה אפשרית:**
 - `user_company_ids()` ריק → API מחזיר 400 "No company"
 - `documents.company_id` שונה מחברת הלקוח → RLS חוסם

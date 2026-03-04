@@ -1066,11 +1066,13 @@ export async function prepareDocumentData(
   // For auto-issued billing documents, customer details may live on buyer company
   // (billing_documents.buyer_company_id) and not in customers table.
   let buyerCompany: any = null
+  let issuerCompany: any = doc.company
+  let customerCompanyForBlock: any = null
   if (!(doc as any)?.customer) {
     try {
       const { data: bd } = await supabase
         .from("billing_documents")
-        .select("buyer_company_id")
+        .select("buyer_company_id, issuer_company_id")
         .eq("document_id", documentId)
         .maybeSingle()
 
@@ -1082,9 +1084,46 @@ export async function prepareDocumentData(
           .eq("id", buyerCompanyId)
           .maybeSingle()
         buyerCompany = bc || null
+        customerCompanyForBlock = bc || null
+      }
+      // billing_documents.issuer_company_id = issuer (LEFT block); buyer = customer (RIGHT block)
+      const issuerCompanyId = String((bd as any)?.issuer_company_id || "").trim()
+      if (issuerCompanyId) {
+        const { data: ic } = await supabase
+          .from("companies")
+          .select("id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en")
+          .eq("id", issuerCompanyId)
+          .maybeSingle()
+        if (ic) issuerCompany = ic
       }
     } catch {
       buyerCompany = null
+    }
+  }
+
+  // Auditor invoice_receipt: document.company_id = customer (charge.company_id) for RLS.
+  // Issuer block uses issuer_company_id; customer block uses charge.company_id.
+  const isAuditorInvoiceReceipt =
+    (doc.document_type === "invoice_receipt" || (doc as any).document_type === "invoiceReceipt") &&
+    String((doc as any)?.reference_text || "").startsWith("auditor_charge:")
+  if (isAuditorInvoiceReceipt) {
+    const issuerId =
+      String(process.env.AUDITOR_BILLING_ACCOUNT_ID || process.env.VOW_BILLING_COMPANY_ID || "").trim() ||
+      "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+    if (issuerId) {
+      const { data: ic } = await supabase
+        .from("companies")
+        .select("id, company_name, company_name_en, english_address, registration_number, company_number, address, street, city, postal_code, phone, mobile_phone, email, website, logo_url, signature_url, contact_first_name, contact_first_name_en")
+        .eq("id", issuerId)
+        .maybeSingle()
+      if (ic) issuerCompany = ic
+    }
+    customerCompanyForBlock = doc.company // doc.company = charge.company_id (customer)
+    if (process.env.NODE_ENV === "development") {
+      console.log("[PDF_AUDITOR_INVOICE] issuer block uses issuer_company_id; customer block uses charge.company_id", {
+        issuerCompanyId: issuerCompany?.id,
+        customerCompanyId: customerCompanyForBlock?.id,
+      })
     }
   }
 
@@ -1401,45 +1440,44 @@ export async function prepareDocumentData(
     } as any // Using 'as any' to allow extra display fields
   })
 
-  // Build company address:
-  // - English PDF: use ONLY companies.english_address; if missing/empty => hide address block (no fallback to Hebrew)
-  // - Hebrew PDF: use street/city/postal_code when available, otherwise companies.address
+  // Build company address (LEFT block = issuer):
+  // issuer block uses issuer_company_id; customer block uses charge.company_id.
   let companyAddress = ""
   if (documentLanguage === "en") {
-    const en = (doc.company as any)?.english_address
+    const en = (issuerCompany as any)?.english_address
     companyAddress = typeof en === "string" ? en.trim() : ""
   } else {
-    companyAddress = doc.company?.address || ""
-    if (doc.company?.street || doc.company?.city) {
+    companyAddress = issuerCompany?.address || ""
+    if (issuerCompany?.street || issuerCompany?.city) {
       const addressParts: string[] = []
-      if (doc.company.street) addressParts.push(doc.company.street)
-      if (doc.company.city) addressParts.push(doc.company.city)
-      if (doc.company.postal_code) addressParts.push(doc.company.postal_code)
+      if (issuerCompany.street) addressParts.push(issuerCompany.street)
+      if (issuerCompany.city) addressParts.push(issuerCompany.city)
+      if (issuerCompany.postal_code) addressParts.push(issuerCompany.postal_code)
       if (addressParts.length > 0) {
         companyAddress = addressParts.join(", ")
       }
     }
   }
 
-  // Use registration_number or company_number for tax ID
-  const companyTaxId = doc.company?.registration_number || doc.company?.company_number || null;
-  
-  // Use mobile_phone or phone for company phone
-  const companyPhone = doc.company?.mobile_phone || doc.company?.phone || null;
+  // Use registration_number or company_number for tax ID (issuer)
+  const companyTaxId = issuerCompany?.registration_number || issuerCompany?.company_number || null;
 
-  // Company name + issuer first name (localized)
-  const companyNameHe = doc.company?.company_name || ""
-  const companyNameEn = (doc.company as any)?.company_name_en || ""
-  const issuerFirstNameHe = (doc.company as any)?.contact_first_name || ""
-  const issuerFirstNameEn = (doc.company as any)?.contact_first_name_en || ""
+  // Use mobile_phone or phone for company phone (issuer)
+  const companyPhone = issuerCompany?.mobile_phone || issuerCompany?.phone || null;
+
+  // Company name + issuer first name (localized) - LEFT block = issuer
+  const companyNameHe = issuerCompany?.company_name || ""
+  const companyNameEn = (issuerCompany as any)?.company_name_en || ""
+  const issuerFirstNameHe = (issuerCompany as any)?.contact_first_name || ""
+  const issuerFirstNameEn = (issuerCompany as any)?.contact_first_name_en || ""
   const companyNameLocalized = documentLanguage === "en" ? (companyNameEn || companyNameHe) : companyNameHe
   const issuerFirstNameLocalized = documentLanguage === "en" ? (issuerFirstNameEn || issuerFirstNameHe) : issuerFirstNameHe
 
   // System texts for document/PDF rendering
   const t = await getPageTexts("receipt", documentLanguage)
   
-  // Build customer address from separate fields if available
-  let customerAddress = null;
+  // Build customer address from separate fields if available (RIGHT block = customer)
+  let customerAddress: string | null = null;
   if (doc.customer) {
     if (doc.customer.address_street || doc.customer.address_city) {
       const addressParts = [];
@@ -1451,26 +1489,27 @@ export async function prepareDocumentData(
       }
     }
   }
-  if (!customerAddress && buyerCompany) {
-    if ((buyerCompany as any)?.street || (buyerCompany as any)?.city) {
-      const buyerAddressParts: string[] = []
-      if ((buyerCompany as any)?.street) buyerAddressParts.push(String((buyerCompany as any).street))
-      if ((buyerCompany as any)?.city) buyerAddressParts.push(String((buyerCompany as any).city))
-      if ((buyerCompany as any)?.postal_code) buyerAddressParts.push(String((buyerCompany as any).postal_code))
-      if (buyerAddressParts.length > 0) {
-        customerAddress = buyerAddressParts.join(", ")
-      }
+  if (!customerAddress && (customerCompanyForBlock || buyerCompany)) {
+    const cust = customerCompanyForBlock || buyerCompany;
+    if ((cust as any)?.street || (cust as any)?.city) {
+      const parts: string[] = []
+      if ((cust as any)?.street) parts.push(String((cust as any).street))
+      if ((cust as any)?.city) parts.push(String((cust as any).city))
+      if ((cust as any)?.postal_code) parts.push(String((cust as any).postal_code))
+      if (parts.length > 0) customerAddress = parts.join(", ")
     }
-    if (!customerAddress && (buyerCompany as any)?.address) {
-      customerAddress = String((buyerCompany as any).address)
+    if (!customerAddress && (cust as any)?.address) {
+      customerAddress = String((cust as any).address)
     }
   }
-  
-  // Use mobile or phone for customer phone
+
+  // Use mobile or phone for customer phone (RIGHT block)
   const customerPhone =
     doc.customer?.mobile ||
     doc.customer?.phone ||
     (doc as any)?.customer_phone ||
+    (customerCompanyForBlock as any)?.mobile_phone ||
+    (customerCompanyForBlock as any)?.phone ||
     (buyerCompany as any)?.mobile_phone ||
     (buyerCompany as any)?.phone ||
     null;
@@ -1537,9 +1576,9 @@ export async function prepareDocumentData(
     }
   }
 
-  // Process logo URL
-  if (doc.company?.logo_url) {
-    const storagePath = getStoragePathFromUrl(doc.company.logo_url)
+  // Process logo URL (issuer company)
+  if (issuerCompany?.logo_url) {
+    const storagePath = getStoragePathFromUrl(issuerCompany.logo_url)
     if (storagePath) {
       if (options?.embedAssetsAsDataUrls) {
         try {
@@ -1572,24 +1611,24 @@ export async function prepareDocumentData(
             const { data: publicUrlData } = adminClient.storage
               .from(PUBLIC_ASSETS_BUCKET)
               .getPublicUrl(storagePath)
-            logoUrl = publicUrlData.publicUrl || doc.company.logo_url
-            console.log(`[prepareDocumentData] Using public URL for logo: ${publicUrlData.publicUrl || doc.company.logo_url}`)
+            logoUrl = publicUrlData.publicUrl || issuerCompany.logo_url
+            console.log(`[prepareDocumentData] Using public URL for logo: ${publicUrlData.publicUrl || issuerCompany.logo_url}`)
           }
         } catch (error) {
           // Fallback to original URL
-          logoUrl = doc.company.logo_url
+          logoUrl = issuerCompany.logo_url
           console.warn(`[prepareDocumentData] Failed to create signed URL for logo, using original:`, error)
         }
       }
     } else {
       // If we can't extract storage path, use original URL (might be external URL)
-      logoUrl = doc.company.logo_url
+      logoUrl = issuerCompany.logo_url
     }
   }
 
-  // Process signature URL
-  if (doc.company?.signature_url) {
-    const storagePath = getStoragePathFromUrl(doc.company.signature_url)
+  // Process signature URL (issuer company)
+  if (issuerCompany?.signature_url) {
+    const storagePath = getStoragePathFromUrl(issuerCompany.signature_url)
     if (storagePath) {
       await ensureSignatureInSecureBucket(storagePath)
       if (options?.embedAssetsAsDataUrls) {
@@ -1623,39 +1662,45 @@ export async function prepareDocumentData(
             const { data: publicUrlData } = adminClient.storage
               .from(SECURE_ASSETS_BUCKET)
               .getPublicUrl(storagePath)
-            signatureUrl = publicUrlData.publicUrl || doc.company.signature_url
+            signatureUrl = publicUrlData.publicUrl || issuerCompany.signature_url
           }
         } catch (error) {
           // Fallback to original URL
-          signatureUrl = doc.company.signature_url
+          signatureUrl = issuerCompany.signature_url
           console.warn(`[prepareDocumentData] Failed to create signed URL for signature, using original:`, error)
         }
       }
     } else {
       // If we can't extract storage path, use original URL (might be external URL)
-      signatureUrl = doc.company.signature_url
+      signatureUrl = issuerCompany.signature_url
     }
   }
 
-  // Build template data structure  
+  // Build template data structure (RIGHT block = customer)
   const resolvedCustomerName =
     doc.customer?.name ||
     doc.customer_name ||
+    String((customerCompanyForBlock as any)?.company_name || "").trim() ||
     String((buyerCompany as any)?.company_name || "").trim() ||
     ""
   const resolvedCustomerTaxId =
     doc.customer?.tax_id ||
     (doc as any)?.customer_tax_id ||
+    (customerCompanyForBlock as any)?.registration_number ||
+    (customerCompanyForBlock as any)?.company_number ||
     (buyerCompany as any)?.registration_number ||
     (buyerCompany as any)?.company_number ||
     ""
   const resolvedCustomerEmail =
     doc.customer?.email ||
     (doc as any)?.customer_email ||
+    (customerCompanyForBlock as any)?.email ||
     (buyerCompany as any)?.email ||
     null
   const resolvedCustomerWebsite =
-    (buyerCompany as any)?.website || null
+    (customerCompanyForBlock as any)?.website ||
+    (buyerCompany as any)?.website ||
+    null
   
   // Check if any item has SKU data (non-empty sku field)
   const hasSkuData = (docItems || []).some((item: any) => {
@@ -1686,7 +1731,7 @@ export async function prepareDocumentData(
       address: companyAddress || null, // For {{company.address}}
       company_address: companyAddress || null,
       company_phone: companyPhone,
-      company_email: doc.company?.email || null,
+      company_email: issuerCompany?.email || null,
       company_logo: logoUrl || null, // Use signed URL if available, null if no logo
       logo_url: logoUrl || null, // Required by template validation {{company.logo_url}}
     } as any,
@@ -1777,8 +1822,8 @@ export async function prepareDocumentData(
     USERID: companyTaxId || "",
     USERADDRESS: companyAddress || "",
     PHONE: companyPhone || "",
-    EMAIL: doc.company?.email || "",
-    DOMAIN: doc.company?.website || "",
+    EMAIL: issuerCompany?.email || "",
+    DOMAIN: issuerCompany?.website || "",
     LOGO_URL: logoUrl || null, // Use signed URL if available, null if no logo (template can use {{#if}})
     SIGNATURE_URL: signatureUrl || null, // Use signed URL if available, null if no signature (template can use {{#if}})
     
@@ -1817,7 +1862,7 @@ export async function prepareDocumentData(
     company_tax_id: companyTaxId || "",
     company_address: companyAddress || "",
     company_phone: companyPhone || "",
-    company_email: doc.company?.email || "",
+    company_email: issuerCompany?.email || "",
     company_logo: logoUrl || null, // Use signed URL if available, null if no logo
     customer_name: resolvedCustomerName,
     customer_tax_id: resolvedCustomerTaxId || "",
