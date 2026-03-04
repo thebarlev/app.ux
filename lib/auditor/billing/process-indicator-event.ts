@@ -137,7 +137,7 @@ export async function processCardcomIndicatorEvent(
   if (!companyId) {
     const { data: lead } = await admin
       .from("auditor_leads")
-      .select("id,full_name,email,phone,normalized_host")
+      .select("id,full_name,email,phone,normalized_host,website_url,keyword_1,keyword_2,keyword_3,business_type,seo_goal,region_type,region_value")
       .eq("id", String(checkout.lead_id))
       .maybeSingle()
 
@@ -169,7 +169,15 @@ export async function processCardcomIndicatorEvent(
 
     if (!companyId) {
       const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
-      const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
+      const websiteUrl = String((lead as any).website_url || "").trim()
+    let companyName = normalizedHost || leadName || "Auditor customer"
+    if (!companyName || companyName === "Auditor customer") {
+      try {
+        if (websiteUrl) companyName = new URL(websiteUrl).hostname || companyName
+      } catch {
+        /* ignore */
+      }
+    }
 
       const { data: insertedCompany, error: insErr } = await admin
         .from("companies")
@@ -259,6 +267,100 @@ export async function processCardcomIndicatorEvent(
     }
   }
 
+  const leadId = checkout.lead_id ? String(checkout.lead_id) : null
+  const now = new Date()
+  const period = computeMonthlyPeriod(now)
+  const nextChargeAt = period.nextBillingAt.toISOString()
+
+  // Create auditor_customers and auditor_projects (idempotent)
+  let customerId: string | null = null
+  if (companyId) {
+    if (leadId) {
+    const { data: existingCustomer } = await admin
+      .from("auditor_customers")
+      .select("id")
+      .eq("lead_id", leadId)
+      .maybeSingle()
+    if (existingCustomer?.id) {
+      customerId = String(existingCustomer.id)
+    } else {
+      const { data: newCustomer, error: custErr } = await admin
+        .from("auditor_customers")
+        .insert({
+          lead_id: leadId,
+          user_id: userId,
+          company_id: companyId,
+          customer_status: "active",
+          last_payment_at: now.toISOString(),
+          next_charge_at: nextChargeAt,
+          last_charge_status: "paid",
+          last_charge_error: null,
+        } as any)
+        .select("id")
+        .single()
+      if (!custErr && newCustomer?.id) customerId = String(newCustomer.id)
+    }
+
+    if (customerId) {
+      const { data: existingProject } = await admin
+        .from("auditor_projects")
+        .select("id")
+        .eq("customer_id", customerId)
+        .maybeSingle()
+      if (!existingProject?.id) {
+        const leadData = leadId
+          ? await admin.from("auditor_leads").select("website_url,keyword_1,keyword_2,keyword_3,business_type,seo_goal,region_type,region_value").eq("id", leadId).maybeSingle()
+          : { data: null }
+        const l = (leadData as any)?.data
+        let domain: string | null = null
+        if (l?.website_url) {
+          try {
+            domain = new URL(String(l.website_url)).hostname || null
+          } catch {
+            /* ignore */
+          }
+        }
+        await admin.from("auditor_projects").insert({
+          customer_id: customerId,
+          domain,
+          website_url: l?.website_url || null,
+          keyword_1: l?.keyword_1 || null,
+          keyword_2: l?.keyword_2 || null,
+          keyword_3: l?.keyword_3 || null,
+          business_type: l?.business_type || null,
+          seo_goal: l?.seo_goal || null,
+          region_type: l?.region_type || null,
+          region_value: l?.region_value || null,
+          status: "active",
+        } as any)
+      }
+        await admin.from("auditor_leads").update({ status: "subscription_started" } as any).eq("id", leadId)
+    }
+    } else {
+      const { data: existingByCompany } = await admin
+        .from("auditor_customers")
+        .select("id")
+        .eq("company_id", companyId)
+        .maybeSingle()
+      if (existingByCompany?.id) customerId = String(existingByCompany.id)
+      else {
+        const { data: newCust } = await admin
+          .from("auditor_customers")
+          .insert({
+            company_id: companyId,
+            user_id: userId,
+            customer_status: "active",
+            last_payment_at: now.toISOString(),
+            next_charge_at: nextChargeAt,
+            last_charge_status: "paid",
+          } as any)
+          .select("id")
+          .single()
+        if (newCust?.id) customerId = String(newCust.id)
+      }
+    }
+  }
+
   const tokenHash = tokenHashSha256(tokenInfo.token)
   const tokenEnc = encryptToken(tokenInfo.token)
   const tokenEx = normalizeCardcomTokenExDate(tokenInfo.tokenExDate)
@@ -284,14 +386,13 @@ export async function processCardcomIndicatorEvent(
     .maybeSingle()
 
   const paymentMethodId = pmRow?.id ? String(pmRow.id) : null
-  const now = new Date()
-  const period = computeMonthlyPeriod(now)
   const billingCfg = getAuditorBillingConfig()
 
   try {
     await admin.from("auditor_subscriptions").upsert(
       {
         company_id: companyId,
+        customer_id: customerId,
         plan_id: plan.id,
         payment_method_id: paymentMethodId,
         billing_account_id: billingCfg.billingAccountId,

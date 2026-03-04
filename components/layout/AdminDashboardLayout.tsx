@@ -32,6 +32,7 @@ type NavItem = {
 const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
   { href: "/admin/auditor", label: "Auditor", icon: <Search className="h-4 w-4" /> },
+  { href: "/admin/auditor-projects", label: "Auditor Projects", icon: <Building2 className="h-4 w-4" /> },
   { href: "/admin/templates", label: "Templates", icon: <FileText className="h-4 w-4" /> },
   { href: "/admin/texts", label: "System Texts", icon: <FileText className="h-4 w-4" /> },
   { href: "/admin/document-variables", label: "Document Variables", icon: <Settings className="h-4 w-4" /> },

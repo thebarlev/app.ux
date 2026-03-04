@@ -33,8 +33,8 @@ export default function AuditorRegisterClient(props: {
   const token = String(props.token || "").trim()
 
   const loginHref = linkId ? `/auditor/login?link_id=${encodeURIComponent(linkId)}` : "/auditor/login"
-  const afterCheckout = useMemo(() => {
-    const base = "/auditor/checkout"
+  const afterSetup = useMemo(() => {
+    const base = "/auditor/setup"
     const params = new URLSearchParams()
     if (linkId) params.set("link_id", linkId)
     if (scanId) params.set("scanId", scanId)
@@ -101,7 +101,7 @@ export default function AuditorRegisterClient(props: {
         return
       }
 
-      const r = await fetch("/api/auditor/auth/bootstrap-company", {
+      const r = await fetch("/api/auditor/lead/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ full_name: fullName.trim(), phone: phone.trim() }),
@@ -109,7 +109,7 @@ export default function AuditorRegisterClient(props: {
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
 
-      router.replace(afterCheckout)
+      router.replace(afterSetup)
       router.refresh()
       return
     } catch (e: any) {

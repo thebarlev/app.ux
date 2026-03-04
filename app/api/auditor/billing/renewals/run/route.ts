@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   const { data: subs, error: subsErr } = await admin
     .from("auditor_subscriptions")
     .select(
-      "company_id,plan_id,payment_method_id,billing_account_id,status,current_period_start,current_period_end,next_billing_date," +
+      "company_id,customer_id,plan_id,payment_method_id,billing_account_id,status,current_period_start,current_period_end,next_billing_date," +
         "cancel_at_period_end,canceled_at,failed_attempts,grace_until,plan_snapshot_monthly_amount,plan_snapshot_currency"
     )
     .in("status", ["active", "past_due"])
@@ -42,10 +42,19 @@ export async function POST(req: Request) {
 
   const results: any[] = []
 
+  async function updateCustomerStatus(
+    customerId: string | null,
+    updates: { customer_status: string; last_payment_at?: string; next_charge_at?: string; last_charge_status?: string; last_charge_error?: string | null }
+  ) {
+    if (!customerId) return
+    await admin.from("auditor_customers").update(updates as any).eq("id", customerId)
+  }
+
   for (const sub of subs || []) {
     const companyId = String((sub as any).company_id || "")
     if (!companyId) continue
 
+    const customerId = (sub as any).customer_id ? String((sub as any).customer_id) : null
     const status = String((sub as any).status || "")
     const cancelAtPeriodEnd = Boolean((sub as any).cancel_at_period_end)
     const currentEndIso = (sub as any).current_period_end ? String((sub as any).current_period_end) : null
@@ -55,6 +64,7 @@ export async function POST(req: Request) {
       const graceUntil = new Date(graceUntilIso)
       if (Number.isFinite(graceUntil.getTime()) && now.getTime() > graceUntil.getTime()) {
         await admin.from("auditor_subscriptions").update({ status: "blocked" } as any).eq("company_id", companyId)
+        await updateCustomerStatus(customerId, { customer_status: "inactive" })
         results.push({ company_id: companyId, ok: false, reason: "grace_expired_blocked" })
         continue
       }
@@ -67,6 +77,7 @@ export async function POST(req: Request) {
           .from("auditor_subscriptions")
           .update({ status: "canceled", next_billing_date: null, canceled_at: nowIso } as any)
           .eq("company_id", companyId)
+        await updateCustomerStatus(customerId, { customer_status: "canceled" })
         results.push({ company_id: companyId, ok: true, skipped: true, reason: "canceled_at_period_end" })
         continue
       }
@@ -74,14 +85,20 @@ export async function POST(req: Request) {
 
     const paymentMethodId = (sub as any).payment_method_id ? String((sub as any).payment_method_id) : null
     if (!paymentMethodId) {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscriptions")
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: "missing_payment_method",
+      })
       results.push({ company_id: companyId, ok: false, reason: "missing_payment_method" })
       continue
     }
@@ -93,14 +110,20 @@ export async function POST(req: Request) {
       .maybeSingle()
 
     if (!pm?.id || String((pm as any).status || "") !== "active") {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscriptions")
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: "payment_method_inactive",
+      })
       results.push({ company_id: companyId, ok: false, reason: "payment_method_inactive" })
       continue
     }
@@ -109,14 +132,20 @@ export async function POST(req: Request) {
     try {
       token = decryptToken(String((pm as any).token_enc || ""))
     } catch {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscriptions")
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: "token_decrypt_failed",
+      })
       results.push({ company_id: companyId, ok: false, reason: "token_decrypt_failed" })
       continue
     }
@@ -150,14 +179,20 @@ export async function POST(req: Request) {
     }
 
     if (!Number.isFinite(amount) || amount <= 0) {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscriptions")
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: "plan_price_missing",
+      })
       results.push({ company_id: companyId, ok: false, reason: "plan_price_missing" })
       continue
     }
@@ -196,6 +231,7 @@ export async function POST(req: Request) {
     try {
       chargeResp = await chargeToken({ token, tokenExDate: tokenEx, sumToBill: amount, coinId: 1, uniqAsmachta: uniq })
     } catch {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscription_charges")
         .update({ status: "failed", raw_charge_response: { error: "charge_request_failed" } } as any)
@@ -205,9 +241,14 @@ export async function POST(req: Request) {
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: "charge_request_failed",
+      })
       results.push({ company_id: companyId, ok: false, reason: "charge_request_failed" })
       continue
     }
@@ -216,6 +257,7 @@ export async function POST(req: Request) {
     const internalDealNumber = String((chargeResp?.parsed as any)?.InternalDealNumber ?? "").trim() || null
 
     if (responseCode !== "0") {
+      const graceIso = graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
       await admin
         .from("auditor_subscription_charges")
         .update({
@@ -230,9 +272,15 @@ export async function POST(req: Request) {
         .update({
           status: "past_due",
           failed_attempts: Number((sub as any).failed_attempts || 0) + 1,
-          grace_until: graceUntilIso || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          grace_until: graceIso,
         } as any)
         .eq("company_id", companyId)
+
+      await updateCustomerStatus(customerId, {
+        customer_status: "past_due",
+        last_charge_status: "failed",
+        last_charge_error: `charge_failed:${responseCode}`.slice(0, 100),
+      })
 
       results.push({ company_id: companyId, ok: false, reason: "charge_failed" })
       continue
@@ -259,6 +307,14 @@ export async function POST(req: Request) {
         grace_until: null,
       } as any)
       .eq("company_id", companyId)
+
+    await updateCustomerStatus(customerId, {
+      customer_status: "active",
+      last_payment_at: nowIso,
+      next_charge_at: periodEndIso,
+      last_charge_status: "paid",
+      last_charge_error: null,
+    })
 
     // Issue invoice_receipt (idempotent RPC)
     try {

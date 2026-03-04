@@ -30,6 +30,27 @@ function safeUtmFromRequest(req: Request): Record<string, string> {
   }
 }
 
+async function getCompanyOrLeadId(
+  admin: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  userId: string,
+  email: string
+): Promise<{ companyId: string | null; leadId: string | null }> {
+  try {
+    const companyId = await getCompanyIdForUser()
+    return { companyId, leadId: null }
+  } catch {
+    const { data: lead } = await admin
+      .from("auditor_leads")
+      .select("id")
+      .ilike("email", email)
+      .in("status", ["step1_completed", "step2_completed", "checkout_started"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return { companyId: null, leadId: lead?.id ? String(lead.id) : null }
+  }
+}
+
 export async function POST(req: Request) {
   const auditorCfg = getAuditorConfig()
   if (!auditorCfg.enabled) return new NextResponse(null, { status: 404 })
@@ -45,9 +66,14 @@ export async function POST(req: Request) {
   }
 
   const linkId = String(parsed.data.link_id || "").trim()
-  const companyId = await getCompanyIdForUser()
-
   const admin = createServiceRoleClient()
+
+  const email = String(auth.user.email || "").trim().toLowerCase()
+  const { companyId, leadId } = await getCompanyOrLeadId(admin, auth.user.id, email)
+
+  if (!companyId && !leadId) {
+    return NextResponse.json({ ok: false, error: "Complete registration first" }, { status: 400 })
+  }
 
   // Validate link_id -> plan_id (server-truth)
   const { data: linkRow } = await admin
@@ -80,18 +106,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Unsupported currency" }, { status: 400 })
   }
 
-  // Idempotency (UX): reuse a recent created/redirected session for same company+plan
+  // Update lead status to checkout_started when using lead flow
+  if (leadId) {
+    await admin
+      .from("auditor_leads")
+      .update({ status: "checkout_started" } as any)
+      .eq("id", leadId)
+  }
+
+  // Idempotency (UX): reuse a recent created/redirected session for same company/lead+plan
   const tenMinAgoIso = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-  const { data: existingSession } = await admin
+  const existingQuery = admin
     .from("auditor_checkout_sessions")
     .select("id,status,provider_low_profile_code,success_url,error_url,indicator_url")
-    .eq("company_id", companyId)
     .eq("plan_id", planId)
     .in("status", ["created", "redirected"])
     .gte("created_at", tenMinAgoIso)
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle()
+  const { data: existingSession } = companyId
+    ? await existingQuery.eq("company_id", companyId).maybeSingle()
+    : await existingQuery.eq("lead_id", leadId).maybeSingle()
 
   // Always ensure callback URLs are valid for the current request context
   const publicBaseUrl = getPublicBaseUrl(req)
@@ -166,7 +201,7 @@ export async function POST(req: Request) {
     .insert({
       company_id: companyId,
       user_id: auth.user.id,
-      lead_id: null,
+      lead_id: leadId,
       scan_id: null,
       plan_id: planId,
       amount,

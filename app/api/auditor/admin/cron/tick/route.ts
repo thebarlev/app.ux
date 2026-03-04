@@ -48,8 +48,25 @@ export async function POST(req: Request) {
     const frequencyDays = Number((s as any).frequency_days) || 14
 
     // Create a scheduled scan row (no customer token).
+    const { data: cust } = await admin
+      .from("auditor_customers")
+      .select("id")
+      .eq("company_id", companyId)
+      .maybeSingle()
+
+    const { data: proj } = cust?.id
+      ? await admin
+          .from("auditor_projects")
+          .select("id")
+          .eq("customer_id", cust.id)
+          .maybeSingle()
+      : { data: null }
+
+    const projectId = proj?.id ?? null
+
     const { error: insErr } = await admin.from("auditor_scans").insert({
       company_id: companyId,
+      project_id: projectId,
       created_by_user_id: null,
       lead_id: null,
       lead_email_normalized: null,

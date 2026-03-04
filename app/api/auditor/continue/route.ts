@@ -29,13 +29,31 @@ export async function POST(req: Request) {
   const admin = createServiceRoleClient()
   const { data: scan } = await admin
     .from("auditor_scans")
-    .select("id,scan_access_token,status,step")
+    .select("id,scan_access_token,status,step,company_id")
     .eq("id", parsed.data.scanId)
     .maybeSingle()
 
   if (!scan) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 })
   if (String(scan.scan_access_token || "") !== parsed.data.scanAccessToken) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
+  }
+
+  if ((scan as any).company_id) {
+    const { checkAuditorCustomerActive } = await import("@/lib/auditor/customer-status")
+    const { allowed, reason } = await checkAuditorCustomerActive(admin, {
+      companyId: (scan as any).company_id,
+    })
+    if (!allowed) {
+      const msg =
+        reason === "customer_past_due"
+          ? "Payment is past due. Please update your payment method to continue."
+          : reason === "customer_canceled"
+            ? "Subscription was canceled. Renew to run scans."
+            : reason === "customer_inactive"
+              ? "Account is inactive. Please contact support."
+              : "Subscription is not active. Payment required to run scans."
+      return NextResponse.json({ ok: false, error: msg }, { status: 402 })
+    }
   }
 
   // Idempotency: if already terminal, don't attempt to continue/lock.
