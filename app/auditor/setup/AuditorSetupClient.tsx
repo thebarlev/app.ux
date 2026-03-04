@@ -50,6 +50,7 @@ export default function AuditorSetupClient(props: {
     return qs ? `${base}?${qs}` : base
   }, [linkId, scanId, token])
 
+  const [companyName, setCompanyName] = useState("")
   const [websiteUrl, setWebsiteUrl] = useState("")
   const [keywords, setKeywords] = useState<string[]>([""])
   const [businessType, setBusinessType] = useState("")
@@ -81,6 +82,12 @@ export default function AuditorSetupClient(props: {
     setError(null)
     setIsLoading(true)
 
+    const cn = companyName.trim()
+    if (!cn) {
+      setError("שם החברה הוא שדה חובה")
+      setIsLoading(false)
+      return
+    }
     const kw = keywords.map((k) => k.trim()).filter(Boolean)
     const businessTypeVal = businessType === "אחר" ? businessTypeOther.trim() : businessType
     const seoGoalVal = seoGoal === "אחר" ? seoGoalOther.trim() : seoGoal
@@ -92,6 +99,7 @@ export default function AuditorSetupClient(props: {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
+          company_name: cn,
           website_url: websiteUrl.trim() || undefined,
           keyword_1: kw[0] || undefined,
           keyword_2: kw[1] || undefined,
@@ -128,7 +136,7 @@ export default function AuditorSetupClient(props: {
                 פרטי העסק
               </CardTitle>
               <CardDescription className="mr-6 text-right text-[24px]">
-                מלאו את הפרטים הבאים (אופציונלי) – נמשיך לתשלום
+                מלאו את שם החברה (חובה) ופרטי העסק – נמשיך לתשלום
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -141,6 +149,21 @@ export default function AuditorSetupClient(props: {
                     {error}
                   </div>
                 ) : null}
+
+                <div className="auth-field">
+                  <FloatingInput
+                    label="שם החברה"
+                    id="company_name"
+                    type="text"
+                    placeholder="הזן את שם החברה"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="auth-input"
+                    labelClassName="auth-label"
+                    labelPlacement="above"
+                    required
+                  />
+                </div>
 
                 <div className="auth-field">
                   <FloatingInput

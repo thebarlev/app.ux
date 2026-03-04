@@ -7,6 +7,7 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
 
 const bodySchema = z.object({
+  company_name: z.string().min(1).max(200),
   website_url: z.string().max(2000).optional(),
   keyword_1: z.string().max(200).optional(),
   keyword_2: z.string().max(200).optional(),
@@ -19,8 +20,8 @@ const bodySchema = z.object({
 })
 
 /**
- * Step 2: Update auditor_leads with SEO/business info.
- * Lead identified by authenticated user's email.
+ * Step 2: Create company + membership, update auditor_leads with SEO/business info.
+ * Company must exist before checkout so user_company_ids() returns at least one company for paying users.
  */
 export async function POST(req: Request) {
   const cfg = getAuditorConfig()
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
 
   const { data: lead } = await admin
     .from("auditor_leads")
-    .select("id")
+    .select("id,full_name,phone,company_id")
     .ilike("email", email)
     .in("status", ["step1_completed", "step2_completed", "checkout_started"])
     .order("created_at", { ascending: false })
@@ -50,9 +51,55 @@ export async function POST(req: Request) {
 
   if (!lead?.id) return NextResponse.json({ ok: false, error: "Lead not found" }, { status: 404 })
 
+  const companyName = String(parsed.data.company_name || "").trim()
+  if (!companyName) return NextResponse.json({ ok: false, error: "Company name is required" }, { status: 400 })
+
+  let companyId: string | null = (lead as any).company_id ? String((lead as any).company_id) : null
+
+  if (!companyId) {
+    const firstName = ((lead as any).full_name || "").split(/\s+/).filter(Boolean)[0] || "לקוח"
+    const { data: inserted, error: insErr } = await admin
+      .from("companies")
+      .insert({
+        company_name: companyName,
+        business_type: "other",
+        tax_id: null,
+        contact_first_name: firstName,
+        contact_full_name: (lead as any).full_name || firstName,
+        email,
+        mobile_phone: (lead as any).phone || null,
+        status: "active",
+        auth_user_id: auth.user.id,
+      } as any)
+      .select("id")
+      .single()
+
+    if (!insErr && inserted?.id) {
+      companyId = String(inserted.id)
+    } else {
+      const { data: again } = await admin.from("companies").select("id").eq("email", email).maybeSingle()
+      companyId = again?.id ? String(again.id) : null
+    }
+    if (!companyId) return NextResponse.json({ ok: false, error: "Failed to create company" }, { status: 500 })
+
+    const { error: memberErr } = await admin.from("company_members").upsert(
+      {
+        company_id: companyId,
+        user_id: auth.user.id,
+        role: "owner",
+        accepted_at: new Date().toISOString(),
+      } as any,
+      { onConflict: "company_id,user_id" }
+    )
+    if (memberErr) {
+      console.warn("[auditor/setup] company_members upsert failed", { companyId, userId: auth.user.id, error: String((memberErr as any)?.message || memberErr) })
+    }
+  }
+
   const update: Record<string, unknown> = {
     status: "step2_completed",
     last_step: "step2",
+    company_id: companyId,
   }
   if (parsed.data.website_url != null) update.website_url = parsed.data.website_url
   if (parsed.data.keyword_1 != null) update.keyword_1 = parsed.data.keyword_1
@@ -68,5 +115,5 @@ export async function POST(req: Request) {
 
   if (error) return NextResponse.json({ ok: false, error: "Failed to update lead" }, { status: 500 })
 
-  return NextResponse.json({ ok: true, lead_id: lead.id })
+  return NextResponse.json({ ok: true, lead_id: lead.id, company_id: companyId })
 }

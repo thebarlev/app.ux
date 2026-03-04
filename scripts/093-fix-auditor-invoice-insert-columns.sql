@@ -1,58 +1,12 @@
 -- ====================================================
--- 091 - Auditor invoice_receipt: fix documents.company_id
+-- 093 - Fix: INSERT has more target columns than expressions
 -- ====================================================
--- Problem:
--- - auditor_subscription_charges.company_id = paying customer
--- - documents.company_id was set to issuer (admin) company
--- - RLS blocks customer from downloading PDF (documents.company_id not in user_company_ids)
---
--- Fix:
--- 1. Backfill: set documents.company_id = charge.company_id for existing rows
--- 2. Update document_events.company_id to match
--- 3. Replace issue_auditor_charge_invoice_receipt_service to use v_charge.company_id
--- 4. Add trigger to prevent regression
+-- The issue_auditor_charge_invoice_receipt_service can fail when
+-- document_line_items schema varies. Use conditional INSERT.
 -- ====================================================
 
 begin;
 
--- ==================== STEP 1: Count mismatches (verification before)
-do $$
-declare
-  v_before int;
-begin
-  select count(*) into v_before
-  from public.auditor_subscription_charges c
-  join public.documents d on d.id = c.issued_invoice_id
-  where c.issued_invoice_id is not null
-    and d.company_id is distinct from c.company_id;
-  raise notice '091: Mismatches before backfill: %', v_before;
-end $$;
-
--- ==================== STEP 2: Backfill documents
-update public.documents d
-set company_id = c.company_id
-from public.auditor_subscription_charges c
-where c.issued_invoice_id = d.id
-  and c.issued_invoice_id is not null
-  and d.company_id is distinct from c.company_id;
-
--- ==================== STEP 3: Backfill document_events
-update public.document_events de
-set company_id = c.company_id
-from public.auditor_subscription_charges c
-where c.issued_invoice_id = de.document_id
-  and c.issued_invoice_id is not null
-  and de.company_id is distinct from c.company_id;
-
--- ==================== STEP 4: Backfill document_line_items (if any have wrong company_id)
-update public.document_line_items dli
-set company_id = c.company_id
-from public.auditor_subscription_charges c
-where c.issued_invoice_id = dli.document_id
-  and c.issued_invoice_id is not null
-  and dli.company_id is distinct from c.company_id;
-
--- ==================== STEP 5: Replace function (documents.company_id = v_charge.company_id)
 create or replace function public.issue_auditor_charge_invoice_receipt_service(
   p_auditor_charge_id uuid,
   p_issuer_company_id uuid
@@ -91,6 +45,10 @@ declare
   v_subtotal numeric;
   v_vat_rate numeric := 18;
   v_vat_amount numeric;
+
+  v_has_item_date boolean;
+  v_has_currency_li boolean;
+  v_has_payment_metadata boolean;
 begin
   if p_auditor_charge_id is null or p_issuer_company_id is null then
     raise exception 'missing_params';
@@ -171,6 +129,12 @@ begin
   else
     v_status_col := null;
   end if;
+
+  select
+    exists (select 1 from information_schema.columns where table_schema='public' and table_name='document_line_items' and column_name='item_date'),
+    exists (select 1 from information_schema.columns where table_schema='public' and table_name='document_line_items' and column_name='currency'),
+    exists (select 1 from information_schema.columns where table_schema='public' and table_name='document_line_items' and column_name='payment_metadata')
+  into v_has_item_date, v_has_currency_li, v_has_payment_metadata;
 
   if to_regclass('public.document_sequences') is not null then
     insert into public.document_sequences (company_id, document_type, prefix, starting_number, current_number, is_locked, locked_at)
@@ -310,17 +274,28 @@ begin
   v_sql := 'insert into public.documents (' || array_to_string(v_cols, ',') || ') values (' || array_to_string(v_vals, ',') || ') returning id';
   execute v_sql into v_doc_id;
 
-  insert into public.document_line_items (
-    document_id, company_id, line_number, description, item_date, unit_price, quantity, line_total, currency, payment_metadata
-  )
-  values (
-    v_doc_id, v_charge.company_id, 1,
-    'מנוי /auditor – ' || v_plan_name, current_date, v_total, 1, v_total,
-    coalesce(v_charge.currency, 'ILS'),
-    jsonb_build_object('kind', 'auditor_subscription', 'planId', v_charge.plan_id,
-      'periodStart', v_charge.subscription_period_start, 'periodEnd', v_charge.subscription_period_end,
-      'chargeId', p_auditor_charge_id)
-  );
+  -- Line item: use only columns that exist to avoid "INSERT has more target columns than expressions"
+  if v_has_item_date and v_has_currency_li and v_has_payment_metadata then
+    insert into public.document_line_items (
+      document_id, company_id, line_number, description, item_date, unit_price, quantity, line_total, currency, payment_metadata
+    )
+    values (
+      v_doc_id, v_charge.company_id, 1,
+      'מנוי /auditor – ' || v_plan_name, current_date, v_total, 1, v_total,
+      coalesce(v_charge.currency, 'ILS'),
+      jsonb_build_object('kind', 'auditor_subscription', 'planId', v_charge.plan_id,
+        'periodStart', v_charge.subscription_period_start, 'periodEnd', v_charge.subscription_period_end,
+        'chargeId', p_auditor_charge_id)
+    );
+  else
+    insert into public.document_line_items (
+      document_id, company_id, line_number, description, unit_price, quantity, line_total
+    )
+    values (
+      v_doc_id, v_charge.company_id, 1,
+      'מנוי /auditor – ' || v_plan_name, v_total, 1, v_total
+    );
+  end if;
 
   if v_status_col = 'document_status' then
     if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='finalized_at') then
@@ -339,49 +314,6 @@ begin
   return;
 end;
 $$;
-
--- ==================== STEP 6: Trigger to prevent regression (optional)
-create or replace function public.auditor_charge_invoice_company_id_check()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_charge_company uuid;
-begin
-  select c.company_id into v_charge_company
-  from public.auditor_subscription_charges c
-  where c.issued_invoice_id = new.id
-  limit 1;
-  if v_charge_company is not null and new.company_id is distinct from v_charge_company then
-    raise exception 'auditor_invoice_document: documents.company_id must equal auditor_subscription_charges.company_id for issued invoices';
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists trg_auditor_invoice_document_company_check on public.documents;
-create trigger trg_auditor_invoice_document_company_check
-  before update of company_id on public.documents
-  for each row
-  execute function public.auditor_charge_invoice_company_id_check();
-
--- ==================== STEP 7: Verify (mismatches after should be 0)
-do $$
-declare
-  v_after int;
-begin
-  select count(*) into v_after
-  from public.auditor_subscription_charges c
-  join public.documents d on d.id = c.issued_invoice_id
-  where c.issued_invoice_id is not null
-    and d.company_id is distinct from c.company_id;
-  raise notice '091: Mismatches after backfill: %', v_after;
-  if v_after > 0 then
-    raise warning '091: Some rows still have mismatched company_id!';
-  end if;
-end $$;
 
 commit;
 

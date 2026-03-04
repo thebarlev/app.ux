@@ -407,7 +407,22 @@ export async function processCardcomIndicatorEvent(
     /* keep going */
   }
 
-  const uniq = uniqAsmachtaAuditor(companyId!, period.start.toISOString())
+  if (!companyId) {
+    const errMsg = "Cannot create charge: user has no company (invariant violation)"
+    console.error("[AUDITOR_PROCESS] " + errMsg, {
+      checkoutId: checkout.id,
+      leadId: checkout.lead_id,
+      userId,
+    })
+    await admin
+      .from("auditor_billing_events")
+      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "no_company_for_charge" } } as any)
+      .eq("provider", providerKey)
+      .eq("event_id", eventId)
+    return { ok: true, paid: true, error: "no_company_for_charge" }
+  }
+
+  const uniq = uniqAsmachtaAuditor(companyId, period.start.toISOString())
   const insertCharge = await admin
     .from("auditor_subscription_charges")
     .insert({
@@ -455,11 +470,10 @@ export async function processCardcomIndicatorEvent(
 
   console.info("[AUDITOR_PROCESS] Payment success", {
     userId,
-    customerCompanyId: companyId,
-    issuerCompanyId: billingCfg.billingAccountId,
-    chargeId,
-    subscriptionCompanyId: companyId,
+    companyId,
     checkoutId: checkout.id,
+    chargeId,
+    issuerCompanyId: billingCfg.billingAccountId,
   })
 
   await admin

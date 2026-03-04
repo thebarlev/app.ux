@@ -34,20 +34,23 @@ async function getCompanyOrLeadId(
   admin: Awaited<ReturnType<typeof createServiceRoleClient>>,
   userId: string,
   email: string
-): Promise<{ companyId: string | null; leadId: string | null }> {
+): Promise<{ companyId: string | null; leadId: string | null; error?: string }> {
   try {
     const companyId = await getCompanyIdForUser()
     return { companyId, leadId: null }
   } catch {
     const { data: lead } = await admin
       .from("auditor_leads")
-      .select("id")
+      .select("id,company_id")
       .ilike("email", email)
       .in("status", ["step1_completed", "step2_completed", "checkout_started"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-    return { companyId: null, leadId: lead?.id ? String(lead.id) : null }
+    const leadCompanyId = (lead as any)?.company_id ? String((lead as any).company_id) : null
+    if (!lead?.id) return { companyId: null, leadId: null, error: "Complete registration first" }
+    if (!leadCompanyId) return { companyId: null, leadId: null, error: "Complete setup with company name first" }
+    return { companyId: leadCompanyId, leadId: String(lead.id) }
   }
 }
 
@@ -69,10 +72,13 @@ export async function POST(req: Request) {
   const admin = createServiceRoleClient()
 
   const email = String(auth.user.email || "").trim().toLowerCase()
-  const { companyId, leadId } = await getCompanyOrLeadId(admin, auth.user.id, email)
+  const { companyId, leadId, error: resolveError } = await getCompanyOrLeadId(admin, auth.user.id, email)
 
   if (!companyId && !leadId) {
-    return NextResponse.json({ ok: false, error: "Complete registration first" }, { status: 400 })
+    return NextResponse.json({ ok: false, error: resolveError || "Complete registration first" }, { status: 400 })
+  }
+  if (!companyId) {
+    return NextResponse.json({ ok: false, error: resolveError || "Company required for checkout" }, { status: 400 })
   }
 
   // Validate link_id -> plan_id (server-truth)
