@@ -91,6 +91,23 @@ export async function getAllDocumentsListAction(
       pageSize = 50,
     } = filters;
 
+    // Include documents where user's company is issuer (auditor_invoice_documents)
+    let issuerDocumentIds: string[] = [];
+    try {
+      const { data: aid } = await supabase
+        .from("auditor_invoice_documents")
+        .select("document_id")
+        .eq("issuer_company_id", companyId);
+      issuerDocumentIds = (aid || []).map((r: any) => String(r.document_id)).filter(Boolean);
+    } catch {
+      // Table may not exist yet
+    }
+
+    const companyOrIssuerFilter =
+      issuerDocumentIds.length > 0
+        ? `company_id.eq.${companyId},id.in.(${issuerDocumentIds.join(",")})`
+        : `company_id.eq.${companyId}`;
+
     // Build query - select specific fields including description
     let query = supabase
       .from("documents")
@@ -115,7 +132,7 @@ export async function getAllDocumentsListAction(
         reference_text,
         company_id
       `, { count: "exact" })
-      .eq("company_id", companyId);
+      .or(companyOrIssuerFilter);
 
     // Document status filter
     if (documentStatusFilter === "draft") {

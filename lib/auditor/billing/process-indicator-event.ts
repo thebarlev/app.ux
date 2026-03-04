@@ -11,6 +11,7 @@ import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { ensureAuditorCustomerCompanyForUser } from "@/lib/auditor/billing/ensure-customer-company"
+import { generateDocumentPDF } from "@/lib/pdf-service"
 
 const providerKey = "cardcom"
 
@@ -480,11 +481,40 @@ export async function processCardcomIndicatorEvent(
         p_issuer_company_id: billingCfg.billingAccountId,
       } as any)
       const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
+      const documentId = ok && rpcData[0]?.document_id ? String(rpcData[0].document_id) : null
       if (!ok || rpcErr) {
         console.error("[AUDITOR_PROCESS] Invoice issuance failed", {
           chargeId,
           error: rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok",
         })
+      } else if (documentId) {
+        // Generate and upload PDF (same as checkout flow) so payer can download
+        const [origRes, copyRes] = await Promise.allSettled([
+          generateDocumentPDF(documentId, {
+            language: "he",
+            mode: "recovery",
+            context: "issue",
+            variant: "original",
+            isIssuance: true,
+            requestId: `auditor-orig-${chargeId}`,
+          }),
+          generateDocumentPDF(documentId, {
+            language: "he",
+            mode: "recovery",
+            context: "download",
+            variant: "copy",
+            isIssuance: true,
+            requestId: `auditor-copy-${chargeId}`,
+          }),
+        ])
+        if (origRes.status === "rejected" || copyRes.status === "rejected") {
+          console.warn("[AUDITOR_PROCESS] PDF generation had errors", {
+            chargeId,
+            documentId,
+            original: origRes.status === "fulfilled" ? !origRes.value?.success : "rejected",
+            copy: copyRes.status === "fulfilled" ? !copyRes.value?.success : "rejected",
+          })
+        }
       }
     } catch (e: any) {
       console.error("[AUDITOR_PROCESS] Invoice issuance exception", { chargeId, error: String(e?.message || e) })

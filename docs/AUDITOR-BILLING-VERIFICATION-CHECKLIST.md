@@ -146,3 +146,5 @@ WHERE id IN (SELECT issued_invoice_id FROM auditor_subscription_charges WHERE is
 1. **091** – תיקון `documents.company_id` (חברת לקוח)
 2. **094** – תיקון INSERT ל־document_line_items
 3. **095** – סקריפט repair ידני (רק למשתמשים קיימים)
+4. **096** – טבלת `auditor_invoice_documents` + RLS (מנפיק רואה חשבוניות)
+5. **097** – RPC מכניס ל־auditor_invoice_documents בעת יצירה
