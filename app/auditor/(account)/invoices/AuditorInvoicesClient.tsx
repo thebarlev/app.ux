@@ -13,6 +13,13 @@ type Invoice = {
   document_number: string | null
 }
 
+function errorToDisplayMessage(apiError: string | null): string {
+  if (!apiError) return "שגיאה בטעינה"
+  const lower = String(apiError).toLowerCase()
+  if (lower === "no company" || lower === "no_active_company") return "אין חברה פעילה"
+  return apiError
+}
+
 export default function AuditorInvoicesClient() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
@@ -24,10 +31,12 @@ export default function AuditorInvoicesClient() {
       .then((r) => r.json().catch(() => null))
       .then((j: any) => {
         if (cancelled) return
-        if (j?.ok === true && Array.isArray(j.invoices)) {
-          setInvoices(j.invoices)
+        if (j?.ok === true) {
+          setInvoices(Array.isArray(j.invoices) ? j.invoices : [])
+          setError(null)
         } else {
           setError(j?.error || "שגיאה בטעינה")
+          setInvoices([])
         }
       })
       .catch(() => {
@@ -58,7 +67,7 @@ export default function AuditorInvoicesClient() {
           טוען…
         </div>
       ) : error ? (
-        <div className="rounded-ui border border-danger/30 bg-danger/5 p-4 text-danger">{error}</div>
+        <div className="rounded-ui border border-danger/30 bg-danger/5 p-4 text-danger">{errorToDisplayMessage(error)}</div>
       ) : invoices.length === 0 ? (
         <div className="rounded-ui border border-border bg-white p-8 text-center text-muted-foreground">
           אין חשבוניות עדיין
