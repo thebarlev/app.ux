@@ -9,7 +9,8 @@ import { followRedirectsWithValidation, normalizeInputUrl } from "@/lib/auditor/
 import { getAdminAuditorCompanyId } from "@/lib/auditor/admin-env"
 
 const bodySchema = z.object({
-  url: z.string().min(1).max(2000),
+  url: z.string().min(1).max(2000).optional(),
+  projectId: z.string().uuid().optional(),
 })
 
 function token(): string {
@@ -23,21 +24,53 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
   }
 
-  let companyId: string
-  try {
-    companyId = getAdminAuditorCompanyId()
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
-  }
-
   const body = await req.json().catch(() => ({}))
   const parsed = bodySchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "Invalid request" }, { status: 400 })
   }
 
-  const targetUrl = parsed.data.url.trim()
+  let targetUrl: string
+  let companyId: string
+
+  if (parsed.data.projectId) {
+    const admin = createServiceRoleClient()
+    const { data: project } = await admin
+      .from("auditor_projects")
+      .select("id, website_url, domain, customer_id")
+      .eq("id", parsed.data.projectId)
+      .single()
+    const customerId = (project as any)?.customer_id
+    if (!customerId) {
+      return NextResponse.json({ ok: false, error: "Project not found" }, { status: 404 })
+    }
+    const { data: cust } = await admin
+      .from("auditor_customers")
+      .select("company_id")
+      .eq("id", customerId)
+      .single()
+    const projCompanyId = (cust as any)?.company_id
+    if (!projCompanyId) {
+      return NextResponse.json({ ok: false, error: "Project has no company" }, { status: 400 })
+    }
+    companyId = projCompanyId
+    const w = (project as any)?.website_url || ((project as any)?.domain ? `https://${(project as any).domain}` : null)
+    if (!w) {
+      return NextResponse.json({ ok: false, error: "Project has no website URL" }, { status: 400 })
+    }
+    targetUrl = w.trim()
+  } else {
+    try {
+      companyId = getAdminAuditorCompanyId()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+    }
+    if (!parsed.data.url) {
+      return NextResponse.json({ ok: false, error: "url required when projectId not provided" }, { status: 400 })
+    }
+    targetUrl = parsed.data.url.trim()
+  }
   let startUrl: URL
   try {
     startUrl = normalizeInputUrl(targetUrl)
@@ -53,11 +86,10 @@ export async function POST(req: Request) {
 
     const admin = createServiceRoleClient()
     const scanAccessToken = token()
-
     const { data: scan, error } = await admin
       .from("auditor_scans")
       .insert({
-        company_id: companyId,
+        company_id: companyId as string,
         created_by_user_id: null,
         lead_id: null,
         lead_email_normalized: null,

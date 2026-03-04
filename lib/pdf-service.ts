@@ -2423,7 +2423,13 @@ export async function generateDocumentPDF(
 
           if (hasSecureSignatureEnv) {
             try {
-              const businessId = String((doc as any)?.company_id || "")
+              // Auditor invoice_receipt: document.company_id = customer (RLS). Signing must use issuer.
+              const isAuditorInvoice =
+                ((doc as any)?.document_type === "invoice_receipt" || (doc as any)?.document_type === "invoiceReceipt") &&
+                String((doc as any)?.reference_text || "").startsWith("auditor_charge:")
+              const businessId = isAuditorInvoice
+                ? (process.env.AUDITOR_BILLING_ACCOUNT_ID || process.env.VOW_BILLING_COMPANY_ID || "4ae68334-15a0-4fa3-a9ba-fd77deccc95d").trim()
+                : String((doc as any)?.company_id || "")
               const externalDocId = `${documentId}:${storageKey}`
               const businessName =
                 String((templateData as any)?.USERCOMPANYNAME || (templateData as any)?.company_name || "").trim() ||

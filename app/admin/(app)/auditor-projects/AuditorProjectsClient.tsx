@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 type Project = {
@@ -70,7 +71,8 @@ export default function AuditorProjectsClient({ projects }: { projects: Project[
         const isActive = cust?.customer_status === "active"
 
         return (
-          <Card key={p.id}>
+          <Link key={p.id} href={`/admin/auditor-projects/${p.id}`}>
+          <Card className="cursor-pointer transition-colors hover:bg-muted/50">
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-lg">
@@ -110,6 +112,7 @@ export default function AuditorProjectsClient({ projects }: { projects: Project[
               </div>
             </CardContent>
           </Card>
+          </Link>
         )
       })}
     </div>
