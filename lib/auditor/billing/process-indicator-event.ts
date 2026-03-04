@@ -10,6 +10,7 @@ import { encryptToken, tokenHashSha256 } from "@/lib/auditor/billing/tokenCrypto
 import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
+import { ensureAuditorCustomerCompanyForUser } from "@/lib/auditor/billing/ensure-customer-company"
 
 const providerKey = "cardcom"
 
@@ -154,6 +155,7 @@ export async function processCardcomIndicatorEvent(
     const leadName = String((lead as any).full_name || "").trim()
     const leadPhone = String((lead as any).phone || "").trim()
     const normalizedHost = String((lead as any).normalized_host || "").trim()
+    const websiteUrl = String((lead as any).website_url || "").trim()
 
     if (!leadEmail) {
       await admin
@@ -164,53 +166,26 @@ export async function processCardcomIndicatorEvent(
       return { ok: true, paid: true, error: "lead_email_missing" }
     }
 
-    const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmail).maybeSingle()
-    companyId = existingCompany?.id ? String(existingCompany.id) : null
+    const ensureResult = await ensureAuditorCustomerCompanyForUser(admin, {
+      userId: checkout.user_id ? String(checkout.user_id) : null,
+      leadId: String((lead as any).id),
+      email: leadEmail,
+      fullName: leadName,
+      phone: leadPhone,
+      normalizedHost,
+      websiteUrl,
+    })
 
-    if (!companyId) {
-      const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
-      const websiteUrl = String((lead as any).website_url || "").trim()
-    let companyName = normalizedHost || leadName || "Auditor customer"
-    if (!companyName || companyName === "Auditor customer") {
-      try {
-        if (websiteUrl) companyName = new URL(websiteUrl).hostname || companyName
-      } catch {
-        /* ignore */
-      }
-    }
-
-      const { data: insertedCompany, error: insErr } = await admin
-        .from("companies")
-        .insert({
-          company_name: companyName,
-          business_type: "other",
-          tax_id: null,
-          contact_first_name: firstName,
-          contact_full_name: leadName || firstName,
-          email: leadEmail,
-          mobile_phone: leadPhone || null,
-          status: "active",
-          auth_user_id: null,
-        } as any)
-        .select("id")
-        .single()
-
-      if (insErr || !insertedCompany?.id) {
-        const { data: again } = await admin.from("companies").select("id").eq("email", leadEmail).maybeSingle()
-        companyId = again?.id ? String(again.id) : null
-      } else {
-        companyId = String(insertedCompany.id)
-      }
-    }
-
-    if (!companyId) {
+    if (!ensureResult.ok) {
       await admin
         .from("auditor_billing_events")
-        .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "company_create_failed" } } as any)
+        .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: ensureResult.error } } as any)
         .eq("provider", providerKey)
         .eq("event_id", eventId)
-      return { ok: true, paid: true, error: "company_create_failed" }
+      return { ok: true, paid: true, error: ensureResult.error }
     }
+
+    companyId = ensureResult.companyId
 
     try {
       await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
@@ -221,6 +196,14 @@ export async function processCardcomIndicatorEvent(
       await admin.from("auditor_checkout_sessions").update({ company_id: companyId } as any).eq("id", String(checkout.id))
     } catch {
       /* ignore */
+    }
+
+    if (userId) {
+      try {
+        await admin.from("auditor_checkout_sessions").update({ user_id: userId } as any).eq("id", String(checkout.id))
+      } catch {
+        /* ignore */
+      }
     }
 
     const billingCfg = getAuditorBillingConfig()
@@ -239,7 +222,7 @@ export async function processCardcomIndicatorEvent(
       invitedUserId = null
     }
 
-    if (invitedUserId) {
+    if (invitedUserId && !userId) {
       userId = invitedUserId
       try {
         await admin.from("companies").update({ auth_user_id: invitedUserId } as any).eq("id", companyId)
@@ -265,6 +248,15 @@ export async function processCardcomIndicatorEvent(
         /* ignore */
       }
     }
+  }
+
+  if (!companyId) {
+    await admin
+      .from("auditor_billing_events")
+      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "customer_company_failed" } } as any)
+      .eq("provider", providerKey)
+      .eq("event_id", eventId)
+    return { ok: true, paid: true, error: "customer_company_failed" }
   }
 
   const leadId = checkout.lead_id ? String(checkout.lead_id) : null
@@ -460,6 +452,15 @@ export async function processCardcomIndicatorEvent(
       console.error("[AUDITOR_PROCESS] Invoice issuance exception", { chargeId, error: String(e?.message || e) })
     }
   }
+
+  console.info("[AUDITOR_PROCESS] Payment success", {
+    userId,
+    customerCompanyId: companyId,
+    issuerCompanyId: billingCfg.billingAccountId,
+    chargeId,
+    subscriptionCompanyId: companyId,
+    checkoutId: checkout.id,
+  })
 
   await admin
     .from("auditor_billing_events")
