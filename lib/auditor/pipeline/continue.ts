@@ -13,6 +13,8 @@ import { buildAdminReport } from "../report/admin"
 import { applyCompanyWhere, applyScanWhere } from "../db/scanWhere"
 import { captureSiteScreenshot } from "../screenshot"
 
+const DEFAULT_MAX_PAGES = 40
+
 type ContinueOk =
   | { ok: true; kind: "progressed"; scan: any }
   | { ok: false; kind: "busy" }
@@ -435,7 +437,7 @@ export async function continueAuditorScan(params: {
     // Step: sample (insert queued pages)
     if (step === "sample") {
       const sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
-      const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: 20 })
+      const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: DEFAULT_MAX_PAGES })
 
       const rows = sample.map((u) => ({
         scan_id: scanId,
@@ -807,6 +809,20 @@ export async function continueAuditorScan(params: {
 
     // Step: persist (finalize scan)
     if (step === "persist") {
+      const normalizedHost = lockedScan.normalized_host || hostLock || ""
+      const scoreTotal = typeof lockedScan.score_total === "number" ? lockedScan.score_total : 0
+      const scoreBreakdown = lockedScan.score_breakdown && typeof lockedScan.score_breakdown === "object" ? lockedScan.score_breakdown : {}
+
+      if (normalizedHost) {
+        await supabase.from("auditor_scan_score_history").insert({
+          scan_id: scanId,
+          company_id: companyId,
+          normalized_host: normalizedHost,
+          score_total: scoreTotal,
+          score_breakdown: scoreBreakdown,
+        })
+      }
+
       await applyScanWhere(
         supabase.from("auditor_scans").update({
           status: "done",

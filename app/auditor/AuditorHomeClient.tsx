@@ -1294,7 +1294,7 @@ export default function AuditorHomeClient() {
                         <input className="plan-radio" type="radio" checked={selectedPlanId === "premium"} readOnly />
                         <h4 className="plan-name">מומחים</h4>
                         <div className="plan-price">
-                          החל מ־<strong>997 ₪</strong> לחודש
+                          החל מ־<strong>1,497 ₪</strong> לחודש
                         </div>
                         <div className="plan-features">
                           <div className="plan-feature"><span className="check">✓</span><span>כולל הכל + ליווי אנושי</span></div>
@@ -1449,7 +1449,7 @@ export default function AuditorHomeClient() {
           </div>
 
           {/* CTA: go to register → payment → Step 3 */}
-          <div className="w-full max-w-md">
+          <div className="w-full max-w-md space-y-2">
             <Link
               href={
                 scanId && token
@@ -1459,6 +1459,26 @@ export default function AuditorHomeClient() {
               className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
             >
               הרשמה והמשך לתשלום
+            </Link>
+            <Link
+              href={
+                scanId && token
+                  ? `/auditor/register?link_id=a_pro&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : "/auditor/register?link_id=a_pro"
+              }
+              className="inline-flex h-14 w-full items-center justify-center rounded-none border border-border bg-white text-base hover:bg-muted"
+            >
+              שדרגו ל-Pro – 1,497 ₪/חודש
+            </Link>
+            <Link
+              href={
+                scanId && token
+                  ? `/auditor/register?link_id=a_premium&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : "/auditor/register?link_id=a_premium"
+              }
+              className="inline-flex h-14 w-full items-center justify-center rounded-none border border-border bg-white text-base hover:bg-muted"
+            >
+              מומחים – 1,497 ₪/חודש
             </Link>
           </div>
         </div>
@@ -1494,7 +1514,7 @@ export default function AuditorHomeClient() {
                 }`}
               >
                 <div className="font-semibold">מקצועי</div>
-                <div className="text-sm text-muted-foreground">497 ₪/חודש</div>
+                <div className="text-sm text-muted-foreground">1,497 ₪/חודש</div>
               </button>
             </div>
             <div className="flex justify-end gap-2">

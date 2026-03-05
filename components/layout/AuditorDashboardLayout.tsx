@@ -275,7 +275,7 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
                 }`}
               >
                 <div className="font-semibold">מקצועי</div>
-                <div className="text-sm text-muted-foreground">497 ₪/חודש</div>
+                <div className="text-sm text-muted-foreground">1,497 ₪/חודש</div>
               </button>
             </div>
             <div className="flex justify-end gap-2">

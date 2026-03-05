@@ -174,3 +174,4 @@ WHERE id IN (SELECT issued_invoice_id FROM auditor_subscription_charges WHERE is
 5. **097** – RPC מכניס ל־auditor_invoice_documents בעת יצירה
 6. **099** – טבלאות `auditor_project_notes` + `auditor_project_tasks` (CRM)
 7. **100** – תיקון "INSERT has more target columns than expressions" – שימוש ב־INSERT...SELECT
+8. **101** – תיקון מינימלי – רק 7 עמודות בסיסיות ב־document_line_items (אם 100 עדיין נכשל)

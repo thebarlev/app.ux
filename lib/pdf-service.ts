@@ -2152,18 +2152,18 @@ export async function generateDocumentPDF(
     }
 
     // UX requirement:
-    // In-app viewing (download/view/copy) should use a "computer-only" mark,
-    // while still keeping "original/certified copy" labels for issuance contexts.
-    const isComputerOnlyCopy = options?.variant === "copy" && (context === "download" || context === "view")
+    // Regulatory: For issued documents (final/pdf_ready), the copy must be "העתק נאמן למקור".
+    // "להמחשה בלבד" is only for draft previews (handled by generatePreviewPDF, not here).
+    // generateDocumentPDF is only called for finalized documents when serving copy for download/view.
     const documentCopyLabel =
       targetLanguage === "en"
-        ? isComputerOnlyCopy
-          ? "For computer use only"
-          : "Certified Copy"
+        ? options?.variant === "copy"
+          ? "Certified Copy"
+          : options?.variant === "original"
+            ? "Original"
+            : ""
         : options?.variant === "copy"
-          ? isComputerOnlyCopy
-            ? "להמחשה בלבד"
-            : "העתק נאמן למקור"
+          ? "העתק נאמן למקור"
           : options?.variant === "original"
             ? "מקור"
             : ""
