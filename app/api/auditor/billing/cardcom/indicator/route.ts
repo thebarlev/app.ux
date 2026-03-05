@@ -41,22 +41,31 @@ export async function GET(req: Request) {
   const providerKey = "cardcom"
   const eventId = `cardcom:indicator:${lowProfileCode}`
 
-  ;(async () => {
-    try {
-      const insertPayload = {
-        provider: providerKey,
-        event_id: eventId,
-        status: "received",
-        payload: { query: Object.fromEntries(url.searchParams.entries()) },
-      }
+  // try quick upsert (max ~2s) then return 200 no matter what
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 2000) as unknown as number
 
-      await admin
-        .from("auditor_billing_events")
-        .upsert(insertPayload, { onConflict: "provider,event_id", ignoreDuplicates: true })
-    } catch (e) {
-      console.warn("[AUDITOR_INDICATOR] async insert failed", e)
+  try {
+    const insertPayload = {
+      provider: providerKey,
+      event_id: eventId,
+      status: "received",
+      payload: { query: Object.fromEntries(url.searchParams.entries()) },
+    } as any
+
+    const { error } = await admin
+      .from("auditor_billing_events")
+      .upsert(insertPayload, { onConflict: "provider,event_id", ignoreDuplicates: true })
+      .abortSignal(controller.signal)
+
+    if (error && String(error.code || "") !== "23505") {
+      console.warn("[AUDITOR_INDICATOR] upsert warning", { code: error.code, message: error.message })
     }
-  })()
+  } catch (e) {
+    console.warn("[AUDITOR_INDICATOR] upsert exception", e)
+  } finally {
+    clearTimeout(timeout)
+  }
 
   return NextResponse.json({ ok: true })
 }
