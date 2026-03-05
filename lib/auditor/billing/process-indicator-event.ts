@@ -28,7 +28,7 @@ function looksLikeUuid(v: string | null | undefined): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s)
 }
 
-export type ProcessResult = { ok: boolean; error?: string; paid?: boolean }
+export type ProcessResult = { ok: boolean; error?: string; paid?: boolean; ignored?: string }
 
 export async function processCardcomIndicatorEvent(
   admin: SupabaseClient,
