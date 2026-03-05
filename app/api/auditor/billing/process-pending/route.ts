@@ -40,6 +40,7 @@ async function handler(req: Request) {
 
   const admin = createAdminClient()
   const t0 = Date.now()
+  console.log("[AUDITOR_PROCESS] version=2026-03-05-17:35")
 
   // 1) Atomic claim via RPC (script 085)
   const { data: toProcess, error: lockErr } = await admin.rpc("auditor_billing_events_claim_pending", {
