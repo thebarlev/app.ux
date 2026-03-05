@@ -539,7 +539,7 @@ export async function processCardcomIndicatorEvent(
     .update({
       status: "ok",
       processed_at: new Date().toISOString(),
-      payload: { paid: true, checkout_session_id: checkout.id, company_id: companyId, charge_id: chargeId },
+      payload: { paid: true },
     } as any)
     .eq("provider", providerKey)
     .eq("event_id", eventId)
