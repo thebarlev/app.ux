@@ -80,15 +80,20 @@ export async function processCardcomIndicatorEvent(
     .eq("provider_low_profile_code", lowProfileCode)
     .maybeSingle()
 
-  const checkout = (byReturn as any).data || (byCode as any).data || null
-  if (!checkout?.id) {
-    await admin
-      .from("auditor_billing_events")
-      .update({ status: "error", processed_at: new Date().toISOString(), payload: { error: "checkout_not_found" } } as any)
-      .eq("provider", providerKey)
-      .eq("event_id", eventId)
-    return { ok: true, paid: false, error: "checkout_not_found" }
-  }
+    const checkout = (byReturn as any).data || (byCode as any).data || null
+    if (!checkout?.id) {
+      await admin
+        .from("auditor_billing_events")
+        .update({
+          status: "ignored",
+          processed_at: new Date().toISOString(),
+          payload: { ignored: "checkout_not_found" }
+        } as any)
+        .eq("provider", providerKey)
+        .eq("event_id", eventId)
+    
+      return { ok: true, ignored: "checkout_not_found" }
+    }
 
   await admin
     .from("auditor_checkout_sessions")
