@@ -66,13 +66,48 @@ async function handler(req: Request) {
 
     const eventId = String((ev as any).event_id || "")
     const payload = (ev as any).payload || {}
+    const provider = String((ev as any).provider || "cardcom")
+
+    let finalStatus: "ok" | "error" | "ignored" = "ok"
+    let finalPayload: any = payload
+    let finalError: string | null = null
 
     try {
       const r = await processCardcomIndicatorEvent(admin, eventId, payload)
+
+      if (r.ignored) finalStatus = "ignored"
+      else if (r.error) finalStatus = "error"
+      else finalStatus = "ok"
+
+      finalError = r.error || null
+      finalPayload = { ...(payload || {}), ...(r.ignored ? { ignored: r.ignored } : {}), ...(r.paid !== undefined ? { paid: r.paid } : {}), ...(r.error ? { error: r.error } : {}) }
+
       results.push({ event_id: eventId, ok: !!r.ok, error: r.error })
     } catch (e: any) {
-      console.error("[AUDITOR_PROCESS] event failed", { eventId, error: String(e?.message || e) })
-      results.push({ event_id: eventId, ok: false, error: String(e?.message || e) })
+      finalStatus = "error"
+      finalError = String(e?.message || e)
+      finalPayload = { ...(payload || {}), error: finalError }
+
+      console.error("[AUDITOR_PROCESS] event failed", { eventId, error: finalError })
+      results.push({ event_id: eventId, ok: false, error: finalError })
+    } finally {
+      const { error: markErr } = await admin
+        .from("auditor_billing_events")
+        .update({
+          status: finalStatus,
+          processed_at: new Date().toISOString(),
+          payload: { ...(ev as any).payload, ...(finalPayload || {}) },
+        } as any)
+        .eq("provider", provider)
+        .eq("event_id", eventId)
+
+      if (markErr) {
+        console.error("[AUDITOR_PROCESS] failed to mark processed", {
+          eventId,
+          code: (markErr as any)?.code,
+          message: (markErr as any)?.message,
+        })
+      }
     }
   }
 
