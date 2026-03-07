@@ -17,9 +17,12 @@ export function LoginForm(props: {
   forgotPasswordHref?: string
   titleText?: string
   descriptionText?: string
+  locale?: "he" | "en"
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const locale = props.locale ?? "he"
+  const isEn = locale === "en"
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -29,11 +32,11 @@ export function LoginForm(props: {
   useEffect(() => {
     const errorParam = searchParams.get("error")
     if (errorParam === "unauthorized") {
-      setError("נא להתחבר כדי לגשת לחשבון שלך")
+      setError(isEn ? "Please sign in to access your account" : "נא להתחבר כדי לגשת לחשבון שלך")
     } else if (errorParam === "no_company") {
-      setError("לא נמצא חשבון עסקי קשור למשתמש זה")
+      setError(isEn ? "No business account found for this user" : "לא נמצא חשבון עסקי קשור למשתמש זה")
     }
-  }, [searchParams])
+  }, [searchParams, isEn])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,16 +50,16 @@ export function LoginForm(props: {
       })
 
       if (authError) {
-        let errorMsg = "שגיאת התחברות"
+        let errorMsg = isEn ? "Sign-in error" : "שגיאת התחברות"
         if (
           authError.message?.toLowerCase().includes("invalid login") ||
           authError.message?.toLowerCase().includes("invalid email or password")
         ) {
-          errorMsg = "אימייל או סיסמה שגויים"
+          errorMsg = isEn ? "Invalid email or password" : "אימייל או סיסמה שגויים"
         } else if (authError.message?.toLowerCase().includes("email not confirmed")) {
-          errorMsg = "נא לאמת את כתובת האימייל שלך"
+          errorMsg = isEn ? "Please verify your email" : "נא לאמת את כתובת האימייל שלך"
         } else if (authError.message) {
-          errorMsg = `שגיאת התחברות: ${authError.message}`
+          errorMsg = isEn ? `Sign-in error: ${authError.message}` : `שגיאת התחברות: ${authError.message}`
         }
 
         setError(errorMsg)
@@ -65,7 +68,7 @@ export function LoginForm(props: {
       }
 
       if (!data.user) {
-        setError("ההתחברות נכשלה. נסה שוב.")
+        setError(isEn ? "Sign-in failed. Try again." : "ההתחברות נכשלה. נסה שוב.")
         setIsLoading(false)
         return
       }
@@ -93,7 +96,7 @@ export function LoginForm(props: {
       }
       if (!companyId) {
         await supabase.auth.signOut()
-        setError("לא נמצא חשבון עסקי. נא להירשם תחילה.")
+        setError(isEn ? "No business account. Please sign up first." : "לא נמצא חשבון עסקי. נא להירשם תחילה.")
         setIsLoading(false)
         return
       }
@@ -103,15 +106,15 @@ export function LoginForm(props: {
       router.push(props.afterLoginRedirectTo)
       router.refresh()
     } catch {
-      setError("אירעה שגיאה לא צפויה. נסה שוב.")
+      setError(isEn ? "An unexpected error occurred. Try again." : "אירעה שגיאה לא צפויה. נסה שוב.")
     } finally {
       setIsLoading(false)
     }
   }
 
   const forgotHref = props.forgotPasswordHref || "/forgot-password"
-  const titleText = (props.titleText || "התחברות לחשבון").trim()
-  const descriptionText = (props.descriptionText || "הזן את פרטי ההתחברות שלך כדי להמשיך").trim()
+  const titleText = (props.titleText || (isEn ? "Sign in" : "התחברות לחשבון")).trim()
+  const descriptionText = (props.descriptionText || (isEn ? "Enter your credentials to continue" : "הזן את פרטי ההתחברות שלך כדי להמשיך")).trim()
 
   return (
     <div className="auth-scope">
@@ -123,17 +126,17 @@ export function LoginForm(props: {
 
           <Card className="shadow-ui-lg auth-card">
             <CardHeader className="pb-4 mb-[15px]">
-              <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
+              <CardTitle className={`${isEn ? "ml-6 text-left" : "mr-6 text-right"} pt-5 text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]`}>
                 {titleText}
               </CardTitle>
-              <CardDescription className="mr-6  text-right text-[24px]">{descriptionText}</CardDescription>
+              <CardDescription className={`${isEn ? "ml-6 text-left" : "mr-6 text-right"} text-[24px]`}>{descriptionText}</CardDescription>
             </CardHeader>
 
             <CardContent>
               <form onSubmit={handleLogin} className="auth-form">
                 <div className="auth-field">
                   <FloatingInput
-                    label="כתובת אימייל"
+                    label={isEn ? "Email" : "כתובת אימייל"}
                     id="email"
                     type="email"
                     required
@@ -152,7 +155,7 @@ export function LoginForm(props: {
 
                 <div className="auth-field relative">
                   <FloatingInput
-                    label="סיסמה"
+                    label={isEn ? "Password" : "סיסמה"}
                     id="password"
                     type={showPassword ? "text" : "password"}
                     required
@@ -172,7 +175,7 @@ export function LoginForm(props: {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute left-4 top-[calc(50%+12px)] -translate-y-1/2 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-ui p-1"
-                    aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                    aria-label={showPassword ? (isEn ? "Hide password" : "הסתר סיסמה") : (isEn ? "Show password" : "הצג סיסמה")}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -181,7 +184,7 @@ export function LoginForm(props: {
                 {error && (
                   <div
                     id="login-error"
-                    className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right"
+                    className={`bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium ${isEn ? "text-left" : "text-right"}`}
                     role="alert"
                   >
                     {error}
@@ -191,11 +194,11 @@ export function LoginForm(props: {
                 <Button type="submit" disabled={isLoading} className="w-full auth-primary-button" variant="primary">
                   {isLoading ? (
                     <>
-                      <Loader2 size={19} className="h-[19px] w-[19px] shrink-0 animate-spin ml-2" />
-                      מתחבר...
+                      <Loader2 size={19} className={`h-[19px] w-[19px] shrink-0 animate-spin ${isEn ? "mr-2" : "ml-2"}`} />
+                      {isEn ? "Signing in…" : "מתחבר..."}
                     </>
                   ) : (
-                    "התחבר לחשבון"
+                    isEn ? "Sign in" : "התחבר לחשבון"
                   )}
                 </Button>
               </form>
@@ -204,15 +207,15 @@ export function LoginForm(props: {
 
           <div className="mt-6 pt-5">
             <p className="text-center">
-              אין לך חשבון?{" "}
+              {isEn ? "Don't have an account? " : "אין לך חשבון? "}
               <Link href={props.registerHref} className="auth-link">
-                הרשמה לחשבון חדש
+                {isEn ? "Sign up" : "הרשמה לחשבון חדש"}
               </Link>
             </p>
 
             <p className="mt-3 text-center">
               <Link href={forgotHref} tabIndex={0} className="auth-link">
-                שכחתי סיסמה
+                {isEn ? "Forgot password" : "שכחתי סיסמה"}
               </Link>
             </p>
           </div>

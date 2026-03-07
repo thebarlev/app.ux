@@ -22,8 +22,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import ConfirmDialog from "@/components/ConfirmDialog"
+import type { AuditorLocale } from "@/lib/auditor/locale"
+import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 
 type Step = 1 | 2 | 3
+
+const SCAN_MESSAGES_HE = [
+  "בודק מבנה דפים…", "מנתח תוכן לכלי AI…", "בודק schema markup…", "מעריך נראות ב-ChatGPT…",
+  "סורק מטא-דאטה…", "בודק structured data…", "מנתח ביצועי טעינה…", "בוחן קישורים פנימיים…",
+  "בודק נגישות תוכן…", "מחשב ציון AI…",
+]
+const SCAN_MESSAGES_EN = [
+  "Checking page structure…", "Analyzing AI content…", "Checking schema…", "Evaluating visibility…",
+  "Scanning metadata…", "Checking structured data…", "Analyzing performance…", "Checking links…",
+  "Checking accessibility…", "Computing AI score…",
+]
 
 const WHATSAPP_PHONE = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE) || "972545215193"
 const WHATSAPP_URL = `https://wa.me/${String(WHATSAPP_PHONE).replace(/^0+/, "")}`
@@ -180,45 +193,22 @@ const AI_SCORE_CSS = `
 }
 `
 
-const SCAN_MESSAGES = [
-  "בודק מבנה דפים…",
-  "מנתח תוכן לכלי AI…",
-  "בודק schema markup…",
-  "מעריך נראות ב-ChatGPT…",
-  "סורק מטא-דאטה…",
-  "בודק structured data…",
-  "מנתח ביצועי טעינה…",
-  "בוחן קישורים פנימיים…",
-  "בודק נגישות תוכן…",
-  "מחשב ציון AI…",
-]
-
 type Grade = { label: string; desc: string; color: string; bg: string; border: string; scoreColor: string }
 
-function getGrade(score: number): Grade {
-  if (score < 25) return {
-    label: "גרוע",
-    desc: "האתר שלך כמעט בלתי נראה לכלי AI — דחוף לטפל בזה",
-    color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", scoreColor: "#b91c1c",
+function getGrade(score: number, locale: AuditorLocale): Grade {
+  if (locale === "en") {
+    if (score < 25) return { label: "Poor", desc: "Your site is nearly invisible to AI — act now.", color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", scoreColor: "#b91c1c" }
+    if (score < 50) return { label: "Weak", desc: "Minimal AI presence — competitors are ahead.", color: "#b45309", bg: "#fffbeb", border: "#fcd34d", scoreColor: "#c2740a" }
+    if (score < 75) return { label: "Fair", desc: "Good base, but not enough for AI to find you.", color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", scoreColor: "#1d4ed8" }
+    return { label: "Excellent", desc: "Your site is ready for the AI era.", color: "#15803d", bg: "#f0fdf4", border: "#86efac", scoreColor: "#15803d" }
   }
-  if (score < 50) return {
-    label: "חלש",
-    desc: "נוכחות AI מינימלית — המתחרים שלכם כבר שם",
-    color: "#b45309", bg: "#fffbeb", border: "#fcd34d", scoreColor: "#c2740a",
-  }
-  if (score < 75) return {
-    label: "לא סביר",
-    desc: "יש בסיס טוב, אבל עדיין לא מספיק כדי שה-AI ימצא אתכם",
-    color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", scoreColor: "#1d4ed8",
-  }
-  return {
-    label: "מעולה",
-    desc: "האתר שלך מוכן היטב לעידן ה-AI",
-    color: "#15803d", bg: "#f0fdf4", border: "#86efac", scoreColor: "#15803d",
-  }
+  if (score < 25) return { label: "גרוע", desc: "האתר שלך כמעט בלתי נראה לכלי AI — דחוף לטפל בזה", color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", scoreColor: "#b91c1c" }
+  if (score < 50) return { label: "חלש", desc: "נוכחות AI מינימלית — המתחרים שלכם כבר שם", color: "#b45309", bg: "#fffbeb", border: "#fcd34d", scoreColor: "#c2740a" }
+  if (score < 75) return { label: "לא סביר", desc: "יש בסיס טוב, אבל עדיין לא מספיק כדי שה-AI ימצא אתכם", color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", scoreColor: "#1d4ed8" }
+  return { label: "מעולה", desc: "האתר שלך מוכן היטב לעידן ה-AI", color: "#15803d", bg: "#f0fdf4", border: "#86efac", scoreColor: "#15803d" }
 }
 
-function AiScoreHero({ status }: { status: StatusResponse | null }) {
+function AiScoreHero({ status, locale }: { status: StatusResponse | null; locale: AuditorLocale }) {
   const okStatus = status && status.ok === true ? status : null
   const finalScore = okStatus && typeof okStatus.score_ai === "number" ? okStatus.score_ai : null
   const isReady = finalScore !== null
@@ -240,16 +230,16 @@ function AiScoreHero({ status }: { status: StatusResponse | null }) {
     return () => clearInterval(id)
   }, [isReady])
 
-  // Cycle through scanning messages
+  const scanMessages = locale === "en" ? SCAN_MESSAGES_EN : SCAN_MESSAGES_HE
   useEffect(() => {
     if (isReady) return
     const id = setInterval(() => {
-      setMsgIdx(i => (i + 1) % SCAN_MESSAGES.length)
+      setMsgIdx(i => (i + 1) % scanMessages.length)
     }, 2800)
     return () => clearInterval(id)
-  }, [isReady])
+  }, [isReady, scanMessages])
 
-  const grade = isReady ? getGrade(finalScore!) : null
+  const grade = isReady ? getGrade(finalScore!, locale) : null
 
   return (
     <div className="aisc-wrap">
@@ -281,7 +271,7 @@ function AiScoreHero({ status }: { status: StatusResponse | null }) {
           </>
         ) : (
           <div className="aisc-scanning-msg" key={msgIdx}>
-            {SCAN_MESSAGES[msgIdx]}
+            {scanMessages[msgIdx]}
           </div>
         )}
       </div>
@@ -788,7 +778,9 @@ const dashboardCss = `
 }
 `
 
-export default function AuditorHomeClient() {
+export default function AuditorHomeClient(props?: { locale?: AuditorLocale; basePath?: string }) {
+  const locale = props?.locale ?? "he"
+  const basePath = props?.basePath ?? "/auditor"
   const router = useRouter()
   const sp = useSearchParams()
 
@@ -879,7 +871,7 @@ export default function AuditorHomeClient() {
   const startCheckout = async () => {
     setError(null)
     if (!scanId || !token) {
-      setError("חסר מזהה סריקה/טוקן. נסו לבצע סריקה מחדש.")
+      setError(locale === "en" ? "Missing scan or token. Try scanning again." : "חסר מזהה סריקה/טוקן. נסו לבצע סריקה מחדש.")
       return
     }
 
@@ -888,7 +880,7 @@ export default function AuditorHomeClient() {
       const r = await fetch("/api/auditor/billing/checkout/create", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan_id: selectedPlanId, scanId, token }),
+        body: JSON.stringify({ plan_id: selectedPlanId, scanId, token, base_path: locale === "en" ? "/en/auditor" : undefined }),
       })
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
@@ -1084,29 +1076,29 @@ export default function AuditorHomeClient() {
           {/* Subscriber header: logo + account menu + WhatsApp */}
           {hasActiveSubscription && (
             <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
-              <Link href="/auditor" className="shrink-0">
+              <Link href={basePath} className="shrink-0">
                 <Image src="/brand/vow.svg" alt="VOW" width={100} height={36} />
               </Link>
               <div className="flex flex-wrap items-center gap-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-2">
-                      החשבון שלי
+                      {locale === "en" ? "My account" : "החשבון שלי"}
                       <ChevronDown className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="min-w-[200px]">
                     <DropdownMenuItem asChild>
-                      <Link href="/auditor/invoices">צפייה והורדת חשבוניות</Link>
+                      <Link href={`${basePath}/invoices`}>{locale === "en" ? "View & download invoices" : "צפייה והורדת חשבוניות"}</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/auditor/settings">עדכון פרטים אישיים</Link>
+                      <Link href={`${basePath}/settings`}>{locale === "en" ? "Update profile" : "עדכון פרטים אישיים"}</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setShowChangePlanModal(true)}>
-                      מעביר חבילה
+                      {locale === "en" ? "Change plan" : "מעביר חבילה"}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setShowCancelModal(true)} variant="destructive">
-                      ביטול חבילה
+                      {locale === "en" ? "Cancel plan" : "ביטול חבילה"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1117,7 +1109,7 @@ export default function AuditorHomeClient() {
                   className="inline-flex items-center gap-2 rounded-[var(--radius)] border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-2 text-sm font-medium text-[#25D366] hover:bg-[#25D366]/20"
                 >
                   <span>WhatsApp</span>
-                  <span>צור קשר</span>
+                  <span>{locale === "en" ? "Contact" : "צור קשר"}</span>
                 </a>
               </div>
             </div>
@@ -1127,10 +1119,10 @@ export default function AuditorHomeClient() {
 
             {/* Header */}
             <div className="audit-header">
-              <h2 className="audit-title">דוח ביקורת</h2>
+              <h2 className="audit-title">{locale === "en" ? "Audit report" : "דוח ביקורת"}</h2>
               {scanId
                 ? <span className="audit-scan-id"># {scanId}</span>
-                : <span className="audit-scan-id generating">מייצר סריקה…</span>
+                : <span className="audit-scan-id generating">{locale === "en" ? "Generating scan…" : "מייצר סריקה…"}</span>
               }
             </div>
 
@@ -1141,7 +1133,7 @@ export default function AuditorHomeClient() {
               {!okStatus && (
                 <div className="audit-loading">
                   <div className="spinner" />
-                  <span>טוען סטטוס סריקה…</span>
+                  <span>{locale === "en" ? "Loading scan status…" : "טוען סטטוס סריקה…"}</span>
                 </div>
               )}
 
@@ -1149,7 +1141,7 @@ export default function AuditorHomeClient() {
               {okStatus && !okStatus.done && (
                 <div className="audit-progress-block">
                   <div className="progress-meta">
-                    <span className="progress-label">סריקה פעילה</span>
+                    <span className="progress-label">{locale === "en" ? "Scan in progress" : "סריקה פעילה"}</span>
                     <span className="progress-step" dir="ltr">{okStatus.status} · {okStatus.step}</span>
                   </div>
                   <div className="progress-bar-track">
@@ -1196,7 +1188,7 @@ export default function AuditorHomeClient() {
                       </span>
                     </div>
                     <div className="stat-cell">
-                      <span className="stat-label">ציון כללי</span>
+                      <span className="stat-label">{locale === "en" ? "Overall score" : "ציון כללי"}</span>
                       <span className={`stat-value ${
                         typeof (okStatus as any).score_total === "number"
                           ? (okStatus as any).score_total < 25 ? "red"
@@ -1215,13 +1207,13 @@ export default function AuditorHomeClient() {
                   <div>
                     <div className="section-header">
                       <div className="section-dot" />
-                      <span className="section-title">דברים שכדאי לשפר</span>
+                      <span className="section-title">{locale === "en" ? "Areas to improve" : "דברים שכדאי לשפר"}</span>
                     </div>
 
                     {issueCount === 0 ? (
                       <div className="audit-empty">
                         <span className="audit-empty-icon">🟢</span>
-                        <span>לא נמצאו בעיות כלליות משמעותיות</span>
+                        <span>{locale === "en" ? "No significant issues found" : "לא נמצאו בעיות כלליות משמעותיות"}</span>
                       </div>
                     ) : (
                       <div className="audit-issues">
@@ -1240,9 +1232,9 @@ export default function AuditorHomeClient() {
                   {/* Footer actions — hide when user has active subscription */}
                   {!hasActiveSubscription && (
                   <div className="pricing-wrap" aria-label="Pricing">
-                    <h3 className="pricing-title">מחירון — SEO / AI אורגני</h3>
+                    <h3 className="pricing-title">{locale === "en" ? "Pricing — SEO / AI" : "מחירון — SEO / AI אורגני"}</h3>
                     <div className="pricing-subtitle">
-                      בחרו חבילה כדי לראות את הדוח המלא ולקבל תכנית שיפור. החיוב חודשי ומתחדש, וכולל מע״מ.
+                      {locale === "en" ? "Choose a plan for the full report & improvement plan. Monthly billing, cancel anytime." : "בחרו חבילה כדי לראות את הדוח המלא ולקבל תכנית שיפור. החיוב חודשי ומתחדש, וכולל מע״מ."}
                     </div>
 
                     <div className="pricing-grid">
@@ -1253,15 +1245,15 @@ export default function AuditorHomeClient() {
                         tabIndex={0}
                       >
                         <input className="plan-radio" type="radio" checked={selectedPlanId === "basic"} readOnly />
-                        <h4 className="plan-name">בסיסי</h4>
+                        <h4 className="plan-name">{locale === "en" ? "Basic" : "בסיסי"}</h4>
                         <div className="plan-price">
-                          <strong>97 ₪</strong> לחודש
+                          {locale === "en" ? <><strong>${PLAN_PRICES_USD.basic}</strong>/mo</> : <><strong>97 ₪</strong> לחודש</>}
                         </div>
                         <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>סריקה אוטומטית (עד 20 עמודים)</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>ציון SEO תקני (0–100)</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>בדיקות robots + sitemap</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>Schema בסיסית</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Auto scan (up to 20 pages)" : "סריקה אוטומטית (עד 20 עמודים)"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Standard SEO score (0–100)" : "ציון SEO תקני (0–100)"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Robots + sitemap checks" : "בדיקות robots + sitemap"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Basic schema" : "Schema בסיסית"}</span></div>
                         </div>
                       </div>
 
@@ -1271,17 +1263,17 @@ export default function AuditorHomeClient() {
                         role="button"
                         tabIndex={0}
                       >
-                        <span className="plan-badge">המומלץ ביותר</span>
+                        <span className="plan-badge">{locale === "en" ? "Most popular" : "המומלץ ביותר"}</span>
                         <input className="plan-radio" type="radio" checked={selectedPlanId === "pro"} readOnly />
-                        <h4 className="plan-name">מקצועי</h4>
+                        <h4 className="plan-name">{locale === "en" ? "Pro" : "מקצועי"}</h4>
                         <div className="plan-price">
-                          <strong>197 ₪</strong> לחודש
+                          {locale === "en" ? <><strong>${PLAN_PRICES_USD.pro}</strong>/mo</> : <><strong>197 ₪</strong> לחודש</>}
                         </div>
                         <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>כולל את כל מה שקיים בבסיסי</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>ניתוח מבנה Titles/Descriptions</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>אבחון Meta Titles/Descriptions</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>FAQ + שאלות ותשובות</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Everything in Basic" : "כולל את כל מה שקיים בבסיסי"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Title/Description analysis" : "ניתוח מבנה Titles/Descriptions"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Meta Titles/Descriptions audit" : "אבחון Meta Titles/Descriptions"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "FAQ + Q&A" : "FAQ + שאלות ותשובות"}</span></div>
                         </div>
                       </div>
 
@@ -1292,29 +1284,29 @@ export default function AuditorHomeClient() {
                         tabIndex={0}
                       >
                         <input className="plan-radio" type="radio" checked={selectedPlanId === "premium"} readOnly />
-                        <h4 className="plan-name">מומחים</h4>
+                        <h4 className="plan-name">{locale === "en" ? "Premium" : "מומחים"}</h4>
                         <div className="plan-price">
-                          החל מ־<strong>997 ₪</strong> לחודש
+                          {locale === "en" ? <>From <strong>${PLAN_PRICES_USD.premium}</strong>/mo</> : <>החל מ־<strong>997 ₪</strong> לחודש</>}
                         </div>
                         <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>כולל הכל + ליווי אנושי</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>ניתוח עומק של עמודי האתר</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>שיחת אסטרטגיה 1:1</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>התאמה לחשיפה ב‑AI</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Everything + human support" : "כולל הכל + ליווי אנושי"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Deep page analysis" : "ניתוח עומק של עמודי האתר"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "1:1 strategy call" : "שיחת אסטרטגיה 1:1"}</span></div>
+                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "AI visibility optimization" : "התאמה לחשיפה ב‑AI"}</span></div>
                         </div>
                       </div>
                     </div>
 
                     <div className="pricing-cta-row">
-                      <div className="pricing-note">מיד לאחר התשלום נשלח אליכם מייל עם קישור להתחברות ולהמשך.</div>
+                      <div className="pricing-note">{locale === "en" ? "After payment you'll get an email with login link." : "מיד לאחר התשלום נשלח אליכם מייל עם קישור להתחברות ולהמשך."}</div>
                       <button className="btn-checkout" onClick={startCheckout} disabled={isStartingCheckout}>
                         {isStartingCheckout ? (
                           <>
                             <span className="spinner" />
-                            ממשיכים לתשלום…
+                            {locale === "en" ? "Processing…" : "ממשיכים לתשלום…"}
                           </>
                         ) : (
-                          <>המשך לתשלום</>
+                          <>{locale === "en" ? "Continue to payment" : "המשך לתשלום"}</>
                         )}
                       </button>
                     </div>
@@ -1328,12 +1320,12 @@ export default function AuditorHomeClient() {
                       className="btn-share"
                       href={
                         scanId && token
-                          ? `/auditor/${encodeURIComponent(scanId)}?token=${encodeURIComponent(token)}`
-                          : "/auditor"
+                          ? `${basePath}/${encodeURIComponent(scanId)}?token=${encodeURIComponent(token)}`
+                          : basePath
                       }
                     >
                       <span>🔗</span>
-                      שיתוף הדוח
+                      {locale === "en" ? "Share report" : "שיתוף הדוח"}
                     </a>
                     <button
                       className="btn-new-scan"
@@ -1343,11 +1335,11 @@ export default function AuditorHomeClient() {
                         setStatus(null)
                         setScanId(null)
                         setToken(null)
-                        router.replace("/auditor")
+                        router.replace(basePath)
                       }}
                     >
                       <span>＋</span>
-                      סריקה חדשה
+                      {locale === "en" ? "New scan" : "סריקה חדשה"}
                     </button>
                   </div>
                 </>
@@ -1361,9 +1353,9 @@ export default function AuditorHomeClient() {
 
   // ─── Main render ───────────────────────────────────────────────────────────
   return (
-    <div dir="rtl" className="space-y-6">
+    <div dir={locale === "en" ? "ltr" : "rtl"} className="space-y-6">
       {error ? (
-        <div className="rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger text-right">{error}</div>
+        <div className={`rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger ${locale === "en" ? "text-left" : "text-right"}`}>{error}</div>
       ) : null}
 
       {/* ── Step 1 ── */}
@@ -1372,9 +1364,15 @@ export default function AuditorHomeClient() {
           <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority />
 
           <h1 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">
-            כמה סיכוי יש לאתר שלך להופיע
-            <br />
-            בגוגל ובחיפוש AI?
+            {locale === "en" ? (
+              <>How visible is your site in Google & AI search?</>
+            ) : (
+              <>
+                כמה סיכוי יש לאתר שלך להופיע
+                <br />
+                בגוגל ובחיפוש AI?
+              </>
+            )}
           </h1>
 
           <div className="w-full max-w-xl">
@@ -1392,7 +1390,7 @@ export default function AuditorHomeClient() {
                 value={siteUrl}
                 onChange={(e) => setSiteUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
-                placeholder="כתובת אתר / עמוד נחיתה"
+                placeholder={locale === "en" ? "Website URL / landing page" : "כתובת אתר / עמוד נחיתה"}
                 dir="ltr"
                 className="h-12 rounded-full bg-white pl-12 text-right shadow-sm"
               />
@@ -1407,9 +1405,9 @@ export default function AuditorHomeClient() {
           <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority={false} />
 
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold md:text-4xl">קבלו ציון לאתר</h1>
+            <h1 className="text-3xl font-semibold md:text-4xl">{locale === "en" ? "Get your site score" : "קבלו ציון לאתר"}</h1>
             <p className="text-sm font-medium text-muted-foreground md:text-base">
-              מהם הסיכויים של האתר שלכם להופיע בגוגל ו-AI
+              {locale === "en" ? "How visible is your site in Google & AI?" : "מהם הסיכויים של האתר שלכם להופיע בגוגל ו-AI"}
             </p>
           </div>
 
@@ -1431,7 +1429,7 @@ export default function AuditorHomeClient() {
                 <div className="absolute right-3 top-3 rounded-full border border-border bg-white/80 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    סורקים…
+                    {locale === "en" ? "Scanning…" : "סורקים…"}
                   </span>
                 </div>
               )}
@@ -1439,12 +1437,12 @@ export default function AuditorHomeClient() {
           </div>
 
           {/* AI Score Hero */}
-          <AiScoreHero status={status} />
+          <AiScoreHero status={status} locale={locale} />
 
           <div className="w-full max-w-md space-y-1 text-center">
-            <h2 className="">רוצים לראות את הדוח המלא?</h2>
+            <h2 className="">{locale === "en" ? "Want the full report?" : "רוצים לראות את הדוח המלא?"}</h2>
             <h3 className="text-[18px]">
-              הירשמו, שלמו ותעברו ישר לדוח המלא עם כל התוצאות וההמלצות.
+              {locale === "en" ? "Sign up, pay & get instant access to the full report." : "הירשמו, שלמו ותעברו ישר לדוח המלא עם כל התוצאות וההמלצות."}
             </h3>
           </div>
 
@@ -1453,12 +1451,12 @@ export default function AuditorHomeClient() {
             <Link
               href={
                 scanId && token
-                  ? `/auditor/register?link_id=a_basic&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-                  : "/auditor/register?link_id=a_basic"
+                  ? `${basePath}/register?link_id=a_basic&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : `${basePath}/register?link_id=a_basic`
               }
               className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
             >
-              הרשמה והמשך לתשלום
+              {locale === "en" ? "Sign up & continue to payment" : "הרשמה והמשך לתשלום"}
             </Link>
           </div>
         </div>
@@ -1469,46 +1467,46 @@ export default function AuditorHomeClient() {
 
       {/* Change plan modal */}
       <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
-        <DialogContent className="max-w-md" dir="rtl">
+        <DialogContent className="max-w-md" dir={locale === "en" ? "ltr" : "rtl"}>
           <DialogHeader>
-            <DialogTitle>מעביר חבילה</DialogTitle>
+            <DialogTitle>{locale === "en" ? "Change plan" : "מעביר חבילה"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה.</p>
+            <p className="text-sm text-muted-foreground">{locale === "en" ? "Choose a new plan. Change takes effect at next billing cycle." : "בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה."}</p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setChangePlanTarget("basic")}
-                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                className={`flex-1 rounded-ui border p-4 ${locale === "en" ? "text-left" : "text-right"} transition ${
                   changePlanTarget === "basic" ? "border-primary bg-primary/5" : "border-border"
                 }`}
               >
-                <div className="font-semibold">בסיסי</div>
-                <div className="text-sm text-muted-foreground">97 ₪/חודש</div>
+                <div className="font-semibold">{locale === "en" ? "Basic" : "בסיסי"}</div>
+                <div className="text-sm text-muted-foreground">{locale === "en" ? `$${PLAN_PRICES_USD.basic}/mo` : "97 ₪/חודש"}</div>
               </button>
               <button
                 type="button"
                 onClick={() => setChangePlanTarget("pro")}
-                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                className={`flex-1 rounded-ui border p-4 ${locale === "en" ? "text-left" : "text-right"} transition ${
                   changePlanTarget === "pro" ? "border-primary bg-primary/5" : "border-border"
                 }`}
               >
-                <div className="font-semibold">מקצועי</div>
-                <div className="text-sm text-muted-foreground">497 ₪/חודש</div>
+                <div className="font-semibold">{locale === "en" ? "Pro" : "מקצועי"}</div>
+                <div className="text-sm text-muted-foreground">{locale === "en" ? `$${PLAN_PRICES_USD.pro}/mo` : "497 ₪/חודש"}</div>
               </button>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className={`flex gap-2 ${locale === "en" ? "justify-end" : "justify-end"}`}>
               <Button variant="outline" onClick={() => setShowChangePlanModal(false)}>
-                ביטול
+                {locale === "en" ? "Cancel" : "ביטול"}
               </Button>
               <Button onClick={handleChangePlan} disabled={isChangingPlan}>
                 {isChangingPlan ? (
                   <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    מעדכן…
+                    <Loader2 className={locale === "en" ? "mr-2" : "ml-2"} h-4 w-4 animate-spin />
+                    {locale === "en" ? "Updating…" : "מעדכן…"}
                   </>
                 ) : (
-                  "אישור"
+                  locale === "en" ? "Confirm" : "אישור"
                 )}
               </Button>
             </div>
@@ -1520,10 +1518,10 @@ export default function AuditorHomeClient() {
       <ConfirmDialog
         open={showCancelModal}
         onOpenChange={setShowCancelModal}
-        title="ביטול מנוי"
-        message="המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."
-        confirmText="אשר ביטול"
-        cancelText="חזור"
+        title={locale === "en" ? "Cancel subscription" : "ביטול מנוי"}
+        message={locale === "en" ? "Subscription ends at current billing period. No further charges." : "המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."}
+        confirmText={locale === "en" ? "Confirm cancel" : "אשר ביטול"}
+        cancelText={locale === "en" ? "Back" : "חזור"}
         destructive
         onConfirm={handleCancelSubscription}
       />

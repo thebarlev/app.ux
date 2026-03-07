@@ -66,7 +66,7 @@ export async function processCardcomIndicatorEvent(
     returnId
       ? await admin
           .from("auditor_checkout_sessions")
-          .select("id,lead_id,scan_id,plan_id,amount,coin_id,status,provider_low_profile_code,company_id,user_id")
+          .select("id,lead_id,scan_id,plan_id,amount,coin_id,status,provider_low_profile_code,company_id,user_id,success_url")
           .eq("id", returnId)
           .eq("provider_low_profile_code", lowProfileCode)
           .maybeSingle()
@@ -74,7 +74,7 @@ export async function processCardcomIndicatorEvent(
 
   const byCode = await admin
     .from("auditor_checkout_sessions")
-    .select("id,lead_id,scan_id,plan_id,amount,coin_id,status,provider_low_profile_code,company_id,user_id")
+    .select("id,lead_id,scan_id,plan_id,amount,coin_id,status,provider_low_profile_code,company_id,user_id,success_url")
     .eq("provider_low_profile_code", lowProfileCode)
     .maybeSingle()
 
@@ -343,10 +343,12 @@ export async function processCardcomIndicatorEvent(
   }
 
   if (chargeId) {
+    const isEn = String((checkout as any)?.success_url || "").includes("/en/auditor")
     try {
       const { data: rpcData, error: rpcErr } = await admin.rpc("issue_auditor_charge_invoice_receipt_service", {
         p_auditor_charge_id: chargeId,
         p_issuer_company_id: billingCfg.billingAccountId,
+        p_is_en: isEn,
       } as any)
       const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
       if (!ok || rpcErr) {

@@ -32,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button"
 import ConfirmDialog from "@/components/ConfirmDialog"
 import { ScrollLockFix } from "@/components/ScrollLockFix"
+import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 
 const WHATSAPP_PHONE = process.env.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE || "972545215193"
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE.replace(/^0/, "")}`
@@ -41,7 +42,8 @@ const desktopAsideClassName =
   `hidden md:block fixed right-[15px] top-[15px] z-50 h-[calc(100%-30px)] ${SIDEBAR_DEFAULT_CLASS} max-w-[250px] ` +
   "bg-sidebar overflow-hidden rounded-[10px] transition-[width] duration-200 ease-out"
 
-export function AuditorDashboardLayout({ children }: { children: React.ReactNode }) {
+export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { children: React.ReactNode; basePath?: string }) {
+  const isEn = basePath.startsWith("/en")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showChangePlanModal, setShowChangePlanModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -94,7 +96,7 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
   return (
     <>
       <ScrollLockFix />
-      <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir="rtl">
+      <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir={basePath.startsWith("/en") ? "ltr" : "rtl"}>
         <div className="relative z-0 flex-1 min-w-0 pr-0 md:pr-[200px] bg-bg">
           {/* Mobile Header - same as invoice dashboard */}
           <div className="sticky top-0 z-[60] md:hidden bg-[#4A90B5] shadow-md w-full">
@@ -118,7 +120,7 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
                   />
                 </div>
               </button>
-              <Link href="/auditor" className="flex items-center">
+              <Link href={basePath} className="flex items-center">
                 <Image src="/brand/vow_black.svg" alt="VOW" width={80} height={32} priority />
               </Link>
             </div>
@@ -130,54 +132,54 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
         {/* Desktop Sidebar - same styling as invoice dashboard (bg-sidebar) */}
         <aside className={desktopAsideClassName}>
           <div className="flex h-full flex-col p-4 ui-sidebar">
-            <Link href="/auditor" className="mb-6 block">
+            <Link href={basePath} className="mb-6 block">
               <Image src="/brand/vow_black.svg" alt="VOW" width={100} height={36} priority />
             </Link>
             <nav className="flex-1 space-y-1 overflow-y-auto">
               <Link
-                href="/auditor/dashboard"
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass("/auditor/dashboard")}`}
+                href={`${basePath}/dashboard`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(`${basePath}/dashboard`)}`}
               >
                 <FileText className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">דשבורד</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Dashboard" : "דשבורד"}</span>
               </Link>
               <Link
-                href="/auditor/settings"
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass("/auditor/settings")}`}
+                href={`${basePath}/settings`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(`${basePath}/settings`)}`}
               >
                 <Settings className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">הגדרות</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Settings" : "הגדרות"}</span>
               </Link>
               <Link
-                href="/auditor/settings#personal"
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass("/auditor/settings")}`}
+                href={`${basePath}/settings#personal`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(`${basePath}/settings`)}`}
               >
                 <User className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">פרטים אישיים</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Profile" : "פרטים אישיים"}</span>
               </Link>
               <Link
-                href="/auditor/invoices"
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass("/auditor/invoices")}`}
+                href={`${basePath}/invoices`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(`${basePath}/invoices`)}`}
               >
                 <FileText className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">חשבוניות</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Invoices" : "חשבוניות"}</span>
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass("/auditor")}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(basePath)}`}
                   >
                     <CreditCard className="h-5 w-5 shrink-0" />
-                    <span className="text-right flex-1">מנוי</span>
+                    <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Subscription" : "מנוי"}</span>
                     <ChevronDown className="h-4 w-4 shrink-0" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-[200px]">
                   <DropdownMenuItem onClick={() => setShowChangePlanModal(true)}>
-                    שינוי חבילה
+                    {isEn ? "Change plan" : "שינוי חבילה"}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShowCancelModal(true)} className="text-destructive">
-                    ביטול מנוי
+                    {isEn ? "Cancel subscription" : "ביטול מנוי"}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -188,7 +190,7 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
                 className="flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-sidebar-hover"
               >
                 <MessageCircle className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">יצירת קשר</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Contact" : "יצירת קשר"}</span>
               </a>
             </nav>
             <div className="border-t border-white/20 pt-4 mt-4">
@@ -197,7 +199,7 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ui-sidebar-logout hover:bg-sidebar-hover"
               >
                 <Power className="h-5 w-5 shrink-0" />
-                <span className="text-right flex-1">התנתקות</span>
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Sign out" : "התנתקות"}</span>
               </button>
             </div>
           </div>
@@ -208,21 +210,21 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
           <>
             <aside className="fixed top-[60px] left-0 right-0 h-[70vh] z-40 md:hidden bg-[#4A90B5] rounded-b-3xl overflow-y-auto">
               <nav className="flex flex-col p-6 pt-4 space-y-2">
-                <Link href="/auditor/dashboard" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
+                <Link href={`${basePath}/dashboard`} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
                   <FileText className="h-5 w-5" />
-                  <span className="text-right flex-1">דשבורד</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Dashboard" : "דשבורד"}</span>
                 </Link>
-                <Link href="/auditor/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
+                <Link href={`${basePath}/settings`} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
                   <Settings className="h-5 w-5" />
-                  <span className="text-right flex-1">הגדרות</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Settings" : "הגדרות"}</span>
                 </Link>
-                <Link href="/auditor/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
+                <Link href={`${basePath}/settings`} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
                   <User className="h-5 w-5" />
-                  <span className="text-right flex-1">פרטים אישיים</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Profile" : "פרטים אישיים"}</span>
                 </Link>
-                <Link href="/auditor/invoices" onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
+                <Link href={`${basePath}/invoices`} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
                   <FileText className="h-5 w-5" />
-                  <span className="text-right flex-1">חשבוניות</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Invoices" : "חשבוניות"}</span>
                 </Link>
                 <button onClick={() => { setSidebarOpen(false); setShowChangePlanModal(true) }} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 w-full text-right">
                   <CreditCard className="h-5 w-5" />
@@ -234,12 +236,12 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
                 </button>
                 <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10" onClick={() => setSidebarOpen(false)}>
                   <MessageCircle className="h-5 w-5" />
-                  <span className="text-right flex-1">יצירת קשר</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Contact" : "יצירת קשר"}</span>
                 </a>
                 <div className="border-t border-white/20 my-4" />
                 <button onClick={() => { setSidebarOpen(false); handleLogout() }} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 w-full text-right">
                   <Power className="h-5 w-5" />
-                  <span className="flex-1">התנתקות</span>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Sign out" : "התנתקות"}</span>
                 </button>
               </nav>
             </aside>
@@ -250,44 +252,44 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
 
       {/* Change plan modal */}
       <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
-        <DialogContent className="max-w-md" dir="rtl">
+        <DialogContent className="max-w-md" dir={isEn ? "ltr" : "rtl"}>
           <DialogHeader>
-            <DialogTitle>שינוי חבילה</DialogTitle>
+            <DialogTitle>{isEn ? "Change plan" : "שינוי חבילה"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה.</p>
+            <p className="text-sm text-muted-foreground">{isEn ? "Choose a new plan. Change takes effect at next billing cycle." : "בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה."}</p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={() => setChangePlanTarget("basic")}
-                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                className={`flex-1 rounded-ui border p-4 ${isEn ? "text-left" : "text-right"} transition ${
                   changePlanTarget === "basic" ? "border-primary bg-primary/5" : "border-border"
                 }`}
               >
-                <div className="font-semibold">בסיסי</div>
-                <div className="text-sm text-muted-foreground">97 ₪/חודש</div>
+                <div className="font-semibold">{isEn ? "Basic" : "בסיסי"}</div>
+                <div className="text-sm text-muted-foreground">{isEn ? `$${PLAN_PRICES_USD.basic}/mo` : "97 ₪/חודש"}</div>
               </button>
               <button
                 type="button"
                 onClick={() => setChangePlanTarget("pro")}
-                className={`flex-1 rounded-ui border p-4 text-right transition ${
+                className={`flex-1 rounded-ui border p-4 ${isEn ? "text-left" : "text-right"} transition ${
                   changePlanTarget === "pro" ? "border-primary bg-primary/5" : "border-border"
                 }`}
               >
-                <div className="font-semibold">מקצועי</div>
-                <div className="text-sm text-muted-foreground">497 ₪/חודש</div>
+                <div className="font-semibold">{isEn ? "Pro" : "מקצועי"}</div>
+                <div className="text-sm text-muted-foreground">{isEn ? `$${PLAN_PRICES_USD.pro}/mo` : "497 ₪/חודש"}</div>
               </button>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowChangePlanModal(false)}>ביטול</Button>
+              <Button variant="outline" onClick={() => setShowChangePlanModal(false)}>{isEn ? "Cancel" : "ביטול"}</Button>
               <Button onClick={handleChangePlan} disabled={isChangingPlan}>
                 {isChangingPlan ? (
                   <>
-                    <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                    מעדכן…
+                    <Loader2 className={isEn ? "mr-2" : "ml-2"} h-4 w-4 animate-spin />
+                    {isEn ? "Updating…" : "מעדכן…"}
                   </>
                 ) : (
-                  "אישור"
+                  isEn ? "Confirm" : "אישור"
                 )}
               </Button>
             </div>
@@ -298,10 +300,10 @@ export function AuditorDashboardLayout({ children }: { children: React.ReactNode
       <ConfirmDialog
         open={showCancelModal}
         onOpenChange={setShowCancelModal}
-        title="ביטול מנוי"
-        message="המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."
-        confirmText="אשר ביטול"
-        cancelText="חזור"
+        title={isEn ? "Cancel subscription" : "ביטול מנוי"}
+        message={isEn ? "Subscription ends at current billing period. No further charges." : "המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."}
+        confirmText={isEn ? "Confirm cancel" : "אשר ביטול"}
+        cancelText={isEn ? "Back" : "חזור"}
         destructive
         onConfirm={handleCancelSubscription}
       />

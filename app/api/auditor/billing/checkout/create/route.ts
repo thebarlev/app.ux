@@ -11,6 +11,7 @@ const bodySchema = z.object({
   plan_id: z.enum(["basic", "pro", "premium"]),
   scanId: z.string().uuid(),
   token: z.string().min(10),
+  base_path: z.string().optional(),
 })
 
 export async function POST(req: Request) {
@@ -62,8 +63,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
 
-  const successUrl = `${publicBaseUrl}/auditor/success`
-  const errorUrl = `${publicBaseUrl}/auditor?checkout=error&scanId=${encodeURIComponent(parsed.data.scanId)}&token=${encodeURIComponent(parsed.data.token)}`
+  const base = (parsed.data.base_path || "/auditor").replace(/\/+$/, "") || "/auditor"
+  const successUrl = `${publicBaseUrl}${base}/success`
+  const errorUrl = `${publicBaseUrl}${base}?checkout=error&scanId=${encodeURIComponent(parsed.data.scanId)}&token=${encodeURIComponent(parsed.data.token)}`
   const indicatorUrl = `${publicBaseUrl}/api/auditor/billing/cardcom/indicator`
 
   // Create checkout session (auditor-only)

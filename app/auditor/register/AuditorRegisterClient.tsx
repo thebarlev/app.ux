@@ -25,23 +25,33 @@ export default function AuditorRegisterClient(props: {
   footerLoginLinkText: string
   requireLegalTermsRequired: boolean
   requireMarketingRequired: boolean
+  basePath?: string
+  locale?: "he" | "en"
+  labelFullName?: string
+  labelEmail?: string
+  labelPhone?: string
+  labelPassword?: string
+  helperPassword?: string
 }) {
   const router = useRouter()
+  const basePath = props.basePath ?? "/auditor"
+  const locale = props.locale ?? "he"
+  const isLtr = locale === "en"
 
   const linkId = String(props.linkId || "").trim()
   const scanId = String(props.scanId || "").trim()
   const token = String(props.token || "").trim()
 
-  const loginHref = linkId ? `/auditor/login?link_id=${encodeURIComponent(linkId)}` : "/auditor/login"
+  const loginHref = linkId ? `${basePath}/login?link_id=${encodeURIComponent(linkId)}` : `${basePath}/login`
   const afterCheckout = useMemo(() => {
-    const base = "/auditor/checkout"
+    const base = `${basePath}/checkout`
     const params = new URLSearchParams()
     if (linkId) params.set("link_id", linkId)
     if (scanId) params.set("scanId", scanId)
     if (token) params.set("token", token)
     const qs = params.toString()
     return qs ? `${base}?${qs}` : base
-  }, [linkId, scanId, token])
+  }, [linkId, scanId, token, basePath])
 
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
@@ -129,20 +139,20 @@ export default function AuditorRegisterClient(props: {
 
           <Card className="shadow-ui-lg auth-card">
             <CardHeader className="pb-4 mb-[15px]">
-              <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
+              <CardTitle className={`${isLtr ? "ml-6 text-left" : "mr-6 text-right"} pt-5 text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]`}>
                 {props.titleText}
               </CardTitle>
-              <CardDescription className="mr-6 text-right text-[24px]">{props.descriptionText}</CardDescription>
+              <CardDescription className={`${isLtr ? "ml-6 text-left" : "mr-6 text-right"} text-[24px]`}>{props.descriptionText}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="auth-form" noValidate>
                 {error ? (
                   <div
-                    className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right"
+                    className={`bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium ${isLtr ? "text-left" : "text-right"}`}
                     role="alert"
                   >
                     {error}{" "}
-                    {String(error || "").includes("כבר רשומה") ? (
+                    {String(error || "").includes("כבר רשומה") || String(error || "").toLowerCase().includes("already") ? (
                       <span className="inline-flex gap-1">
                         <Link className="auth-link underline" href={loginHref}>
                           {props.footerLoginLinkText}
@@ -154,21 +164,24 @@ export default function AuditorRegisterClient(props: {
 
                 <div className="auth-field">
                   <FloatingInput
-                    label="שם מלא"
+                    label={props.labelFullName ?? "שם מלא"}
                     id="full_name"
-                    placeholder="ישראל ישראלי"
+                    placeholder={isLtr ? "John Doe" : "ישראל ישראלי"}
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     className="auth-input"
                     labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
                     labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
                   />
                 </div>
 
                 <div className="auth-field">
                   <FloatingInput
-                    label="כתובת אימייל"
+                    label={props.labelEmail ?? "כתובת אימייל"}
                     id="email"
                     type="email"
                     placeholder="name@example.com"
@@ -176,31 +189,37 @@ export default function AuditorRegisterClient(props: {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     dir="ltr"
-                    className="auth-input text-left"
+                    className="auth-input"
                     labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
                     labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
                   />
                 </div>
 
                 <div className="auth-field">
                   <FloatingInput
-                    label="טלפון נייד"
+                    label={props.labelPhone ?? "טלפון נייד"}
                     id="phone"
                     type="tel"
-                    placeholder="050-1234567"
+                    placeholder={isLtr ? "+1-555-1234567" : "050-1234567"}
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     dir="ltr"
-                    className="auth-input text-left"
+                    className="auth-input"
                     labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
                     labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
                   />
                 </div>
 
                 <div className="auth-field">
                   <FloatingInput
-                    label="סיסמה"
+                    label={props.labelPassword ?? "סיסמה"}
                     id="password"
                     type="password"
                     placeholder="••••••••"
@@ -209,14 +228,17 @@ export default function AuditorRegisterClient(props: {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     dir="ltr"
-                    className="auth-input text-left"
+                    className="auth-input"
                     labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
                     labelPlacement="above"
-                    helperText="מינימום 8 תווים"
+                    helperText={props.helperPassword ?? "מינימום 8 תווים"}
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 text-right">
+                <div className={`flex flex-col gap-2 ${isLtr ? "text-left" : "text-right"}`}>
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id="legalTerms"
@@ -244,7 +266,7 @@ export default function AuditorRegisterClient(props: {
                 <Button type="submit" disabled={isLoading} className="w-full auth-primary-button" variant="primary">
                   {isLoading ? (
                     <>
-                      <Loader2 size={19} className="h-[19px] w-[19px] shrink-0 animate-spin ml-2" />
+                      <Loader2 size={19} className={`h-[19px] w-[19px] shrink-0 animate-spin ${isLtr ? "mr-2" : "ml-2"}`} />
                       {props.submitLoadingText}
                     </>
                   ) : (

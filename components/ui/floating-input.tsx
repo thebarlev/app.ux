@@ -19,6 +19,9 @@ export interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputE
   containerClassName?: string;
   labelClassName?: string;
   labelPlacement?: "floating" | "above";
+  labelAlign?: "left" | "right";
+  inputAlign?: "left" | "right";
+  helperTextAlign?: "left" | "right";
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
@@ -34,6 +37,9 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
       containerClassName,
       labelClassName,
       labelPlacement = "floating",
+      labelAlign = "right",
+      inputAlign,
+      helperTextAlign,
       required,
       ...props
     },
@@ -66,7 +72,7 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
         )}
       >
         {labelPlacement === "above" && (
-          <label htmlFor={inputId} className={cn("block text-right", labelClassName)}>
+          <label htmlFor={inputId} className={cn("block", labelAlign === "left" ? "text-left" : "text-right", labelClassName)}>
             {label}
             {required && <span className="ms-1">*</span>}
           </label>
@@ -77,7 +83,14 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
             else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
           }}
           id={inputId}
-          className={cn(fieldBase, fieldSizes[fieldSize].input, stateClasses, className)}
+          className={cn(
+            fieldBase,
+            fieldSizes[fieldSize].input,
+            stateClasses,
+            inputAlign === "left" && "!text-left",
+            inputAlign === "right" && "!text-right",
+            className
+          )}
           aria-invalid={!!error}
           aria-describedby={describedBy}
           required={required}
@@ -100,12 +113,12 @@ export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputPro
           </label>
         )}
         {helperText && !error && (
-          <p id={helperId} className={helperTextBase}>
+          <p id={helperId} className={cn(helperTextBase, helperTextAlign === "left" && "!text-left", helperTextAlign === "right" && "!text-right")}>
             {helperText}
           </p>
         )}
         {error && (
-          <p id={errorId} className={cn(helperTextBase, helperTextError)}>
+          <p id={errorId} className={cn(helperTextBase, helperTextError, helperTextAlign === "left" && "!text-left", helperTextAlign === "right" && "!text-right")}>
             {error}
           </p>
         )}

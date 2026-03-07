@@ -9,8 +9,10 @@ export default function AuditorCheckoutClient(props: {
   checkout: string
   scanId: string
   token: string
+  basePath?: string
 }) {
   const router = useRouter()
+  const basePath = props.basePath ?? "/auditor"
   const [error, setError] = useState<string | null>(null)
   const [isWorking, setIsWorking] = useState(true)
 
@@ -32,7 +34,7 @@ export default function AuditorCheckoutClient(props: {
         if (r.ok && j?.ok === true && j?.has_subscription === true) {
           const status = String(j?.status || "")
           if (status === "active") {
-            router.replace("/auditor/dashboard")
+            router.replace(`${basePath}/dashboard`)
             return
           }
         }
@@ -41,14 +43,14 @@ export default function AuditorCheckoutClient(props: {
       }
 
       if (!linkId) {
-        setError("חסר link_id. חזרו ללינק הרכישה מהאתר.")
+        setError(props.basePath?.startsWith("/en") ? "Missing link_id. Return to the purchase link." : "חסר link_id. חזרו ללינק הרכישה מהאתר.")
         setIsWorking(false)
         return
       }
 
       try {
         const origin = typeof window !== "undefined" ? window.location.origin : ""
-        const successUrl = `${origin}/auditor/success`
+        const successUrl = `${origin}${basePath}/success`
         const errorParams = new URLSearchParams({ checkout: "error" })
         if (linkId) errorParams.set("link_id", linkId)
         if (scanId) errorParams.set("scanId", scanId)
@@ -57,7 +59,7 @@ export default function AuditorCheckoutClient(props: {
           link_id: linkId,
           created_from_url: typeof window !== "undefined" ? window.location.href : null,
           success_url: successUrl,
-          error_url: `${origin}/auditor/checkout?${errorParams.toString()}`,
+          error_url: `${origin}${basePath}/checkout?${errorParams.toString()}`,
         }
 
         const r = await fetch("/api/auditor/billing/checkout/start", {
@@ -84,18 +86,19 @@ export default function AuditorCheckoutClient(props: {
     }
   }, [linkId, scanId, token, router])
 
+  const isEn = basePath.startsWith("/en")
   return (
     <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">
-      <div className="mx-auto max-w-xl text-right space-y-4">
-        <h1 className="text-2xl font-semibold">פותחים סליקה…</h1>
+      <div className={`mx-auto max-w-xl space-y-4 ${isEn ? "text-left" : "text-right"}`}>
+        <h1 className="text-2xl font-semibold">{isEn ? "Opening checkout…" : "פותחים סליקה…"}</h1>
 
         <p className="text-sm text-muted-foreground">
-          אנחנו מעבירים אותך לדף תשלום מאובטח. אם זה לוקח יותר מכמה שניות, אפשר לנסות שוב.
+          {isEn ? "Redirecting to secure payment. If it takes more than a few seconds, try again." : "אנחנו מעבירים אותך לדף תשלום מאובטח. אם זה לוקח יותר מכמה שניות, אפשר לנסות שוב."}
         </p>
 
         {props.checkout === "error" ? (
           <div className="rounded-ui border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-            התשלום לא הושלם. אפשר לנסות שוב.
+            {isEn ? "Payment not completed. You can try again." : "התשלום לא הושלם. אפשר לנסות שוב."}
           </div>
         ) : null}
 
@@ -103,11 +106,11 @@ export default function AuditorCheckoutClient(props: {
           <div className="rounded-ui border border-danger/30 bg-danger/5 p-3 text-sm text-danger">{error}</div>
         ) : null}
 
-        <div className="flex items-center justify-end gap-3">
+        <div className={`flex gap-3 ${isEn ? "justify-start" : "justify-end"}`}>
           {isWorking ? (
             <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              מכינים תשלום…
+              {isEn ? "Preparing payment…" : "מכינים תשלום…"}
             </div>
           ) : (
             <button
@@ -115,7 +118,7 @@ export default function AuditorCheckoutClient(props: {
               className="rounded-ui bg-black px-4 py-2 text-white text-sm font-medium"
               onClick={() => router.refresh()}
             >
-              נסו שוב
+              {isEn ? "Try again" : "נסו שוב"}
             </button>
           )}
         </div>
