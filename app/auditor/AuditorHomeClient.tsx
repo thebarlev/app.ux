@@ -1460,26 +1460,7 @@ export default function AuditorHomeClient() {
             >
               הרשמה והמשך לתשלום
             </Link>
-            <Link
-              href={
-                scanId && token
-                  ? `/auditor/register?link_id=a_pro&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-                  : "/auditor/register?link_id=a_pro"
-              }
-              className="inline-flex h-14 w-full items-center justify-center rounded-none border border-border bg-white text-base hover:bg-muted"
-            >
-              שדרגו ל-Pro – 1,497 ₪/חודש
-            </Link>
-            <Link
-              href={
-                scanId && token
-                  ? `/auditor/register?link_id=a_premium&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-                  : "/auditor/register?link_id=a_premium"
-              }
-              className="inline-flex h-14 w-full items-center justify-center rounded-none border border-border bg-white text-base hover:bg-muted"
-            >
-              מומחים – 1,497 ₪/חודש
-            </Link>
+           
           </div>
         </div>
       )}
