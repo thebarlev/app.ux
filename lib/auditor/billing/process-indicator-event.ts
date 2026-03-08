@@ -152,6 +152,7 @@ export async function processCardcomIndicatorEvent(
     }
 
     const leadEmail = String((lead as any).email || "").trim()
+    const leadEmailNorm = leadEmail.toLowerCase()
     const leadName = String((lead as any).full_name || "").trim()
     const leadPhone = String((lead as any).phone || "").trim()
     const normalizedHost = String((lead as any).normalized_host || "").trim()
@@ -165,7 +166,7 @@ export async function processCardcomIndicatorEvent(
       return { ok: true, paid: true, error: "lead_email_missing" }
     }
 
-    const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmail).maybeSingle()
+    const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmailNorm).maybeSingle()
     companyId = existingCompany?.id ? String(existingCompany.id) : null
 
     if (!companyId) {
@@ -181,7 +182,7 @@ export async function processCardcomIndicatorEvent(
       if (resolvedUserId) {
         const canonical = await resolveCanonicalAuditorCompany(admin, {
           userId: resolvedUserId,
-          email: leadEmail,
+          email: leadEmailNorm,
         })
         if (canonical) {
           companyId = canonical.companyId
@@ -220,6 +221,43 @@ export async function processCardcomIndicatorEvent(
     }
 
     if (!companyId) {
+      const canonicalByEmail = await resolveCanonicalAuditorCompany(admin, { email: leadEmailNorm })
+      if (canonicalByEmail) {
+        companyId = canonicalByEmail.companyId
+        console.log("[AUDITOR_PROCESS] canonical company reused by email", { companyId, source: canonicalByEmail.source })
+        if (!userId) {
+          try {
+            const { data: uid } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
+            const resolved = typeof uid === "string" && uid ? uid : (uid as any)?.id ?? null
+            if (resolved) {
+              userId = resolved
+              try {
+                await admin.from("companies").update({ auth_user_id: resolved } as any).eq("id", companyId)
+              } catch {
+                /* ignore */
+              }
+              try {
+                await admin.from("company_members").upsert(
+                  { company_id: companyId, user_id: resolved, role: "owner", accepted_at: new Date().toISOString() } as any,
+                  { onConflict: "company_id,user_id" }
+                )
+              } catch {
+                /* ignore */
+              }
+              try {
+                await admin.from("auditor_checkout_sessions").update({ user_id: resolved } as any).eq("id", String(checkout.id))
+              } catch {
+                /* ignore */
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
+    if (!companyId) {
       const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
       const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
 
@@ -231,7 +269,7 @@ export async function processCardcomIndicatorEvent(
           tax_id: null,
           contact_first_name: firstName,
           contact_full_name: leadName || firstName,
-          email: leadEmail,
+          email: leadEmailNorm,
           mobile_phone: leadPhone || null,
           status: "active",
           auth_user_id: null,
@@ -240,7 +278,7 @@ export async function processCardcomIndicatorEvent(
         .single()
 
       if (insErr || !insertedCompany?.id) {
-        const { data: again } = await admin.from("companies").select("id").eq("email", leadEmail).maybeSingle()
+        const { data: again } = await admin.from("companies").select("id").eq("email", leadEmailNorm).maybeSingle()
         companyId = again?.id ? String(again.id) : null
       } else {
         companyId = String(insertedCompany.id)
