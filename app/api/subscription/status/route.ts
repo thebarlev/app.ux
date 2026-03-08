@@ -70,15 +70,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 })
   }
 
-  const VOW_SUPPORT_EMAIL = "support@vow.co.il"
-  const VOW_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
-
   let companyId: string
   try {
     companyId = await getCompanyIdForUserMinimal({ supabase, userId: auth.user.id })
   } catch {
-    // support@vow.co.il: allow even without company (e.g. no company_members)
-    if (auth.user.email === VOW_SUPPORT_EMAIL) {
+    // חשבונות ללא מגבלה - גם בלי חברה
+    if (isUnlimitedByEmail(auth.user.email)) {
       return NextResponse.json({
         ok: true,
         plan_id: "pro",
@@ -179,11 +176,13 @@ export async function GET(request: Request) {
   }
 
   // status_reason mirrors server enforcement (issue/finalize is blocked; read-only remains allowed)
+  // חשבונות ללא מגבלה - לא מחזירים status_reason
+  const isUnlimited = isUnlimitedByEmail(auth.user.email) || isUnlimitedByCompany(companyId)
   let statusReason: null | "trial_ended" | "subscription_expired" | "account_blocked" | "limit_reached" = null
 
-  if (["blocked", "canceled", "past_due"].includes(status)) {
+  if (!isUnlimited && ["blocked", "canceled", "past_due"].includes(status)) {
     statusReason = "account_blocked"
-  } else if (planId !== "free" && status === "active" && (!periodEndIso || now >= new Date(periodEndIso))) {
+  } else if (!isUnlimited && planId !== "free" && status === "active" && (!periodEndIso || now >= new Date(periodEndIso))) {
     statusReason = "subscription_expired"
   } else if (
     planId === "free" &&
@@ -208,15 +207,15 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    plan_id: planId,
-    status,
+    plan_id: isUnlimited ? "pro" : planId,
+    status: isUnlimited ? "active" : status,
     status_reason: statusReason,
     trial_ends_at: trialEndsAt,
     current_period_end: periodEndIso,
     documents_used: documentsUsed,
     documents_limit: documentsLimit,
     upgrade_url: upgradeUrl,
-    upgrade_available: planId === "free",
+    upgrade_available: isUnlimited ? false : planId === "free",
   })
 }
 

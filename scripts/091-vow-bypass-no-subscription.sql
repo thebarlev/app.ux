@@ -90,59 +90,69 @@ begin
       return;
     end if;
   else
-    -- Block on non-active statuses (no grace)
-    if v_sub.status = 'past_due' then
-      return query select false, 'past_due', null::integer, null::integer;
-      return;
-    end if;
-
-    if v_sub.status in ('blocked','canceled') then
-      return query select false, 'account_blocked', null::integer, null::integer;
-      return;
-    end if;
-
-    -- Resolve quota. חברות ב-unlimited_document_companies: unlimited.
-    if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id) then
+    -- Bypass: חברה ב-unlimited או system_admin - גם עם status חסום
+    if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id)
+       or exists (select 1 from public.system_admins where auth_user_id = auth.uid())
+    then
+      v_vow_bypass := true;
       v_limit := 1000000;
+      v_period_start := date_trunc('month', p_now);
+      v_period_end := v_period_start + interval '1 month';
     else
-      v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);
-    end if;
+      -- Block on non-active statuses (no grace)
+      if v_sub.status = 'past_due' then
+        return query select false, 'past_due', null::integer, null::integer;
+        return;
+      end if;
 
-    if v_limit is null then
-      return query select false, 'account_blocked', null::integer, null::integer;
-      return;
-    end if;
+      if v_sub.status in ('blocked','canceled') then
+        return query select false, 'account_blocked', null::integer, null::integer;
+        return;
+      end if;
 
-    -- Anniversary period:
-    -- - Paid plans must have a current_period window and must be within it.
-    -- - Free plan can exist without current_period_*; but if present, we still use it.
-    if v_sub.plan_id = 'free' then
-      if v_sub.current_period_start is not null and v_sub.current_period_end is not null then
+      -- Resolve quota from subscription
+      if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id) then
+        v_limit := 1000000;
+      else
+        v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);
+      end if;
+
+      if v_limit is null then
+        return query select false, 'account_blocked', null::integer, null::integer;
+        return;
+      end if;
+
+      -- Anniversary period:
+      -- - Paid plans must have a current_period window and must be within it.
+      -- - Free plan can exist without current_period_*; but if present, we still use it.
+      if v_sub.plan_id = 'free' then
+        if v_sub.current_period_start is not null and v_sub.current_period_end is not null then
+          v_period_start := v_sub.current_period_start;
+          v_period_end := v_sub.current_period_end;
+        else
+          -- Fallback: anchor to trial_starts_at for a rolling monthly window without updating subscription rows.
+          declare
+            v_anchor timestamptz := coalesce(v_sub.trial_starts_at, p_now);
+            v_age interval := age(p_now, v_anchor);
+            v_months int := (extract(year from v_age)::int * 12) + extract(month from v_age)::int;
+          begin
+            v_period_start := v_anchor + make_interval(months => v_months);
+            v_period_end := v_period_start + interval '1 month';
+          end;
+        end if;
+      else
+        if v_sub.current_period_start is null or v_sub.current_period_end is null then
+          return query select false, 'subscription_expired', null::integer, v_limit;
+          return;
+        end if;
+
         v_period_start := v_sub.current_period_start;
         v_period_end := v_sub.current_period_end;
-      else
-        -- Fallback: anchor to trial_starts_at for a rolling monthly window without updating subscription rows.
-        declare
-          v_anchor timestamptz := coalesce(v_sub.trial_starts_at, p_now);
-          v_age interval := age(p_now, v_anchor);
-          v_months int := (extract(year from v_age)::int * 12) + extract(month from v_age)::int;
-        begin
-          v_period_start := v_anchor + make_interval(months => v_months);
-          v_period_end := v_period_start + interval '1 month';
-        end;
-      end if;
-    else
-      if v_sub.current_period_start is null or v_sub.current_period_end is null then
-        return query select false, 'subscription_expired', null::integer, v_limit;
-        return;
-      end if;
 
-      v_period_start := v_sub.current_period_start;
-      v_period_end := v_sub.current_period_end;
-
-      if p_now >= v_period_end then
-        return query select false, 'subscription_expired', null::integer, v_limit;
-        return;
+        if p_now >= v_period_end then
+          return query select false, 'subscription_expired', null::integer, v_limit;
+          return;
+        end if;
       end if;
     end if;
   end if;
