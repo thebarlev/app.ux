@@ -9,7 +9,13 @@ const BASE = "/en/auditor"
 export default async function EnAuditorDashboardPage() {
   const supabase = await createClient()
   const { data: companyRows } = await supabase.rpc("user_company_ids")
-  const companyId = Array.isArray(companyRows) ? (companyRows[0] as any)?.company_id : null
+  const first = Array.isArray(companyRows) && companyRows.length > 0 ? companyRows[0] : null
+  const companyId =
+    first != null
+      ? typeof first === "string"
+        ? first
+        : (first as { company_id?: string })?.company_id ?? null
+      : null
   const canViewFullReport = await isSystemAdmin()
 
   let lastScan: { id: string; report_public: any; normalized_host: string } | null = null

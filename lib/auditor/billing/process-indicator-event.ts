@@ -166,56 +166,45 @@ export async function processCardcomIndicatorEvent(
       return { ok: true, paid: true, error: "lead_email_missing" }
     }
 
-    const { data: existingCompany } = await admin.from("companies").select("id,company_name,email").eq("email", leadEmailNorm).maybeSingle()
-    companyId = existingCompany?.id ? String(existingCompany.id) : null
+    let resolvedUserId: string | null = null
+    try {
+      const { data: uid } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
+      resolvedUserId = typeof uid === "string" && uid ? uid : (uid as any)?.id ?? null
+    } catch {
+      /* ignore */
+    }
 
-    if (!companyId) {
-      // Resolve existing user by email to avoid duplicate company when user already has one (bootstrap/signup)
-      let resolvedUserId: string | null = null
-      try {
-        const { data: uid } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
-        resolvedUserId = typeof uid === "string" && uid ? uid : (uid as any)?.id ?? null
-      } catch {
-        /* ignore */
-      }
-
-      if (resolvedUserId) {
-        const canonical = await resolveCanonicalAuditorCompany(admin, {
-          userId: resolvedUserId,
-          email: leadEmailNorm,
-        })
-        if (canonical) {
-          companyId = canonical.companyId
-          userId = resolvedUserId
-          console.log("[AUDITOR_PROCESS] canonical company reused", { companyId, source: canonical.source })
-          try {
-            await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
-          } catch {
-            /* ignore */
-          }
-          try {
-            await admin.from("auditor_checkout_sessions").update({ company_id: companyId, user_id: resolvedUserId } as any).eq("id", String(checkout.id))
-          } catch {
-            /* ignore */
-          }
-          try {
-            await admin.from("companies").update({ auth_user_id: resolvedUserId } as any).eq("id", companyId)
-          } catch {
-            /* ignore */
-          }
-          try {
-            await admin.from("company_members").upsert(
-              {
-                company_id: companyId,
-                user_id: resolvedUserId,
-                role: "owner",
-                accepted_at: new Date().toISOString(),
-              } as any,
-              { onConflict: "company_id,user_id" }
-            )
-          } catch {
-            /* ignore */
-          }
+    if (resolvedUserId) {
+      const canonical = await resolveCanonicalAuditorCompany(admin, {
+        userId: resolvedUserId,
+        email: leadEmailNorm,
+      })
+      if (canonical) {
+        companyId = canonical.companyId
+        userId = resolvedUserId
+        console.log("[AUDITOR_PROCESS] canonical company reused by auth user", { companyId, source: canonical.source })
+        try {
+          await admin.from("companies").update({ auth_user_id: resolvedUserId } as any).eq("id", companyId)
+        } catch {
+          /* ignore */
+        }
+        try {
+          await admin.from("company_members").upsert(
+            { company_id: companyId, user_id: resolvedUserId, role: "owner", accepted_at: new Date().toISOString() } as any,
+            { onConflict: "company_id,user_id" }
+          )
+        } catch {
+          /* ignore */
+        }
+        try {
+          await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
+        } catch {
+          /* ignore */
+        }
+        try {
+          await admin.from("auditor_checkout_sessions").update({ company_id: companyId, user_id: resolvedUserId } as any).eq("id", String(checkout.id))
+        } catch {
+          /* ignore */
         }
       }
     }
@@ -225,7 +214,8 @@ export async function processCardcomIndicatorEvent(
       if (canonicalByEmail) {
         companyId = canonicalByEmail.companyId
         console.log("[AUDITOR_PROCESS] canonical company reused by email", { companyId, source: canonicalByEmail.source })
-        if (!userId) {
+        const uidToLink = userId || resolvedUserId
+        if (!uidToLink) {
           try {
             const { data: uid } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
             const resolved = typeof uid === "string" && uid ? uid : (uid as any)?.id ?? null
@@ -245,7 +235,7 @@ export async function processCardcomIndicatorEvent(
                 /* ignore */
               }
               try {
-                await admin.from("auditor_checkout_sessions").update({ user_id: resolved } as any).eq("id", String(checkout.id))
+                await admin.from("auditor_checkout_sessions").update({ company_id: companyId, user_id: resolved } as any).eq("id", String(checkout.id))
               } catch {
                 /* ignore */
               }
@@ -253,13 +243,39 @@ export async function processCardcomIndicatorEvent(
           } catch {
             /* ignore */
           }
+        } else {
+          userId = uidToLink
+          try {
+            await admin.from("companies").update({ auth_user_id: uidToLink } as any).eq("id", companyId)
+          } catch {
+            /* ignore */
+          }
+          try {
+            await admin.from("company_members").upsert(
+              { company_id: companyId, user_id: uidToLink, role: "owner", accepted_at: new Date().toISOString() } as any,
+              { onConflict: "company_id,user_id" }
+            )
+          } catch {
+            /* ignore */
+          }
+          try {
+            await admin.from("auditor_checkout_sessions").update({ company_id: companyId, user_id: uidToLink } as any).eq("id", String(checkout.id))
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
+        } catch {
+          /* ignore */
         }
       }
     }
 
     if (!companyId) {
       const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
-      const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
+      const emailLocal = leadEmailNorm.split("@")[0] || ""
+      const companyName = normalizedHost || leadName || emailLocal || "Customer"
 
       const { data: insertedCompany, error: insErr } = await admin
         .from("companies")

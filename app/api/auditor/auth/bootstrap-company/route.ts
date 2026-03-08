@@ -10,6 +10,10 @@ import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution
 const bodySchema = z.object({
   full_name: z.string().min(1).max(200),
   phone: z.string().min(5).max(50),
+  company_name: z.string().max(200).optional(),
+  address: z.string().max(500).optional(),
+  website: z.string().max(200).optional(),
+  contact_name: z.string().max(200).optional(),
 })
 
 function firstNameFromFullName(fullName: string): string {
@@ -72,19 +76,25 @@ export async function POST(req: Request) {
   const fullName = String(parsed.data.full_name || "").trim()
   const phone = String(parsed.data.phone || "").trim()
   const firstName = firstNameFromFullName(fullName)
+  const companyName = String(parsed.data.company_name || "").trim() || fullName || firstName
+  const contactName = String(parsed.data.contact_name || "").trim() || fullName || firstName
+  const address = String(parsed.data.address || "").trim() || null
+  const website = String(parsed.data.website || "").trim() || null
 
   // Minimal company creation for Auditor (no business-profile step).
   // Keep to columns we already use in auditor billing indicator flow.
   const { data: insertedCompany, error: insErr } = await admin
     .from("companies")
     .insert({
-      company_name: `Auditor – ${fullName || firstName}`,
+      company_name: companyName,
       business_type: "other",
       tax_id: null,
       contact_first_name: firstName,
-      contact_full_name: fullName || firstName,
+      contact_full_name: contactName,
       email,
       mobile_phone: phone || null,
+      address: address || undefined,
+      website: website || undefined,
       status: "active",
       auth_user_id: user.id,
     } as any)

@@ -30,6 +30,10 @@ export default function AuditorRegisterClient(props: {
   labelFullName?: string
   labelEmail?: string
   labelPhone?: string
+  labelCompanyName?: string
+  labelAddress?: string
+  labelWebsite?: string
+  labelContactName?: string
   labelPassword?: string
   helperPassword?: string
 }) {
@@ -56,6 +60,10 @@ export default function AuditorRegisterClient(props: {
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  const [companyName, setCompanyName] = useState("")
+  const [address, setAddress] = useState("")
+  const [website, setWebsite] = useState("")
+  const [contactName, setContactName] = useState("")
   const [password, setPassword] = useState("")
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false)
   const [acceptedMarketing, setAcceptedMarketing] = useState(true)
@@ -114,7 +122,14 @@ export default function AuditorRegisterClient(props: {
       const r = await fetch("/api/auditor/auth/bootstrap-company", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ full_name: fullName.trim(), phone: phone.trim() }),
+        body: JSON.stringify({
+          full_name: fullName.trim(),
+          phone: phone.trim(),
+          company_name: companyName.trim() || undefined,
+          address: address.trim() || undefined,
+          website: website.trim() || undefined,
+          contact_name: contactName.trim() || undefined,
+        }),
       })
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
@@ -208,6 +223,69 @@ export default function AuditorRegisterClient(props: {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     dir="ltr"
+                    className="auth-input"
+                    labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
+                    labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
+                  />
+                </div>
+
+                <div className="auth-field">
+                  <FloatingInput
+                    label={props.labelCompanyName ?? (isLtr ? "Company name" : "שם חברה")}
+                    id="company_name"
+                    placeholder={isLtr ? "Acme Inc." : "חברה בע\"מ"}
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    className="auth-input"
+                    labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
+                    labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
+                  />
+                </div>
+                <div className="auth-field">
+                  <FloatingInput
+                    label={props.labelAddress ?? (isLtr ? "Address" : "כתובת")}
+                    id="address"
+                    placeholder={isLtr ? "123 Main St, City" : "רחוב 1, תל אביב"}
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="auth-input"
+                    labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
+                    labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
+                  />
+                </div>
+                <div className="auth-field">
+                  <FloatingInput
+                    label={props.labelWebsite ?? (isLtr ? "Website" : "אתר")}
+                    id="website"
+                    type="url"
+                    placeholder="https://example.com"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    dir="ltr"
+                    className="auth-input"
+                    labelClassName="auth-label"
+                    labelAlign={isLtr ? "left" : "right"}
+                    labelPlacement="above"
+                    inputAlign={isLtr ? "left" : undefined}
+                    helperTextAlign={isLtr ? "left" : undefined}
+                  />
+                </div>
+                <div className="auth-field">
+                  <FloatingInput
+                    label={props.labelContactName ?? (isLtr ? "Contact name" : "שם איש קשר")}
+                    id="contact_name"
+                    placeholder={isLtr ? "John Doe" : "ישראל ישראלי"}
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
                     className="auth-input"
                     labelClassName="auth-label"
                     labelAlign={isLtr ? "left" : "right"}
