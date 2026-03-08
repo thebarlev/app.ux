@@ -1,0 +1,96 @@
+---
+description: VOW invoice - Hebrew protected, English-only changes without approval
+globs: lib/pdf*.ts,**/invoice*/**/*,**/receipt*/**/*,**/tax-invoice/**/*,**/credit-note/**/*,lib/template*.ts
+alwaysApply: false
+---
+
+# VOW Billing — Hebrew Changes Require Explicit Approval
+
+## Critical Rule
+
+Any change requested for **English invoice rendering** applies **ONLY** to English.
+
+The Hebrew document system is **production-stable and regulatory compliant**.
+
+**You are strictly forbidden to modify Hebrew behavior unless explicit written approval is provided.**
+
+---
+
+## If a Change Might Affect Hebrew
+
+1. **Stop** the implementation
+2. **Produce a report**:
+   - What Hebrew component would be affected
+   - Why the change might impact Hebrew
+   - What modification would be required
+3. **Wait** for explicit written approval before making any change.
+
+Do NOT implement the change automatically.
+
+---
+
+## Protected Components (Hebrew)
+
+- Hebrew invoice template
+- Hebrew HTML layout
+- Hebrew CSS classes
+- Hebrew label translations
+- RTL layout logic
+- Hebrew PDF rendering logic
+- Hebrew invoice numbering logic
+- Hebrew document metadata fields
+- Hebrew totals / VAT rendering
+
+Any modification touching these requires approval.
+
+---
+
+## Allowed Changes (English Only)
+
+You may modify ONLY:
+
+- English label rendering
+- English layout alignment (LTR)
+- English table formatting
+- English field mapping (Amount / Unit Price / Description)
+
+**Condition:** Hebrew implementation remains 100% unchanged.
+
+---
+
+## Before Committing — Verify
+
+1. Hebrew invoice rendering produces identical output as before
+2. No Hebrew CSS was modified
+3. No Hebrew labels were modified
+4. No RTL layout was changed
+
+If any difference is detected: **Stop and request approval.**
+
+---
+
+## Required Output
+
+Before finalizing, provide:
+
+```
+Files modified:
+- [list]
+
+Hebrew files modified:
+NONE
+
+RTL layout affected:
+NO
+
+Hebrew rendering change detected:
+NO
+```
+
+---
+
+## Absolute Rule
+
+**Never modify Hebrew behavior silently.**
+
+Any Hebrew change requires **explicit written approval from the system owner** before implementation.

@@ -1,0 +1,36 @@
+---
+description: SQL scripts - changes require explicit approval, high risk of breaking billing/DB
+globs: scripts/**/*.sql
+alwaysApply: false
+---
+
+# SQL Scripts — Protected
+
+## Critical Rule
+
+Files in `scripts/` are **database migrations and schema definitions**.
+
+Changes here can break:
+
+- Billing logic
+- Document finalization (finalize_document_with_period_guard, etc.)
+- RLS policies
+- Subscription logic
+
+**You are forbidden to modify scripts without explicit written approval.**
+
+---
+
+## Before Any Change
+
+1. **Identify** which script and what it affects
+2. **Assess** impact on production (billing, documents, subscriptions)
+3. **Report** to system owner and wait for approval
+
+---
+
+## Absolute Rule
+
+**Never modify scripts/*.sql silently.**
+
+Any change requires **explicit written approval** before implementation.

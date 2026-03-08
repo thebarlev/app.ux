@@ -1,0 +1,36 @@
+---
+description: Auditor cannot generate billing documents - only VOW billing system creates them
+globs: app/api/auditor/**/*,lib/auditor/**/*
+alwaysApply: false
+---
+
+# Auditor — Cannot Generate Documents
+
+## Critical Rule
+
+**Auditor is NOT allowed to generate invoices, receipts, tax invoices or credit notes.**
+
+Auditor may only:
+
+1. Send billing request to VOW billing system
+2. Wait for document creation
+3. Return the download link
+
+**Document creation must only occur in the VOW billing system.**
+
+---
+
+## Billing Account
+
+- Email: support@vow.co.il
+- Company ID: 4ae68334-15a0-4fa3-a9ba-fd77deccc95d
+
+---
+
+## If Code Attempts To
+
+- Generate a PDF from the Auditor module
+- Create a document (invoice/receipt/tax_invoice/credit_note) from Auditor
+- Call finalizeDocument or issueDocumentAction from Auditor context
+
+**STOP and request approval.**

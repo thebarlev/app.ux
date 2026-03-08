@@ -1,0 +1,43 @@
+---
+description: VOW invoice creation logic - protected, changes require explicit approval
+globs: lib/document-helpers.ts,lib/documents/actions.ts,scripts/*finalize*.sql,scripts/*invoice*.sql
+alwaysApply: false
+---
+
+# VOW Invoice Creation Logic — Protected
+
+## Critical Rule
+
+The invoice/document **creation and finalization logic** is the **most sensitive part** of the billing system.
+
+Changes here have caused bugs in documents in the past.
+
+**You are forbidden to modify invoice creation logic without explicit written approval.**
+
+---
+
+## Protected Areas
+
+- `finalizeDocument` flow (lib/document-helpers.ts)
+- `issueDocumentAction` flow (lib/documents/actions.ts)
+- RPC: `finalize_document_with_period_guard`, `finalize_document_with_usage_guard`
+- Document number generation / sequence logic
+- Accounting fields (paid_amount, credited_amount, outstanding_balance, accounting_status)
+- SHAAM allocation / regulatory integration
+- PDF generation trigger and storage keys
+
+---
+
+## Before Any Change
+
+1. **Identify** which part of the creation flow is affected
+2. **Assess** risk of document corruption or numbering errors
+3. **Report** to system owner and wait for approval
+
+---
+
+## Absolute Rule
+
+**Never modify invoice creation logic silently.**
+
+Any change to document finalization, numbering, or accounting requires **explicit written approval** before implementation.
