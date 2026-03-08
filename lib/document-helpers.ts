@@ -26,11 +26,6 @@ const toSequenceDocumentType = (documentType: string) => {
   return documentType
 }
 
-/** Auditor billing company ID – invoices are issued under this company. Prefer it when user has access. */
-const AUDITOR_BILLING_COMPANY_ID =
-  (typeof process !== "undefined" && process.env?.AUDITOR_BILLING_ACCOUNT_ID?.trim()) ||
-  "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
-
 export async function getCompanyIdForUser(): Promise<string> {
   const supabase = await createClient()
 
@@ -71,11 +66,6 @@ export async function getCompanyIdForUser(): Promise<string> {
   if (companyIds.size === 0) {
     console.error("[getCompanyIdForUser] ❌ No company found for user:", user.id);
     throw new Error("company_not_found")
-  }
-
-  // Prefer auditor billing company when user has access – ensures auditor invoices are visible
-  if (companyIds.has(AUDITOR_BILLING_COMPANY_ID)) {
-    return AUDITOR_BILLING_COMPANY_ID
   }
 
   return Array.from(companyIds)[0]
