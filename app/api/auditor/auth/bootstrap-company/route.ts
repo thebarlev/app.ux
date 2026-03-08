@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
+import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
 
 const bodySchema = z.object({
   full_name: z.string().min(1).max(200),
@@ -38,18 +39,35 @@ export async function POST(req: Request) {
 
   const admin = createServiceRoleClient()
 
-  // If user already has a company via direct owner field, return it.
-  const { data: existingDirect } = await admin.from("companies").select("id").eq("auth_user_id", user.id).maybeSingle()
-  if (existingDirect?.id) return NextResponse.json({ ok: true, company_id: String(existingDirect.id), reused: true })
-
-  // Or via membership.
-  const { data: existingMember } = await admin
-    .from("company_members")
-    .select("company_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle()
-  if (existingMember?.company_id) return NextResponse.json({ ok: true, company_id: String(existingMember.company_id), reused: true })
+  const canonical = await resolveCanonicalAuditorCompany(admin, { userId: user.id, email })
+  if (canonical) {
+    const companyId = canonical.companyId
+    if (canonical.source === "auth_user_id") {
+      console.log("[AUDITOR_BOOTSTRAP] existing company found by auth_user_id", { companyId })
+    } else if (canonical.source === "company_members") {
+      console.log("[AUDITOR_BOOTSTRAP] existing company found by company_members", { companyId })
+    } else if (canonical.source === "email") {
+      console.log("[AUDITOR_BOOTSTRAP] existing company found by email", { companyId })
+    } else if (canonical.source === "paid_charges" || canonical.source === "paid_subscription") {
+      console.log("[AUDITOR_BOOTSTRAP] canonical paid company reused", { companyId })
+    } else {
+      console.log("[AUDITOR_BOOTSTRAP] existing company reused", { companyId, source: canonical.source })
+    }
+    try {
+      await admin.from("companies").update({ auth_user_id: user.id } as any).eq("id", companyId)
+    } catch {
+      /* ignore */
+    }
+    try {
+      await admin.from("company_members").upsert(
+        { company_id: companyId, user_id: user.id, role: "owner", accepted_at: new Date().toISOString() } as any,
+        { onConflict: "company_id,user_id" }
+      )
+    } catch {
+      /* ignore */
+    }
+    return NextResponse.json({ ok: true, company_id: companyId, reused: true })
+  }
 
   const fullName = String(parsed.data.full_name || "").trim()
   const phone = String(parsed.data.phone || "").trim()
@@ -81,6 +99,7 @@ export async function POST(req: Request) {
   }
 
   const companyId = String(insertedCompany.id)
+  console.log("[AUDITOR_BOOTSTRAP] new company created as final fallback", { companyId })
 
   // Ensure membership exists (best-effort; schema may vary)
   const nowIso = new Date().toISOString()

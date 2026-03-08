@@ -252,7 +252,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
 
       {/* Change plan modal */}
       <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
-        <DialogContent className="max-w-md" dir={isEn ? "ltr" : "rtl"}>
+        <DialogContent className="max-w-md bg-white text-gray-900 [&_.text-muted-foreground]:text-gray-600" dir={isEn ? "ltr" : "rtl"}>
           <DialogHeader>
             <DialogTitle>{isEn ? "Change plan" : "שינוי חבילה"}</DialogTitle>
           </DialogHeader>

@@ -10,6 +10,7 @@ import { encryptToken, tokenHashSha256 } from "@/lib/auditor/billing/tokenCrypto
 import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
+import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
 
 const providerKey = "cardcom"
 
@@ -178,36 +179,14 @@ export async function processCardcomIndicatorEvent(
       }
 
       if (resolvedUserId) {
-        console.log("[AUDITOR_PROCESS] user resolved by email", { leadEmail })
-
-        const { data: byAuth } = await admin
-          .from("companies")
-          .select("id")
-          .eq("auth_user_id", resolvedUserId)
-          .limit(1)
-          .maybeSingle()
-        if (byAuth?.id) {
-          companyId = String(byAuth.id)
+        const canonical = await resolveCanonicalAuditorCompany(admin, {
+          userId: resolvedUserId,
+          email: leadEmail,
+        })
+        if (canonical) {
+          companyId = canonical.companyId
           userId = resolvedUserId
-          console.log("[AUDITOR_PROCESS] company found by auth_user_id", { companyId })
-        }
-
-        if (!companyId) {
-          const { data: byMember } = await admin
-            .from("company_members")
-            .select("company_id")
-            .eq("user_id", resolvedUserId)
-            .limit(1)
-            .maybeSingle()
-          if (byMember?.company_id) {
-            companyId = String(byMember.company_id)
-            userId = resolvedUserId
-            console.log("[AUDITOR_PROCESS] company found by company_members", { companyId })
-          }
-        }
-
-        if (companyId) {
-          console.log("[AUDITOR_PROCESS] company reused instead of inserted", { companyId })
+          console.log("[AUDITOR_PROCESS] canonical company reused", { companyId, source: canonical.source })
           try {
             await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
           } catch {
@@ -301,35 +280,34 @@ export async function processCardcomIndicatorEvent(
           data: { full_name: leadName || null },
           redirectTo,
         })
-      invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
-      if (invitedUserId) {
-        console.log("[AUDITOR_PROCESS] inviteUserByEmail succeeded", { leadEmail, companyId })
-      }
-    } catch (invErr: any) {
-      // User may already exist (e.g. registered via /auditor/register before paying)
-      const errMsg = String(invErr?.message || invErr || "")
-      const isExistingUser = /already exists|duplicate|23505|user_already_exists/i.test(errMsg)
-      if (isExistingUser) {
-        try {
-          const { data: existing } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
-          invitedUserId =
-            typeof existing === "string" && existing
-              ? existing
-              : (existing as any)?.id ?? null
-          if (invitedUserId) {
-            console.log("[AUDITOR_PROCESS] invite failed (user exists), linked existing user", {
-              leadEmail,
-              companyId,
-            })
+        invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
+        if (invitedUserId) {
+          console.log("[AUDITOR_PROCESS] inviteUserByEmail succeeded", { leadEmail, companyId })
+        }
+      } catch (invErr: any) {
+        const errMsg = String(invErr?.message || invErr || "")
+        const isExistingUser = /already exists|duplicate|23505|user_already_exists/i.test(errMsg)
+        if (isExistingUser) {
+          try {
+            const { data: existing } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
+            invitedUserId =
+              typeof existing === "string" && existing
+                ? existing
+                : (existing as any)?.id ?? null
+            if (invitedUserId) {
+              console.log("[AUDITOR_PROCESS] invite failed (user exists), linked existing user", {
+                leadEmail,
+                companyId,
+              })
+            }
+          } catch {
+            invitedUserId = null
           }
-        } catch {
-          invitedUserId = null
+        }
+        if (!invitedUserId) {
+          console.warn("[AUDITOR_PROCESS] inviteUserByEmail failed, no fallback", { leadEmail, error: errMsg })
         }
       }
-      if (!invitedUserId) {
-        console.warn("[AUDITOR_PROCESS] inviteUserByEmail failed, no fallback", { leadEmail, error: errMsg })
-      }
-    }
     }
 
     if (invitedUserId) {

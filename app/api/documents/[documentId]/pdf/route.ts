@@ -139,7 +139,7 @@ export async function GET(
     const { data: doc, error: docError } = await userClient
       .from("documents")
       .select(
-        "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en, original_issued_at, original_issued_language"
+        "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en, original_issued_at, original_issued_language, reference_text"
       )
       .eq("id", documentId)
       .single()
@@ -295,12 +295,16 @@ export async function GET(
     // For certified copies, always generate on-the-fly in requested language.
     // This avoids stale storage variants and keeps footer language consistent with screen/request language.
     if (effectiveIssue === "copy") {
+      const isAuditorIssue =
+        typeof (doc as any)?.reference_text === "string" &&
+        (doc as any).reference_text.startsWith("auditor_charge:")
       const copy = await generateDocumentPDF(documentId, {
         language: targetLanguage,
         mode: "copy",
         requestId,
         context: "download",
         variant: "copy",
+        isAuditorIssuanceCopy: isAuditorIssue,
       })
 
       if (copy.success && copy.buffer) {
@@ -437,12 +441,16 @@ export async function GET(
           hypothesisId: "H_PDF_SIGNING_ENV",
         })
 
+        const isAuditorIssue =
+          typeof (doc as any)?.reference_text === "string" &&
+          (doc as any).reference_text.startsWith("auditor_charge:")
         const copy = await generateDocumentPDF(documentId, {
           language: targetLanguage,
           mode: "copy",
           requestId,
           context: "download",
           variant: effectiveIssue,
+          isAuditorIssuanceCopy: isAuditorIssue,
         })
         if (copy.success && copy.buffer) {
           const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)

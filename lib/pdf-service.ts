@@ -1991,6 +1991,8 @@ export async function generateDocumentPDF(
     requestId?: string;
     context?: "preview" | "finalize" | "issue" | "recovery" | "download" | "view";
     variant?: "original" | "copy";
+    /** Auditor-issued documents (reference_text like auditor_charge:) are customer-facing; use "העתק נאמן למקור" not "להמחשה בלבד" */
+    isAuditorIssuanceCopy?: boolean;
     /**
      * Force a specific template snapshot (templates.id).
      * If not provided, will use documents.template_version_id when present.
@@ -2087,7 +2089,11 @@ export async function generateDocumentPDF(
     // UX requirement:
     // In-app viewing (download/view/copy) should use a "computer-only" mark,
     // while still keeping "original/certified copy" labels for issuance contexts.
-    const isComputerOnlyCopy = options?.variant === "copy" && (context === "download" || context === "view")
+    // Auditor-issued documents (invoices) are customer-facing; use "העתק נאמן למקור".
+    const isComputerOnlyCopy =
+      !options?.isAuditorIssuanceCopy &&
+      options?.variant === "copy" &&
+      (context === "download" || context === "view")
     const documentCopyLabel =
       targetLanguage === "en"
         ? isComputerOnlyCopy
