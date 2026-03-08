@@ -1,12 +1,35 @@
 -- ====================================================
--- 091 - VOW company: bypass subscription requirement
+-- 091 - VOW company + support@vow.co.il: bypass subscription
 -- ====================================================
 -- Purpose:
--- - Company 4ae68334-15a0-4fa3-a9ba-fd77deccc95d (VOW) can finalize documents
---   even when no subscription row exists (admin/support account)
+-- - Companies in unlimited_document_companies can finalize without subscription
+-- - system_admins (e.g. support@vow.co.il) can finalize regardless of company
+-- - המגבלה החודשית (documents_per_month) לא תחול על חשבונות אלה
 -- ====================================================
 
 begin;
+
+-- טבלה להגדרת חברות ללא מגבלת מסמכים חודשית
+-- להוספת חברה: INSERT INTO unlimited_document_companies (company_id) VALUES ('uuid-here');
+create table if not exists public.unlimited_document_companies (
+  company_id uuid primary key
+);
+
+-- RLS: קריאה לכל מאומת, שינוי רק ל-system_admins
+alter table public.unlimited_document_companies enable row level security;
+
+drop policy if exists "authenticated can read unlimited_document_companies" on public.unlimited_document_companies;
+create policy "authenticated can read unlimited_document_companies" on public.unlimited_document_companies
+  for select using (auth.uid() is not null);
+
+drop policy if exists "system_admins can manage unlimited_document_companies" on public.unlimited_document_companies;
+create policy "system_admins can manage unlimited_document_companies" on public.unlimited_document_companies
+  for all using (exists (select 1 from public.system_admins where auth_user_id = auth.uid()));
+
+-- ברירת מחדל: חברת VOW
+insert into public.unlimited_document_companies (company_id)
+values ('4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid)
+on conflict (company_id) do nothing;
 
 create or replace function public.finalize_document_with_period_guard(
   p_company_id uuid,
@@ -34,7 +57,6 @@ declare
   v_used integer := 0;
   v_period_start timestamptz;
   v_period_end timestamptz;
-  v_vow_company_id uuid := '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
   v_vow_bypass boolean := false;
 begin
   -- Authorization: must be logged-in and belong to the company.
@@ -55,8 +77,10 @@ begin
   where s.company_id = p_company_id;
 
   if not found then
-    -- VOW company: allow even without subscription row (admin/support account)
-    if p_company_id = v_vow_company_id then
+    -- חברה ב-unlimited_document_companies או system_admin (e.g. support@vow.co.il)
+    if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id)
+       or exists (select 1 from public.system_admins where auth_user_id = auth.uid())
+    then
       v_vow_bypass := true;
       v_limit := 1000000;
       v_period_start := date_trunc('month', p_now);
@@ -77,8 +101,8 @@ begin
       return;
     end if;
 
-    -- Resolve quota from frozen subscription snapshot. VOW company: unlimited (1,000,000).
-    if p_company_id = v_vow_company_id then
+    -- Resolve quota. חברות ב-unlimited_document_companies: unlimited.
+    if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id) then
       v_limit := 1000000;
     else
       v_limit := coalesce(v_sub.plan_snapshot_documents_limit, 0);

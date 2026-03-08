@@ -137,7 +137,11 @@ function currentCalendarMonthRangeYmd(now = new Date()): { fromDate: string; toD
   };
 }
 
-const VOW_BILLING_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+import {
+  isUnlimitedByEmail,
+  isUnlimitedByCompany,
+  UNLIMITED_DOCUMENTS_LIMIT,
+} from "@/lib/subscription-unlimited"
 
 async function precheckSubscriptionEligibility(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -161,7 +165,9 @@ async function precheckSubscriptionEligibility(params: {
 > {
   const { supabase, companyId } = params
 
-  if (companyId === VOW_BILLING_COMPANY_ID) {
+  // חשבונות ללא מגבלה (מוגדר ב-lib/subscription-unlimited.ts ו-UNLIMITED_DOCUMENT_EMAILS)
+  const { data: { user } } = await supabase.auth.getUser()
+  if (isUnlimitedByEmail(user?.email)) {
     const now = new Date()
     const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
     return {
@@ -169,14 +175,28 @@ async function precheckSubscriptionEligibility(params: {
       planId: "pro",
       status: "active",
       documentsUsed: 0,
-      documentsLimit: 1_000_000,
+      documentsLimit: UNLIMITED_DOCUMENTS_LIMIT,
       yearMonth,
       trialEndsAt: null,
       currentPeriodEnd: null,
     }
   }
 
-  const { data: { user } } = await supabase.auth.getUser()
+  if (isUnlimitedByCompany(companyId)) {
+    const now = new Date()
+    const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+    return {
+      ok: true,
+      planId: "pro",
+      status: "active",
+      documentsUsed: 0,
+      documentsLimit: UNLIMITED_DOCUMENTS_LIMIT,
+      yearMonth,
+      trialEndsAt: null,
+      currentPeriodEnd: null,
+    }
+  }
+
   if (user) {
     const { data: admin } = await supabase
       .from("system_admins")
@@ -191,7 +211,7 @@ async function precheckSubscriptionEligibility(params: {
         planId: "pro",
         status: "active",
         documentsUsed: 0,
-        documentsLimit: 1_000_000,
+        documentsLimit: UNLIMITED_DOCUMENTS_LIMIT,
         yearMonth,
         trialEndsAt: null,
         currentPeriodEnd: null,

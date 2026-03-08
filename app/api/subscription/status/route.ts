@@ -2,6 +2,11 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { signUpgradeState } from "@/lib/billing/upgrade-state"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
+import {
+  isUnlimitedByEmail,
+  isUnlimitedByCompany,
+  UNLIMITED_DOCUMENTS_LIMIT,
+} from "@/lib/subscription-unlimited"
 
 async function getCompanyIdForUserMinimal(params: {
   supabase: Awaited<ReturnType<typeof createClient>>
@@ -65,7 +70,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 })
   }
 
-  const companyId = await getCompanyIdForUserMinimal({ supabase, userId: auth.user.id })
+  const VOW_SUPPORT_EMAIL = "support@vow.co.il"
+  const VOW_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+
+  let companyId: string
+  try {
+    companyId = await getCompanyIdForUserMinimal({ supabase, userId: auth.user.id })
+  } catch {
+    // support@vow.co.il: allow even without company (e.g. no company_members)
+    if (auth.user.email === VOW_SUPPORT_EMAIL) {
+      return NextResponse.json({
+        ok: true,
+        plan_id: "pro",
+        status: "active",
+        status_reason: null,
+        trial_ends_at: null,
+        current_period_end: null,
+        documents_used: 0,
+        documents_limit: 1_000_000,
+        upgrade_url: null,
+        upgrade_available: false,
+      })
+    }
+    return NextResponse.json({ ok: false, message: "Company not found" }, { status: 404 })
+  }
+
   const now = new Date()
 
   const { data: sub, error: subError } = await supabase
@@ -78,6 +107,21 @@ export async function GET(request: Request) {
     .maybeSingle()
 
   if (subError || !sub) {
+    // חשבונות ללא מגבלה - גם בלי שורת מנוי
+    if (isUnlimitedByEmail(auth.user.email) || isUnlimitedByCompany(companyId)) {
+      return NextResponse.json({
+        ok: true,
+        plan_id: "pro",
+        status: "active",
+        status_reason: null,
+        trial_ends_at: null,
+        current_period_end: null,
+        documents_used: 0,
+        documents_limit: UNLIMITED_DOCUMENTS_LIMIT,
+        upgrade_url: null,
+        upgrade_available: false,
+      })
+    }
     return NextResponse.json(
       { ok: false, message: "Subscription not available" },
       { status: 500 }
@@ -91,9 +135,9 @@ export async function GET(request: Request) {
   const currentPeriodStart = (sub as any).current_period_start ? String((sub as any).current_period_start) : null
   const currentPeriodEnd = (sub as any).current_period_end ? String((sub as any).current_period_end) : null
 
-  const VOW_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
-  const documentsLimit =
-    companyId === VOW_COMPANY_ID ? 1_000_000 : Number((sub as any).plan_snapshot_documents_limit ?? 0) || 0
+  const documentsLimit = isUnlimitedByCompany(companyId)
+    ? UNLIMITED_DOCUMENTS_LIMIT
+    : Number((sub as any).plan_snapshot_documents_limit ?? 0) || 0
 
   // Period-based usage: count finalized docs within the current subscription period
   let periodStartIso: string | null = null
@@ -145,7 +189,7 @@ export async function GET(request: Request) {
     planId === "free" &&
     documentsLimit > 0 &&
     documentsUsed >= documentsLimit &&
-    companyId !== VOW_COMPANY_ID
+    !isUnlimitedByCompany(companyId)
   ) {
     statusReason = "limit_reached"
   }
