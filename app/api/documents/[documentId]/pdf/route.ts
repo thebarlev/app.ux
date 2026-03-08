@@ -216,7 +216,8 @@ export async function GET(
         documentId,
         issue: effectiveIssue,
         lang: targetLanguage,
-        isOriginalAllowed,
+        isOriginalRequested,
+        originalAlreadyIssued,
         label: documentCopyLabel,
       })
     }
