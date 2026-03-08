@@ -168,6 +168,79 @@ export async function processCardcomIndicatorEvent(
     companyId = existingCompany?.id ? String(existingCompany.id) : null
 
     if (!companyId) {
+      // Resolve existing user by email to avoid duplicate company when user already has one (bootstrap/signup)
+      let resolvedUserId: string | null = null
+      try {
+        const { data: uid } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
+        resolvedUserId = typeof uid === "string" && uid ? uid : (uid as any)?.id ?? null
+      } catch {
+        /* ignore */
+      }
+
+      if (resolvedUserId) {
+        console.log("[AUDITOR_PROCESS] user resolved by email", { leadEmail })
+
+        const { data: byAuth } = await admin
+          .from("companies")
+          .select("id")
+          .eq("auth_user_id", resolvedUserId)
+          .limit(1)
+          .maybeSingle()
+        if (byAuth?.id) {
+          companyId = String(byAuth.id)
+          userId = resolvedUserId
+          console.log("[AUDITOR_PROCESS] company found by auth_user_id", { companyId })
+        }
+
+        if (!companyId) {
+          const { data: byMember } = await admin
+            .from("company_members")
+            .select("company_id")
+            .eq("user_id", resolvedUserId)
+            .limit(1)
+            .maybeSingle()
+          if (byMember?.company_id) {
+            companyId = String(byMember.company_id)
+            userId = resolvedUserId
+            console.log("[AUDITOR_PROCESS] company found by company_members", { companyId })
+          }
+        }
+
+        if (companyId) {
+          console.log("[AUDITOR_PROCESS] company reused instead of inserted", { companyId })
+          try {
+            await admin.from("auditor_leads").update({ company_id: companyId } as any).eq("id", String((lead as any).id))
+          } catch {
+            /* ignore */
+          }
+          try {
+            await admin.from("auditor_checkout_sessions").update({ company_id: companyId, user_id: resolvedUserId } as any).eq("id", String(checkout.id))
+          } catch {
+            /* ignore */
+          }
+          try {
+            await admin.from("companies").update({ auth_user_id: resolvedUserId } as any).eq("id", companyId)
+          } catch {
+            /* ignore */
+          }
+          try {
+            await admin.from("company_members").upsert(
+              {
+                company_id: companyId,
+                user_id: resolvedUserId,
+                role: "owner",
+                accepted_at: new Date().toISOString(),
+              } as any,
+              { onConflict: "company_id,user_id" }
+            )
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }
+
+    if (!companyId) {
       const firstName = leadName.split(/\s+/).filter(Boolean)[0] || "לקוח"
       const companyName = normalizedHost ? normalizedHost : leadName || "Auditor customer"
 
@@ -192,6 +265,7 @@ export async function processCardcomIndicatorEvent(
         companyId = again?.id ? String(again.id) : null
       } else {
         companyId = String(insertedCompany.id)
+        console.log("[AUDITOR_PROCESS] company inserted as final fallback", { companyId })
       }
     }
 
@@ -221,11 +295,12 @@ export async function processCardcomIndicatorEvent(
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
     const redirectTo = base ? `${base}/auditor/dashboard` : "/auditor/dashboard"
     let invitedUserId: string | null = null
-    try {
-      const inv = await (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
-        data: { full_name: leadName || null },
-        redirectTo,
-      })
+    if (!userId) {
+      try {
+        const inv = await (admin as any).auth.admin.inviteUserByEmail(leadEmail, {
+          data: { full_name: leadName || null },
+          redirectTo,
+        })
       invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
       if (invitedUserId) {
         console.log("[AUDITOR_PROCESS] inviteUserByEmail succeeded", { leadEmail, companyId })
@@ -254,6 +329,7 @@ export async function processCardcomIndicatorEvent(
       if (!invitedUserId) {
         console.warn("[AUDITOR_PROCESS] inviteUserByEmail failed, no fallback", { leadEmail, error: errMsg })
       }
+    }
     }
 
     if (invitedUserId) {
