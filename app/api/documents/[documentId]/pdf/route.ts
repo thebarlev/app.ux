@@ -183,17 +183,32 @@ export async function GET(
       requestedLanguage || (issueMode === "original" ? "he" : docLanguage)
 
     let effectiveIssue: "original" | "copy" = issueMode
-    const isOriginalAllowed = issueMode === "original" && targetLanguage === "he"
-    let originalAlreadyIssued = !!(doc as any)?.original_issued_at
+    const isOriginalRequested = issueMode === "original" && targetLanguage === "he"
+    const originalAlreadyIssued = !!(doc as any)?.original_issued_at
 
-    if (isOriginalAllowed) {
-      effectiveIssue = originalAlreadyIssued ? "copy" : "original"
+    // Document Copy System: Original (מקור) can only be downloaded once.
+    // After first download, subsequent requests for original must be denied.
+    if (isOriginalRequested && originalAlreadyIssued) {
+      return NextResponse.json(
+        {
+          error: "ORIGINAL_ALREADY_DOWNLOADED",
+          message: "מסמך מקור ניתן להוריד פעם אחת בלבד. השתמש בהעתק נאמן למקור להורדות נוספות.",
+          code: "ORIGINAL_ALREADY_DOWNLOADED",
+          alternativeUrl: `/api/documents/${documentId}/pdf?issue=copy&lang=he`,
+        },
+        { status: 403 }
+      )
     }
+
+    if (isOriginalRequested && !originalAlreadyIssued) {
+      effectiveIssue = "original"
+    }
+    // Copy types: "העתק נאמן למקור" (HE) | "Certified Copy" (EN, when English format/settings)
     const documentCopyLabel =
       effectiveIssue === "original"
         ? "מקור"
         : targetLanguage === "en"
-          ? "Faithful Copy"
+          ? "Certified Copy"
           : "העתק נאמן למקור"
 
     if (pdfDebugEnabled) {

@@ -29,6 +29,7 @@ type TaxInvoiceRow = {
   language?: "he" | "en" | null;
   internal_notes?: string | null;
   customer_notes?: string | null;
+  original_issued_at?: string | null;
 };
 
 type CompanyRow = {
@@ -295,36 +296,101 @@ export default function TaxInvoiceSummaryClient(props: {
                     </div>
                   </>
                 ) : (
-                  <div className="relative group">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="הורדה"
-                      onClick={async () => {
-                        if (busy !== null) return;
-                        setBusy("download");
-                        try {
-                          await downloadPdf(props.taxInvoice.id, {
-                            issue: "copy",
-                            lang: "he",
-                            fileName: `${props.taxInvoice.document_number || props.taxInvoice.id}-he.pdf`,
-                          });
-                        } catch (e: any) {
-                          alert(e?.message || "שגיאה בהורדה");
-                        } finally {
-                          setBusy(null);
-                        }
-                      }}
-                      disabled={busy !== null}
-                    >
-                      <Download className="h-5 w-5" />
-                    </Button>
-                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                        הורדה
+                  <>
+                    {/* Document Copy System: 1. מקור (one-time) 2. העתק נאמן למקור 3. Certified Copy */}
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת מקור"
+                        onClick={async () => {
+                          if (busy !== null || props.taxInvoice.original_issued_at) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.taxInvoice.id, {
+                              issue: "original",
+                              lang: "he",
+                              fileName: `${props.taxInvoice.document_number || props.taxInvoice.id}.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null || !!props.taxInvoice.original_issued_at}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          {props.taxInvoice.original_issued_at
+                            ? "מקור (הורדה פעם אחת בלבד)"
+                            : "הורדת מקור (פעם אחת)"}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת העתק נאמן למקור"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.taxInvoice.id, {
+                              issue: "copy",
+                              lang: "he",
+                              fileName: `${props.taxInvoice.document_number || props.taxInvoice.id}-he.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          העתק נאמן למקור (עברית)
+                        </div>
+                      </div>
+                    </div>
+                    <div className="relative group">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="הורדת Certified Copy"
+                        onClick={async () => {
+                          if (busy !== null) return;
+                          setBusy("download");
+                          try {
+                            await downloadPdf(props.taxInvoice.id, {
+                              issue: "copy",
+                              lang: "en",
+                              fileName: `${props.taxInvoice.document_number || props.taxInvoice.id}-en.pdf`,
+                            });
+                          } catch (e: any) {
+                            alert(e?.message || "שגיאה בהורדה");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        disabled={busy !== null}
+                      >
+                        <Download className="h-5 w-5" />
+                      </Button>
+                      <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                        <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                          Certified Copy (אנגלית)
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="relative group">

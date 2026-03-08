@@ -131,37 +131,29 @@ export default function ReceiptSuccessModal({
     baseLanguage: "he" | "en";
     originalIssued: boolean | null;
   }): {
-    topRow: [ModalAction, ModalAction];
+    topRow: ModalAction[];
   } => {
     const hasDownloadedOriginal = args.originalIssued === true;
 
-    // Always show 3 active buttons: after original is downloaded, 
-    // the "original" button becomes "copy" but stays active
+    // Document Copy System – 3 types:
+    // 1. מקור (Original) – one-time download, disabled after first download
+    // 2. העתק נאמן למקור (True Copy) – available at any time
+    // 3. Certified Copy (EN) – for English format, when English selected in settings
     const hebrewOriginal: ModalAction = {
       id: "original_he",
-      label: args.baseLanguage === "he"
-        ? "הורדת מסמך מקור"
-        : hasDownloadedOriginal
-          ? "הורדת העתק נאמן למקור"
-          : "הורדת מקור בעברית",
+      label: hasDownloadedOriginal ? "מקור (הורדה פעם אחת)" : "הורדת מסמך מקור",
       icon: <Download className="h-6 w-6 text-modal-fg" />,
       onClick: () => {
-        if (hasDownloadedOriginal) {
-          // After original was issued, this button downloads a copy
-          onDownloadHebrew({ issue: "copy" });
-        } else {
-          // Regulatory: original is Hebrew-only
+        if (!hasDownloadedOriginal) {
           onDownloadHebrew({ issue: "original" });
           setOriginalIssued(true);
         }
       },
-      title: args.baseLanguage === "he"
-        ? "הורדת מסמך מקור (עברית, פעם אחת)"
-        : hasDownloadedOriginal
-          ? "הורדת העתק נאמן למקור (עברית)"
-          : "הורדת מסמך מקור (עברית, פעם אחת)",
+      title: hasDownloadedOriginal
+        ? "מסמך מקור ניתן להוריד פעם אחת בלבד. השתמש בהעתק נאמן למקור."
+        : "הורדת מסמך מקור (עברית, פעם אחת בלבד)",
       variant: "primary",
-      disabled: false,
+      disabled: hasDownloadedOriginal,
     };
 
     const hebrewCopy: ModalAction = {
@@ -169,27 +161,28 @@ export default function ReceiptSuccessModal({
       label: "הורדת העתק נאמן למקור",
       icon: <Download className="h-6 w-6 text-modal-fg" />,
       onClick: () => onDownloadHebrew({ issue: "copy" }),
-      title: "הורדת העתק נאמן למקור (עברית)",
+      title: "העתק נאמן למקור (עברית) – זמין להורדה בכל עת",
       variant: "secondary",
     };
 
     const englishCopy: ModalAction = {
       id: "copy_en",
-      label: "הורדת העתק נאמן למקור (אנגלית)",
+      label: "הורדת Certified Copy (אנגלית)",
       icon: <FileText className="h-6 w-6 text-modal-fg" />,
       onClick: () => onDownloadEnglish({ issue: "copy" }),
-      title: "הורדת העתק נאמן למקור (אנגלית)",
+      title: "Certified Copy – מסמכים בפורמט אנגלית בלבד, כשאנגלית נבחרת בהגדרות",
       variant: "secondary",
     };
 
+    // Document Copy System: always show 3 options when EN is available
     if (args.baseLanguage === "en") {
       return {
-        topRow: [hebrewOriginal, englishCopy],
+        topRow: [hebrewOriginal, hebrewCopy, englishCopy],
       };
     }
 
     return {
-      topRow: [hebrewOriginal, hebrewCopy],
+      topRow: [hebrewOriginal, hebrewCopy, englishCopy],
     };
   };
 
@@ -254,7 +247,7 @@ export default function ReceiptSuccessModal({
           {/* Actions Grid */}
           <div className="mt-8 mb-6">
             {/* Top actions (regulatory + UX) */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {actions.topRow.map((a) => (
                 <button
                   type="button"

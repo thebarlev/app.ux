@@ -12,7 +12,7 @@ export default async function TaxInvoiceSummaryPage({
   const { data: document, error: documentError } = await supabase
     .from("documents")
     .select(
-      "id, document_number, document_type, issue_date, created_at, customer_name, customer_id, company_id, document_description, subtotal, vat_rate, vat_amount, total_amount, currency, document_status, internal_notes, customer_notes, language, allocation_number"
+      "id, document_number, document_type, issue_date, created_at, customer_name, customer_id, company_id, document_description, subtotal, vat_rate, vat_amount, total_amount, currency, document_status, internal_notes, customer_notes, language, allocation_number, original_issued_at"
     )
     .eq("id", documentId)
     .maybeSingle();
