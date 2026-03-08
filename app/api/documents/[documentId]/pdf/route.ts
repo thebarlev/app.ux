@@ -339,6 +339,42 @@ export async function GET(
           },
         })
       }
+
+      // EN copies: NEVER serve from storage – stored PDF may have old "For computer use only" label.
+      // Retry with mode "copy" (always generates, never uses storage).
+      if (targetLanguage === "en") {
+        const retry = await generateDocumentPDF(documentId, {
+          language: "en",
+          mode: "copy",
+          context: "download",
+          variant: "copy",
+          requestId,
+        })
+        if (retry.success && retry.buffer) {
+          const fileName = formatDownloadFilename(doc.document_number, documentId, "en", effectiveIssue)
+          const body = (retry.buffer as any).buffer
+            ? (retry.buffer as any).buffer.slice(
+                (retry.buffer as any).byteOffset || 0,
+                ((retry.buffer as any).byteOffset || 0) + (retry.buffer as any).byteLength
+              )
+            : retry.buffer
+          return new NextResponse(body as any, {
+            headers: {
+              "Content-Type": "application/pdf",
+              "Content-Disposition": `${shouldInline ? "inline" : "attachment"}; filename="${fileName}"`,
+              "Content-Length": String(retry.buffer.length),
+              "Cache-Control": "no-cache, no-store, must-revalidate",
+            },
+          })
+        }
+        return NextResponse.json(
+          {
+            error: "PDF_GENERATION_FAILED",
+            message: retry.error || "Failed to generate English PDF with Certified Copy label.",
+          },
+          { status: 500 }
+        )
+      }
     }
 
     // Finalized/cancelled: serve the immutable stored PDF (generated/signed during finalization).
