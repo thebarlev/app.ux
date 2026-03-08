@@ -38,8 +38,8 @@ const WHATSAPP_PHONE = process.env.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE || "972545
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE.replace(/^0/, "")}`
 
 const SIDEBAR_DEFAULT_CLASS = "w-[200px]"
-const desktopAsideClassName =
-  `hidden md:block fixed right-[15px] top-[15px] z-50 h-[calc(100%-30px)] ${SIDEBAR_DEFAULT_CLASS} max-w-[250px] ` +
+const getDesktopAsideClassName = (isLtr: boolean) =>
+  `hidden md:block fixed ${isLtr ? "left-[15px]" : "right-[15px]"} top-[15px] z-50 h-[calc(100%-30px)] ${SIDEBAR_DEFAULT_CLASS} max-w-[250px] ` +
   "bg-sidebar overflow-hidden rounded-[10px] transition-[width] duration-200 ease-out"
 
 export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { children: React.ReactNode; basePath?: string }) {
@@ -97,7 +97,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
     <>
       <ScrollLockFix />
       <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir={basePath.startsWith("/en") ? "ltr" : "rtl"}>
-        <div className="relative z-0 flex-1 min-w-0 pr-0 md:pr-[200px] bg-bg">
+        <div className={`relative z-0 flex-1 min-w-0 pr-0 ${isEn ? "md:pl-[200px]" : "md:pr-[200px]"} bg-bg`}>
           {/* Mobile Header - same as invoice dashboard */}
           <div className="sticky top-0 z-[60] md:hidden bg-[#4A90B5] shadow-md w-full">
             <div className="flex items-center justify-between px-4 py-3">
@@ -130,7 +130,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
         </div>
 
         {/* Desktop Sidebar - same styling as invoice dashboard (bg-sidebar) */}
-        <aside className={desktopAsideClassName}>
+        <aside className={getDesktopAsideClassName(isEn)}>
           <div className="flex h-full flex-col p-4 ui-sidebar">
             <Link href={basePath} className="mb-6 block">
               <Image src="/brand/vow_black.svg" alt="VOW" width={100} height={36} priority />

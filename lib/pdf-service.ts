@@ -342,6 +342,22 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   self_credit_note: "חשבונית זיכוי עצמית",
 };
 
+const DOCUMENT_TYPE_LABELS_EN: Record<string, string> = {
+  receipt: "Receipt",
+  tax_invoice: "Tax Invoice",
+  invoiceReceipt: "Tax Invoice / Receipt",
+  invoice_receipt: "Tax Invoice / Receipt",
+  credit_note: "Credit Invoice",
+  quote: "Quote",
+  proforma: "Proforma Invoice",
+  work_order: "Work Order",
+  delivery_note: "Delivery Note",
+  return_note: "Return Note",
+  purchase_order: "Purchase Order",
+  self_invoice: "Self Invoice",
+  self_credit_note: "Self Credit Invoice",
+};
+
 const isTaxInvoiceLike = (documentType: string) => TAX_INVOICE_LIKE_TYPES.has(documentType);
 const isInvoiceReceiptType = (documentType: string) =>
   documentType === "invoiceReceipt" || documentType === "invoice_receipt";
@@ -1715,7 +1731,10 @@ export async function prepareDocumentData(
       number: doc.document_number || "", // Required by template validation {{document.number}}
       issue_date: doc.issue_date || "", // Required by template validation {{document.issue_date}}
       document_type: doc.document_type as any,
-      document_type_label: DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה",
+      document_type_label:
+        documentLanguage === "en"
+          ? (DOCUMENT_TYPE_LABELS_EN[doc.document_type] || "Receipt")
+          : (DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה"),
       document_number: doc.document_number || "",
       document_date: doc.issue_date || "",
       reference_number: null,
@@ -1723,7 +1742,10 @@ export async function prepareDocumentData(
       direction: documentLanguage === "en" ? "ltr" : "rtl",
     } as any,
     document_type: doc.document_type as any,
-    document_type_label: DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה",
+    document_type_label:
+      documentLanguage === "en"
+        ? (DOCUMENT_TYPE_LABELS_EN[doc.document_type] || "Receipt")
+        : (DOCUMENT_TYPE_LABELS[doc.document_type] || "קבלה"),
     payments: mappedPayments,
     items: (items || []).map((item) => ({
       description: item.description,
@@ -2022,7 +2044,7 @@ export async function generateDocumentPDF(
     // 1. Fetch document and verify it's finalized (using admin client - bypasses RLS)
     const { data: doc, error: docError } = await adminClient
       .from("documents")
-      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key, language, template_version_id, pdf_generated_at, finalized_at")
+      .select("id, document_type, document_status, company_id, document_number, pdf_storage_key, language, template_version_id, pdf_generated_at, finalized_at, reference_text")
       .eq("id", documentId)
       .single()
     
@@ -2090,22 +2112,30 @@ export async function generateDocumentPDF(
     // In-app viewing (download/view/copy) should use a "computer-only" mark,
     // while still keeping "original/certified copy" labels for issuance contexts.
     // Auditor-issued documents (invoices) are customer-facing; use "העתק נאמן למקור".
+    // Auditor EN (USD, p_is_en): must show "For computer use only" not "Certified Copy".
+    const refText = String((doc as any)?.reference_text || "")
+    const isAuditorEn =
+      targetLanguage === "en" &&
+      (doc as any)?.document_type === "tax_invoice" &&
+      refText.startsWith("auditor_charge:")
     const isComputerOnlyCopy =
       !options?.isAuditorIssuanceCopy &&
       options?.variant === "copy" &&
       (context === "download" || context === "view")
     const documentCopyLabel =
-      targetLanguage === "en"
-        ? isComputerOnlyCopy
-          ? "For computer use only"
-          : "Certified Copy"
-        : options?.variant === "copy"
+      isAuditorEn && options?.variant === "copy"
+        ? "For computer use only"
+        : targetLanguage === "en"
           ? isComputerOnlyCopy
-            ? "להמחשה בלבד"
-            : "העתק נאמן למקור"
-          : options?.variant === "original"
-            ? "מקור"
-            : ""
+            ? "For computer use only"
+            : "Certified Copy"
+          : options?.variant === "copy"
+            ? isComputerOnlyCopy
+              ? "להמחשה בלבד"
+              : "העתק נאמן למקור"
+            : options?.variant === "original"
+              ? "מקור"
+              : ""
 
 
     // Compute storage key early (immutable storage naming rules).
