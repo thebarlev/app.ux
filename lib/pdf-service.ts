@@ -2108,34 +2108,17 @@ export async function generateDocumentPDF(
       }
     }
 
-    // UX requirement:
-    // In-app viewing (download/view/copy) should use a "computer-only" mark,
-    // while still keeping "original/certified copy" labels for issuance contexts.
-    // Auditor-issued documents (invoices) are customer-facing; use "העתק נאמן למקור".
-    // Auditor EN (USD, p_is_en): must show "For computer use only" not "Certified Copy".
-    const refText = String((doc as any)?.reference_text || "")
-    const isAuditorEn =
-      targetLanguage === "en" &&
-      (doc as any)?.document_type === "tax_invoice" &&
-      refText.startsWith("auditor_charge:")
-    const isComputerOnlyCopy =
-      !options?.isAuditorIssuanceCopy &&
-      options?.variant === "copy" &&
-      (context === "download" || context === "view")
+    // Document copy labels: מקור | העתק נאמן למקור (HE) | Certified Copy (EN).
+    // "For computer use only" / "להמחשה בלבד" removed – no such accounting document.
+    // EN copies are always Certified Copy.
     const documentCopyLabel =
-      isAuditorEn && options?.variant === "copy"
-        ? "For computer use only"
+      options?.variant === "original"
+        ? "מקור"
         : targetLanguage === "en"
-          ? isComputerOnlyCopy
-            ? "For computer use only"
-            : "Certified Copy"
+          ? "Certified Copy"
           : options?.variant === "copy"
-            ? isComputerOnlyCopy
-              ? "להמחשה בלבד"
-              : "העתק נאמן למקור"
-            : options?.variant === "original"
-              ? "מקור"
-              : ""
+            ? "העתק נאמן למקור"
+            : ""
 
 
     // Compute storage key early (immutable storage naming rules).
