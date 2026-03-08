@@ -274,7 +274,7 @@ begin
 
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='customer_tax_id') then
     v_cols := array_append(v_cols, 'customer_tax_id');
-    v_vals := array_append(v_vals, quote_literal(v_company_tax_id));
+    v_vals := array_append(v_vals, quote_nullable(v_company_tax_id));
   end if;
 
   if exists (select 1 from information_schema.columns where table_schema='public' and table_name='documents' and column_name='reference_text') then
@@ -315,6 +315,10 @@ begin
   v_sql := 'insert into public.documents (' || array_to_string(v_cols, ',') || ') values (' || array_to_string(v_vals, ',') || ') returning id';
   execute v_sql into v_doc_id;
 
+  if p_is_en then
+    update public.documents set language = 'en' where id = v_doc_id;
+  end if;
+
   -- Line item: plan / period (must be inserted while document is draft)
   insert into public.document_line_items (
     document_id,
@@ -332,7 +336,7 @@ begin
     v_doc_id,
     p_issuer_company_id,
     1,
-    'מנוי /auditor – ' || v_plan_name,
+    case when p_is_en then 'Auditor subscription – ' || v_plan_name else 'מנוי /auditor – ' || v_plan_name end,
     current_date,
     v_total,
     1,

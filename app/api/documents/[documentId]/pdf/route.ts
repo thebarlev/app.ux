@@ -304,7 +304,7 @@ export async function GET(
         requestId,
         context: "download",
         variant: "copy",
-        isAuditorIssuanceCopy: isAuditorIssue,
+        isAuditorIssuanceCopy: isAuditorIssue && targetLanguage !== "en",
       })
 
       if (copy.success && copy.buffer) {
@@ -450,7 +450,7 @@ export async function GET(
           requestId,
           context: "download",
           variant: effectiveIssue,
-          isAuditorIssuanceCopy: isAuditorIssue,
+          isAuditorIssuanceCopy: isAuditorIssue && targetLanguage !== "en",
         })
         if (copy.success && copy.buffer) {
           const fileName = formatDownloadFilename(doc.document_number, documentId, targetLanguage, effectiveIssue)
