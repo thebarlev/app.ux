@@ -5,6 +5,9 @@ import { NextResponse } from "next/server"
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { getAuditorConfig } from "@/lib/auditor/env"
+import { isSystemAdmin } from "@/lib/security/system-admin"
+
+const VOW_BILLING_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
 
 export async function GET() {
   const cfg = getAuditorConfig()
@@ -16,6 +19,23 @@ export async function GET() {
 
   const companyId = await getCompanyIdForUser()
   const admin = createServiceRoleClient()
+
+  const isAdmin = await isSystemAdmin()
+  const isVowBillingCompany = companyId === VOW_BILLING_COMPANY_ID
+  if (isAdmin || isVowBillingCompany) {
+    return NextResponse.json({
+      ok: true,
+      has_subscription: true,
+      plan_id: "pro",
+      status: "active",
+      next_billing_date: null,
+      current_period_start: null,
+      current_period_end: null,
+      cancel_at_period_end: false,
+      canceled_at: null,
+      last_invoice_id: null,
+    })
+  }
 
   const { data: sub } = await admin
     .from("auditor_subscriptions")
