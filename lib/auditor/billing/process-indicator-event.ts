@@ -227,8 +227,33 @@ export async function processCardcomIndicatorEvent(
         redirectTo,
       })
       invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
-    } catch {
-      invitedUserId = null
+      if (invitedUserId) {
+        console.log("[AUDITOR_PROCESS] inviteUserByEmail succeeded", { leadEmail, companyId })
+      }
+    } catch (invErr: any) {
+      // User may already exist (e.g. registered via /auditor/register before paying)
+      const errMsg = String(invErr?.message || invErr || "")
+      const isExistingUser = /already exists|duplicate|23505|user_already_exists/i.test(errMsg)
+      if (isExistingUser) {
+        try {
+          const { data: existing } = await admin.rpc("get_user_id_by_email", { p_email: leadEmail })
+          invitedUserId =
+            typeof existing === "string" && existing
+              ? existing
+              : (existing as any)?.id ?? null
+          if (invitedUserId) {
+            console.log("[AUDITOR_PROCESS] invite failed (user exists), linked existing user", {
+              leadEmail,
+              companyId,
+            })
+          }
+        } catch {
+          invitedUserId = null
+        }
+      }
+      if (!invitedUserId) {
+        console.warn("[AUDITOR_PROCESS] inviteUserByEmail failed, no fallback", { leadEmail, error: errMsg })
+      }
     }
 
     if (invitedUserId) {
@@ -258,6 +283,8 @@ export async function processCardcomIndicatorEvent(
       }
     }
   }
+
+  console.log("[AUDITOR_PROCESS] Company/user resolved", { checkoutId: checkout.id, companyId, userId })
 
   const tokenHash = tokenHashSha256(tokenInfo.token)
   const tokenEnc = encryptToken(tokenInfo.token)
@@ -313,7 +340,9 @@ export async function processCardcomIndicatorEvent(
       } as any,
       { onConflict: "company_id" }
     )
-  } catch {
+    console.log("[AUDITOR_PROCESS] Subscription active", { companyId, plan_id: plan.id })
+  } catch (subErr: any) {
+    console.error("[AUDITOR_PROCESS] Subscription upsert failed", { companyId, error: String(subErr?.message || subErr) })
     /* keep going */
   }
 
@@ -354,7 +383,10 @@ export async function processCardcomIndicatorEvent(
         p_is_en: isEn,
       } as any)
       const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
-      if (!ok || rpcErr) {
+      const docNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? rpcData[0].document_number : null
+      if (ok && !rpcErr) {
+        console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: docNumber })
+      } else {
         console.error("[AUDITOR_PROCESS] Invoice issuance failed", {
           chargeId,
           error: rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok",
