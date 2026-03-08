@@ -339,7 +339,50 @@ export default function PreviewClient({
       .join("\n");
   };
 
+  // Item rows: col1=quantity, col2=description, col3=unit_price (currency), col4=line_total
+  // Must match pdf-service TI_ROWS_HTML order. Do NOT use date/payment_date/created_at in col3.
+  const generateItemRowsHTML = () => {
+    if (items.length === 0) return "";
+    const hasSkuData = items.some((item) => item.sku && String(item.sku).trim().length > 0);
+
+    return items
+      .map((item) => {
+        const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
+        const unitPrice = Number(item.unitPrice ?? 0);
+        const lineTotal = Number(item.lineTotal ?? 0);
+        const description = item.description || item.label || "";
+        const sku = item.sku || "";
+
+        const formattedUnitPrice = formatMoney(unitPrice, item.currency || currency, language);
+        const formattedTotal = formatMoney(lineTotal, item.currency || currency, language);
+
+        const escapedQty = escapeHtml(String(quantity));
+        const escapedDetails = escapeHtml(description);
+        const escapedUnitPrice = escapeHtml(formattedUnitPrice);
+        const escapedTotal = escapeHtml(formattedTotal);
+
+        if (hasSkuData) {
+          const escapedSku = escapeHtml(String(sku));
+          return `<tr>
+  <td>${escapedSku}</td>
+  <td>${escapedQty}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedUnitPrice}</td>
+  <td>${escapedTotal}</td>
+</tr>`;
+        }
+        return `<tr>
+  <td>${escapedQty}</td>
+  <td>${escapedDetails}</td>
+  <td>${escapedUnitPrice}</td>
+  <td>${escapedTotal}</td>
+</tr>`;
+      })
+      .join("\n");
+  };
+
   const paymentsRowsHTML = generatePaymentsRowsHTML();
+  const itemRowsHTML = generateItemRowsHTML();
   const paymentsTotal = payments.reduce((acc, p) => acc + (Number(p.amount || 0) || 0), 0);
 
   const templateData = {
@@ -424,6 +467,12 @@ export default function PreviewClient({
 
     PAYMENTS_ROWS_HTML: paymentsRowsHTML,
     PAYMENTS_TOTAL: formatMoney(paymentsTotal, currency, language),
+
+    TI_ROWS_HTML: itemRowsHTML,
+    TI_SUBTOTAL: formatMoney(subtotal, currency, language),
+    TI_VAT_RATE: vatRate,
+    TI_VAT_AMOUNT: formatMoney(vatAmount, currency, language),
+    TI_TOTAL_AMOUNT: formatMoney(total, currency, language),
 
     formatted_total: formatMoney(total, currency, language),
     formatted_date: formatDate(documentDate, language),

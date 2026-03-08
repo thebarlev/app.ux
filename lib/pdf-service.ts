@@ -1922,18 +1922,18 @@ export async function prepareDocumentData(
     const itemRows = (docItems || []).map((item: any) => {
       const metadata = item.payment_metadata || {}
       const quantity = Number.isFinite(item.quantity) ? item.quantity : 0
+      const unitPrice = Number(item.unit_price ?? 0)
       const lineTotal = Number(item.line_total || 0)
-      const itemDate = item.item_date || doc.issue_date || ""
       const sku = item.item_sku || ""
       
-      const formattedDate = formatDate(itemDate)
+      const formattedUnitPrice = formatCurrency(unitPrice)
       const formattedTotal = formatCurrency(lineTotal)
       
       const escapedQty = escapeHtml(String(quantity))
       const escapedDetails = escapeHtml(
         metadata.details || item.description || metadata.label || ""
       )
-      const escapedDate = escapeHtml(formattedDate)
+      const escapedUnitPrice = escapeHtml(formattedUnitPrice)
       const escapedTotal = escapeHtml(formattedTotal)
 
       // אם יש מק"ט במסמך הזה, יוצר 5 תאים (כולל מק"ט)
@@ -1943,7 +1943,7 @@ export async function prepareDocumentData(
   <td>${escapedSku}</td>
   <td>${escapedQty}</td>
   <td>${escapedDetails}</td>
-  <td>${escapedDate}</td>
+  <td>${escapedUnitPrice}</td>
   <td>${escapedTotal}</td>
 </tr>`
       }
@@ -1952,7 +1952,7 @@ export async function prepareDocumentData(
       return `<tr>
   <td>${escapedQty}</td>
   <td>${escapedDetails}</td>
-  <td>${escapedDate}</td>
+  <td>${escapedUnitPrice}</td>
   <td>${escapedTotal}</td>
 </tr>`
     })
