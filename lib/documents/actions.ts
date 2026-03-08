@@ -137,6 +137,8 @@ function currentCalendarMonthRangeYmd(now = new Date()): { fromDate: string; toD
   };
 }
 
+const VOW_BILLING_COMPANY_ID = "4ae68334-15a0-4fa3-a9ba-fd77deccc95d"
+
 async function precheckSubscriptionEligibility(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   companyId: string;
@@ -157,7 +159,45 @@ async function precheckSubscriptionEligibility(params: {
       message: string;
     }
 > {
-  const { supabase, companyId } = params;
+  const { supabase, companyId } = params
+
+  if (companyId === VOW_BILLING_COMPANY_ID) {
+    const now = new Date()
+    const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+    return {
+      ok: true,
+      planId: "pro",
+      status: "active",
+      documentsUsed: 0,
+      documentsLimit: 1_000_000,
+      yearMonth,
+      trialEndsAt: null,
+      currentPeriodEnd: null,
+    }
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: admin } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
+    if (admin?.id) {
+      const now = new Date()
+      const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
+      return {
+        ok: true,
+        planId: "pro",
+        status: "active",
+        documentsUsed: 0,
+        documentsLimit: 1_000_000,
+        yearMonth,
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+      }
+    }
+  }
 
   const { data: sub, error: subError } = await supabase
     .from("subscriptions")
