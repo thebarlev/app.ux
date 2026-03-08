@@ -288,6 +288,9 @@ export async function processCardcomIndicatorEvent(
   const period = computeMonthlyPeriod(now)
   const billingCfg = getAuditorBillingConfig()
 
+  const chargedAmount = Number((checkout as any).amount ?? (plan as any).monthly_amount ?? 0)
+  const chargedCurrency = (checkout as any).coin_id === 2 ? "USD" : "ILS"
+
   try {
     await admin.from("auditor_subscriptions").upsert(
       {
@@ -296,8 +299,8 @@ export async function processCardcomIndicatorEvent(
         payment_method_id: paymentMethodId,
         billing_account_id: billingCfg.billingAccountId,
         plan_snapshot_name: plan.name,
-        plan_snapshot_monthly_amount: plan.monthly_amount,
-        plan_snapshot_currency: plan.currency || "ILS",
+        plan_snapshot_monthly_amount: chargedAmount,
+        plan_snapshot_currency: chargedCurrency,
         plan_snapshot_created_at: now.toISOString(),
         status: "active",
         current_period_start: period.start.toISOString(),
@@ -322,8 +325,8 @@ export async function processCardcomIndicatorEvent(
       plan_id: plan.id,
       subscription_period_start: period.start.toISOString(),
       subscription_period_end: period.end.toISOString(),
-      amount: plan.monthly_amount,
-      currency: plan.currency || "ILS",
+      amount: chargedAmount,
+      currency: chargedCurrency,
       uniq_asmachta: uniq,
       status: "succeeded",
       provider_internal_deal_number: internalDealNumber,

@@ -1,6 +1,6 @@
 /**
- * Display-only USD pricing for English Auditor UI.
- * Backend/Cardcom remains ILS — do not change payment logic.
+ * USD pricing for English/International Auditor flow.
+ * Used by billing market resolver for Cardcom checkout when market=intl.
  */
 export const PLAN_PRICES_USD = {
   basic: 27,

@@ -783,6 +783,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   const basePath = props?.basePath ?? "/auditor"
   const router = useRouter()
   const sp = useSearchParams()
+  const linkId = String(sp.get("link_id") || "").trim() || "a_basic"
 
   const [step, setStep] = useState<Step>(1)
 
@@ -1451,8 +1452,8 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
             <Link
               href={
                 scanId && token
-                  ? `${basePath}/register?link_id=a_basic&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-                  : `${basePath}/register?link_id=a_basic`
+                  ? `${basePath}/register?link_id=${encodeURIComponent(linkId)}&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : `${basePath}/register?link_id=${encodeURIComponent(linkId)}`
               }
               className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
             >

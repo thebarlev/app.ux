@@ -6,6 +6,7 @@ import { z } from "zod"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { getPublicBaseUrl, openLowProfile, requirePublicCallbackUrl } from "@/lib/auditor/billing/cardcom"
+import { getCardcomMarketConfig, resolveBillingMarket } from "@/lib/auditor/billing/market"
 
 const bodySchema = z.object({
   plan_id: z.enum(["basic", "pro", "premium"]),
@@ -51,10 +52,14 @@ export async function POST(req: Request) {
 
   if (!plan) return NextResponse.json({ ok: false, error: "Plan not available" }, { status: 400 })
 
-  const amount = Number((plan as any).monthly_amount ?? NaN)
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const planIlsAmount = Number((plan as any).monthly_amount ?? NaN)
+  if (!Number.isFinite(planIlsAmount) || planIlsAmount <= 0) {
     return NextResponse.json({ ok: false, error: "Plan price not configured" }, { status: 400 })
   }
+
+  const base = (parsed.data.base_path || "/auditor").replace(/\/+$/, "") || "/auditor"
+  const market = resolveBillingMarket(undefined, base)
+  const marketConfig = getCardcomMarketConfig(market, parsed.data.plan_id, planIlsAmount)
 
   const publicBaseUrl = getPublicBaseUrl(req)
   try {
@@ -63,7 +68,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 })
   }
 
-  const base = (parsed.data.base_path || "/auditor").replace(/\/+$/, "") || "/auditor"
   const successUrl = `${publicBaseUrl}${base}/success`
   const errorUrl = `${publicBaseUrl}${base}?checkout=error&scanId=${encodeURIComponent(parsed.data.scanId)}&token=${encodeURIComponent(parsed.data.token)}`
   const indicatorUrl = `${publicBaseUrl}/api/auditor/billing/cardcom/indicator`
@@ -77,8 +81,8 @@ export async function POST(req: Request) {
       lead_id: scan.lead_id,
       scan_id: scan.id,
       plan_id: plan.id,
-      amount,
-      coin_id: 1,
+      amount: marketConfig.amount,
+      coin_id: marketConfig.coinId,
       status: "created",
       provider: "cardcom",
       return_value: null,
@@ -99,8 +103,9 @@ export async function POST(req: Request) {
   let opened: Awaited<ReturnType<typeof openLowProfile>>
   try {
     opened = await openLowProfile({
-      amountIls: amount,
-      coinId: 1,
+      amount: marketConfig.amount,
+      coinId: marketConfig.coinId,
+      pageLanguage: marketConfig.pageLanguage,
       successUrl,
       errorUrl,
       indicatorUrl,

@@ -7,6 +7,7 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { getPublicBaseUrl, openLowProfile, requirePublicCallbackUrl } from "@/lib/auditor/billing/cardcom"
+import { getCardcomMarketConfig, resolveBillingMarket } from "@/lib/auditor/billing/market"
 
 const bodySchema = z.object({
   link_id: z.string().min(2).max(80),
@@ -71,13 +72,9 @@ export async function POST(req: Request) {
 
   if (!plan) return NextResponse.json({ ok: false, error: "Plan not available" }, { status: 404 })
 
-  const amount = Number((plan as any).monthly_amount ?? NaN)
-  const currency = String((plan as any).currency || "ILS")
-  if (!Number.isFinite(amount) || amount <= 0) {
+  const planIlsAmount = Number((plan as any).monthly_amount ?? NaN)
+  if (!Number.isFinite(planIlsAmount) || planIlsAmount <= 0) {
     return NextResponse.json({ ok: false, error: "Plan price not configured" }, { status: 400 })
-  }
-  if (currency !== "ILS") {
-    return NextResponse.json({ ok: false, error: "Unsupported currency" }, { status: 400 })
   }
 
   // Idempotency (UX): reuse a recent created/redirected session for same company+plan
@@ -108,6 +105,9 @@ export async function POST(req: Request) {
   const successUrl = parsed.data.success_url ? String(parsed.data.success_url) : defaultSuccessUrl
   const errorUrl = parsed.data.error_url ? String(parsed.data.error_url) : defaultErrorUrl
 
+  const market = resolveBillingMarket(successUrl)
+  const marketConfig = getCardcomMarketConfig(market, planId, planIlsAmount)
+
   const mergedUtm = { ...safeUtmFromRequest(req), ...(parsed.data.utm || {}) }
 
   if (existingSession?.id) {
@@ -118,8 +118,9 @@ export async function POST(req: Request) {
     let opened: Awaited<ReturnType<typeof openLowProfile>>
     try {
       opened = await openLowProfile({
-        amountIls: amount,
-        coinId: 1,
+        amount: marketConfig.amount,
+        coinId: marketConfig.coinId,
+        pageLanguage: marketConfig.pageLanguage,
         successUrl,
         errorUrl,
         indicatorUrl,
@@ -140,6 +141,8 @@ export async function POST(req: Request) {
         success_url: successUrl,
         error_url: errorUrl,
         indicator_url: indicatorUrl,
+        amount: marketConfig.amount,
+        coin_id: marketConfig.coinId,
         marketing_source: String((linkRow as any).source || "vow"),
         link_id: linkId,
         created_from_url: parsed.data.created_from_url || null,
@@ -169,8 +172,8 @@ export async function POST(req: Request) {
       lead_id: null,
       scan_id: null,
       plan_id: planId,
-      amount,
-      coin_id: 1,
+      amount: marketConfig.amount,
+      coin_id: marketConfig.coinId,
       status: "created",
       provider: "cardcom",
       return_value: null,
@@ -195,8 +198,9 @@ export async function POST(req: Request) {
   let opened: Awaited<ReturnType<typeof openLowProfile>>
   try {
     opened = await openLowProfile({
-      amountIls: amount,
-      coinId: 1,
+      amount: marketConfig.amount,
+      coinId: marketConfig.coinId,
+      pageLanguage: marketConfig.pageLanguage,
       successUrl,
       errorUrl,
       indicatorUrl,

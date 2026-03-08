@@ -49,12 +49,13 @@ export function requirePublicCallbackUrl(req: Request, baseUrl: string) {
 }
 
 export async function openLowProfile(args: {
-  amountIls: number
+  amount: number
   coinId: number
   successUrl: string
   errorUrl: string
   indicatorUrl: string
   returnValue: string
+  pageLanguage?: string
 }) {
   const cfg = getAuditorBillingConfig().cardcom
   const cardcomUrl = "https://secure.cardcom.solutions/Interface/LowProfile.aspx"
@@ -64,7 +65,7 @@ export async function openLowProfile(args: {
     TerminalNumber: cfg.terminalNumber,
     UserName: cfg.apiUsername,
     UserPassword: cfg.apiPassword,
-    SumToBill: args.amountIls.toFixed(2),
+    SumToBill: args.amount.toFixed(2),
     CoinId: String(args.coinId),
     APILevel: "10",
     Codepage: "65001",
@@ -73,6 +74,10 @@ export async function openLowProfile(args: {
     IndicatorUrl: args.indicatorUrl,
     ReturnValue: args.returnValue,
   })
+
+  if (args.pageLanguage && args.pageLanguage.trim()) {
+    form.set("Language", args.pageLanguage.trim())
+  }
 
   const r = await fetch(cardcomUrl, {
     method: "POST",
