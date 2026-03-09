@@ -156,6 +156,7 @@ export async function continueAuditorScan(params: {
 
     await supabase.from("auditor_scans").update({ heartbeat_at: nowIso() }).eq("id", scanId).eq("locked_by", requestId)
     await auditorLog({ supabase, scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
+    console.info("[auditor] scan step", step)
 
     // Step: normalize
     if (step === "normalize") {
@@ -474,14 +475,54 @@ export async function continueAuditorScan(params: {
       return { ok: true, kind: "progressed", scan }
     }
 
-    // Step: fetch_pages (fetch one queued page per continue for time budget)
+    // Step: fetch_pages (fetch up to 5 queued pages per continue for time budget)
     if (step === "fetch_pages") {
-      let q = supabase.from("auditor_scan_pages").select("id,url").eq("scan_id", scanId).eq("state", "queued").limit(1)
+      let q = supabase.from("auditor_scan_pages").select("id,url").eq("scan_id", scanId).eq("state", "queued").limit(5)
       q = applyCompanyWhere(q, companyId)
       const { data: queuedPages } = await q
 
       const pages = Array.isArray(queuedPages) ? queuedPages : []
       if (pages.length === 0) {
+        // Fail-safe: if no fetched pages at all, finalize with minimal report so dashboard receives a result
+        let countQ = supabase
+          .from("auditor_scan_pages")
+          .select("id", { count: "exact", head: true })
+          .eq("scan_id", scanId)
+          .in("state", ["fetched", "extracted"])
+        countQ = applyCompanyWhere(countQ, companyId)
+        const { count: fetchedCount } = await countQ
+        const hasFetched = (fetchedCount ?? 0) > 0
+
+        if (!hasFetched) {
+          const sampleUrls = Array.isArray(artifacts?.sample?.urls) ? artifacts.sample.urls : []
+          const minimalReport = {
+            score_total: 0,
+            score_search: 0,
+            score_ai: 0,
+            category_scores: { search_readiness: 0, ai_readiness: 0 },
+            issues_overview: ["לא הצלחנו למשוך עמודים לניתוח. נסה שוב מאוחר יותר."],
+            confidence_level: "low" as const,
+            warning: "לא הצלחנו למשוך עמודים לניתוח.",
+          }
+          await applyScanWhere(
+            supabase.from("auditor_scans").update({
+              status: "done",
+              step: "done",
+              score_total: 0,
+              report_public: minimalReport,
+              artifacts: { ...artifacts, sample: { urls: sampleUrls, count: sampleUrls.length } },
+              finished_at: nowIso(),
+              updated_at: nowIso(),
+            }),
+            scanId,
+            companyId
+          )
+          await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:fail_safe_no_pages" })
+          await releaseLock()
+          const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+          return { ok: true, kind: "progressed", scan }
+        }
+
         await applyScanWhere(supabase.from("auditor_scans").update({ step: "extract", updated_at: nowIso() }), scanId, companyId)
         await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:none_left" })
         await releaseLock()
@@ -831,7 +872,7 @@ export async function continueAuditorScan(params: {
     return { ok: true, kind: "progressed", scan }
   } catch (e: any) {
     const msg = String(e?.message || e)
-    console.error("[auditor] continue failed", { scanId: params.scanId, message: msg })
+    console.error("[auditor] scan error", { scanId: params.scanId, message: msg })
     await auditorLog({ supabase, scanId: params.scanId, companyId: null, level: "error", message: "scan:failed", data: { error: msg } })
     await applyScanWhere(
       supabase.from("auditor_scans").update({
