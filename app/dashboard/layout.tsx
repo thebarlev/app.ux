@@ -21,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   try {
     await getCompanyIdForUser();
   } catch {
-    redirect("/register4");
+    redirect("/register");
   }
 
   return <DashboardShell>{children}</DashboardShell>;

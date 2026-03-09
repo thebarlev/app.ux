@@ -48,7 +48,7 @@ export function HomeLanding() {
       const supabase = createClient()
   
       const siteUrl = getSiteUrl()
-      const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/register4")}`
+      const emailRedirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent("/register")}`
   
       // 🔎 DEBUG — חשוב
       console.log("========== MAGIC LINK DEBUG ==========")

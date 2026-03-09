@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Suspense } from "react";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 export const metadata: Metadata = {
@@ -53,8 +54,10 @@ export default function RootLayout({
       </head>
 
       <body>
-        {/* Analytics page tracking */}
-        <GoogleAnalytics />
+        {/* Analytics page tracking - wrapped in Suspense for useSearchParams during static generation */}
+        <Suspense fallback={null}>
+          <GoogleAnalytics />
+        </Suspense>
 
         {/* Skip link */}
         <a
