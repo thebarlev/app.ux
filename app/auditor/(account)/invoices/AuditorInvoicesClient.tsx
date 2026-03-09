@@ -13,7 +13,29 @@ type Invoice = {
   document_number: string | null
 }
 
-export default function AuditorInvoicesClient() {
+const TEXTS = {
+  he: {
+    loading: "טוען…",
+    loadError: "שגיאה בטעינה",
+    emptyTitle: "אין חשבוניות עדיין",
+    emptyDesc: "החשבוניות שלך יופיעו כאן לאחר חידוש המנוי.",
+    download: "הורדה",
+    preparing: "בהכנה",
+    docNumberPrefix: "מס׳",
+  },
+  en: {
+    loading: "Loading…",
+    loadError: "Failed to load",
+    emptyTitle: "No invoices yet",
+    emptyDesc: "Your subscription invoices will appear here.",
+    download: "Download",
+    preparing: "Processing",
+    docNumberPrefix: "#",
+  },
+} as const
+
+export default function AuditorInvoicesClient({ language = "he" }: { language?: "he" | "en" }) {
+  const t = TEXTS[language]
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,11 +49,11 @@ export default function AuditorInvoicesClient() {
         if (j?.ok === true && Array.isArray(j.invoices)) {
           setInvoices(j.invoices)
         } else {
-          setError(j?.error || "שגיאה בטעינה")
+          setError(j?.error || t.loadError)
         }
       })
       .catch(() => {
-        if (!cancelled) setError("שגיאה בטעינה")
+        if (!cancelled) setError(t.loadError)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -39,12 +61,16 @@ export default function AuditorInvoicesClient() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t.loadError])
 
   const formatDate = (iso: string) => {
     try {
       const d = new Date(iso)
-      return d.toLocaleDateString("he-IL", { year: "numeric", month: "short", day: "numeric" })
+      return d.toLocaleDateString(language === "en" ? "en-US" : "he-IL", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
     } catch {
       return iso
     }
@@ -55,13 +81,14 @@ export default function AuditorInvoicesClient() {
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
-          טוען…
+          {t.loading}
         </div>
       ) : error ? (
         <div className="rounded-ui border border-danger/30 bg-danger/5 p-4 text-danger">{error}</div>
       ) : invoices.length === 0 ? (
-        <div className="rounded-ui border border-border bg-white p-8 text-center text-muted-foreground">
-          אין חשבוניות עדיין
+        <div className="rounded-ui border border-border bg-white p-8 text-center">
+          <p className="font-medium text-muted-foreground">{t.emptyTitle}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t.emptyDesc}</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -76,20 +103,20 @@ export default function AuditorInvoicesClient() {
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {inv.amount} {inv.currency}
-                  {inv.document_number ? ` · מס׳ ${inv.document_number}` : ""}
+                  {inv.document_number ? ` · ${t.docNumberPrefix} ${inv.document_number}` : ""}
                 </div>
               </div>
               {inv.document_id ? (
                 <a
-                  href={`/api/documents/${inv.document_id}/pdf`}
+                  href={`/api/documents/${inv.document_id}/pdf?lang=${language}&issue=copy`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded-ui border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
                 >
-                  הורדה
+                  {t.download}
                 </a>
               ) : (
-                <span className="text-sm text-muted-foreground">בהכנה</span>
+                <span className="text-sm text-muted-foreground">{t.preparing}</span>
               )}
             </div>
           ))}

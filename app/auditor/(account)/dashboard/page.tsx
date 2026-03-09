@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
+import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
 
 export default async function AuditorDashboardPage() {
   const supabase = await createClient()
@@ -41,6 +42,7 @@ export default async function AuditorDashboardPage() {
         <p className="text-right text-lg text-muted-foreground">
           אנחנו מתחילים לשפר את החשיפה של העסק שלך ב-AI וב-SEO
         </p>
+        <AuditorDashboardScanClient locale="he" basePath="/auditor" />
         {lastScan ? (
           <Card>
             <CardHeader className="text-right">
@@ -80,10 +82,7 @@ export default async function AuditorDashboardPage() {
         ) : (
           <Card>
             <CardContent className="pt-6 text-right">
-              <p className="text-muted-foreground mb-4">אין סריקה עדיין.</p>
-              <Link href="/auditor">
-                <Button>התחל סריקה</Button>
-              </Link>
+              <p className="text-muted-foreground">אין סריקה עדיין.</p>
             </CardContent>
           </Card>
         )}

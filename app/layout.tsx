@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: {
@@ -9,32 +10,56 @@ export const metadata: Metadata = {
   description:
     "מערכת ניהול מסמכים, קבלות וחשבוניות לעסקים - Business document and invoice management system",
   icons: {
-    // שובר Cache אגרסיבי של דפדפנים ל-favicon
     icon: "/favicon.ico?v=2",
     shortcut: "/favicon.ico?v=2",
-    // אם אין לך apple-icon.png – אל תוסיף apple כאן
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="he" dir="rtl">
       <head>
+        {/* Google Analytics */}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-VRWRQ29QBW"
+          strategy="afterInteractive"
+        />
+
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-VRWRQ29QBW');
+          `}
+        </Script>
+
+        {/* Fonts */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
         <link
           href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
       </head>
+
       <body>
-        {/* Skip to main content link - WCAG 2.1 AA requirement */}
+        {/* Skip to main content link */}
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:right-4 focus:z-[9999] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
         >
           דלג לתוכן הראשי
         </a>
+
         {children}
       </body>
     </html>

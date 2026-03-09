@@ -17,7 +17,7 @@ function EnAuditorLoginInner() {
   if (scanId) checkoutParams.set("scanId", scanId)
   if (token) checkoutParams.set("token", token)
   const qs = checkoutParams.toString()
-  const after = returnTo || (qs ? `${BASE}/checkout?${qs}` : `${BASE}/checkout`)
+  const after = returnTo || (qs ? `${BASE}/checkout?${qs}` : `${BASE}/dashboard`)
   const registerParams = new URLSearchParams()
   if (linkId) registerParams.set("link_id", linkId)
   if (scanId) registerParams.set("scanId", scanId)

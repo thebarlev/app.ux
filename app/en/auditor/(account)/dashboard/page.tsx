@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
+import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
 
 const BASE = "/en/auditor"
 
@@ -43,6 +44,7 @@ export default async function EnAuditorDashboardPage() {
         <p className="text-left text-lg text-muted-foreground">
           We're improving your business visibility in AI & SEO
         </p>
+        <AuditorDashboardScanClient locale="en" basePath={BASE} />
         {lastScan ? (
           <Card>
             <CardHeader className="text-left">
@@ -82,10 +84,7 @@ export default async function EnAuditorDashboardPage() {
         ) : (
           <Card>
             <CardContent className="pt-6 text-left">
-              <p className="text-muted-foreground mb-4">No scan yet.</p>
-              <Link href={BASE}>
-                <Button>Start scan</Button>
-              </Link>
+              <p className="text-muted-foreground">No scan yet.</p>
             </CardContent>
           </Card>
         )}
