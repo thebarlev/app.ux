@@ -1,0 +1,12 @@
+{
+  "name": "VOW",
+  "description": "AI powered accounting, digital invoicing and advanced web development services.",
+  "website": "https://vow.co.il",
+  "language": "he",
+  "country": "IL",
+  "products": [
+    "AI Accountant",
+    "Secure Digital Invoicing",
+    "AI SEO Website Optimization"
+  ]
+}
