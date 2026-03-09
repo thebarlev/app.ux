@@ -4,13 +4,19 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { requireAuditorApiAccess } from "@/lib/auditor/guard"
 import { continueAuditorScan } from "@/lib/auditor/pipeline/continue"
+import { createServiceRoleClient } from "@/lib/supabase/server"
 
 export async function POST(_: Request, ctx: { params: Promise<{ scanId: string }> }) {
   const access = await requireAuditorApiAccess()
   if (access instanceof NextResponse) return access
 
   const { scanId } = await ctx.params
-  const res = await continueAuditorScan({ scanId, companyId: access.companyId })
+  const admin = createServiceRoleClient()
+  const res = await continueAuditorScan({
+    scanId,
+    companyId: access.companyId,
+    supabase: admin,
+  })
 
   if (!res.ok && res.kind === "busy") {
     return NextResponse.json({ ok: false, error: "scan is busy" }, { status: 409 })

@@ -32,10 +32,10 @@ export async function GET(req: Request) {
 
     const admin = createServiceRoleClient()
     const { data: scan, error: queryError } = await admin
-    .from("auditor_scans")
-    .select("id,status,step,score_total,report_public,confidence,updated_at,finished_at,scan_access_token,artifacts")
-    .eq("id", parsed.data.scanId)
-    .maybeSingle()
+      .from("auditor_scans")
+      .select("id,status,step,score_total,report_public,confidence,updated_at,finished_at,scan_access_token,artifacts,normalized_host")
+      .eq("id", parsed.data.scanId)
+      .maybeSingle()
 
     if (queryError) {
       console.error("[AUDITOR_STATUS] Supabase query error", { scanId: parsed.data.scanId, error: queryError })
@@ -45,6 +45,11 @@ export async function GET(req: Request) {
   if (String(scan.scan_access_token || "") !== parsed.data.token) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
   }
+
+  const { count: pagesScanned } = await admin
+    .from("auditor_scan_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("scan_id", parsed.data.scanId)
 
   const publicReport = scan.report_public && typeof scan.report_public === "object" ? scan.report_public : {}
   const confidence = scan.confidence && typeof scan.confidence === "object" ? scan.confidence : {}
@@ -58,12 +63,33 @@ export async function GET(req: Request) {
       : null
 
   // Allowlist sanitizer to ensure report_public never leaks identifiers even if DB contains extra keys.
+  let issuesOverview = Array.isArray((publicReport as any).issues_overview)
+    ? (publicReport as any).issues_overview.map((x: any) => String(x)).slice(0, 12)
+    : []
+
+  // Fallback: when report_public has no issues but step is rules/persist, rules may exist in auditor_scan_rules
+  // (e.g. rules stage wrote rules but scan update failed, or timing gap). Build issues from rules.
+  if (issuesOverview.length === 0 && (scan.step === "rules" || scan.step === "persist")) {
+    const { data: rules } = await admin
+      .from("auditor_scan_rules")
+      .select("status,recommendation_he")
+      .eq("scan_id", parsed.data.scanId)
+    const fromRules = Array.isArray(rules)
+      ? rules
+          .filter((r) => r.status === "fail" || r.status === "warn")
+          .map((r) => String(r.recommendation_he || "").trim())
+          .filter(Boolean)
+          .slice(0, 12)
+      : []
+    if (fromRules.length > 0) issuesOverview = fromRules
+  }
+
   const safeReportPublic = {
     score_total: typeof (publicReport as any).score_total === "number" ? (publicReport as any).score_total : null,
     score_search: typeof (publicReport as any).score_search === "number" ? (publicReport as any).score_search : null,
     score_ai: typeof (publicReport as any).score_ai === "number" ? (publicReport as any).score_ai : null,
     category_scores: (publicReport as any).category_scores && typeof (publicReport as any).category_scores === "object" ? (publicReport as any).category_scores : {},
-    issues_overview: Array.isArray((publicReport as any).issues_overview) ? (publicReport as any).issues_overview.map((x: any) => String(x)).slice(0, 12) : [],
+    issues_overview: issuesOverview,
     confidence_level:
       (publicReport as any).confidence_level === "high" || (publicReport as any).confidence_level === "medium" || (publicReport as any).confidence_level === "low"
         ? (publicReport as any).confidence_level
@@ -89,6 +115,9 @@ export async function GET(req: Request) {
         report_public: scan.status === "done" ? safeReportPublic : null,
         updated_at: scan.updated_at,
         finished_at: scan.finished_at,
+        hostname: typeof (scan as any).normalized_host === "string" ? (scan as any).normalized_host : null,
+        pages_scanned: typeof pagesScanned === "number" ? pagesScanned : null,
+        issues_count: safeReportPublic.issues_overview.length,
       },
       {
         headers: {

@@ -1,13 +1,52 @@
+import { redirect } from "next/navigation"
+import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
 import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
+import { EnAuditorScanResultsCard } from "@/components/auditor/EnAuditorScanResultsCard"
 
 const BASE = "/en/auditor"
 
-export default async function EnAuditorDashboardPage() {
+export default async function EnAuditorDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = await searchParams
+  const scanId = typeof sp?.scan_id === "string" ? sp.scan_id.trim() : ""
+  const token = typeof sp?.token === "string" ? sp.token.trim() : ""
+
+  if ((scanId && !token) || (token && !scanId)) {
+    redirect("/en/auditor")
+  }
+
+  if (scanId && token) {
+    const headersList = await headers()
+    const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+    const protocol = headersList.get("x-forwarded-proto") === "https" ? "https" : "http"
+    const baseUrl = `${protocol}://${host}`
+    const res = await fetch(`${baseUrl}/api/auditor/status?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    })
+    if (!res.ok) redirect("/en/auditor")
+    const scanData = await res.json().catch(() => null)
+    if (!scanData?.ok) redirect("/en/auditor")
+    const linkId = typeof sp?.link_id === "string" ? sp.link_id.trim() || "a_basic" : "a_basic"
+    return (
+      <div dir="ltr" className="space-y-6">
+        <EnAuditorScanResultsCard
+          scanData={scanData}
+          linkId={linkId}
+          scanId={scanId}
+          token={token}
+        />
+      </div>
+    )
+  }
+
   const supabase = await createClient()
   const { data: companyRows } = await supabase.rpc("user_company_ids")
   const first = Array.isArray(companyRows) && companyRows.length > 0 ? companyRows[0] : null

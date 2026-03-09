@@ -32,7 +32,31 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin")
+  const path = request.nextUrl.pathname
+  const isEnAuditorDashboard = path === "/en/auditor/dashboard"
+  const isEnAuditorCheckout = path === "/en/auditor/checkout"
+  const scanId = request.nextUrl.searchParams.get("scan_id")
+  const token = request.nextUrl.searchParams.get("token")
+
+  // EN auditor: allow unauthenticated access to dashboard when scan_id+token present (guest scan view)
+  if (isEnAuditorDashboard && scanId && token) {
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set("x-auditor-scan-guest", "1")
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    })
+  }
+
+  // EN auditor: require auth for dashboard (without scan params) and checkout
+  if ((isEnAuditorDashboard || isEnAuditorCheckout) && !user) {
+    const returnTo = request.nextUrl.pathname + request.nextUrl.search
+    const url = request.nextUrl.clone()
+    url.pathname = "/en/auditor/login"
+    url.searchParams.set("returnTo", returnTo)
+    return NextResponse.redirect(url)
+  }
+
+  const isAdminRoute = path.startsWith("/admin")
   const isLoginPage = request.nextUrl.pathname === "/admin/login"
 
   // Admin route handling

@@ -994,6 +994,19 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       // Stop polling once we can render the "Step 2" preview (or once scan is terminal).
       if (done || (hasAllScores && hasScreenshot)) {
         stop()
+        // EN onboarding: redirect to dashboard after 2s so user sees completion
+        if (
+          basePath.startsWith("/en") &&
+          okStatus.status === "done" &&
+          scanId &&
+          token
+        ) {
+          setTimeout(() => {
+            const params = new URLSearchParams({ scan_id: scanId, token })
+            if (linkId) params.set("link_id", linkId)
+            router.replace(`${basePath}/dashboard?${params.toString()}`)
+          }, 2000)
+        }
         return
       }
 
@@ -1006,8 +1019,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       cancelled = true
       stop()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, scanId, token])
+  }, [step, scanId, token, basePath, router, linkId])
 
   // Step 3: fetch subscription status when entering step 3
   useEffect(() => {
