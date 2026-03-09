@@ -5,10 +5,12 @@ export const revalidate = 0
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createServiceRoleClient } from "@/lib/supabase/server"
+import { RULE_KEY_TO_EN } from "@/lib/auditor/report/public"
 
 const querySchema = z.object({
   scanId: z.string().min(1),
   token: z.string().min(1),
+  locale: z.enum(["he", "en"]).optional(),
 })
 
 function notFoundIfDisabled() {
@@ -27,6 +29,7 @@ export async function GET(req: Request) {
     const parsed = querySchema.safeParse({
       scanId: url.searchParams.get("scanId"),
       token: url.searchParams.get("token"),
+      locale: url.searchParams.get("locale") || undefined,
     })
     if (!parsed.success) return NextResponse.json({ ok: false, error: "Invalid query" }, { status: 400 })
 
@@ -62,9 +65,14 @@ export async function GET(req: Request) {
       ? screenshotUrlRaw
       : null
 
+  const useEn = parsed.data.locale === "en"
+
   // Allowlist sanitizer to ensure report_public never leaks identifiers even if DB contains extra keys.
   let issuesOverview = Array.isArray((publicReport as any).issues_overview)
     ? (publicReport as any).issues_overview.map((x: any) => String(x)).slice(0, 12)
+    : []
+  let issuesOverviewEn = Array.isArray((publicReport as any).issues_overview_en)
+    ? (publicReport as any).issues_overview_en.map((x: any) => String(x)).slice(0, 12)
     : []
 
   // Fallback: when report_public has no issues but step is rules/persist, rules may exist in auditor_scan_rules
@@ -72,7 +80,7 @@ export async function GET(req: Request) {
   if (issuesOverview.length === 0 && (scan.step === "rules" || scan.step === "persist")) {
     const { data: rules } = await admin
       .from("auditor_scan_rules")
-      .select("status,recommendation_he")
+      .select("status,recommendation_he,rule_key")
       .eq("scan_id", parsed.data.scanId)
     const fromRules = Array.isArray(rules)
       ? rules
@@ -81,15 +89,27 @@ export async function GET(req: Request) {
           .filter(Boolean)
           .slice(0, 12)
       : []
-    if (fromRules.length > 0) issuesOverview = fromRules
+    const fromRulesEn = Array.isArray(rules)
+      ? rules
+          .filter((r) => r.status === "fail" || r.status === "warn")
+          .map((r) => RULE_KEY_TO_EN[(r as any).rule_key])
+          .filter(Boolean)
+          .slice(0, 12)
+      : []
+    if (fromRules.length > 0) {
+      issuesOverview = fromRules
+      if (fromRulesEn.length > 0) issuesOverviewEn = fromRulesEn
+    }
   }
+
+  const effectiveIssues = useEn && issuesOverviewEn.length > 0 ? issuesOverviewEn : issuesOverview
 
   const safeReportPublic = {
     score_total: typeof (publicReport as any).score_total === "number" ? (publicReport as any).score_total : null,
     score_search: typeof (publicReport as any).score_search === "number" ? (publicReport as any).score_search : null,
     score_ai: typeof (publicReport as any).score_ai === "number" ? (publicReport as any).score_ai : null,
     category_scores: (publicReport as any).category_scores && typeof (publicReport as any).category_scores === "object" ? (publicReport as any).category_scores : {},
-    issues_overview: issuesOverview,
+    issues_overview: effectiveIssues,
     confidence_level:
       (publicReport as any).confidence_level === "high" || (publicReport as any).confidence_level === "medium" || (publicReport as any).confidence_level === "low"
         ? (publicReport as any).confidence_level
@@ -117,7 +137,7 @@ export async function GET(req: Request) {
         finished_at: scan.finished_at,
         hostname: typeof (scan as any).normalized_host === "string" ? (scan as any).normalized_host : null,
         pages_scanned: typeof pagesScanned === "number" ? pagesScanned : null,
-        issues_count: safeReportPublic.issues_overview.length,
+        issues_count: effectiveIssues.length,
       },
       {
         headers: {

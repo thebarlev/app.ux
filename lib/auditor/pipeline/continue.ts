@@ -501,6 +501,7 @@ export async function continueAuditorScan(params: {
             score_ai: 0,
             category_scores: { search_readiness: 0, ai_readiness: 0 },
             issues_overview: ["לא הצלחנו למשוך עמודים לניתוח. נסה שוב מאוחר יותר."],
+            issues_overview_en: ["Could not fetch pages for analysis. Please try again later."],
             confidence_level: "low" as const,
             warning: "לא הצלחנו למשוך עמודים לניתוח.",
           }

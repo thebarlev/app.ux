@@ -7,5 +7,9 @@ export default async function EnAuditorLayout({ children }: { children: React.Re
   const cfg = getAuditorConfig()
   if (!cfg.enabled) notFound()
 
-  return <main className="min-h-svh bg-bg">{children}</main>
+  return (
+    <main className="min-h-svh bg-bg" lang="en" dir="ltr">
+      {children}
+    </main>
+  )
 }

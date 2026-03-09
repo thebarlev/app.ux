@@ -28,7 +28,7 @@ export default async function EnAuditorDashboardPage({
     const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
     const protocol = headersList.get("x-forwarded-proto") === "https" ? "https" : "http"
     const baseUrl = `${protocol}://${host}`
-    const res = await fetch(`${baseUrl}/api/auditor/status?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`, {
+    const res = await fetch(`${baseUrl}/api/auditor/status?scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}&locale=en`, {
       cache: "no-store",
     })
     if (!res.ok) redirect("/en/auditor")
@@ -146,8 +146,11 @@ export default async function EnAuditorDashboardPage({
             <div className="space-y-3">
               {scans.map((s: any) => {
                 const sr = s.report_public && typeof s.report_public === "object" ? s.report_public : {}
+                const issues = Array.isArray(sr.issues_overview_en) && sr.issues_overview_en.length > 0
+                  ? sr.issues_overview_en
+                  : Array.isArray(sr.issues_overview) ? sr.issues_overview : []
                 return (
-                  <div key={s.id} className="rounded-ui border border-border p-4 text-left">
+                  <div key={s.id} className="rounded-ui border border-border p-4 text-left" dir="ltr">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-medium">{String(s.normalized_host || "-")}</div>
@@ -165,9 +168,9 @@ export default async function EnAuditorDashboardPage({
                         </div>
                       </div>
                     </div>
-                    {Array.isArray(sr.issues_overview) && sr.issues_overview.length > 0 ? (
+                    {issues.length > 0 ? (
                       <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                        {sr.issues_overview.slice(0, 5).map((x: any, idx: number) => (
+                        {issues.slice(0, 5).map((x: any, idx: number) => (
                           <li key={idx}>{String(x)}</li>
                         ))}
                       </ul>
