@@ -8,7 +8,7 @@ export default async function AuditorLayout({ children }: { children: React.Reac
   if (!cfg.enabled) notFound()
 
   return (
-    <main className="min-h-svh bg-bg">{children}</main>
+    <main className="min-h-svh bg-bg" lang="he" dir="rtl">{children}</main>
   )
 }
 

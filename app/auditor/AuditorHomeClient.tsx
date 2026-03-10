@@ -22,6 +22,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import ConfirmDialog from "@/components/ConfirmDialog"
+import { IssueCard } from "@/components/auditor/scan-results/IssueCard"
+import { IssueChecklist } from "@/components/auditor/scan-results/IssueChecklist"
+import { ScanProgress } from "@/components/auditor/scan-progress/ScanProgress"
+import { ScanHistoryAccordion } from "@/components/auditor/scan-history/ScanHistoryAccordion"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 
@@ -280,505 +284,6 @@ function AiScoreHero({ status, locale }: { status: StatusResponse | null; locale
     </div>
   )
 }
-
-// ─── Step 3 Dashboard styles ───────────────────────────────────────────────
-const dashboardCss = `
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;500&display=swap');
-
-.audit-root {
-  --bg: #f4f1ed;
-  --surface: #faf8f5;
-  --surface-2: #ede9e3;
-  --border: rgba(0,0,0,0.09);
-  --accent: #2d5a4e;
-  --accent-dim: rgba(45,90,78,0.09);
-  --amber: #b45309;
-  --amber-dim: rgba(180,83,9,0.09);
-  --red: #c0392b;
-  --text-1: #1a1714;
-  --text-2: #6b6359;
-  --radius: 14px;
-  font-family: 'Syne', sans-serif;
-  color: var(--text-1);
-  background: var(--bg);
-  min-height: 100vh;
-  padding: 2rem 1rem;
-  direction: rtl;
-}
-
-.audit-card {
-  max-width: 780px;
-  margin: 0 auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0,0,0,.04), 0 12px 40px rgba(0,0,0,.08);
-  animation: fadeUp .45s cubic-bezier(.22,.68,0,1.2) both;
-}
-
-@keyframes fadeUp {
-  from { opacity:0; transform: translateY(24px) scale(.98); }
-  to   { opacity:1; transform: translateY(0) scale(1); }
-}
-
-.audit-header {
-  position: relative;
-  padding: 28px 28px 24px;
-  background: linear-gradient(135deg, #ede9e3 0%, #e8e3dc 100%);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.audit-header::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 60% 100% at 90% 50%, rgba(45,90,78,.06), transparent);
-  pointer-events: none;
-}
-
-.audit-title {
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: -.02em;
-  color: var(--text-1);
-  margin: 0;
-}
-
-.audit-scan-id {
-  font-family: 'DM Mono', monospace;
-  font-size: .7rem;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border: 1px solid rgba(45,90,78,.2);
-  border-radius: 6px;
-  padding: 3px 10px;
-  white-space: nowrap;
-  letter-spacing: .04em;
-  align-self: flex-start;
-}
-
-.audit-scan-id.generating {
-  color: var(--text-2);
-  background: rgba(0,0,0,.04);
-  border-color: var(--border);
-  animation: blink 1.4s ease-in-out infinite;
-}
-
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-.audit-body {
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.audit-loading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-2);
-  font-size: .875rem;
-}
-
-.spinner {
-  width: 16px; height: 16px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-  flex-shrink: 0;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.audit-progress-block {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.progress-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: .8rem;
-}
-
-.progress-label { color: var(--text-2); }
-
-.progress-step {
-  font-family: 'DM Mono', monospace;
-  font-size: .72rem;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border-radius: 4px;
-  padding: 2px 8px;
-  direction: ltr;
-}
-
-.progress-bar-track {
-  height: 4px;
-  background: var(--border);
-  border-radius: 99px;
-  overflow: hidden;
-}
-
-.progress-bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), #3d7a6a);
-  border-radius: 99px;
-  animation: shimmer 1.8s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0%   { width: 15%; opacity: .7; }
-  50%  { width: 72%; opacity: 1; }
-  100% { width: 15%; opacity: .7; }
-}
-
-.audit-warning {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  background: var(--amber-dim);
-  border: 1px solid rgba(245,166,35,.22);
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-size: .84rem;
-  color: var(--amber);
-  line-height: 1.55;
-}
-
-.audit-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.stat-cell {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px 14px 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.stat-value {
-  font-size: 1.65rem;
-  font-weight: 800;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-value.teal  { color: var(--accent);  }
-.stat-value.amber { color: var(--amber); }
-.stat-value.red   { color: var(--red);   }
-.stat-value.muted { color: var(--text-2); font-size: .9rem; font-family: 'DM Mono', monospace; margin-top: 4px; }
-
-.stat-label {
-  font-size: .68rem;
-  color: var(--text-2);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-}
-
-.audit-divider {
-  height: 1px;
-  background: var(--border);
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.section-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
-}
-
-.section-title {
-  font-size: .76rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .1em;
-  color: var(--text-2);
-}
-
-.audit-empty {
-  background: var(--surface-2);
-  border: 1px dashed rgba(255,255,255,.07);
-  border-radius: 10px;
-  padding: 24px 20px;
-  text-align: center;
-  color: var(--text-2);
-  font-size: .84rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.audit-empty-icon { font-size: 1.5rem; opacity: .5; }
-
-.audit-issues {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.audit-issue-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 13px 16px;
-  font-size: .84rem;
-  line-height: 1.55;
-  color: var(--text-1);
-  animation: fadeItem .3s ease both;
-}
-
-.audit-issue-item:nth-child(1){ animation-delay:.05s }
-.audit-issue-item:nth-child(2){ animation-delay:.10s }
-.audit-issue-item:nth-child(3){ animation-delay:.15s }
-.audit-issue-item:nth-child(4){ animation-delay:.20s }
-.audit-issue-item:nth-child(5){ animation-delay:.25s }
-
-@keyframes fadeItem {
-  from { opacity:0; transform: translateX(8px); }
-  to   { opacity:1; transform: translateX(0); }
-}
-
-.issue-number {
-  font-family: 'DM Mono', monospace;
-  font-size: .68rem;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border-radius: 5px;
-  padding: 2px 7px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.audit-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.btn-new-scan {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--accent);
-  color: #f4f1ed;
-  font-family: 'Syne', sans-serif;
-  font-weight: 700;
-  font-size: .84rem;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 22px;
-  cursor: pointer;
-  transition: opacity .18s, transform .18s;
-  white-space: nowrap;
-}
-
-.btn-new-scan:hover { opacity:.88; transform: translateY(-1px); }
-.btn-new-scan:active { transform: translateY(0); }
-
-.btn-share {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: 'Syne', sans-serif;
-  font-size: .82rem;
-  font-weight: 600;
-  color: var(--accent);
-  text-decoration: none;
-  border: 1px solid rgba(45,90,78,.25);
-  border-radius: 8px;
-  padding: 9px 18px;
-  transition: background .18s, transform .18s;
-}
-
-.btn-share:hover { background: var(--accent-dim); transform: translateY(-1px); }
-
-.pricing-wrap {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 18px;
-}
-
-.pricing-title {
-  font-size: 1.15rem;
-  font-weight: 800;
-  margin: 0;
-}
-
-.pricing-subtitle {
-  margin-top: 6px;
-  font-size: .85rem;
-  color: var(--text-2);
-  line-height: 1.45;
-}
-
-.pricing-grid {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-
-.plan-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px 16px 14px;
-  text-align: right;
-  position: relative;
-  cursor: pointer;
-  transition: transform .18s, border-color .18s, box-shadow .18s;
-}
-
-.plan-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 26px rgba(0,0,0,.06);
-}
-
-.plan-card.selected {
-  border-color: rgba(45,90,78,.5);
-  box-shadow: 0 0 0 3px rgba(45,90,78,.10);
-}
-
-.plan-badge {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: .72rem;
-  font-weight: 700;
-  color: #fff;
-  background: #2d5a4e;
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-
-.plan-name {
-  font-weight: 800;
-  font-size: 1rem;
-  margin: 0;
-}
-
-.plan-price {
-  margin-top: 6px;
-  font-size: .9rem;
-  color: var(--text-2);
-}
-
-.plan-price strong {
-  font-size: 1.05rem;
-  color: var(--text-1);
-}
-
-.plan-radio {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
-}
-
-.plan-features {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  display: grid;
-  gap: 8px;
-  font-size: .82rem;
-  color: var(--text-2);
-}
-
-.plan-feature {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  line-height: 1.35;
-}
-
-.plan-feature .check {
-  color: var(--accent);
-  font-weight: 800;
-}
-
-.pricing-cta-row {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pricing-note {
-  font-size: .78rem;
-  color: var(--text-2);
-}
-
-.btn-checkout {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 0;
-  border-radius: 10px;
-  padding: 12px 18px;
-  background: #000;
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: opacity .18s, transform .18s;
-}
-
-.btn-checkout:disabled {
-  opacity: .55;
-  cursor: not-allowed;
-}
-
-.btn-checkout:active { transform: translateY(1px); }
-
-@media (max-width: 520px) {
-  .audit-stats { grid-template-columns: repeat(2, 1fr); }
-  .audit-footer { flex-direction: column-reverse; align-items: stretch; }
-  .btn-new-scan, .btn-share { justify-content: center; }
-}
-
-@media (max-width: 860px) {
-  .pricing-grid { grid-template-columns: 1fr; }
-}
-`
 
 export default function AuditorHomeClient(props?: { locale?: AuditorLocale; basePath?: string }) {
   const locale = props?.locale ?? "he"
@@ -1085,13 +590,14 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
     const okStatus = status && status.ok === true ? status : null
     const issueCount = okStatus?.done ? (okStatus.issues_overview?.length ?? 0) : 0
 
+    const isRtl = locale !== "en"
+    const textAlign = "text-start"
+
     return (
-      <>
-        <style>{dashboardCss}</style>
-        <div className="audit-root">
-          {/* Subscriber header: logo + account menu + WhatsApp */}
-          {hasActiveSubscription && (
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-4">
+      <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
+        {/* Subscriber header */}
+        {hasActiveSubscription && (
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <Link href={basePath} className="shrink-0">
                 <Image src="/brand/vow.svg" alt="VOW" width={100} height={36} />
               </Link>
@@ -1131,239 +637,190 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
             </div>
           )}
 
-          <div className="audit-card">
-
-            {/* Header */}
-            <div className="audit-header">
-              <h2 className="audit-title">{locale === "en" ? "Audit report" : "דוח ביקורת"}</h2>
-              {scanId
-                ? <span className="audit-scan-id"># {scanId}</span>
-                : <span className="audit-scan-id generating">{locale === "en" ? "Generating scan…" : "מייצר סריקה…"}</span>
-              }
-            </div>
-
-            {/* Body */}
-            <div className="audit-body">
-
-              {/* Loading — no status yet */}
-              {!okStatus && (
-                <div className="audit-loading">
-                  <div className="spinner" />
-                  <span>{locale === "en" ? "Loading scan status…" : "טוען סטטוס סריקה…"}</span>
-                </div>
-              )}
-
-              {/* In-progress */}
-              {okStatus && !okStatus.done && (
-                <div className="audit-progress-block">
-                  <div className="progress-meta">
-                    <span className="progress-label">{locale === "en" ? "Scan in progress" : "סריקה פעילה"}</span>
-                    <span className="progress-step" dir="ltr">{okStatus.status} · {okStatus.step}</span>
-                  </div>
-                  <div className="progress-bar-track">
-                    <div className="progress-bar-fill" />
-                  </div>
-                </div>
-              )}
-
-              {/* Done */}
-              {okStatus?.done && (
-                <>
-                  {/* Warning banner */}
-                  {okStatus.warning && (
-                    <div className="audit-warning">
-                      <span style={{ flexShrink: 0 }}>⚠</span>
-                      <span>{okStatus.warning}</span>
-                    </div>
-                  )}
-
-                  {/* Stats row — AI + SEO + Total */}
-                  <div className="audit-stats">
-                    <div className="stat-cell">
-                      <span className="stat-label">AI Readiness</span>
-                      <span className={`stat-value ${
-                        typeof (okStatus as any).score_ai === "number"
-                          ? (okStatus as any).score_ai < 25 ? "red"
-                          : (okStatus as any).score_ai < 50 ? "amber"
-                          : "teal"
-                          : "muted"
-                      }`}>
-                        {typeof (okStatus as any).score_ai === "number" ? (okStatus as any).score_ai : "—"}
-                      </span>
-                    </div>
-                    <div className="stat-cell">
-                      <span className="stat-label">SEO Readiness</span>
-                      <span className={`stat-value ${
-                        typeof (okStatus as any).score_search === "number"
-                          ? (okStatus as any).score_search < 25 ? "red"
-                          : (okStatus as any).score_search < 50 ? "amber"
-                          : "teal"
-                          : "muted"
-                      }`}>
-                        {typeof (okStatus as any).score_search === "number" ? (okStatus as any).score_search : "—"}
-                      </span>
-                    </div>
-                    <div className="stat-cell">
-                      <span className="stat-label">{locale === "en" ? "Overall score" : "ציון כללי"}</span>
-                      <span className={`stat-value ${
-                        typeof (okStatus as any).score_total === "number"
-                          ? (okStatus as any).score_total < 25 ? "red"
-                          : (okStatus as any).score_total < 50 ? "amber"
-                          : "teal"
-                          : "muted"
-                      }`}>
-                        {typeof (okStatus as any).score_total === "number" ? (okStatus as any).score_total : "—"}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="audit-divider" />
-
-                  {/* Issues section */}
-                  <div>
-                    <div className="section-header">
-                      <div className="section-dot" />
-                      <span className="section-title">{locale === "en" ? "Areas to improve" : "דברים שכדאי לשפר"}</span>
-                    </div>
-
-                    {issueCount === 0 ? (
-                      <div className="audit-empty">
-                        <span className="audit-empty-icon">🟢</span>
-                        <span>{locale === "en" ? "No significant issues found" : "לא נמצאו בעיות כלליות משמעותיות"}</span>
-                      </div>
-                    ) : (
-                      <div className="audit-issues">
-                        {okStatus.issues_overview.map((issue, idx) => (
-                          <div className="audit-issue-item" key={idx}>
-                            <span className="issue-number">{String(idx + 1).padStart(2, "0")}</span>
-                            <span>{issue}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="audit-divider" />
-
-                  {/* Footer actions — hide when user has active subscription */}
-                  {!hasActiveSubscription && (
-                  <div className="pricing-wrap" aria-label="Pricing">
-                    <h3 className="pricing-title">{locale === "en" ? "Pricing — SEO / AI" : "מחירון — SEO / AI אורגני"}</h3>
-                    <div className="pricing-subtitle">
-                      {locale === "en" ? "Choose a plan for the full report & improvement plan. Monthly billing, cancel anytime." : "בחרו חבילה כדי לראות את הדוח המלא ולקבל תכנית שיפור. החיוב חודשי ומתחדש, וכולל מע״מ."}
-                    </div>
-
-                    <div className="pricing-grid">
-                      <div
-                        className={`plan-card ${selectedPlanId === "basic" ? "selected" : ""}`}
-                        onClick={() => setSelectedPlanId("basic")}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <input className="plan-radio" type="radio" checked={selectedPlanId === "basic"} readOnly />
-                        <h4 className="plan-name">{locale === "en" ? "Basic" : "בסיסי"}</h4>
-                        <div className="plan-price">
-                          {locale === "en" ? <><strong>${PLAN_PRICES_USD.basic}</strong>/mo</> : <><strong>97 ₪</strong> לחודש</>}
-                        </div>
-                        <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Auto scan (up to 20 pages)" : "סריקה אוטומטית (עד 20 עמודים)"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Standard SEO score (0–100)" : "ציון SEO תקני (0–100)"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Robots + sitemap checks" : "בדיקות robots + sitemap"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Basic schema" : "Schema בסיסית"}</span></div>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`plan-card ${selectedPlanId === "pro" ? "selected" : ""}`}
-                        onClick={() => setSelectedPlanId("pro")}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <span className="plan-badge">{locale === "en" ? "Most popular" : "המומלץ ביותר"}</span>
-                        <input className="plan-radio" type="radio" checked={selectedPlanId === "pro"} readOnly />
-                        <h4 className="plan-name">{locale === "en" ? "Pro" : "מקצועי"}</h4>
-                        <div className="plan-price">
-                          {locale === "en" ? <><strong>${PLAN_PRICES_USD.pro}</strong>/mo</> : <><strong>197 ₪</strong> לחודש</>}
-                        </div>
-                        <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Everything in Basic" : "כולל את כל מה שקיים בבסיסי"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Title/Description analysis" : "ניתוח מבנה Titles/Descriptions"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Meta Titles/Descriptions audit" : "אבחון Meta Titles/Descriptions"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "FAQ + Q&A" : "FAQ + שאלות ותשובות"}</span></div>
-                        </div>
-                      </div>
-
-                      <div
-                        className={`plan-card ${selectedPlanId === "premium" ? "selected" : ""}`}
-                        onClick={() => setSelectedPlanId("premium")}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        <input className="plan-radio" type="radio" checked={selectedPlanId === "premium"} readOnly />
-                        <h4 className="plan-name">{locale === "en" ? "Premium" : "מומחים"}</h4>
-                        <div className="plan-price">
-                          {locale === "en" ? <>From <strong>${PLAN_PRICES_USD.premium}</strong>/mo</> : <>החל מ־<strong>997 ₪</strong> לחודש</>}
-                        </div>
-                        <div className="plan-features">
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Everything + human support" : "כולל הכל + ליווי אנושי"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "Deep page analysis" : "ניתוח עומק של עמודי האתר"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "1:1 strategy call" : "שיחת אסטרטגיה 1:1"}</span></div>
-                          <div className="plan-feature"><span className="check">✓</span><span>{locale === "en" ? "AI visibility optimization" : "התאמה לחשיפה ב‑AI"}</span></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pricing-cta-row">
-                      <div className="pricing-note">{locale === "en" ? "After payment you'll get an email with login link." : "מיד לאחר התשלום נשלח אליכם מייל עם קישור להתחברות ולהמשך."}</div>
-                      <button className="btn-checkout" onClick={startCheckout} disabled={isStartingCheckout}>
-                        {isStartingCheckout ? (
-                          <>
-                            <span className="spinner" />
-                            {locale === "en" ? "Processing…" : "ממשיכים לתשלום…"}
-                          </>
-                        ) : (
-                          <>{locale === "en" ? "Continue to payment" : "המשך לתשלום"}</>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  )}
-
-                  <div className="audit-divider" />
-
-                  <div className="audit-footer">
-                    <a
-                      className="btn-share"
-                      href={
-                        scanId && token
-                          ? `${basePath}/${encodeURIComponent(scanId)}?token=${encodeURIComponent(token)}`
-                          : basePath
-                      }
-                    >
-                      <span>🔗</span>
-                      {locale === "en" ? "Share report" : "שיתוף הדוח"}
-                    </a>
-                    <button
-                      className="btn-new-scan"
-                      onClick={() => {
-                        setStep(1)
-                        setError(null)
-                        setStatus(null)
-                        setScanId(null)
-                        setToken(null)
-                        router.replace(basePath)
-                      }}
-                    >
-                      <span>＋</span>
-                      {locale === "en" ? "New scan" : "סריקה חדשה"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+        {/* Main card */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {/* Header */}
+          <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 ${textAlign}`}>
+            <h2 className="text-xl font-bold text-slate-800">{locale === "en" ? "Audit report" : "דוח ביקורת"}</h2>
+            <span className="font-mono text-xs text-slate-500">
+              {scanId ? `# ${scanId}` : (locale === "en" ? "Generating scan…" : "מייצר סריקה…")}
+            </span>
           </div>
+
+          {/* Loading — no API response yet */}
+          {!okStatus && (
+            <ScanProgress
+              currentStep=""
+              isDone={false}
+              locale={locale === "en" ? "en" : "he"}
+            />
+          )}
+
+          {/* In-progress — API responded but scan not done yet */}
+          {okStatus && !okStatus.done && (
+            <ScanProgress
+              currentStep={String(okStatus.step ?? "")}
+              isDone={false}
+              locale={locale === "en" ? "en" : "he"}
+            />
+          )}
+
+          {/* Done — unified SaaS layout */}
+          {okStatus?.done && (
+            <div className="space-y-6">
+              {okStatus.warning && (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
+                  <span className="shrink-0">⚠</span>
+                  <span className="text-sm">{okStatus.warning}</span>
+                </div>
+              )}
+
+              {/* Issues | Score — grid (matches AuditorScanResults, EnAuditorScanResultsCard) */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                <div className="space-y-3 lg:col-span-8">
+                  <div className={textAlign}>
+                    <h3 className="text-base font-semibold text-slate-800">
+                      {locale === "en" ? "Areas to improve" : "דברים שכדאי לשפר"}
+                    </h3>
+                    <p className="mt-0.5 text-sm text-slate-500">
+                      {locale === "en" ? "Prioritized by severity" : "ממויין לפי חומרה והשפעה"}
+                    </p>
+                  </div>
+                  {issueCount === 0 ? (
+                    <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-500 ${textAlign}`}>
+                      {locale === "en" ? "No significant issues found" : "לא נמצאו בעיות כלליות משמעותיות"}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(okStatus.issues_overview || []).map((issue: string, idx: number) => (
+                        <IssueCard
+                          key={idx}
+                          severity="WARN"
+                          text={String(issue)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className={`rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-4 ${textAlign}`}>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    {locale === "en" ? "Audit score" : "ציון כללי"}
+                  </p>
+                  <div className={`mt-2 text-4xl font-bold text-[var(--primary)] ${textAlign}`}>
+                    {typeof (okStatus as any).score_total === "number" ? (okStatus as any).score_total : "—"}
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm text-slate-600">
+                    <div className={textAlign}>
+                      {locale === "en" ? "AI Readiness" : "מוכנות AI"}: {typeof (okStatus as any).score_ai === "number" ? (okStatus as any).score_ai : "—"}
+                    </div>
+                    <div className={textAlign}>
+                      {locale === "en" ? "SEO Readiness" : "חשיפה בחיפוש"}: {typeof (okStatus as any).score_search === "number" ? (okStatus as any).score_search : "—"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* What's Missing — checklist */}
+              <IssueChecklist
+                items={(okStatus.issues_overview || []).map((s: unknown) => String(s))}
+                title={locale === "en" ? "What's missing" : "מה חסר"}
+                description={locale === "en" ? "Items to address for better AI & SEO visibility" : "מה צריך לעשות"}
+                emptyMessage={locale === "en" ? "No major issues found." : "לא נמצאו בעיות מהותיות."}
+              />
+
+              {/* Pricing — hide when has active subscription */}
+              {!hasActiveSubscription && (
+                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className={textAlign}>
+                    <h3 className="text-base font-bold text-slate-800">
+                      {locale === "en" ? "Pricing — SEO / AI" : "מחירון — SEO / AI אורגני"}
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {locale === "en" ? "Choose a plan for the full report & improvement plan. Monthly billing, cancel anytime." : "בחרו חבילה כדי לראות את הדוח המלא ולקבל תכנית שיפור. החיוב חודשי ומתחדש, וכולל מע״מ."}
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    {(["basic", "pro", "premium"] as const).map((plan) => (
+                      <div
+                        key={plan}
+                        className={`cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all ${
+                          selectedPlanId === plan ? "ring-2 ring-primary ring-offset-2" : ""
+                        }`}
+                        onClick={() => setSelectedPlanId(plan)}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        {plan === "pro" && (
+                          <span className="mb-2 inline-block rounded-full bg-[var(--primary)] px-2 py-0.5 text-[10px] font-bold text-white">
+                            {locale === "en" ? "Most popular" : "המומלץ ביותר"}
+                          </span>
+                        )}
+                        <h4 className="font-bold text-slate-800">
+                          {plan === "basic" && (locale === "en" ? "Basic" : "בסיסי")}
+                          {plan === "pro" && (locale === "en" ? "Pro" : "מקצועי")}
+                          {plan === "premium" && (locale === "en" ? "Premium" : "מומחים")}
+                        </h4>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {plan === "basic" && (locale === "en" ? <>${PLAN_PRICES_USD.basic}/mo</> : <>97 ₪/חודש</>)}
+                          {plan === "pro" && (locale === "en" ? <>${PLAN_PRICES_USD.pro}/mo</> : <>197 ₪/חודש</>)}
+                          {plan === "premium" && (locale === "en" ? <>From ${PLAN_PRICES_USD.premium}/mo</> : <>החל מ־997 ₪/חודש</>)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <p className="text-xs text-slate-500">
+                      {locale === "en" ? "After payment you'll get an email with login link." : "מיד לאחר התשלום נשלח אליכם מייל עם קישור להתחברות ולהמשך."}
+                    </p>
+                    <Button onClick={startCheckout} disabled={isStartingCheckout} className="gap-2">
+                      {isStartingCheckout ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {locale === "en" ? "Processing…" : "ממשיכים לתשלום…"}
+                        </>
+                      ) : (
+                        locale === "en" ? "Continue to payment" : "המשך לתשלום"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
+                <a
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                  href={scanId && token ? `${basePath}/${encodeURIComponent(scanId)}?token=${encodeURIComponent(token)}` : basePath}
+                >
+                  <span>🔗</span>
+                  {locale === "en" ? "Share report" : "שיתוף הדוח"}
+                </a>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStep(1)
+                    setError(null)
+                    setStatus(null)
+                    setScanId(null)
+                    setToken(null)
+                    router.replace(basePath)
+                  }}
+                >
+                  <span className={locale === "en" ? "mr-2" : "ml-2"}>＋</span>
+                  {locale === "en" ? "New scan" : "סריקה חדשה"}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      </>
+
+        {/* ── Scan history — always visible, collapsed by default ── */}
+        <ScanHistoryAccordion
+          locale={locale === "en" ? "en" : "he"}
+          currentScanId={scanId}
+        />
+      </div>
     )
   }
 
@@ -1371,7 +828,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   return (
     <div dir={locale === "en" ? "ltr" : "rtl"} className="space-y-6">
       {error ? (
-        <div className={`rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger ${locale === "en" ? "text-left" : "text-right"}`}>{error}</div>
+        <div className="rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger text-start">{error}</div>
       ) : null}
 
       {/* ── Step 1 ── */}
@@ -1543,7 +1000,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
               <Button onClick={handleChangePlan} disabled={isChangingPlan}>
                 {isChangingPlan ? (
                   <>
-                    <Loader2 className={locale === "en" ? "mr-2" : "ml-2"} h-4 w-4 animate-spin />
+                    <Loader2 className={`h-4 w-4 animate-spin ${locale === "en" ? "mr-2" : "ml-2"}`} />
                     {locale === "en" ? "Updating…" : "מעדכן…"}
                   </>
                 ) : (

@@ -167,7 +167,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(basePath)}`}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-sidebar-hover"
                   >
                     <CreditCard className="h-5 w-5 shrink-0" />
                     <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Subscription" : "מנוי"}</span>

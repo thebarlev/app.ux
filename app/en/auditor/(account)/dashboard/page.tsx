@@ -2,14 +2,44 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
 import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
+import { ScanHistorySection } from "@/components/auditor/dashboard/ScanHistorySection"
 import { EnAuditorScanResultsCard } from "@/components/auditor/EnAuditorScanResultsCard"
 import { getDashboardStrings } from "@/lib/auditor/dashboard-strings"
 
 const BASE = "/en/auditor"
+
+// ─── Inline premium UI primitives ─────────────────────────────────────────────
+
+function ScoreRing({ value, label, color, trackColor }: { value: number; label: string; color: string; trackColor: string }) {
+  const r = 28
+  const circ = 2 * Math.PI * r
+  const progress = Math.min(Math.max(value, 0), 100)
+  const dash = (progress / 100) * circ
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative flex items-center justify-center" style={{ width: 76, height: 76 }}>
+        <svg width="76" height="76" viewBox="0 0 76 76" fill="none" className="absolute inset-0 rotate-[-90deg]">
+          <circle cx="38" cy="38" r={r} stroke={trackColor} strokeWidth="5" fill="none" />
+          <circle
+            cx="38" cy="38" r={r}
+            stroke={color} strokeWidth="5" fill="none" strokeLinecap="round"
+            strokeDasharray={`${dash} ${circ}`}
+            style={{ transition: "stroke-dasharray 1s ease" }}
+          />
+        </svg>
+        <span className="relative z-10 font-mono text-lg font-bold tabular-nums" style={{ color }}>
+          {value}
+        </span>
+      </div>
+      <span className="text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+        {label}
+      </span>
+    </div>
+  )
+}
 
 export default async function EnAuditorDashboardPage({
   searchParams,
@@ -80,107 +110,121 @@ export default async function EnAuditorDashboardPage({
   const t = getDashboardStrings("en")
 
   return (
-    <div dir="ltr" className="space-y-6" lang="en">
-      <div className="space-y-4">
-        <p className="text-left text-lg text-muted-foreground">{t.tagline}</p>
-        <AuditorDashboardScanClient locale="en" basePath={BASE} />
-        {lastScan ? (
-          <Card>
-            <CardHeader className="text-left">
-              <CardTitle>{t.lastScanScore}</CardTitle>
-              <CardDescription>{lastScan.normalized_host}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-left">
-              <div className="flex flex-wrap gap-6">
-                {scoreTotal != null && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">{t.overallScore}</span>
-                    <div className="text-2xl font-bold">{scoreTotal}</div>
-                  </div>
-                )}
-                {scoreSearch != null && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">{t.searchVisibility}</span>
-                    <div className="text-2xl font-bold">{scoreSearch}</div>
-                  </div>
-                )}
-                {scoreAi != null && (
-                  <div>
-                    <span className="text-sm text-muted-foreground">{t.aiReadiness}</span>
-                    <div className="text-2xl font-bold">{scoreAi}</div>
-                  </div>
-                )}
-              </div>
-              {canViewFullReport && (
-                <Link href={`${BASE}/dashboard/scan/${lastScan.id}`} className="mt-4 inline-block">
-                  <Button variant="outline" size="sm">
-                    {t.viewFullReport}
-                  </Button>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="pt-6 text-left">
-              <p className="text-muted-foreground">{t.noScanYet}</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+    <div
+      dir="ltr"
+      lang="en"
+      className="relative min-h-screen space-y-6 px-4 py-8 sm:px-8 lg:px-12"
+      style={{ background: "#f8fafc" }}
+    >
+      {/* Subtle top gradient accent */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-64"
+        style={{ background: "linear-gradient(180deg, rgba(99,102,241,0.04) 0%, transparent 100%)" }}
+      />
 
-      {!companyId ? (
-        <Card>
-          <CardHeader className="text-left">
-            <CardTitle>{t.noActiveCompany}</CardTitle>
-            <CardDescription>{t.noActiveCompanyDesc}</CardDescription>
-          </CardHeader>
-        </Card>
-      ) : scans.length > 0 ? (
-        <Card>
-          <CardHeader className="text-left">
-            <CardTitle>{t.scanHistory}</CardTitle>
-            <CardDescription>{t.scanHistoryDesc}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {scans.map((s: any) => {
-                const sr = s.report_public && typeof s.report_public === "object" ? s.report_public : {}
-                const issues = Array.isArray(sr.issues_overview_en) && sr.issues_overview_en.length > 0
-                  ? sr.issues_overview_en
-                  : Array.isArray(sr.issues_overview) ? sr.issues_overview : []
-                return (
-                  <div key={s.id} className="rounded-ui border border-border p-4 text-left" dir="ltr">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-medium">{String(s.normalized_host || "-")}</div>
-                        <div className="text-xs text-muted-foreground" dir="ltr">
-                          {String(s.id)}
-                        </div>
-                      </div>
-                      <div className="text-sm">
-                        <div>
-                          <span className="font-medium">{t.status}:</span> {String(s.status)} • {String(s.step)}
-                        </div>
-                        <div className="mt-1">
-                          <span className="font-medium">{t.score}:</span>{" "}
-                          {typeof sr.score_total === "number" ? sr.score_total : "-"}
-                        </div>
-                      </div>
-                    </div>
-                    {issues.length > 0 ? (
-                      <ul className="mt-3 list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                        {issues.slice(0, 5).map((x: any, idx: number) => (
-                          <li key={idx}>{String(x)}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                )
-              })}
+      {/* ── Header ── */}
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1
+            className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            {t.title}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{t.tagline}</p>
+        </div>
+        {lastScan && (
+          <div
+            className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-medium text-slate-500"
+            style={{ borderColor: "#e2e8f0", background: "#ffffff" }}
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            {lastScan.normalized_host}
+          </div>
+        )}
+      </header>
+
+      {/* ── Scan trigger ── */}
+      <section
+        className="overflow-hidden rounded-xl border p-6 transition-all duration-200 hover:shadow-md"
+        style={{ borderColor: "#e2e8f0", background: "#ffffff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+      >
+        <AuditorDashboardScanClient locale="en" basePath={BASE} />
+      </section>
+
+      {/* ── Last scan scores ── */}
+      {lastScan ? (
+        <section
+          className="relative overflow-hidden rounded-3xl border p-8 sm:p-10 transition-all duration-300 hover:shadow-xl"
+          style={{
+            borderColor: "#e0e7ff",
+            background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 40%, #ecfdf5 100%)",
+            boxShadow: "0 4px 16px rgba(99,102,241,0.08)",
+          }}
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(99,102,241,0.07), transparent 70%)" }}
+          />
+
+          <div className="relative flex flex-wrap items-start justify-between gap-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t.lastScanScore}</p>
+              <p className="mt-1 font-mono text-sm text-slate-500">{lastScan.normalized_host}</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex flex-wrap items-center gap-6 sm:gap-10">
+              {scoreTotal !== null && <ScoreRing value={scoreTotal} label={t.overallScore} color="#6366f1" trackColor="#e0e7ff" />}
+              {scoreSearch !== null && <ScoreRing value={scoreSearch} label={t.searchVisibility} color="#059669" trackColor="#d1fae5" />}
+              {scoreAi !== null && <ScoreRing value={scoreAi} label={t.aiReadiness} color="#d97706" trackColor="#fef3c7" />}
+            </div>
+          </div>
+
+          {canViewFullReport && (
+            <div className="relative mt-6 flex justify-start">
+              <Link href={`${BASE}/dashboard/scan/${lastScan.id}`}>
+                <button
+                  className="group flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold transition-all duration-300 hover:shadow-xl hover:gap-3 active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #6366f1, #818cf8)",
+                    color: "#ffffff",
+                    boxShadow: "0 2px 8px rgba(99,102,241,0.3)",
+                  }}
+                >
+                  {t.viewFullReport}
+                  <span className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+                </button>
+              </Link>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section
+          className="rounded-xl border p-8 text-center transition-all duration-200 hover:shadow-md"
+          style={{ borderColor: "#e2e8f0", background: "#ffffff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+        >
+          <div
+            className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+            style={{ background: "#f1f5f9" }}
+          >
+            🔍
+          </div>
+          <p className="text-sm text-slate-500">{t.noScanYet}</p>
+        </section>
+      )}
+
+      {/* ── No company ── */}
+      {!companyId ? (
+        <section
+          className="rounded-xl border p-6 transition-all duration-200"
+          style={{ borderColor: "#fde68a", background: "#fffbeb" }}
+        >
+          <p className="mb-1 text-sm font-bold text-amber-700">{t.noActiveCompany}</p>
+          <p className="text-xs text-amber-600">{t.noActiveCompanyDesc}</p>
+        </section>
+      ) : scans.length > 0 ? (
+        <ScanHistorySection scans={scans} t={t} dir="ltr" />
       ) : null}
     </div>
   )

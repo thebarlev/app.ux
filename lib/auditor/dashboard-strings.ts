@@ -1,6 +1,7 @@
 export type Locale = "he" | "en"
 
 export type DashboardStrings = {
+  title: string
   tagline: string
   lastScanScore: string
   overallScore: string
@@ -14,10 +15,13 @@ export type DashboardStrings = {
   scanHistoryDesc: string
   status: string
   score: string
+  columnDomain: string
+  columnStep: string
 }
 
 const STRINGS: Record<Locale, DashboardStrings> = {
   he: {
+    title: "מרכז הביקורת",
     tagline: "אנחנו מתחילים לשפר את החשיפה של העסק שלך ב-AI וב-SEO",
     lastScanScore: "ציון הסריקה האחרונה",
     overallScore: "ציון כללי",
@@ -31,8 +35,11 @@ const STRINGS: Record<Locale, DashboardStrings> = {
     scanHistoryDesc: "לפי חברה",
     status: "סטטוס",
     score: "ציון",
+    columnDomain: "דומיין",
+    columnStep: "שלב",
   },
   en: {
+    title: "Audit Center",
     tagline: "We're improving your business visibility in AI & SEO",
     lastScanScore: "Last scan score",
     overallScore: "Overall score",
@@ -46,6 +53,8 @@ const STRINGS: Record<Locale, DashboardStrings> = {
     scanHistoryDesc: "By company",
     status: "Status",
     score: "Score",
+    columnDomain: "Domain",
+    columnStep: "Step",
   },
 }
 
