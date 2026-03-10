@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
 import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
 import { EnAuditorScanResultsCard } from "@/components/auditor/EnAuditorScanResultsCard"
+import { getDashboardStrings } from "@/lib/auditor/dashboard-strings"
 
 const BASE = "/en/auditor"
 
@@ -76,37 +77,36 @@ export default async function EnAuditorDashboardPage({
   const scoreTotal = typeof rp.score_total === "number" ? rp.score_total : null
   const scoreSearch = typeof rp.score_search === "number" ? rp.score_search : null
   const scoreAi = typeof rp.score_ai === "number" ? rp.score_ai : null
+  const t = getDashboardStrings("en")
 
   return (
-    <div dir="ltr" className="space-y-6">
+    <div dir="ltr" className="space-y-6" lang="en">
       <div className="space-y-4">
-        <p className="text-left text-lg text-muted-foreground">
-          We're improving your business visibility in AI & SEO
-        </p>
+        <p className="text-left text-lg text-muted-foreground">{t.tagline}</p>
         <AuditorDashboardScanClient locale="en" basePath={BASE} />
         {lastScan ? (
           <Card>
             <CardHeader className="text-left">
-              <CardTitle>Last scan score</CardTitle>
+              <CardTitle>{t.lastScanScore}</CardTitle>
               <CardDescription>{lastScan.normalized_host}</CardDescription>
             </CardHeader>
             <CardContent className="text-left">
               <div className="flex flex-wrap gap-6">
                 {scoreTotal != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">Overall score</span>
+                    <span className="text-sm text-muted-foreground">{t.overallScore}</span>
                     <div className="text-2xl font-bold">{scoreTotal}</div>
                   </div>
                 )}
                 {scoreSearch != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">Search visibility</span>
+                    <span className="text-sm text-muted-foreground">{t.searchVisibility}</span>
                     <div className="text-2xl font-bold">{scoreSearch}</div>
                   </div>
                 )}
                 {scoreAi != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">AI readiness</span>
+                    <span className="text-sm text-muted-foreground">{t.aiReadiness}</span>
                     <div className="text-2xl font-bold">{scoreAi}</div>
                   </div>
                 )}
@@ -114,7 +114,7 @@ export default async function EnAuditorDashboardPage({
               {canViewFullReport && (
                 <Link href={`${BASE}/dashboard/scan/${lastScan.id}`} className="mt-4 inline-block">
                   <Button variant="outline" size="sm">
-                    View full report (Admin)
+                    {t.viewFullReport}
                   </Button>
                 </Link>
               )}
@@ -123,7 +123,7 @@ export default async function EnAuditorDashboardPage({
         ) : (
           <Card>
             <CardContent className="pt-6 text-left">
-              <p className="text-muted-foreground">No scan yet.</p>
+              <p className="text-muted-foreground">{t.noScanYet}</p>
             </CardContent>
           </Card>
         )}
@@ -132,15 +132,15 @@ export default async function EnAuditorDashboardPage({
       {!companyId ? (
         <Card>
           <CardHeader className="text-left">
-            <CardTitle>No active company</CardTitle>
-            <CardDescription>Sign in with an account that has an active company to view history.</CardDescription>
+            <CardTitle>{t.noActiveCompany}</CardTitle>
+            <CardDescription>{t.noActiveCompanyDesc}</CardDescription>
           </CardHeader>
         </Card>
       ) : scans.length > 0 ? (
         <Card>
           <CardHeader className="text-left">
-            <CardTitle>Scan history</CardTitle>
-            <CardDescription>By company</CardDescription>
+            <CardTitle>{t.scanHistory}</CardTitle>
+            <CardDescription>{t.scanHistoryDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -160,10 +160,10 @@ export default async function EnAuditorDashboardPage({
                       </div>
                       <div className="text-sm">
                         <div>
-                          <span className="font-medium">Status:</span> {String(s.status)} • {String(s.step)}
+                          <span className="font-medium">{t.status}:</span> {String(s.status)} • {String(s.step)}
                         </div>
                         <div className="mt-1">
-                          <span className="font-medium">Score:</span>{" "}
+                          <span className="font-medium">{t.score}:</span>{" "}
                           {typeof sr.score_total === "number" ? sr.score_total : "-"}
                         </div>
                       </div>

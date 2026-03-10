@@ -8,7 +8,7 @@ import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
 import { runRulesAndScore } from "../rules/runner"
-import { buildPublicReport, type ConfidenceLevel } from "../report/public"
+import { buildPublicReport, buildMinimalReport, type ConfidenceLevel } from "../report/public"
 import { buildAdminReport } from "../report/admin"
 import { applyCompanyWhere, applyScanWhere } from "../db/scanWhere"
 import { captureSiteScreenshot } from "../screenshot"
@@ -495,16 +495,7 @@ export async function continueAuditorScan(params: {
 
         if (!hasFetched) {
           const sampleUrls = Array.isArray(artifacts?.sample?.urls) ? artifacts.sample.urls : []
-          const minimalReport = {
-            score_total: 0,
-            score_search: 0,
-            score_ai: 0,
-            category_scores: { search_readiness: 0, ai_readiness: 0 },
-            issues_overview: ["לא הצלחנו למשוך עמודים לניתוח. נסה שוב מאוחר יותר."],
-            issues_overview_en: ["Could not fetch pages for analysis. Please try again later."],
-            confidence_level: "low" as const,
-            warning: "לא הצלחנו למשוך עמודים לניתוח.",
-          }
+          const minimalReport = buildMinimalReport()
           await applyScanWhere(
             supabase.from("auditor_scans").update({
               status: "done",

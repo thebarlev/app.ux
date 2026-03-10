@@ -5,7 +5,7 @@ export const revalidate = 0
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createServiceRoleClient } from "@/lib/supabase/server"
-import { RULE_KEY_TO_EN } from "@/lib/auditor/report/public"
+import { getIssueForLocale } from "@/lib/auditor/report/public"
 
 const querySchema = z.object({
   scanId: z.string().min(1),
@@ -92,7 +92,7 @@ export async function GET(req: Request) {
     const fromRulesEn = Array.isArray(rules)
       ? rules
           .filter((r) => r.status === "fail" || r.status === "warn")
-          .map((r) => RULE_KEY_TO_EN[(r as any).rule_key])
+          .map((r) => getIssueForLocale((r as any).rule_key, "en"))
           .filter(Boolean)
           .slice(0, 12)
       : []

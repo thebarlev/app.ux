@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { isSystemAdmin } from "@/lib/security/system-admin"
 import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
+import { getDashboardStrings } from "@/lib/auditor/dashboard-strings"
 
 export default async function AuditorDashboardPage() {
+  const t = getDashboardStrings("he")
   const supabase = await createClient()
   const { data: companyRows } = await supabase.rpc("user_company_ids")
   const first = Array.isArray(companyRows) && companyRows.length > 0 ? companyRows[0] : null
@@ -39,33 +41,31 @@ export default async function AuditorDashboardPage() {
   return (
     <div dir="rtl" className="space-y-6">
       <div className="space-y-4">
-        <p className="text-right text-lg text-muted-foreground">
-          אנחנו מתחילים לשפר את החשיפה של העסק שלך ב-AI וב-SEO
-        </p>
+        <p className="text-right text-lg text-muted-foreground">{t.tagline}</p>
         <AuditorDashboardScanClient locale="he" basePath="/auditor" />
         {lastScan ? (
           <Card>
             <CardHeader className="text-right">
-              <CardTitle>ציון הסריקה האחרונה</CardTitle>
+              <CardTitle>{t.lastScanScore}</CardTitle>
               <CardDescription>{lastScan.normalized_host}</CardDescription>
             </CardHeader>
             <CardContent className="text-right">
               <div className="flex flex-wrap gap-6">
                 {scoreTotal != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">ציון כללי</span>
+                    <span className="text-sm text-muted-foreground">{t.overallScore}</span>
                     <div className="text-2xl font-bold">{scoreTotal}</div>
                   </div>
                 )}
                 {scoreSearch != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">חשיפה בחיפוש</span>
+                    <span className="text-sm text-muted-foreground">{t.searchVisibility}</span>
                     <div className="text-2xl font-bold">{scoreSearch}</div>
                   </div>
                 )}
                 {scoreAi != null && (
                   <div>
-                    <span className="text-sm text-muted-foreground">מוכנות AI</span>
+                    <span className="text-sm text-muted-foreground">{t.aiReadiness}</span>
                     <div className="text-2xl font-bold">{scoreAi}</div>
                   </div>
                 )}
@@ -73,7 +73,7 @@ export default async function AuditorDashboardPage() {
               {canViewFullReport && (
                 <Link href={`/auditor/dashboard/scan/${lastScan.id}`} className="mt-4 inline-block">
                   <Button variant="outline" size="sm">
-                    צפה בדוח המלא (Admin)
+                    {t.viewFullReport}
                   </Button>
                 </Link>
               )}
@@ -82,7 +82,7 @@ export default async function AuditorDashboardPage() {
         ) : (
           <Card>
             <CardContent className="pt-6 text-right">
-              <p className="text-muted-foreground">אין סריקה עדיין.</p>
+              <p className="text-muted-foreground">{t.noScanYet}</p>
             </CardContent>
           </Card>
         )}
@@ -91,15 +91,15 @@ export default async function AuditorDashboardPage() {
       {!companyId ? (
         <Card>
           <CardHeader className="text-right">
-            <CardTitle>אין חברה פעילה</CardTitle>
-            <CardDescription>כדי לצפות בהיסטוריה, יש להתחבר לחשבון עם חברה פעילה.</CardDescription>
+            <CardTitle>{t.noActiveCompany}</CardTitle>
+            <CardDescription>{t.noActiveCompanyDesc}</CardDescription>
           </CardHeader>
         </Card>
       ) : scans.length > 0 ? (
         <Card>
           <CardHeader className="text-right">
-            <CardTitle>היסטוריית סריקות</CardTitle>
-            <CardDescription>לפי חברה</CardDescription>
+            <CardTitle>{t.scanHistory}</CardTitle>
+            <CardDescription>{t.scanHistoryDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -116,10 +116,10 @@ export default async function AuditorDashboardPage() {
                       </div>
                       <div className="text-sm">
                         <div>
-                          <span className="font-medium">סטטוס:</span> {String(s.status)} • {String(s.step)}
+                          <span className="font-medium">{t.status}:</span> {String(s.status)} • {String(s.step)}
                         </div>
                         <div className="mt-1">
-                          <span className="font-medium">ציון:</span>{" "}
+                          <span className="font-medium">{t.score}:</span>{" "}
                           {typeof sr.score_total === "number" ? sr.score_total : "-"}
                         </div>
                       </div>
