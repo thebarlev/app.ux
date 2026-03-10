@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, ChevronDown, Loader2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -247,7 +247,9 @@ function AiScoreHero({ status, locale }: { status: StatusResponse | null; locale
       <div className="aisc-card">
         {!isReady && <div className="aisc-scanline" />}
 
-        <div className="aisc-eyebrow">ציון נוכחות AI</div>
+        <div className="aisc-eyebrow" dir={locale === "en" ? "ltr" : "rtl"}>
+          {locale === "en" ? "AI presence score" : "ציון נוכחות AI"}
+        </div>
 
         <div className="aisc-number-wrap">
           {isReady ? (
@@ -808,6 +810,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const continuingRef = useRef(false)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const canGoToDetails = useMemo(() => siteUrl.trim().length > 0 && !isSubmitting, [siteUrl, isSubmitting])
 
@@ -920,16 +923,31 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
     }
   }
 
-  // Step 3 polling + gentle self-continue.
+  // Helper: scan is finished (stop polling)
+  const isScanFinished = (s: StatusResponse | null) => {
+    if (!s || (s as any).ok !== true) return false
+    const status = String((s as any).status || "").toLowerCase()
+    const done = (s as any).done === true || ["done", "failed", "completed", "finished"].includes(status)
+    return done
+  }
+  // Helper: scan is still running (continue polling + triggerContinue)
+  const isScanRunning = (s: StatusResponse | null) => {
+    if (!s || (s as any).ok !== true) return false
+    const status = String((s as any).status || "").toLowerCase()
+    return status === "running" || status === "queued"
+  }
+
+  // Step 3 polling: only while status is running. Stop when finished, redirect EN to checkout.
   useEffect(() => {
     if (step !== 3) return
     if (!scanId || !token) return
 
     let cancelled = false
-    let interval: ReturnType<typeof setInterval> | null = null
-    const stop = () => {
-      if (interval) clearInterval(interval)
-      interval = null
+    const stopPolling = () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
     }
     const tick = async () => {
       let next: StatusResponse
@@ -941,36 +959,39 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       }
 
       if (cancelled) return
-      const done =
-        (next as any)?.ok === true &&
-        ((next as any).done === true || (next as any).status === "done" || (next as any).status === "failed")
-      if (done) {
-        stop()
+
+      if (isScanFinished(next)) {
+        stopPolling()
+        if (basePath.startsWith("/en")) {
+          const params = new URLSearchParams({ scanId, token })
+          if (linkId) params.set("link_id", linkId)
+          router.replace(`/en/auditor/checkout?${params.toString()}`)
+        }
         return
       }
 
-      await triggerContinue(scanId, token)
+      if (isScanRunning(next)) await triggerContinue(scanId, token)
     }
 
     tick()
-    interval = setInterval(tick, 2000)
+    pollingIntervalRef.current = setInterval(tick, 2500)
     return () => {
       cancelled = true
-      stop()
+      stopPolling()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, scanId, token])
+  }, [step, scanId, token, basePath, router, linkId])
 
-  // Step 2: keep progressing scan so score strip can populate.
+  // Step 2: poll only while status is running. Stop ONLY when scan is finished, redirect EN to checkout.
   useEffect(() => {
     if (step !== 2) return
     if (!scanId || !token) return
 
     let cancelled = false
-    let interval: ReturnType<typeof setInterval> | null = null
-    const stop = () => {
-      if (interval) clearInterval(interval)
-      interval = null
+    const stopPolling = () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
     }
     const tick = async () => {
       let next: StatusResponse
@@ -982,42 +1003,24 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       }
       if (cancelled) return
 
-      const okStatus = next && (next as any).ok === true ? (next as any) : null
-      const done = okStatus && (okStatus.done === true || okStatus.status === "done" || okStatus.status === "failed")
-      const hasAllScores =
-        okStatus &&
-        typeof okStatus.score_total === "number" &&
-        typeof okStatus.score_search === "number" &&
-        typeof okStatus.score_ai === "number"
-      const hasScreenshot = okStatus && typeof okStatus.screenshot_url === "string" && okStatus.screenshot_url.trim().length > 0
-
-      // Stop polling once we can render the "Step 2" preview (or once scan is terminal).
-      if (done || (hasAllScores && hasScreenshot)) {
-        stop()
-        // EN onboarding: redirect to dashboard after 2s so user sees completion
-        if (
-          basePath.startsWith("/en") &&
-          okStatus.status === "done" &&
-          scanId &&
-          token
-        ) {
-          setTimeout(() => {
-            const params = new URLSearchParams({ scan_id: scanId, token })
-            if (linkId) params.set("link_id", linkId)
-            router.replace(`${basePath}/dashboard?${params.toString()}`)
-          }, 2000)
+      if (isScanFinished(next)) {
+        stopPolling()
+        if (basePath.startsWith("/en")) {
+          const params = new URLSearchParams({ scanId, token })
+          if (linkId) params.set("link_id", linkId)
+          router.replace(`/en/auditor/checkout?${params.toString()}`)
         }
         return
       }
 
-      await triggerContinue(scanId, token)
+      if (isScanRunning(next)) await triggerContinue(scanId, token)
     }
 
     tick()
-    interval = setInterval(tick, 2500)
+    pollingIntervalRef.current = setInterval(tick, 2500)
     return () => {
       cancelled = true
-      stop()
+      stopPolling()
     }
   }, [step, scanId, token, basePath, router, linkId])
 
@@ -1388,25 +1391,50 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
             )}
           </h1>
 
-          <div className="w-full max-w-xl">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={!canGoToDetails}
-                aria-label="המשך"
-                className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowLeft className="h-5 w-5" />}
-              </button>
-              <Input
-                value={siteUrl}
-                onChange={(e) => setSiteUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
-                placeholder={locale === "en" ? "Website URL / landing page" : "כתובת אתר / עמוד נחיתה"}
-                dir="ltr"
-                className="h-12 rounded-full bg-white pl-12 text-right shadow-sm"
-              />
+          <div className={`w-full max-w-xl ${locale === "en" ? "flex flex-row" : ""}`} dir={locale === "en" ? "ltr" : undefined}>
+            <div className="relative w-full">
+              {locale === "en" ? (
+                <>
+                  <Input
+                    value={siteUrl}
+                    onChange={(e) => setSiteUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
+                    placeholder="Website URL / landing page"
+                    dir="ltr"
+                    style={{ direction: "ltr" }}
+                    className="h-12 rounded-full bg-white pr-12 pl-5 !text-left placeholder:!text-left shadow-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={onStart}
+                    disabled={!canGoToDetails}
+                    aria-label="Continue"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+                  >
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={onStart}
+                    disabled={!canGoToDetails}
+                    aria-label="המשך"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+                  >
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowLeft className="h-5 w-5" />}
+                  </button>
+                  <Input
+                    value={siteUrl}
+                    onChange={(e) => setSiteUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
+                    placeholder="כתובת אתר / עמוד נחיתה"
+                    dir="ltr"
+                    className="h-12 rounded-full bg-white pl-12 text-right shadow-sm"
+                  />
+                </>
+              )}
             </div>
           </div>
         </div>

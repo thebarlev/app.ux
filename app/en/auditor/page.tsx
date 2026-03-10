@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import AuditorHomeClient from "@/app/auditor/AuditorHomeClient"
 import { Suspense } from "react"
 import { isSystemAdmin } from "@/lib/security/system-admin"
+import { createClient } from "@/lib/supabase/server"
 
 export default async function EnAuditorHomePage({
   searchParams,
@@ -13,8 +14,10 @@ export default async function EnAuditorHomePage({
   const token = typeof sp?.token === "string" ? sp.token.trim() : ""
 
   if (scanId && token) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     const isAdmin = await isSystemAdmin()
-    if (!isAdmin) redirect("/en/auditor/dashboard")
+    if (user && !isAdmin) redirect("/en/auditor/dashboard")
   }
 
   return (

@@ -22,12 +22,14 @@ export default async function EnAuditorCheckoutPage({
   } = await supabase.auth.getUser()
 
   if (!user) {
+    // Redirect to register (sign up) so user can create account, then proceed to checkout.
+    // Do NOT redirect to login - login is only required after payment or during account creation.
     const params = new URLSearchParams()
     if (linkId) params.set("link_id", linkId)
     if (scanId) params.set("scanId", scanId)
     if (token) params.set("token", token)
     const qs = params.toString()
-    redirect(qs ? `/en/auditor/login?${qs}` : "/en/auditor/login")
+    redirect(qs ? `/en/auditor/register?${qs}` : "/en/auditor/register")
   }
 
   return <AuditorCheckoutClient linkId={linkId} checkout={checkout} scanId={scanId} token={token} basePath="/en/auditor" />

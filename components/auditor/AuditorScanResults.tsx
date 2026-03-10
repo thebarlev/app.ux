@@ -145,7 +145,21 @@ export function AuditorScanResults({
 
   useEffect(() => {
     load()
-    const tmr = setInterval(load, 2000)
+  
+    const tmr = setInterval(() => {
+      setState((prev) => {
+        if (!prev.ok) return prev
+  
+        const status = prev.scan?.status
+        if (status === "done" || status === "failed") {
+          return prev
+        }
+  
+        load()
+        return prev
+      })
+    }, 2000)
+  
     return () => clearInterval(tmr)
   }, [scanId])
 
