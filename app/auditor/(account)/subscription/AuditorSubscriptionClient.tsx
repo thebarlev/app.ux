@@ -29,6 +29,7 @@ import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type Locale = "he" | "en"
+type Strings = typeof STRINGS[Locale]
 
 type SubscriptionStatus = {
   has_subscription: boolean
@@ -213,8 +214,8 @@ const ILS_PRICES: Record<string, string> = {
   premium: "997",
 }
 
-function getPlanName(planId: string, t: typeof STRINGS["en"]): string {
-  if (t === STRINGS.he) return PLAN_NAMES_HE[planId] ?? planId
+function getPlanName(planId: string, t: Strings, locale: Locale): string {
+  if (locale === "he") return PLAN_NAMES_HE[planId] ?? planId
   if (planId === "basic")   return t.planBasic
   if (planId === "pro")     return t.planPro
   if (planId === "premium") return t.planPremium
@@ -227,12 +228,12 @@ function getPlanPrice(planId: string, locale: Locale): string {
   return usd != null ? `$${usd}` : "—"
 }
 
-function getPlanFeatures(planId: string, t: typeof STRINGS["en"]): string[] {
+function getPlanFeatures(planId: string, t: Strings): readonly string[] {
   const key = planId as keyof typeof t.features
   return t.features[key] ?? t.features.pro
 }
 
-function getStatusLabel(status: string | null, cancelAtPeriodEnd: boolean, t: typeof STRINGS["en"]): string {
+function getStatusLabel(status: string | null, cancelAtPeriodEnd: boolean, t: Strings): string {
   if (cancelAtPeriodEnd) return t.statusPendingCancel
   if (status === "active")    return t.statusActive
   if (status === "canceled")  return t.statusCanceled
@@ -402,7 +403,7 @@ export default function AuditorSubscriptionClient({
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t.currentPlan}</p>
               <CardTitle className="mt-0.5 text-xl font-bold text-slate-900">
-                {getPlanName(planId, t)}
+                {getPlanName(planId, t, locale)}
               </CardTitle>
             </div>
             <div className="ms-auto">
