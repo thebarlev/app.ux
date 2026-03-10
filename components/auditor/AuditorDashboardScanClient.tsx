@@ -84,6 +84,7 @@ export function AuditorDashboardScanClient({
               onChange={(e) => setDomain(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleScan()}
               className="flex-1"
+              style={{ height: "50px", textAlign: "left" }}
               dir="ltr"
             />
             <Button onClick={handleScan} disabled={isSubmitting} className="gap-2">

@@ -192,6 +192,50 @@ function ruleGainWeight(r: any): number {
   return 3
 }
 
+// ─── Issue text resolution ──────────────────────────────────────────────────
+function _containsHebrew(s: string): boolean {
+  return /[\u0590-\u05FF\uFB1D-\uFB4F]/.test(s)
+}
+
+/**
+ * Extract meaningful English labels from a Hebrew recommendation string.
+ * Looks for backtick-wrapped terms first, then embedded Latin technical words.
+ */
+function _extractFromHebrew(heText: string): string | null {
+  if (!heText) return null
+  // Backtick-wrapped terms, e.g. `/.well-known/ai.json`
+  const btMatches = heText.match(/`([^`]+)`/g)
+  if (btMatches?.length) {
+    const terms = btMatches.map((m) => m.replace(/`/g, ""))
+    return `Add ${terms.join(", ")} to improve AI and SEO visibility`
+  }
+  // Embedded Latin technical words (paths, identifiers), skip short common words
+  const latinWords = (heText.match(/[a-zA-Z][a-zA-Z0-9\-_.\/]*/g) ?? []).filter(
+    (w) => w.length > 2 && !["the", "and", "for", "URL", "not"].includes(w),
+  )
+  if (latinWords.length > 0) {
+    const key = latinWords.slice(0, 2).join(", ")
+    return `Add ${key} to improve search and AI visibility`
+  }
+  return null
+}
+
+function resolveIssueText(r: any, locale: "he" | "en"): string {
+  if (locale === "he") {
+    return String(r.recommendation_he || r.recommendation || r.message || (r.rule_key ?? ""))
+  }
+  // English: prefer non-Hebrew text fields
+  for (const f of [r.recommendation, r.message]) {
+    if (f && typeof f === "string" && f.trim() && !_containsHebrew(f)) return f
+  }
+  // No English content — derive from Hebrew string
+  const extracted = _extractFromHebrew(String(r.recommendation_he ?? ""))
+  if (extracted) return extracted
+  // Last resort: formatted rule_key
+  const rk = String(r.rule_key ?? "")
+  return rk.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || String(r.recommendation_he ?? rk)
+}
+
 type GrowthBreakdown = {
   seo: number
   ai: number
@@ -344,7 +388,9 @@ export function AuditorScanResults({
   }
 
   const rp = scan?.report_public && typeof scan.report_public === "object" ? scan.report_public : {}
-  const issuesOverview = Array.isArray(rp.issues_overview) ? rp.issues_overview : []
+  const issuesOverview = locale === "en" && Array.isArray(rp.issues_overview_en)
+    ? rp.issues_overview_en
+    : Array.isArray(rp.issues_overview) ? rp.issues_overview : []
   const scoreTotal = typeof scan?.score_total === "number" ? scan.score_total : (typeof rp.score_total === "number" ? rp.score_total : null)
   const scoreSearch = typeof rp.score_search === "number" ? rp.score_search : (typeof breakdown.technical === "number" ? breakdown.technical : null)
   const scoreAi = typeof rp.score_ai === "number" ? rp.score_ai : (typeof breakdown.ai_readiness === "number" ? breakdown.ai_readiness : null)
@@ -451,15 +497,13 @@ export function AuditorScanResults({
                 <div className="space-y-3">
                   {top5.map((r: any) => {
                     const severity = r.status === "fail" ? "ERROR" : r.status === "warn" ? "WARN" : "INFO"
-                    // EN: prefer English fields; fall back to message (often EN) before Hebrew copy
-                    const issueText = locale === "en"
-                      ? (r.recommendation || r.message || r.recommendation_he || r.rule_key)
-                      : (r.recommendation_he || r.recommendation || r.message || r.rule_key)
+                    const issueText = resolveIssueText(r, locale)
                     return (
                       <IssueCard
                         key={String(r.rule_key)}
                         severity={severity}
-                        text={String(issueText ?? "")}
+                        text={issueText}
+                        dir={locale === "en" ? "ltr" : "auto"}
                       />
                     )
                   })}
@@ -558,6 +602,7 @@ export function AuditorScanResults({
             title={t.gaps}
             description={t.whatToDo}
             emptyMessage={t.noIssues}
+            dir={locale === "en" ? "ltr" : "auto"}
           />
 
           {/* All recommendations */}
@@ -575,16 +620,14 @@ export function AuditorScanResults({
                     .slice()
                     .sort((a: any, b: any) => rulePriorityScore(b) - rulePriorityScore(a))
                     .map((r: any) => {
-                      const ruleText = locale === "en"
-                        ? (r.recommendation || r.message || r.recommendation_he || r.rule_key)
-                        : (r.recommendation_he || r.recommendation || r.message || r.rule_key)
+                      const ruleText = resolveIssueText(r, locale)
                       return (
                         <div
                           key={String(r.rule_key)}
                           className="flex items-start justify-between gap-3 border-b border-slate-100 py-3 last:border-0"
                         >
                           <div className="text-start">
-                            <div className="text-sm font-medium text-slate-800" dir="auto">{String(ruleText ?? "")}</div>
+                            <div className="text-sm font-medium text-slate-800" dir={locale === "en" ? "ltr" : "auto"}>{String(ruleText ?? "")}</div>
                             <div className="mt-0.5 text-xs text-muted-foreground" dir="ltr">{String(r.rule_key)}</div>
                           </div>
                           <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${

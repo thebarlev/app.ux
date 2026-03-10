@@ -7,11 +7,13 @@ export function IssueChecklist({
   title,
   description,
   emptyMessage,
+  dir = "auto",
 }: {
   items: string[]
   title: string
   description: string
   emptyMessage?: string
+  dir?: "ltr" | "rtl" | "auto"
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -30,7 +32,7 @@ export function IssueChecklist({
               className="flex items-start gap-3 border-b border-slate-100 py-3 last:border-0 last:pb-0"
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-              <p className="flex-1 text-sm leading-relaxed text-slate-700" dir="auto">{item}</p>
+              <p className="flex-1 text-sm leading-relaxed text-slate-700" dir={dir}>{item}</p>
             </div>
           ))}
         </div>

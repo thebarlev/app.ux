@@ -13,26 +13,9 @@ import {
   CreditCard,
   MessageCircle,
   Power,
-  ChevronDown,
-  Loader2,
 } from "lucide-react"
 import { logoutAction } from "@/app/dashboard/actions"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import ConfirmDialog from "@/components/ConfirmDialog"
 import { ScrollLockFix } from "@/components/ScrollLockFix"
-import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 
 const WHATSAPP_PHONE = process.env.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE || "972545215193"
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_PHONE.replace(/^0/, "")}`
@@ -45,47 +28,10 @@ const getDesktopAsideClassName = (isLtr: boolean) =>
 export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { children: React.ReactNode; basePath?: string }) {
   const isEn = basePath.startsWith("/en")
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [showChangePlanModal, setShowChangePlanModal] = useState(false)
-  const [showCancelModal, setShowCancelModal] = useState(false)
-  const [changePlanTarget, setChangePlanTarget] = useState<"basic" | "pro">("pro")
-  const [isChangingPlan, setIsChangingPlan] = useState(false)
-  const [isCanceling, setIsCanceling] = useState(false)
   const pathname = usePathname()
 
   const handleLogout = async () => {
     await logoutAction()
-  }
-
-  const handleChangePlan = async () => {
-    setIsChangingPlan(true)
-    try {
-      const r = await fetch("/api/auditor/billing/subscription/change-plan", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ plan_id: changePlanTarget }),
-      })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) throw new Error(j?.error || "שגיאה בהחלפת חבילה")
-      setShowChangePlanModal(false)
-    } catch (e: unknown) {
-      console.error(e)
-    } finally {
-      setIsChangingPlan(false)
-    }
-  }
-
-  const handleCancelSubscription = async () => {
-    setIsCanceling(true)
-    try {
-      const r = await fetch("/api/auditor/billing/subscription/cancel", { method: "POST" })
-      const j = await r.json().catch(() => null)
-      if (!r.ok) throw new Error(j?.error || "שגיאה בביטול")
-      setShowCancelModal(false)
-    } catch (e: unknown) {
-      console.error(e)
-    } finally {
-      setIsCanceling(false)
-    }
   }
 
   const navClass = (href: string) =>
@@ -98,7 +44,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
       <ScrollLockFix />
       <div className="flex min-h-screen text-fg overflow-x-hidden bg-bg" dir={basePath.startsWith("/en") ? "ltr" : "rtl"}>
         <div className={`relative z-0 flex-1 min-w-0 pr-0 ${isEn ? "md:pl-[200px]" : "md:pr-[200px]"} bg-bg`}>
-          {/* Mobile Header - same as invoice dashboard */}
+          {/* Mobile Header */}
           <div className="sticky top-0 z-[60] md:hidden bg-[#4A90B5] shadow-md w-full">
             <div className="flex items-center justify-between px-4 py-3">
               <button
@@ -129,7 +75,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
           <main className="w-full max-w-[1440px] mx-auto px-4 lg:px-12 pt-8 pb-12">{children}</main>
         </div>
 
-        {/* Desktop Sidebar - same styling as invoice dashboard (bg-sidebar) */}
+        {/* Desktop Sidebar */}
         <aside className={getDesktopAsideClassName(isEn)}>
           <div className="flex h-full flex-col p-4 ui-sidebar">
             <Link href={basePath} className="mb-6 block">
@@ -164,25 +110,13 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
                 <FileText className="h-5 w-5 shrink-0" />
                 <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Invoices" : "חשבוניות"}</span>
               </Link>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all hover:bg-sidebar-hover"
-                  >
-                    <CreditCard className="h-5 w-5 shrink-0" />
-                    <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Subscription" : "מנוי"}</span>
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[200px]">
-                  <DropdownMenuItem onClick={() => setShowChangePlanModal(true)}>
-                    {isEn ? "Change plan" : "שינוי חבילה"}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowCancelModal(true)} className="text-destructive">
-                    {isEn ? "Cancel subscription" : "ביטול מנוי"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Link
+                href={`${basePath}/subscription`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${navClass(`${basePath}/subscription`)}`}
+              >
+                <CreditCard className="h-5 w-5 shrink-0" />
+                <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Subscription" : "מנוי"}</span>
+              </Link>
               <a
                 href={WHATSAPP_URL}
                 target="_blank"
@@ -226,14 +160,10 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
                   <FileText className="h-5 w-5" />
                   <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Invoices" : "חשבוניות"}</span>
                 </Link>
-                <button onClick={() => { setSidebarOpen(false); setShowChangePlanModal(true) }} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10 w-full text-right">
+                <Link href={`${basePath}/subscription`} onClick={() => setSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10">
                   <CreditCard className="h-5 w-5" />
-                  <span className="flex-1">שינוי חבילה</span>
-                </button>
-                <button onClick={() => { setSidebarOpen(false); setShowCancelModal(true) }} className="flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-white/10 w-full text-right">
-                  <CreditCard className="h-5 w-5" />
-                  <span className="flex-1">ביטול מנוי</span>
-                </button>
+                  <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Subscription" : "מנוי"}</span>
+                </Link>
                 <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-3 rounded-lg text-white hover:bg-white/10" onClick={() => setSidebarOpen(false)}>
                   <MessageCircle className="h-5 w-5" />
                   <span className={`flex-1 ${isEn ? "text-left" : "text-right"}`}>{isEn ? "Contact" : "יצירת קשר"}</span>
@@ -249,64 +179,6 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
           </>
         )}
       </div>
-
-      {/* Change plan modal */}
-      <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
-        <DialogContent className="max-w-md bg-white text-gray-900 [&_.text-muted-foreground]:text-gray-600" dir={isEn ? "ltr" : "rtl"}>
-          <DialogHeader>
-            <DialogTitle>{isEn ? "Change plan" : "שינוי חבילה"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">{isEn ? "Choose a new plan. Change takes effect at next billing cycle." : "בחרו חבילה חדשה. השינוי ייכנס לתוקף בתחילת תקופת החיוב הבאה."}</p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setChangePlanTarget("basic")}
-                className={`flex-1 rounded-ui border p-4 ${isEn ? "text-left" : "text-right"} transition ${
-                  changePlanTarget === "basic" ? "border-primary bg-primary/5" : "border-border"
-                }`}
-              >
-                <div className="font-semibold">{isEn ? "Basic" : "בסיסי"}</div>
-                <div className="text-sm text-muted-foreground">{isEn ? `$${PLAN_PRICES_USD.basic}/mo` : "97 ₪/חודש"}</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setChangePlanTarget("pro")}
-                className={`flex-1 rounded-ui border p-4 ${isEn ? "text-left" : "text-right"} transition ${
-                  changePlanTarget === "pro" ? "border-primary bg-primary/5" : "border-border"
-                }`}
-              >
-                <div className="font-semibold">{isEn ? "Pro" : "מקצועי"}</div>
-                <div className="text-sm text-muted-foreground">{isEn ? `$${PLAN_PRICES_USD.pro}/mo` : "497 ₪/חודש"}</div>
-              </button>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowChangePlanModal(false)}>{isEn ? "Cancel" : "ביטול"}</Button>
-              <Button onClick={handleChangePlan} disabled={isChangingPlan}>
-                {isChangingPlan ? (
-                  <>
-                    <Loader2 className={isEn ? "mr-2" : "ml-2"} h-4 w-4 animate-spin />
-                    {isEn ? "Updating…" : "מעדכן…"}
-                  </>
-                ) : (
-                  isEn ? "Confirm" : "אישור"
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <ConfirmDialog
-        open={showCancelModal}
-        onOpenChange={setShowCancelModal}
-        title={isEn ? "Cancel subscription" : "ביטול מנוי"}
-        message={isEn ? "Subscription ends at current billing period. No further charges." : "המנוי יסתיים בסוף תקופת החיוב הנוכחית. לא יגבה חיוב נוסף."}
-        confirmText={isEn ? "Confirm cancel" : "אשר ביטול"}
-        cancelText={isEn ? "Back" : "חזור"}
-        destructive
-        onConfirm={handleCancelSubscription}
-      />
     </>
   )
 }

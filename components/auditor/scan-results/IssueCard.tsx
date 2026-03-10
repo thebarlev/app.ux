@@ -35,9 +35,11 @@ const SEVERITY_STYLES: Record<Severity, {
 export function IssueCard({
   severity,
   text,
+  dir = "auto",
 }: {
   severity: Severity
   text: string
+  dir?: "ltr" | "rtl" | "auto"
 }) {
   const style = SEVERITY_STYLES[severity] ?? SEVERITY_STYLES.INFO
   const Icon = style.icon
@@ -48,7 +50,7 @@ export function IssueCard({
     >
       <div className="flex min-w-0 flex-1 items-start gap-3">
         <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${style.iconClass}`} />
-        <p className="text-sm leading-relaxed text-slate-800" dir="auto">
+        <p className="text-sm leading-relaxed text-slate-800" dir={dir}>
           {text}
         </p>
       </div>
