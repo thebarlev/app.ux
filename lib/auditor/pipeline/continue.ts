@@ -7,6 +7,15 @@ import { followRedirectsWithValidation, normalizeInputUrl } from "../ssrf"
 import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
+import { extractPageContent } from "../analysis/content-extract"
+import { extractKeywords, persistKeywords } from "../analysis/keywords"
+import { discoverTopics } from "../analysis/topics"
+import { calculateAIScore, summarizeAIReadiness } from "../analysis/ai-readiness"
+import { discoverCompetitors } from "../analysis/competitors"
+import { crawlCompetitorPages } from "../analysis/competitor-crawler"
+import { extractCompetitorKeywords } from "../analysis/competitor-keywords"
+import { analyzeContentGaps } from "../analysis/content-gaps"
+import { generateRecommendations } from "../analysis/recommendations"
 import { runRulesAndScore } from "../rules/runner"
 import { buildPublicReport, buildMinimalReport, type ConfidenceLevel } from "../report/public"
 import { buildAdminReport } from "../report/admin"
@@ -21,6 +30,46 @@ type ContinueOk =
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function toRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? { ...(value as Record<string, any>) } : {}
+}
+
+function uniqStrings(values: string[], limit = 5): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, limit)
+}
+
+async function collectAiFilesArtifacts(origin: string) {
+  const llmsUrl = `${origin}/llms.txt`
+  const aiJsonUrl = `${origin}/.well-known/ai.json`
+  const brandUrl = `${origin}/brand.json`
+
+  const [llms, aiJson, brand] = await Promise.all([
+    fetchTextBounded({ url: llmsUrl, timeoutMs: 1200, maxBytes: 200_000 }),
+    fetchTextBounded({ url: aiJsonUrl, timeoutMs: 1200, maxBytes: 200_000 }),
+    fetchTextBounded({ url: brandUrl, timeoutMs: 1200, maxBytes: 200_000 }),
+  ])
+
+  const pack = (r: any, url: string) => ({
+    url,
+    found: r.ok && r.status >= 200 && r.status < 300,
+    status: r.ok ? r.status : null,
+    bytes: r.ok ? r.bytes : null,
+    preview: r.ok ? String(r.text || "").slice(0, 2000) : null,
+  })
+
+  return {
+    llms_txt: pack(llms, llmsUrl),
+    ai_json: pack(aiJson, aiJsonUrl),
+    brand_json: pack(brand, brandUrl),
+  }
 }
 
 function safeUrlPath(u: string): string | null {
@@ -336,7 +385,7 @@ export async function continueAuditorScan(params: {
         // If not an index, we can advance immediately.
         if (childSitemaps.length === 0) {
           await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
-          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done" })
+          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done", data: { nextStep: "ai_files" } })
         }
 
         await releaseLock()
@@ -370,7 +419,7 @@ export async function continueAuditorScan(params: {
         const done = childIndex + 1 >= existingChild.length || acc.length >= cap
         if (done) {
           await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
-          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done", data: { urlCount: acc.length } })
+          await auditorLog({ supabase, scanId, companyId, message: "sitemap:done", data: { urlCount: acc.length, nextStep: "ai_files" } })
         }
 
         await releaseLock()
@@ -380,7 +429,7 @@ export async function continueAuditorScan(params: {
 
       // Nothing left to do.
       await applyScanWhere(supabase.from("auditor_scans").update({ step: "ai_files", updated_at: nowIso() }), scanId, companyId)
-      await auditorLog({ supabase, scanId, companyId, message: "sitemap:done" })
+      await auditorLog({ supabase, scanId, companyId, message: "sitemap:done", data: { nextStep: "ai_files" } })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -389,31 +438,11 @@ export async function continueAuditorScan(params: {
 
     // Step: ai_files
     if (step === "ai_files") {
-      const llmsUrl = `${origin}/llms.txt`
-      const aiJsonUrl = `${origin}/.well-known/ai.json`
-      const brandUrl = `${origin}/brand.json`
-
-      const [llms, aiJson, brand] = await Promise.all([
-        fetchTextBounded({ url: llmsUrl, timeoutMs: 1200, maxBytes: 200_000 }),
-        fetchTextBounded({ url: aiJsonUrl, timeoutMs: 1200, maxBytes: 200_000 }),
-        fetchTextBounded({ url: brandUrl, timeoutMs: 1200, maxBytes: 200_000 }),
-      ])
-
-      const pack = (r: any, url: string) => ({
-        url,
-        found: r.ok && r.status >= 200 && r.status < 300,
-        status: r.ok ? r.status : null,
-        bytes: r.ok ? r.bytes : null,
-        preview: r.ok ? String(r.text || "").slice(0, 2000) : null,
-      })
+      await auditorLog({ supabase, scanId, companyId, message: "ai_files:start" })
 
       const nextArtifacts = {
         ...artifacts,
-        ai_files: {
-          llms_txt: pack(llms, llmsUrl),
-          ai_json: pack(aiJson, aiJsonUrl),
-          brand_json: pack(brand, brandUrl),
-        },
+        ai_files: await collectAiFilesArtifacts(origin),
       }
 
       await applyScanWhere(
@@ -426,7 +455,7 @@ export async function continueAuditorScan(params: {
         companyId
       )
 
-      await auditorLog({ supabase, scanId, companyId, message: "ai_files:done" })
+      await auditorLog({ supabase, scanId, companyId, message: "ai_files:done", data: { nextStep: "sample" } })
 
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -435,6 +464,8 @@ export async function continueAuditorScan(params: {
 
     // Step: sample (insert queued pages)
     if (step === "sample") {
+      let nextArtifacts = { ...artifacts }
+
       const sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
       const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: 20 })
 
@@ -453,8 +484,8 @@ export async function continueAuditorScan(params: {
         }
       }
 
-      const nextArtifacts = {
-        ...artifacts,
+      nextArtifacts = {
+        ...nextArtifacts,
         sample: { urls: sample, count: sample.length },
       }
 
@@ -528,8 +559,8 @@ export async function continueAuditorScan(params: {
         const url = String((p as any).url)
         const res = await fetchTextBounded({
           url,
-          timeoutMs: 1800,
-          maxBytes: 250_000,
+          timeoutMs: 3000,
+          maxBytes: 900_000,
           headers: { "user-agent": "VOW-Auditor-POC/1.0" },
         })
 
@@ -596,7 +627,7 @@ export async function continueAuditorScan(params: {
 
       const pages = Array.isArray(fetchedPages) ? fetchedPages : []
       if (pages.length === 0) {
-        await applyScanWhere(supabase.from("auditor_scans").update({ step: "rules", updated_at: nowIso() }), scanId, companyId)
+        await applyScanWhere(supabase.from("auditor_scans").update({ step: "keyword_analysis", updated_at: nowIso() }), scanId, companyId)
         await auditorLog({ supabase, scanId, companyId, message: "extract:none_left" })
         await releaseLock()
         const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
@@ -608,6 +639,9 @@ export async function continueAuditorScan(params: {
       for (const p of pages) {
         const html = String((p as any).html || "")
         const extracted = extractFromHtml(html)
+        const content = extractPageContent(html)
+        const questionParagraphsCount = content.paragraphs.filter((paragraph) => paragraph.includes("?")).length
+        const wordCount = content.paragraphs.join(" ").split(/\s+/).filter(Boolean).length
 
         await applyCompanyWhere(
           supabase.from("auditor_scan_pages").update({
@@ -632,6 +666,13 @@ export async function continueAuditorScan(params: {
               imagesMissingAltCount: extracted.imagesMissingAltCount,
               internalLinksCount: extracted.internalLinksCount,
               questionHeadingsCount: extracted.questionHeadingsCount,
+              contentTitle: content.title,
+              contentHeadings: content.headings,
+              contentParagraphs: content.paragraphs,
+              contentLinks: content.links,
+              contentEntities: content.entities,
+              questionParagraphsCount,
+              wordCount,
             },
             extracted_at: nowIso(),
           }).eq("id", (p as any).id),
@@ -641,6 +682,74 @@ export async function continueAuditorScan(params: {
 
       await auditorLog({ supabase, scanId, companyId, message: "extract:batch_done" })
 
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: keyword_analysis (derive page keywords from extracted content)
+    if (step === "keyword_analysis") {
+      await auditorLog({ supabase, scanId, companyId, message: "keyword_analysis:start" })
+      let q = supabase
+        .from("auditor_scan_pages")
+        .select("id,title,extracted")
+        .eq("scan_id", scanId)
+        .eq("state", "extracted")
+        .limit(50)
+      q = applyCompanyWhere(q, companyId)
+      const { data: extractedPages } = await q
+      const pages = Array.isArray(extractedPages) ? extractedPages : []
+      let totalKeywords = 0
+
+      await supabase.from("auditor_keywords").delete().eq("scan_id", scanId)
+
+      for (const page of pages) {
+        const extracted = toRecord((page as any).extracted)
+        const keywords = extractKeywords({
+          title: typeof extracted.contentTitle === "string" ? extracted.contentTitle : (page as any).title || null,
+          headings: Array.isArray(extracted.contentHeadings) ? extracted.contentHeadings : [],
+          paragraphs: Array.isArray(extracted.contentParagraphs) ? extracted.contentParagraphs : [],
+          links: Array.isArray(extracted.contentLinks) ? extracted.contentLinks : [],
+          entities: Array.isArray(extracted.contentEntities) ? extracted.contentEntities : [],
+        })
+
+        await persistKeywords({
+          supabase,
+          scanId,
+          pageId: String((page as any).id),
+          keywords,
+        })
+        totalKeywords += keywords.length
+      }
+
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          step: "topic_discovery",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      await auditorLog({ supabase, scanId, companyId, message: "keyword_analysis:done", data: { pagesCount: pages.length, keywordsCount: totalKeywords } })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: topic_discovery (group scan-wide keyword themes)
+    if (step === "topic_discovery") {
+      await auditorLog({ supabase, scanId, companyId, message: "topic_discovery:start" })
+      const topics = await discoverTopics({ supabase, scanId })
+
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          step: "rules",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      await auditorLog({ supabase, scanId, companyId, message: "topic_discovery:done", data: { topicsCount: topics.length } })
       await releaseLock()
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
       return { ok: true, kind: "progressed", scan }
@@ -805,7 +914,7 @@ export async function continueAuditorScan(params: {
           confidence: { level: confidenceLevel, warning },
           report_public: publicReport,
           report_admin: adminReport,
-          step: "persist",
+          step: "ai_readiness",
           updated_at: nowIso(),
         }),
         scanId,
@@ -838,8 +947,323 @@ export async function continueAuditorScan(params: {
       return { ok: true, kind: "progressed", scan }
     }
 
+    // Step: ai_readiness (score pages for AI-answer readiness)
+    if (step === "ai_readiness") {
+      await auditorLog({ supabase, scanId, companyId, message: "ai_readiness:start" })
+      let q = supabase
+        .from("auditor_scan_pages")
+        .select("id,title,url,jsonld_types,extracted")
+        .eq("scan_id", scanId)
+        .eq("state", "extracted")
+        .limit(50)
+      q = applyCompanyWhere(q, companyId)
+      const { data: extractedPages } = await q
+      const pages = Array.isArray(extractedPages) ? extractedPages : []
+      const scores: number[] = []
+      const allStrengths: string[] = []
+      const allGaps: string[] = []
+
+      for (const page of pages) {
+        const result = calculateAIScore({
+          title: (page as any).title || null,
+          jsonld_types: Array.isArray((page as any).jsonld_types) ? (page as any).jsonld_types : [],
+          extracted: toRecord((page as any).extracted),
+          ai_files: toRecord(artifacts.ai_files),
+        })
+        const summary = summarizeAIReadiness(result)
+
+        scores.push(result.ai_score)
+        allStrengths.push(...summary.strengths)
+        allGaps.push(...summary.gaps)
+
+        await applyCompanyWhere(
+          supabase.from("auditor_scan_pages").update({
+            ai_analysis: result,
+          }).eq("id", (page as any).id),
+          companyId
+        )
+      }
+
+      const averageAiScore = scores.length > 0 ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length) : 0
+      const currentPublicReport = toRecord(lockedScan.report_public)
+      const currentAdminReport = toRecord(lockedScan.report_admin)
+      const currentCategoryScores = toRecord(currentPublicReport.category_scores)
+      const currentScoreBreakdown = toRecord(lockedScan.score_breakdown)
+      const aiSummary = {
+        average_score: averageAiScore,
+        pages_analyzed: pages.length,
+        top_strengths: uniqStrings(allStrengths),
+        top_gaps: uniqStrings(allGaps),
+      }
+
+      const { error: aiUpdateError } = await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          score_breakdown: {
+            ...currentScoreBreakdown,
+            ai_readiness: averageAiScore,
+          },
+          report_public: {
+            ...currentPublicReport,
+            score_ai: averageAiScore,
+            category_scores: {
+              ...currentCategoryScores,
+              ai_readiness: averageAiScore,
+            },
+            ai_readiness_summary: aiSummary,
+          },
+          report_admin: {
+            ...currentAdminReport,
+            score_ai: averageAiScore,
+            category_scores: {
+              ...toRecord(currentAdminReport.category_scores),
+              ai_readiness: averageAiScore,
+            },
+            ai_readiness_summary: aiSummary,
+          },
+          step: "competitor_discovery",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      if (aiUpdateError) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "ai_readiness:update_failed",
+          data: { message: aiUpdateError.message, code: aiUpdateError.code },
+        })
+        throw new Error(`ai_readiness update failed: ${aiUpdateError.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "ai_readiness:done",
+        data: { pagesCount: pages.length, averageAiScore, nextStep: "competitor_discovery" },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: competitor_discovery (discover competitor domains from SERP or heuristic signals)
+    if (step === "competitor_discovery") {
+      await auditorLog({ supabase, scanId, companyId, message: "competitor_discovery:start" })
+      const competitors = await discoverCompetitors({
+        supabase,
+        scanId,
+        targetHost: hostLock,
+      })
+
+      const { error: competitorDiscoveryError } = await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_admin: {
+            ...toRecord(lockedScan.report_admin),
+            competitors_count: competitors.length,
+          },
+          step: "competitor_crawl",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      if (competitorDiscoveryError) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "competitor_discovery:update_failed",
+          data: { message: competitorDiscoveryError.message, code: competitorDiscoveryError.code },
+        })
+        throw new Error(`competitor_discovery update failed: ${competitorDiscoveryError.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "competitor_discovery:done",
+        data: { competitorsCount: competitors.length },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: competitor_crawl (fetch bounded competitor pages)
+    if (step === "competitor_crawl") {
+      await auditorLog({ supabase, scanId, companyId, message: "competitor_crawl:start" })
+      const crawled = await crawlCompetitorPages({ supabase, scanId })
+
+      const { error: competitorCrawlError } = await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_admin: {
+            ...toRecord(lockedScan.report_admin),
+            competitor_pages_count: crawled.length,
+          },
+          step: "competitor_keywords",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      if (competitorCrawlError) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "competitor_crawl:update_failed",
+          data: { message: competitorCrawlError.message, code: competitorCrawlError.code },
+        })
+        throw new Error(`competitor_crawl update failed: ${competitorCrawlError.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "competitor_crawl:done",
+        data: { pagesCount: crawled.length },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: competitor_keywords (extract competitor keyword sets)
+    if (step === "competitor_keywords") {
+      await auditorLog({ supabase, scanId, companyId, message: "competitor_keywords:start" })
+      const result = await extractCompetitorKeywords({ supabase, scanId })
+
+      const { error: competitorKeywordsError } = await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_admin: {
+            ...toRecord(lockedScan.report_admin),
+            competitor_keywords_count: result.keywordsCount,
+          },
+          step: "content_gap_analysis",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      if (competitorKeywordsError) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "competitor_keywords:update_failed",
+          data: { message: competitorKeywordsError.message, code: competitorKeywordsError.code },
+        })
+        throw new Error(`competitor_keywords update failed: ${competitorKeywordsError.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "competitor_keywords:done",
+        data: result,
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: content_gap_analysis (compare competitor keywords to target coverage)
+    if (step === "content_gap_analysis") {
+      await auditorLog({ supabase, scanId, companyId, message: "content_gap_analysis:start" })
+      const gaps = await analyzeContentGaps({ supabase, scanId })
+
+      const { error: gapUpdateError } = await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_public: {
+            ...toRecord(lockedScan.report_public),
+            content_gaps_count: gaps.length,
+          },
+          report_admin: {
+            ...toRecord(lockedScan.report_admin),
+            content_gaps_count: gaps.length,
+            top_content_gaps: gaps.slice(0, 5).map((gap) => gap.keyword),
+          },
+          step: "recommendations",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+      if (gapUpdateError) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "content_gap_analysis:update_failed",
+          data: { message: gapUpdateError.message, code: gapUpdateError.code },
+        })
+        throw new Error(`content_gap_analysis update failed: ${gapUpdateError.message}`)
+      }
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "content_gap_analysis:done",
+        data: { gapsCount: gaps.length },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
+    // Step: recommendations (persist action plan from analysis outputs)
+    if (step === "recommendations") {
+      await auditorLog({ supabase, scanId, companyId, message: "recommendations:start" })
+      const recommendations = await generateRecommendations({ supabase, scanId })
+      const currentPublicReport = toRecord(lockedScan.report_public)
+      const currentAdminReport = toRecord(lockedScan.report_admin)
+
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_public: {
+            ...currentPublicReport,
+            recommendations_count: recommendations.length,
+            top_recommendations: recommendations.map((item) => item.title).slice(0, 5),
+          },
+          report_admin: {
+            ...currentAdminReport,
+            recommendations_count: recommendations.length,
+            top_recommendations: recommendations.map((item) => item.title).slice(0, 5),
+          },
+          step: "persist",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "recommendations:done",
+        data: { recommendationsCount: recommendations.length },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
     // Step: persist (finalize scan)
     if (step === "persist") {
+      await auditorLog({ supabase, scanId, companyId, message: "persist:start" })
       await applyScanWhere(
         supabase.from("auditor_scans").update({
           status: "done",
@@ -851,6 +1275,7 @@ export async function continueAuditorScan(params: {
         companyId
       )
 
+      await auditorLog({ supabase, scanId, companyId, message: "persist:done" })
       await auditorLog({ supabase, scanId, companyId, message: "scan:done" })
 
       await releaseLock()
@@ -865,8 +1290,8 @@ export async function continueAuditorScan(params: {
   } catch (e: any) {
     const msg = String(e?.message || e)
     console.error("[auditor] scan error", { scanId: params.scanId, message: msg })
-    await auditorLog({ supabase, scanId: params.scanId, companyId: null, level: "error", message: "scan:failed", data: { error: msg } })
-    await applyScanWhere(
+    await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "error", message: "scan:failed", data: { error: msg } })
+    const { error: failUpdateError } = await applyScanWhere(
       supabase.from("auditor_scans").update({
         status: "failed",
         last_error: msg.slice(0, 500),
@@ -878,6 +1303,13 @@ export async function continueAuditorScan(params: {
       params.scanId,
       params.companyId
     )
+    if (failUpdateError) {
+      console.error("[auditor] failed-state update error", {
+        scanId: params.scanId,
+        message: failUpdateError.message,
+        code: failUpdateError.code,
+      })
+    }
     return { ok: false, kind: "invalid_state", message: msg }
   }
 }

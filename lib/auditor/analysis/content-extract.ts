@@ -1,0 +1,137 @@
+import * as cheerio from "cheerio"
+import { Readability } from "@mozilla/readability"
+import { JSDOM } from "jsdom"
+
+export type ExtractedHeading = {
+  level: number
+  text: string
+}
+
+export type ExtractedLink = {
+  href: string
+  text: string
+  isInternal: boolean
+}
+
+export type PageContent = {
+  title: string | null
+  headings: ExtractedHeading[]
+  paragraphs: string[]
+  links: ExtractedLink[]
+  entities: string[]
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    const normalized = normalizeWhitespace(String(value || ""))
+    if (!normalized) continue
+    const key = normalized.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(normalized)
+  }
+  return out
+}
+
+function normalizeEntity(value: string): string {
+  return normalizeWhitespace(value.replace(/[.,;:!?()"'`]+/g, " "))
+}
+
+function detectEntities(textBlocks: string[]): string[] {
+  const phrases: string[] = []
+  const titleCase = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g
+  const acronyms = /\b[A-Z]{2,}(?:\s+[A-Z]{2,})?\b/g
+  const hebrewOrMixed = /([\p{Script=Hebrew}\p{L}\p{N}][\p{Script=Hebrew}\p{L}\p{N}&/-]{2,}(?:\s+[\p{Script=Hebrew}\p{L}\p{N}&/-]{2,}){0,2})/gu
+
+  for (const block of textBlocks.slice(0, 20)) {
+    for (const match of block.matchAll(titleCase)) {
+      phrases.push(match[0])
+    }
+    for (const match of block.matchAll(acronyms)) {
+      phrases.push(match[0])
+    }
+    for (const match of block.matchAll(hebrewOrMixed)) {
+      const candidate = normalizeEntity(match[0])
+      if (!candidate) continue
+      const words = candidate.split(/\s+/)
+      if (words.length === 0 || words.length > 4) continue
+      if (candidate.length < 3) continue
+      phrases.push(candidate)
+    }
+  }
+
+  return uniqueStrings(
+    phrases.map(normalizeEntity).filter((value) => {
+      const words = value.split(/\s+/)
+      return value.length >= 3 && words.length <= 4
+    })
+  ).slice(0, 20)
+}
+
+export function extractPageContent(html: string): PageContent {
+  const sourceHtml = String(html || "")
+  const dom = new JSDOM(sourceHtml, { url: "https://auditor.local/" })
+  let readable: ReturnType<Readability["parse"]> | null = null
+  try {
+    readable = new Readability(dom.window.document).parse()
+  } catch {
+    readable = null
+  }
+  const articleHtml = readable?.content || dom.window.document.body?.innerHTML || sourceHtml
+
+  const $ = cheerio.load(articleHtml)
+  $("script, style, noscript, template, svg").remove()
+
+  const headings = $("h1, h2, h3, h4, h5, h6")
+    .map((_, el) => {
+      const tagName = el.tagName?.toLowerCase() || "h2"
+      const level = Number(tagName.replace("h", "")) || 2
+      const text = normalizeWhitespace($(el).text())
+      if (!text) return null
+      return { level, text }
+    })
+    .toArray()
+    .filter((item): item is ExtractedHeading => Boolean(item))
+
+  const paragraphs = uniqueStrings(
+    $("p, li, blockquote")
+      .map((_, el) => normalizeWhitespace($(el).text()))
+      .toArray()
+      .filter((text) => text.length >= 25)
+  ).slice(0, 30)
+
+  const links = $("a[href]")
+    .map((_, el) => {
+      const href = normalizeWhitespace(String($(el).attr("href") || ""))
+      const text = normalizeWhitespace($(el).text())
+      if (!href) return null
+      return {
+        href,
+        text: text || href,
+        isInternal: href.startsWith("/") || href.startsWith("#"),
+      }
+    })
+    .toArray()
+    .filter((item): item is ExtractedLink => Boolean(item))
+    .slice(0, 50)
+
+  const combinedText = [
+    readable?.title || "",
+    ...headings.map((heading) => heading.text),
+    ...paragraphs,
+  ]
+
+  return {
+    title: normalizeWhitespace(readable?.title || $("title").first().text() || "") || null,
+    headings,
+    paragraphs,
+    links,
+    entities: detectEntities(combinedText),
+  }
+}

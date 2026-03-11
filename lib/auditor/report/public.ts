@@ -11,6 +11,14 @@ export type PublicReport = {
   confidence_level: ConfidenceLevel
   warning?: string
   next_steps_cta?: string
+  ai_readiness_summary?: {
+    average_score: number
+    pages_analyzed: number
+    top_strengths: string[]
+    top_gaps: string[]
+  }
+  recommendations_count?: number
+  top_recommendations?: string[]
 }
 
 /** Rule key → translations per locale. Add new locales here. */

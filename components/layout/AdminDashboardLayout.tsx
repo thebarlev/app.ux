@@ -13,7 +13,12 @@ import {
   Users,
   LogOut,
   Shield,
-  Search
+  Search,
+  BarChart3,
+  Play,
+  CheckSquare,
+  CreditCard,
+  List
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
@@ -31,7 +36,13 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-4 w-4" /> },
-  { href: "/admin/auditor", label: "Auditor", icon: <Search className="h-4 w-4" /> },
+  // Auditor Admin section
+  { href: "/admin/auditor", label: "Auditor Dashboard", icon: <BarChart3 className="h-4 w-4" /> },
+  { href: "/admin/auditor/scans", label: "Scans", icon: <List className="h-4 w-4" /> },
+  { href: "/admin/auditor/scan", label: "Run Scan", icon: <Play className="h-4 w-4" /> },
+  { href: "/admin/auditor/tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
+  { href: "/admin/auditor/billing", label: "Billing Debug", icon: <CreditCard className="h-4 w-4" /> },
+  // Other admin sections
   { href: "/admin/templates", label: "Templates", icon: <FileText className="h-4 w-4" /> },
   { href: "/admin/texts", label: "System Texts", icon: <FileText className="h-4 w-4" /> },
   { href: "/admin/document-variables", label: "Document Variables", icon: <Settings className="h-4 w-4" /> },
@@ -40,7 +51,8 @@ const navItems: NavItem[] = [
 
 function NavLink({ href, label, icon, onClick }: NavItem & { onClick?: () => void }) {
   const pathname = usePathname()
-  const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(href))
+  const exactMatch = href === "/admin" || href === "/admin/auditor"
+  const isActive = pathname === href || (!exactMatch && pathname.startsWith(href))
 
   return (
     <Link

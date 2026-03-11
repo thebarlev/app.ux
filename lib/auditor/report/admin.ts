@@ -4,6 +4,14 @@ export type AdminReport = {
   score_ai: number
   score_breakdown: Record<string, number>
   category_scores: Record<string, number>
+  ai_readiness_summary?: {
+    average_score: number
+    pages_analyzed: number
+    top_strengths: string[]
+    top_gaps: string[]
+  }
+  recommendations_count?: number
+  top_recommendations?: string[]
   rules: Array<{
     rule_key: string
     category: string
