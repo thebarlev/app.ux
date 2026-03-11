@@ -344,7 +344,7 @@ export async function processCardcomIndicatorEvent(
             await createRegistrationLog({
               email: leadEmail,
               name: leadName || null,
-              companyName,
+              companyName: normalizedHost || leadName || null,
               website: normalizedHost || null,
               source: "cardcom_payment",
             })
@@ -359,7 +359,7 @@ export async function processCardcomIndicatorEvent(
 <ul>
   <li><strong>Email:</strong> ${leadEmail}</li>
   <li><strong>Name:</strong> ${leadName || "—"}</li>
-  <li><strong>Company:</strong> ${companyName || "—"}</li>
+  <li><strong>Company:</strong> ${normalizedHost || leadName || "—"}</li>
   <li><strong>Website scanned:</strong> ${normalizedHost || "—"}</li>
   <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
 </ul>`,
