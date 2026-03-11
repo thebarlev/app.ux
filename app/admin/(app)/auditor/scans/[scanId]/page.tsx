@@ -15,8 +15,13 @@ export default async function AdminAuditorScanDetailPage({
   const admin = createServiceRoleClient()
   const { scanId } = params
 
+  const { data: scan, error: scanErr } = await admin.from("auditor_scans").select("*").eq("id", scanId).single()
+
+  if (scanErr || !scan) return notFound()
+
+  const pageLimit = Number.isFinite(Number(scan.page_limit)) ? Math.max(1, Number(scan.page_limit)) : 20
+
   const [
-    { data: scan, error: scanErr },
     { data: pages },
     { data: keywords },
     { data: topics },
@@ -27,12 +32,11 @@ export default async function AdminAuditorScanDetailPage({
     { data: findings },
     { data: logs },
   ] = await Promise.all([
-    admin.from("auditor_scans").select("*").eq("id", scanId).single(),
     admin.from("auditor_scan_pages")
-      .select("id,url,state,status_code,title,content_bytes,fetch_ms,error,meta_description,canonical,lang,has_og,has_twitter")
+      .select("id,url,state,status_code,title,content_bytes,fetch_ms,error,meta_description,canonical,lang,has_og,has_twitter,jsonld_types,tracking,analysis")
       .eq("scan_id", scanId)
       .order("created_at")
-      .limit(100),
+      .limit(pageLimit),
     admin.from("auditor_keywords")
       .select("id,keyword,keyword_type,confidence")
       .eq("scan_id", scanId)
@@ -73,8 +77,6 @@ export default async function AdminAuditorScanDetailPage({
       .limit(500),
   ])
 
-  if (scanErr || !scan) return notFound()
-
   const scanOverview = {
     id: scan.id,
     hostname: scan.hostname ?? scan.normalized_host ?? null,
@@ -83,6 +85,7 @@ export default async function AdminAuditorScanDetailPage({
     step: scan.step,
     scan_kind: scan.scan_kind,
     created_by_role: scan.created_by_role ?? "customer",
+    page_limit: pageLimit,
     score_total: scan.score_total ?? null,
     score_breakdown: (scan.score_breakdown as Record<string, unknown>) ?? {},
     report_public: (scan.report_public as Record<string, unknown>) ?? {},

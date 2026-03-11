@@ -23,6 +23,31 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim()
 }
 
+function resolveHref(rawHref: string, pageUrl?: string | null): string | null {
+  const href = normalizeWhitespace(String(rawHref || ""))
+  if (!href) return null
+  if (href.startsWith("javascript:") || href.startsWith("mailto:") || href.startsWith("tel:")) return null
+  if (href.startsWith("#")) return href
+
+  try {
+    return pageUrl ? new URL(href, pageUrl).toString() : href
+  } catch {
+    return href
+  }
+}
+
+function isInternalHref(href: string, pageUrl?: string | null): boolean {
+  if (!href) return false
+  if (href.startsWith("/") || href.startsWith("#")) return true
+  if (!pageUrl) return false
+
+  try {
+    return new URL(href, pageUrl).hostname.toLowerCase() === new URL(pageUrl).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+}
+
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -94,7 +119,7 @@ function detectEntities(textBlocks: string[]): string[] {
   ).slice(0, 20)
 }
 
-export function extractPageContent(html: string): PageContent {
+export function extractPageContent(html: string, pageUrl?: string | null): PageContent {
   const sourceHtml = String(html || "")
   const $ = cheerio.load(sourceHtml)
   $("script, style, noscript, template, svg").remove()
@@ -122,13 +147,13 @@ export function extractPageContent(html: string): PageContent {
   const links = root
     .find("a[href]")
     .map((_, el) => {
-      const href = normalizeWhitespace(String($(el).attr("href") || ""))
+      const href = resolveHref(String($(el).attr("href") || ""), pageUrl)
       const text = normalizeWhitespace($(el).text())
       if (!href) return null
       return {
         href,
         text: text || href,
-        isInternal: href.startsWith("/") || href.startsWith("#"),
+        isInternal: isInternalHref(href, pageUrl),
       }
     })
     .toArray()

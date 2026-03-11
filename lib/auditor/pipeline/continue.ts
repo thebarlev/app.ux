@@ -202,6 +202,7 @@ export async function continueAuditorScan(params: {
     const targetUrl = String(lockedScan.target_url || "")
     const normalizedUrl = lockedScan.normalized_url ? String(lockedScan.normalized_url) : null
     const hostname = lockedScan.hostname ? String(lockedScan.hostname) : null
+    const pageLimit = Number.isFinite(Number(lockedScan.page_limit)) ? Math.max(1, Number(lockedScan.page_limit)) : 20
 
     await supabase.from("auditor_scans").update({ heartbeat_at: nowIso() }).eq("id", scanId).eq("locked_by", requestId)
     await auditorLog({ supabase, scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
@@ -467,9 +468,18 @@ export async function continueAuditorScan(params: {
       let nextArtifacts = { ...artifacts }
 
       const sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
-      const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: 20 })
+      const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: pageLimit })
+      let existingUrlsQuery = supabase.from("auditor_scan_pages").select("url").eq("scan_id", scanId)
+      existingUrlsQuery = applyCompanyWhere(existingUrlsQuery, companyId)
+      const { data: existingPageRows } = await existingUrlsQuery
+      const existingUrls = new Set(
+        (Array.isArray(existingPageRows) ? existingPageRows : [])
+          .map((row: any) => String(row?.url || "").trim())
+          .filter(Boolean)
+      )
+      const missingSampleUrls = sample.filter((url) => !existingUrls.has(url))
 
-      const rows = sample.map((u) => ({
+      const rows = missingSampleUrls.map((u) => ({
         scan_id: scanId,
         company_id: companyId,
         url: u,
@@ -486,7 +496,7 @@ export async function continueAuditorScan(params: {
 
       nextArtifacts = {
         ...nextArtifacts,
-        sample: { urls: sample, count: sample.length },
+        sample: { urls: sample, count: sample.length, pageLimit },
       }
 
       await applyScanWhere(
@@ -638,8 +648,9 @@ export async function continueAuditorScan(params: {
 
       for (const p of pages) {
         const html = String((p as any).html || "")
-        const extracted = extractFromHtml(html)
-        const content = extractPageContent(html)
+        const pageUrl = String((p as any).url || "")
+        const extracted = extractFromHtml(html, pageUrl)
+        const content = extractPageContent(html, pageUrl)
         const questionParagraphsCount = content.paragraphs.filter((paragraph) => paragraph.includes("?")).length
         const wordCount = content.paragraphs.join(" ").split(/\s+/).filter(Boolean).length
 
@@ -656,6 +667,7 @@ export async function continueAuditorScan(params: {
             has_twitter: extracted.hasTwitter,
             jsonld_types: extracted.jsonldTypes,
             tracking: extracted.tracking,
+            analysis: extracted.analysis,
             extracted: {
               metaRobots: extracted.metaRobots,
               viewportPresent: extracted.viewportPresent,

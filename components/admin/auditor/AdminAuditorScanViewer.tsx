@@ -1,6 +1,9 @@
 "use client"
 
+import { type ReactNode, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
 import { AdminAuditorPagesTable, type PageRow } from "./AdminAuditorPagesTable"
 import { AdminAuditorRulesTable, type RuleRow } from "./AdminAuditorRulesTable"
 import { AdminAuditorFindingsTable, type FindingRow } from "./AdminAuditorFindingsTable"
@@ -19,6 +22,7 @@ export interface ScanOverview {
   step: string
   scan_kind: string
   created_by_role: string
+  page_limit: number
   score_total: number | null
   score_breakdown: Record<string, unknown>
   report_public: Record<string, unknown>
@@ -38,7 +42,7 @@ const STATUS_COLORS: Record<string, string> = {
   failed: "bg-red-100 text-red-700",
 }
 
-function KVItem({ label, value }: { label: string; value: React.ReactNode }) {
+function KVItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
       <dt className="text-xs text-slate-400 uppercase tracking-wide">{label}</dt>
@@ -88,17 +92,44 @@ export function AdminAuditorScanViewer({
   recommendations: RecommendationRow[]
   onCreateTask?: (findingId: string, scanId: string) => Promise<unknown>
 }) {
+  const router = useRouter()
+  const [expandingPages, setExpandingPages] = useState(false)
+  const [expandError, setExpandError] = useState<string | null>(null)
   const scoreBreakdown = scan.score_breakdown ?? {}
   const durationMs =
     scan.started_at && scan.finished_at
       ? new Date(scan.finished_at).getTime() - new Date(scan.started_at).getTime()
       : null
 
+  const handleExpandPages = async () => {
+    try {
+      setExpandingPages(true)
+      setExpandError(null)
+
+      const res = await fetch("/api/admin/auditor/scan/expand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scanId: scan.id }),
+      })
+      const payload = await res.json().catch(() => ({}))
+
+      if (!res.ok || payload?.ok === false) {
+        throw new Error(String(payload?.error || "Failed to expand scan"))
+      }
+
+      router.refresh()
+    } catch (error) {
+      setExpandError(error instanceof Error ? error.message : "Failed to expand scan")
+    } finally {
+      setExpandingPages(false)
+    }
+  }
+
   return (
     <Tabs defaultValue="overview">
       <TabsList className="mb-4 flex-wrap">
         <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="pages">Pages ({pages.length})</TabsTrigger>
+        <TabsTrigger value="pages">Pages ({scan.page_limit ?? pages.length})</TabsTrigger>
         <TabsTrigger value="keywords">Keywords ({keywords.length})</TabsTrigger>
         <TabsTrigger value="topics">Topics ({topics.length})</TabsTrigger>
         <TabsTrigger value="competitors">Competitors ({competitors.length})</TabsTrigger>
@@ -181,7 +212,23 @@ export function AdminAuditorScanViewer({
 
       {/* ── Pages ── */}
       <TabsContent value="pages">
-        <AdminAuditorPagesTable pages={pages} />
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">Page Crawl Budget</h3>
+              <p className="text-sm text-slate-500">
+                Showing up to {scan.page_limit} pages for this scan. Additional crawling only starts when you expand it.
+              </p>
+            </div>
+            <Button type="button" variant="secondary" onClick={handleExpandPages} disabled={expandingPages}>
+              {expandingPages ? "Scanning more pages..." : "Scan 20 more pages"}
+            </Button>
+          </div>
+          {expandError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{expandError}</div>
+          ) : null}
+          <AdminAuditorPagesTable pages={pages} />
+        </div>
       </TabsContent>
 
       {/* ── Keywords ── */}
