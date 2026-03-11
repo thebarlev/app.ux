@@ -1,6 +1,4 @@
 import * as cheerio from "cheerio"
-import { Readability } from "@mozilla/readability"
-import { JSDOM } from "jsdom"
 
 export type ExtractedHeading = {
   level: number
@@ -43,6 +41,28 @@ function normalizeEntity(value: string): string {
   return normalizeWhitespace(value.replace(/[.,;:!?()"'`]+/g, " "))
 }
 
+function selectContentRoot($: cheerio.CheerioAPI): cheerio.Cheerio<any> {
+  const candidates = [
+    "main",
+    "article",
+    "[role='main']",
+    ".main",
+    "#main",
+    ".content",
+    "#content",
+    ".post-content",
+    ".entry-content",
+    ".article-content",
+  ]
+
+  for (const selector of candidates) {
+    const match = $(selector).first()
+    if (match.length > 0) return match
+  }
+
+  return $("body").first().length > 0 ? $("body").first() : $.root()
+}
+
 function detectEntities(textBlocks: string[]): string[] {
   const phrases: string[] = []
   const titleCase = /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g
@@ -76,19 +96,11 @@ function detectEntities(textBlocks: string[]): string[] {
 
 export function extractPageContent(html: string): PageContent {
   const sourceHtml = String(html || "")
-  const dom = new JSDOM(sourceHtml, { url: "https://auditor.local/" })
-  let readable: ReturnType<Readability["parse"]> | null = null
-  try {
-    readable = new Readability(dom.window.document).parse()
-  } catch {
-    readable = null
-  }
-  const articleHtml = readable?.content || dom.window.document.body?.innerHTML || sourceHtml
-
-  const $ = cheerio.load(articleHtml)
+  const $ = cheerio.load(sourceHtml)
   $("script, style, noscript, template, svg").remove()
+  const root = selectContentRoot($)
 
-  const headings = $("h1, h2, h3, h4, h5, h6")
+  const headings = root.find("h1, h2, h3, h4, h5, h6")
     .map((_, el) => {
       const tagName = el.tagName?.toLowerCase() || "h2"
       const level = Number(tagName.replace("h", "")) || 2
@@ -100,13 +112,15 @@ export function extractPageContent(html: string): PageContent {
     .filter((item): item is ExtractedHeading => Boolean(item))
 
   const paragraphs = uniqueStrings(
-    $("p, li, blockquote")
+    root
+      .find("p, li, blockquote")
       .map((_, el) => normalizeWhitespace($(el).text()))
       .toArray()
       .filter((text) => text.length >= 25)
   ).slice(0, 30)
 
-  const links = $("a[href]")
+  const links = root
+    .find("a[href]")
     .map((_, el) => {
       const href = normalizeWhitespace(String($(el).attr("href") || ""))
       const text = normalizeWhitespace($(el).text())
@@ -122,13 +136,13 @@ export function extractPageContent(html: string): PageContent {
     .slice(0, 50)
 
   const combinedText = [
-    readable?.title || "",
+    $("title").first().text() || "",
     ...headings.map((heading) => heading.text),
     ...paragraphs,
   ]
 
   return {
-    title: normalizeWhitespace(readable?.title || $("title").first().text() || "") || null,
+    title: normalizeWhitespace($("title").first().text() || root.find("h1").first().text() || "") || null,
     headings,
     paragraphs,
     links,
