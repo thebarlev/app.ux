@@ -6,6 +6,8 @@ import { z } from "zod"
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
+import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
+import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
 
 const bodySchema = z.object({
   full_name: z.string().min(1).max(200),
@@ -110,6 +112,30 @@ export async function POST(req: Request) {
 
   const companyId = String(insertedCompany.id)
   console.log("[AUDITOR_BOOTSTRAP] new company created as final fallback", { companyId })
+
+  // Track new registration (fire-and-forget — must not break signup)
+  try {
+    await createRegistrationLog({ email, name: contactName, companyName, website, source: "self_register" })
+  } catch (err) {
+    console.error("[AUDITOR_BOOTSTRAP] registration log failed", err)
+  }
+
+  // Admin notification email (fire-and-forget — must not break signup)
+  try {
+    await sendAdminNotification({
+      subject: "New Auditor Registration",
+      html: `<p><strong>New Auditor user registered</strong></p>
+<ul>
+  <li><strong>Email:</strong> ${email}</li>
+  <li><strong>Name:</strong> ${contactName || "—"}</li>
+  <li><strong>Company:</strong> ${companyName || "—"}</li>
+  <li><strong>Website:</strong> ${website || "—"}</li>
+  <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
+</ul>`,
+    })
+  } catch (err) {
+    console.error("[AUDITOR_BOOTSTRAP] Admin email notification failed", err)
+  }
 
   // Ensure membership exists (best-effort; schema may vary)
   const nowIso = new Date().toISOString()

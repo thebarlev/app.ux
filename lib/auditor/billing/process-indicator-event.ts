@@ -11,6 +11,8 @@ import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
+import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
+import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
 
 const providerKey = "cardcom"
 
@@ -337,6 +339,34 @@ export async function processCardcomIndicatorEvent(
         invitedUserId = inv?.data?.user?.id ? String(inv.data.user.id) : null
         if (invitedUserId) {
           console.log("[AUDITOR_PROCESS] inviteUserByEmail succeeded", { leadEmail, companyId })
+          // Track new registration (fire-and-forget — must not break payment flow)
+          try {
+            await createRegistrationLog({
+              email: leadEmail,
+              name: leadName || null,
+              companyName,
+              website: normalizedHost || null,
+              source: "cardcom_payment",
+            })
+          } catch (err) {
+            console.error("[AUDITOR_PROCESS] registration log failed", err)
+          }
+          // Admin notification email (fire-and-forget — must not break payment flow)
+          try {
+            await sendAdminNotification({
+              subject: "New Auditor Registration",
+              html: `<p><strong>New Auditor user registered (via payment)</strong></p>
+<ul>
+  <li><strong>Email:</strong> ${leadEmail}</li>
+  <li><strong>Name:</strong> ${leadName || "—"}</li>
+  <li><strong>Company:</strong> ${companyName || "—"}</li>
+  <li><strong>Website scanned:</strong> ${normalizedHost || "—"}</li>
+  <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
+</ul>`,
+            })
+          } catch (err) {
+            console.error("[AUDITOR_PROCESS] Admin email notification failed", err)
+          }
         }
       } catch (invErr: any) {
         const errMsg = String(invErr?.message || invErr || "")
