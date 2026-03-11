@@ -93,6 +93,19 @@ function toLinkArray(value: unknown): PageAnalysisLink[] {
     .filter((item): item is PageAnalysisLink => Boolean(item))
 }
 
+function toRawLinkArray(value: unknown): Array<{ href: string; anchor: string }> {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      const record = toRecord(item)
+      const href = String(record.href || "").trim()
+      const anchor = String(record.anchor || "").trim()
+      if (!href && !anchor) return null
+      return { href, anchor }
+    })
+    .filter((item): item is { href: string; anchor: string } => Boolean(item))
+}
+
 function toImageArray(value: unknown): PageAnalysisImage[] {
   if (!Array.isArray(value)) return []
   return value
@@ -106,11 +119,43 @@ function toImageArray(value: unknown): PageAnalysisImage[] {
     .filter((item): item is PageAnalysisImage => Boolean(item))
 }
 
-function getPageAnalysis(value: unknown): PageAnalysis {
+export function getPageAnalysis(value: unknown): PageAnalysis {
   const record = toRecord(value)
   const headings = toRecord(record.headings)
   const links = toRecord(record.links)
   const accessibility = toRecord(record.accessibility)
+  const rawLinks = toRawLinkArray(record.links)
+  const rawAccessibility = Array.isArray(record.accessibility) ? record.accessibility.map((item) => toRecord(item)) : []
+
+  const normalizedLinks =
+    rawLinks.length > 0
+      ? {
+          internal: rawLinks
+            .filter((link) => link.href.startsWith("/") || link.href.startsWith("#") || (!link.href.startsWith("http://") && !link.href.startsWith("https://")))
+            .map((link) => ({ href: link.href, text: link.anchor || link.href })),
+          external: rawLinks
+            .filter((link) => link.href.startsWith("http://") || link.href.startsWith("https://"))
+            .map((link) => ({ href: link.href, text: link.anchor || link.href })),
+          anchors: rawLinks.map((link) => link.anchor).filter(Boolean),
+        }
+      : {
+          internal: toLinkArray(links.internal),
+          external: toLinkArray(links.external),
+          anchors: toStringArray(links.anchors),
+        }
+
+  const normalizedAccessibility =
+    rawAccessibility.length > 0
+      ? {
+          aria_labels: rawAccessibility.map((item) => String(item.aria_label || "").trim()).filter(Boolean),
+          aria_labelledby: rawAccessibility.map((item) => String(item.aria_labelledby || "").trim()).filter(Boolean),
+          roles: rawAccessibility.map((item) => String(item.role || "").trim()).filter(Boolean),
+        }
+      : {
+          aria_labels: toStringArray(accessibility.aria_labels),
+          aria_labelledby: toStringArray(accessibility.aria_labelledby),
+          roles: toStringArray(accessibility.roles),
+        }
 
   return {
     headings: {
@@ -118,17 +163,9 @@ function getPageAnalysis(value: unknown): PageAnalysis {
       h2: toStringArray(headings.h2),
       h3: toStringArray(headings.h3),
     },
-    links: {
-      internal: toLinkArray(links.internal),
-      external: toLinkArray(links.external),
-      anchors: toStringArray(links.anchors),
-    },
+    links: normalizedLinks,
     images: toImageArray(record.images),
-    accessibility: {
-      aria_labels: toStringArray(accessibility.aria_labels),
-      aria_labelledby: toStringArray(accessibility.aria_labelledby),
-      roles: toStringArray(accessibility.roles),
-    },
+    accessibility: normalizedAccessibility,
   }
 }
 

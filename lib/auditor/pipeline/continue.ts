@@ -7,7 +7,7 @@ import { followRedirectsWithValidation, normalizeInputUrl } from "../ssrf"
 import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
-import { extractPageContent } from "../analysis/content-extract"
+import { extractPageAnalysis, extractPageContent } from "../analysis/content-extract"
 import { extractKeywords, persistKeywords } from "../analysis/keywords"
 import { discoverTopics } from "../analysis/topics"
 import { calculateAIScore, summarizeAIReadiness } from "../analysis/ai-readiness"
@@ -651,6 +651,7 @@ export async function continueAuditorScan(params: {
         const pageUrl = String((p as any).url || "")
         const extracted = extractFromHtml(html, pageUrl)
         const content = extractPageContent(html, pageUrl)
+        const analysis = extractPageAnalysis(html)
         const questionParagraphsCount = content.paragraphs.filter((paragraph) => paragraph.includes("?")).length
         const wordCount = content.paragraphs.join(" ").split(/\s+/).filter(Boolean).length
 
@@ -667,7 +668,7 @@ export async function continueAuditorScan(params: {
             has_twitter: extracted.hasTwitter,
             jsonld_types: extracted.jsonldTypes,
             tracking: extracted.tracking,
-            analysis: extracted.analysis,
+            analysis,
             extracted: {
               metaRobots: extracted.metaRobots,
               viewportPresent: extracted.viewportPresent,

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { AdminAuditorPagesTable, type PageRow } from "./AdminAuditorPagesTable"
+import { AdminAuditorHeadingSearch } from "./AdminAuditorHeadingSearch"
 import { AdminAuditorRulesTable, type RuleRow } from "./AdminAuditorRulesTable"
 import { AdminAuditorFindingsTable, type FindingRow } from "./AdminAuditorFindingsTable"
 import { AdminAuditorPipelineLogs, type LogEntry } from "./AdminAuditorPipelineLogs"
@@ -227,6 +228,7 @@ export function AdminAuditorScanViewer({
           {expandError ? (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{expandError}</div>
           ) : null}
+          <AdminAuditorHeadingSearch pages={pages} />
           <AdminAuditorPagesTable pages={pages} />
         </div>
       </TabsContent>

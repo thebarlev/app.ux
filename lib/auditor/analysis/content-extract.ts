@@ -19,6 +19,27 @@ export type PageContent = {
   entities: string[]
 }
 
+export type PageAnalysis = {
+  headings: {
+    h1: string[]
+    h2: string[]
+    h3: string[]
+  }
+  links: Array<{
+    href: string
+    anchor: string
+  }>
+  images: Array<{
+    src: string
+    alt: string
+  }>
+  accessibility: Array<{
+    aria_label: string
+    aria_labelledby: string
+    role: string
+  }>
+}
+
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim()
 }
@@ -67,25 +88,13 @@ function normalizeEntity(value: string): string {
 }
 
 function selectContentRoot($: cheerio.CheerioAPI): cheerio.Cheerio<any> {
-  const candidates = [
-    "main",
-    "article",
-    "[role='main']",
-    ".main",
-    "#main",
-    ".content",
-    "#content",
-    ".post-content",
-    ".entry-content",
-    ".article-content",
-  ]
-
-  for (const selector of candidates) {
-    const match = $(selector).first()
-    if (match.length > 0) return match
-  }
-
-  return $("body").first().length > 0 ? $("body").first() : $.root()
+  return $("main").first().length
+    ? $("main").first()
+    : $("article").first().length
+      ? $("article").first()
+      : $("[role='main']").first().length
+        ? $("[role='main']").first()
+        : $("body")
 }
 
 function detectEntities(textBlocks: string[]): string[] {
@@ -172,5 +181,54 @@ export function extractPageContent(html: string, pageUrl?: string | null): PageC
     paragraphs,
     links,
     entities: detectEntities(combinedText),
+  }
+}
+
+export function extractPageAnalysis(html: string): PageAnalysis {
+  const sourceHtml = String(html || "")
+  const $ = cheerio.load(sourceHtml)
+  $("script, style, noscript, template, svg").remove()
+
+  const root = selectContentRoot($)
+
+  const headings = {
+    h1: root.find("h1").map((_, el) => $(el).text().trim()).get().filter(Boolean),
+    h2: root.find("h2").map((_, el) => $(el).text().trim()).get().filter(Boolean),
+    h3: root.find("h3").map((_, el) => $(el).text().trim()).get().filter(Boolean),
+  }
+
+  const links = root
+    .find("a[href]")
+    .map((_, el) => ({
+      href: $(el).attr("href") || "",
+      anchor: $(el).text().trim(),
+    }))
+    .get()
+    .filter((link) => link.href || link.anchor)
+
+  const images = root
+    .find("img")
+    .map((_, el) => ({
+      src: $(el).attr("src") || "",
+      alt: $(el).attr("alt") || "",
+    }))
+    .get()
+    .filter((image) => image.src || image.alt)
+
+  const accessibility = root
+    .find("[aria-label], [aria-labelledby], [role]")
+    .map((_, el) => ({
+      aria_label: $(el).attr("aria-label") || "",
+      aria_labelledby: $(el).attr("aria-labelledby") || "",
+      role: $(el).attr("role") || "",
+    }))
+    .get()
+    .filter((item) => item.aria_label || item.aria_labelledby || item.role)
+
+  return {
+    headings,
+    links,
+    images,
+    accessibility,
   }
 }
