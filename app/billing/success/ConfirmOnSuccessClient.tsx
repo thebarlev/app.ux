@@ -28,6 +28,17 @@ export function ConfirmOnSuccessClient({ lowProfileCode }: { lowProfileCode: str
         }
         setStatus("ok")
         setMessage(String((json as any)?.paid ? "אומת תשלום והופעלו עדכונים" : "התשלום טרם אומת"))
+
+        if (typeof window !== "undefined" && (json as any)?.paid === true && (json as any)?.updated_subscription === true) {
+          window.sessionStorage.setItem(
+            "vow_purchase_pending",
+            JSON.stringify({
+              lowProfileCode: code,
+              ts: Date.now(),
+            })
+          )
+          window.sessionStorage.removeItem("vow_purchase_tracked")
+        }
       })
       .catch((e) => {
         if (cancelled) return

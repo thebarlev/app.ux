@@ -79,6 +79,8 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: true,
         plan_id: "pro",
+        plan_price: null,
+        currency: "ILS",
         status: "active",
         status_reason: null,
         trial_ends_at: null,
@@ -98,7 +100,7 @@ export async function GET(request: Request) {
     .from("subscriptions")
     .select(
       "company_id, plan_id, status, trial_starts_at, trial_ends_at, current_period_start, current_period_end, " +
-      "plan_snapshot_documents_limit"
+      "plan_snapshot_documents_limit, plan_snapshot_price, plan_snapshot_currency"
     )
     .eq("company_id", companyId)
     .maybeSingle()
@@ -109,6 +111,8 @@ export async function GET(request: Request) {
       return NextResponse.json({
         ok: true,
         plan_id: "pro",
+        plan_price: null,
+        currency: "ILS",
         status: "active",
         status_reason: null,
         trial_ends_at: null,
@@ -131,6 +135,9 @@ export async function GET(request: Request) {
   const trialEndsAt = (sub as any).trial_ends_at ? String((sub as any).trial_ends_at) : null
   const currentPeriodStart = (sub as any).current_period_start ? String((sub as any).current_period_start) : null
   const currentPeriodEnd = (sub as any).current_period_end ? String((sub as any).current_period_end) : null
+  const planPriceRaw = (sub as any).plan_snapshot_price
+  const planPrice = typeof planPriceRaw === "number" ? planPriceRaw : planPriceRaw != null ? Number(planPriceRaw) : null
+  const currency = String((sub as any).plan_snapshot_currency || "ILS").trim() || "ILS"
 
   const documentsLimit = isUnlimitedByCompany(companyId)
     ? UNLIMITED_DOCUMENTS_LIMIT
@@ -208,6 +215,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     plan_id: isUnlimited ? "pro" : planId,
+    plan_price: isUnlimited ? null : (Number.isFinite(planPrice) ? planPrice : null),
+    currency,
     status: isUnlimited ? "active" : status,
     status_reason: statusReason,
     trial_ends_at: trialEndsAt,

@@ -1,25 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-
-type SubscriptionStatusResponse =
-  | { ok: false; message?: string }
-  | {
-      ok: true
-      plan_id: string
-      status: string
-      status_reason: null | "trial_ended" | "subscription_expired" | "account_blocked" | "limit_reached"
-      trial_ends_at: string | null
-      current_period_end: string | null
-      documents_used: number
-      documents_limit: number
-      upgrade_url: string | null
-      upgrade_available: boolean
-    }
+import { useSubscriptionStatus, type SubscriptionStatusResponse } from "./useSubscriptionStatus"
 
 function formatDateHe(iso: string | null): string {
   if (!iso) return "—"
@@ -54,32 +40,18 @@ function reasonMessage(reason: StatusReason | null): string | null {
   }
 }
 
-export function SubscriptionUsageCard() {
+export function SubscriptionUsageCard({
+  state: stateProp,
+  loading: loadingProp,
+}: {
+  state?: SubscriptionStatusResponse | null
+  loading?: boolean
+} = {}) {
   const router = useRouter()
-  const [state, setState] = useState<SubscriptionStatusResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      try {
-        const res = await fetch("/api/subscription/status", { method: "GET" })
-        const json = (await res.json().catch(() => ({}))) as SubscriptionStatusResponse
-        if (cancelled) return
-        setState(json)
-      } catch (e: any) {
-        if (cancelled) return
-        setState({ ok: false, message: e?.message || "fetch_failed" })
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const shouldUseHook = stateProp === undefined && loadingProp === undefined
+  const hookState = useSubscriptionStatus({ enabled: shouldUseHook })
+  const state = stateProp === undefined ? hookState.state : stateProp
+  const loading = loadingProp === undefined ? hookState.loading : loadingProp
 
   const view = useMemo(() => {
     if (!state) return null
