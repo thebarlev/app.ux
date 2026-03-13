@@ -371,6 +371,7 @@ export default function AuditorSettingsClient({ locale = "he" }: { locale?: "he"
     ])
       .then(([settingsJson, intakeJson]) => {
         if (cancelled) return
+        const settingsCompanyName = settingsJson?.ok === true ? String(settingsJson.company_name || "") : ""
         if (settingsJson?.ok === true) {
           setFullName(settingsJson.full_name || "")
           setEmail(settingsJson.email || "")
@@ -385,10 +386,16 @@ export default function AuditorSettingsClient({ locale = "he" }: { locale?: "he"
           setIntake({
             ...defaultIntake,
             ...intakeJson.intake,
+            company_name: String(intakeJson.intake.company_name || settingsCompanyName || ""),
             competitors: Array.isArray(intakeJson.intake.competitors)
               ? [...intakeJson.intake.competitors, "", "", "", "", ""].slice(0, 5)
               : defaultIntake.competitors,
           })
+        } else if (settingsCompanyName) {
+          setIntake((prev) => ({
+            ...prev,
+            company_name: settingsCompanyName,
+          }))
         }
         if (settingsJson?.ok !== true && intakeJson?.ok !== true) {
           setError(t.loadError)

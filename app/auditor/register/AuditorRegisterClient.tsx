@@ -37,6 +37,7 @@ export default function AuditorRegisterClient(props: {
   labelContactName?: string
   labelPassword?: string
   helperPassword?: string
+  helperCompanyName?: string
 }) {
   const router = useRouter()
   const basePath = props.basePath ?? "/auditor"
@@ -243,6 +244,12 @@ export default function AuditorRegisterClient(props: {
                     label={props.labelCompanyName ?? (isLtr ? "Company name" : "שם חברה")}
                     id="company_name"
                     placeholder={isLtr ? "Acme Inc." : "חברה בע\"מ"}
+                    helperText={
+                      props.helperCompanyName ??
+                      (isLtr
+                        ? "This is the business name that will appear on your invoice after payment."
+                        : "זהו שם העסק שיופיע על החשבונית לאחר התשלום.")
+                    }
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="auth-input"

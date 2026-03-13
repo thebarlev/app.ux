@@ -60,6 +60,7 @@ export default async function EnAuditorRegisterPage({
       labelFullName="Full name"
       labelEmail="Email"
       labelPhone="Phone"
+      helperCompanyName="This is the business name that will appear on your invoice after payment."
       labelPassword="Password"
       helperPassword="Min. 8 characters"
     />
