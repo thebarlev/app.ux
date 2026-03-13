@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Loader2, User, Building2, ChevronDown } from "lucide-react"
 
 type IntakeForm = {
@@ -303,6 +304,7 @@ export default function AuditorSettingsClient({ locale = "he" }: { locale?: "he"
   const isLtr = locale === "en"
   const align = isLtr ? "left" : "right"
   const textDir = isLtr ? "ltr" : "rtl"
+  const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<"personal" | "business">("personal")
   const [fullName, setFullName] = useState("")
   const [email, setEmail] = useState("")
@@ -440,6 +442,22 @@ export default function AuditorSettingsClient({ locale = "he" }: { locale?: "he"
     { key: "business", label: t.businessTab, icon: <Building2 size={15} /> },
   ]
 
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab")
+    if (requestedTab !== "business" && requestedTab !== "personal") return
+
+    setActiveTab(requestedTab)
+
+    if (requestedTab === "business" && typeof window !== "undefined") {
+      window.setTimeout(() => {
+        document.getElementById("business-details")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      }, 0)
+    }
+  }, [searchParams])
+
   const AlertBanner = ({ type, message }: { type: "error" | "success"; message: string }) => (
     <div style={{
       marginBottom: 20,
@@ -575,7 +593,7 @@ export default function AuditorSettingsClient({ locale = "he" }: { locale?: "he"
 
         {/* ── Business tab ── */}
         {!loading && activeTab === "business" && (
-          <form onSubmit={handleBusinessSubmit}>
+          <form id="business-details" onSubmit={handleBusinessSubmit}>
             {error && <AlertBanner type="error" message={error} />}
             {successBusiness && <AlertBanner type="success" message={t.saveSuccess} />}
 
