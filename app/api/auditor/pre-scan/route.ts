@@ -55,6 +55,7 @@ export async function POST(req: Request) {
       normalized_url: origin,
       hostname: finalUrl.hostname,
       normalized_host: normalizedHost,
+      page_limit: 10,
       artifacts: {},
       coverage: {},
       confidence: {},

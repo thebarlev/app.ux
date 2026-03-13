@@ -202,7 +202,7 @@ export async function continueAuditorScan(params: {
     const targetUrl = String(lockedScan.target_url || "")
     const normalizedUrl = lockedScan.normalized_url ? String(lockedScan.normalized_url) : null
     const hostname = lockedScan.hostname ? String(lockedScan.hostname) : null
-    const pageLimit = Number.isFinite(Number(lockedScan.page_limit)) ? Math.max(1, Number(lockedScan.page_limit)) : 20
+    const pageLimit = Number.isFinite(Number(lockedScan.page_limit)) ? Math.max(1, Number(lockedScan.page_limit)) : 10
 
     await supabase.from("auditor_scans").update({ heartbeat_at: nowIso() }).eq("id", scanId).eq("locked_by", requestId)
     await auditorLog({ supabase, scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
@@ -569,8 +569,8 @@ export async function continueAuditorScan(params: {
         const url = String((p as any).url)
         const res = await fetchTextBounded({
           url,
-          timeoutMs: 3000,
-          maxBytes: 900_000,
+          timeoutMs: 1800,
+          maxBytes: 400_000,
           headers: { "user-agent": "VOW-Auditor-POC/1.0" },
         })
 

@@ -374,7 +374,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
 
       for (let i = 0; i < 3; i++) {
         await triggerContinue(sid, t)
-        await new Promise((res) => setTimeout(res, 1200))
+        await new Promise((res) => setTimeout(res, 500))
         const st = await loadStatus(sid, t)
         if ((st as any)?.ok === true && (st as any).screenshot_url) break
       }
@@ -487,7 +487,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
     }
 
     tick()
-    pollingIntervalRef.current = setInterval(tick, 2500)
+    pollingIntervalRef.current = setInterval(tick, 1200)
     return () => {
       cancelled = true
       stopPolling()
@@ -530,7 +530,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
     }
 
     tick()
-    pollingIntervalRef.current = setInterval(tick, 2500)
+    pollingIntervalRef.current = setInterval(tick, 1200)
     return () => {
       cancelled = true
       stopPolling()

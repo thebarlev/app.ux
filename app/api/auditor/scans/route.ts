@@ -68,6 +68,7 @@ export async function POST(req: Request) {
       company_id: access.companyId,
       created_by_user_id: access.user.id,
       target_url: targetUrl,
+      page_limit: 10,
       status: "queued",
       step: "normalize",
       artifacts: {},

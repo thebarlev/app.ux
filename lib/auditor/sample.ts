@@ -28,7 +28,7 @@ export function pickSamplePages(params: {
   sitemapUrls: string[]
   maxPages?: number
 }): string[] {
-  const maxPages = typeof params.maxPages === "number" ? params.maxPages : 20
+  const maxPages = typeof params.maxPages === "number" ? params.maxPages : 10
 
   const out: string[] = []
   const seen = new Set<string>()
