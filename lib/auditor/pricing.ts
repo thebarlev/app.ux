@@ -5,5 +5,5 @@
 export const PLAN_PRICES_USD = {
   basic: 100,
   pro: 270,
-  premium: 1,
+  premium: 670,
 } as const
