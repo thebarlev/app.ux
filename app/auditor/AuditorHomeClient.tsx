@@ -28,6 +28,7 @@ import { ScanProgress } from "@/components/auditor/scan-progress/ScanProgress"
 import { ScanHistoryAccordion } from "@/components/auditor/scan-history/ScanHistoryAccordion"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
+import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
 
 type Step = 1 | 2 | 3
 
@@ -341,12 +342,19 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       setToken(qsToken)
       setStep(3)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [sp])
 
   const onStart = async () => {
     setError(null)
     if (!siteUrl.trim()) return
+
+    const trackedPlan = planFromLinkId(linkId) || normalizeTrackedPlan(selectedPlanId)
+    if (trackedPlan) {
+      pushEvent("scan_started", {
+        plan: trackedPlan,
+      })
+    }
+
     setIsSubmitting(true)
     try {
       const r = await fetch("/api/auditor/pre-scan", {

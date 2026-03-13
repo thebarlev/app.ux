@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { normalizeTrackedPlan, pushEvent } from "@/lib/tracking/events"
 import { cn } from "@/lib/utils"
 
 type PlanRow = {
@@ -29,6 +30,13 @@ export default function PricingClient({ plans }: { plans: PlanRow[] }) {
   }, [plans])
 
   async function startCheckout(planId: string) {
+    const trackedPlan = normalizeTrackedPlan(planId)
+    if (trackedPlan) {
+      pushEvent("package_click", {
+        plan: trackedPlan,
+      })
+    }
+
     setBusyPlanId(planId)
     try {
       const res = await fetch("/api/billing/checkout/create", {

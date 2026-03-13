@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -307,7 +307,7 @@ export function AuditorScanResults({
   const [isContinuing, setIsContinuing] = useState(false)
   const continuingRef = useRef(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const r = await fetch(`/api/auditor/scans/${scanId}`, { method: "GET" })
       const j = await r.json().catch(() => null)
@@ -316,9 +316,9 @@ export function AuditorScanResults({
     } catch (e: any) {
       setState({ ok: false, error: String(e?.message || e) })
     }
-  }
+  }, [scanId])
 
-  const triggerContinue = async () => {
+  const triggerContinue = useCallback(async () => {
     if (continuingRef.current) return
     continuingRef.current = true
     setIsContinuing(true)
@@ -333,7 +333,7 @@ export function AuditorScanResults({
       continuingRef.current = false
       setIsContinuing(false)
     }
-  }
+  }, [scanId])
 
   useEffect(() => {
     load()
@@ -349,8 +349,7 @@ export function AuditorScanResults({
     }, 2000)
   
     return () => clearInterval(tmr)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanId])
+  }, [load])
 
   const scan = state.ok ? state.scan : null
   const rules = state.ok ? state.rules : []
@@ -360,8 +359,7 @@ export function AuditorScanResults({
     const status = String(scan?.status || "")
     if (status === "done" || status === "failed") return
     triggerContinue()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.ok, scan?.status, scan?.step])
+  }, [state.ok, scan?.status, scan?.step, triggerContinue])
 
   const top5 = useMemo(() => [...rules].sort((a, b) => rulePriorityScore(b) - rulePriorityScore(a)).slice(0, 5), [rules])
   const breakdown = scan?.score_breakdown || {}

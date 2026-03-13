@@ -40,6 +40,9 @@ function ScoreRing({ value, label, color, trackColor }: { value: number; label: 
 export default async function AuditorDashboardPage() {
   const t = getDashboardStrings("he")
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   const { data: companyRows } = await supabase.rpc("user_company_ids")
   const first = Array.isArray(companyRows) && companyRows.length > 0 ? companyRows[0] : null
   const companyId =
@@ -49,19 +52,31 @@ export default async function AuditorDashboardPage() {
         : (first as { company_id?: string })?.company_id ?? null
       : null
   const canViewFullReport = await isSystemAdmin()
+  let hasIntake = false
 
   let lastScan: { id: string; report_public: any; normalized_host: string } | null = null
   let scans: any[] = []
 
   if (companyId) {
-    const { data } = await supabase
-      .from("auditor_scans")
-      .select("id,status,step,normalized_host,created_at,finished_at,report_public")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
-      .limit(50)
+    const [{ data }, { data: intake }] = await Promise.all([
+      supabase
+        .from("auditor_scans")
+        .select("id,status,step,normalized_host,created_at,finished_at,report_public")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      user?.id
+        ? supabase
+            .from("auditor_client_intake")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("company_id", companyId)
+            .maybeSingle()
+        : Promise.resolve({ data: null } as { data: { id?: string } | null }),
+    ])
     scans = data || []
     lastScan = scans.find((s) => s.status === "done") ?? null
+    hasIntake = !!intake?.id
   }
 
   const rp = lastScan?.report_public && typeof lastScan.report_public === "object" ? lastScan.report_public : {}
@@ -105,6 +120,26 @@ export default async function AuditorDashboardPage() {
       </header>
 
       {/* ── Scan trigger ── */}
+      {companyId && !hasIntake ? (
+        <section
+          className="rounded-xl border p-6 transition-all duration-200"
+          style={{ borderColor: "#bfdbfe", background: "#eff6ff" }}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="mb-1 text-sm font-bold text-blue-800">Complete your setup</p>
+              <p className="text-xs text-blue-700">מלאו את שאלון ההיכרות כדי שנוכל להתאים את תהליך ה-Auditor לעסק שלכם.</p>
+            </div>
+            <Link
+              href="/auditor/onboarding"
+              className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              /auditor/onboarding
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <section
         className="overflow-hidden rounded-xl border p-6 transition-all duration-200 hover:shadow-md"
         style={{ borderColor: "#e2e8f0", background: "#ffffff", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}

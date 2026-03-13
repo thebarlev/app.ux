@@ -134,6 +134,9 @@ export async function POST(req: Request) {
     ok: true,
     redirect_url: opened.redirectUrl,
     checkout_session_id: checkoutSessionId,
+    plan_id: plan.id,
+    amount: marketConfig.amount,
+    currency: marketConfig.currency,
   })
 }
 

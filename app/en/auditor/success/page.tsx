@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
+import { AuditorSuccessClient } from "@/components/auditor/AuditorSuccessClient"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,8 +20,13 @@ export default async function EnAuditorSuccessPage({
   } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect(`/en/auditor/login?returnTo=${encodeURIComponent("/en/auditor/dashboard")}`)
+    const params = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams || {})) {
+      if (typeof value === "string" && value.trim()) params.set(key, value)
+    }
+    const returnTo = params.toString() ? `/en/auditor/success?${params.toString()}` : "/en/auditor/success"
+    redirect(`/en/auditor/login?returnTo=${encodeURIComponent(returnTo)}`)
   }
 
-  redirect("/en/auditor/dashboard")
+  return <AuditorSuccessClient basePath="/en/auditor" />
 }

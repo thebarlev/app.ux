@@ -41,6 +41,7 @@ const navItems: NavItem[] = [
   { href: "/admin/auditor/scans", label: "Scans", icon: <List className="h-4 w-4" /> },
   { href: "/admin/auditor/scan", label: "Run Scan", icon: <Play className="h-4 w-4" /> },
   { href: "/admin/auditor/tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
+  { href: "/admin/auditor/clients", label: "Clients", icon: <Users className="h-4 w-4" /> },
   { href: "/admin/auditor/billing", label: "Billing Debug", icon: <CreditCard className="h-4 w-4" /> },
   // Other admin sections
   { href: "/admin/templates", label: "Templates", icon: <FileText className="h-4 w-4" /> },

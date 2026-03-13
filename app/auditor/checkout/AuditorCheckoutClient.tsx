@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
+import { normalizeTrackedPlan } from "@/lib/tracking/events"
+import { saveAuditorCheckoutTrackingContext } from "@/lib/tracking/purchase"
 
 export default function AuditorCheckoutClient(props: {
   linkId: string
@@ -72,6 +74,21 @@ export default function AuditorCheckoutClient(props: {
 
         const redirectUrl = String(j?.redirect_url || "").trim()
         if (!redirectUrl) throw new Error("Missing redirect_url")
+        const trackedPlan = normalizeTrackedPlan(j?.plan_id)
+        const trackedValue = Number(j?.amount)
+        const trackedCurrency = String(j?.currency || "").trim() || "USD"
+        const checkoutSessionId = String(j?.checkout_session_id || "").trim()
+
+        if (trackedPlan && Number.isFinite(trackedValue) && checkoutSessionId) {
+          saveAuditorCheckoutTrackingContext({
+            checkout_session_id: checkoutSessionId,
+            plan: trackedPlan,
+            value: trackedValue,
+            currency: trackedCurrency,
+            created_at: Date.now(),
+          })
+        }
+
         if (!cancelled) window.location.href = redirectUrl
       } catch (e: any) {
         if (cancelled) return

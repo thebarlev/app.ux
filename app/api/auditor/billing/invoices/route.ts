@@ -2,24 +2,17 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
-import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
-import { getCompanyIdForUser } from "@/lib/document-helpers"
+import { createServiceRoleClient } from "@/lib/supabase/server"
+import { requireAuditorApiAccess } from "@/lib/auditor/guard"
 import { getAuditorConfig } from "@/lib/auditor/env"
 
 export async function GET() {
   const cfg = getAuditorConfig()
   if (!cfg.enabled) return new NextResponse(null, { status: 404 })
 
-  const supabase = await createClient()
-  const { data: auth } = await supabase.auth.getUser()
-  if (!auth?.user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
-
-  let companyId: string
-  try {
-    companyId = await getCompanyIdForUser()
-  } catch {
-    return NextResponse.json({ ok: false, error: "No company" }, { status: 400 })
-  }
+  const access = await requireAuditorApiAccess()
+  if (access instanceof NextResponse) return access
+  const companyId = access.companyId
 
   const admin = createServiceRoleClient()
 
@@ -44,6 +37,7 @@ export async function GET() {
     const { data: docs } = await admin
       .from("documents")
       .select("id, document_number")
+      .eq("company_id", companyId)
       .in("id", docIds)
     if (docs) {
       for (const d of docs as any[]) {

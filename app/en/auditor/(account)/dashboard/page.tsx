@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { isSystemAdmin } from "@/lib/security/system-admin"
 import { AuditorDashboardScanClient } from "@/components/auditor/AuditorDashboardScanClient"
+import { AuditorPurchaseTracker } from "@/components/auditor/AuditorPurchaseTracker"
 import { ScanHistorySection } from "@/components/auditor/dashboard/ScanHistorySection"
 import { EnAuditorScanResultsCard } from "@/components/auditor/EnAuditorScanResultsCard"
 import { getDashboardStrings } from "@/lib/auditor/dashboard-strings"
@@ -116,6 +117,7 @@ export default async function EnAuditorDashboardPage({
       className="relative min-h-screen space-y-6 px-4 py-8 sm:px-8 lg:px-12"
       style={{ background: "#f8fafc" }}
     >
+      <AuditorPurchaseTracker />
       {/* Subtle top gradient accent */}
       <div
         aria-hidden

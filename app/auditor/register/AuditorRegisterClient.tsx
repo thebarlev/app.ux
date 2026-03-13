@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
+import { planFromLinkId, pushEvent } from "@/lib/tracking/events"
 
 export default function AuditorRegisterClient(props: {
   linkId: string
@@ -74,6 +75,11 @@ export default function AuditorRegisterClient(props: {
   useEffect(() => {
     setError(null)
   }, [linkId, scanId, token])
+
+  useEffect(() => {
+    const trackedPlan = planFromLinkId(linkId)
+    pushEvent("register_started", trackedPlan ? { plan: trackedPlan } : {})
+  }, [linkId])
 
   const validate = () => {
     if (!fullName.trim()) return "נא למלא שם מלא"

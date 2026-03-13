@@ -22,10 +22,12 @@ import {
   Loader2,
   Shield,
 } from "lucide-react"
-import type { Company, Document } from "@/lib/types/admin"
+import type { AuditorClientIntake, AuditorSubscriptionSummary, Company, Document } from "@/lib/types/admin"
 
 interface CompanyDetailsProps {
   company: Company
+  intake: AuditorClientIntake | null
+  subscription: AuditorSubscriptionSummary
   documents: Document[]
   totalRevenue: number
   adminName: string
@@ -49,6 +51,8 @@ const documentTypeLabels: Record<string, string> = {
 
 export function CompanyDetails({
   company: initialCompany,
+  intake,
+  subscription,
   documents: initialDocuments,
   totalRevenue,
   adminName,
@@ -108,6 +112,17 @@ export function CompanyDetails({
       day: "numeric",
       year: "numeric",
     })
+  }
+
+  const renderText = (value: string | null | undefined) => {
+    const text = String(value || "").trim()
+    return text || "N/A"
+  }
+
+  const renderBoolean = (value: boolean | null | undefined) => {
+    if (value === true) return "Yes"
+    if (value === false) return "No"
+    return "N/A"
   }
 
   return (
@@ -221,6 +236,94 @@ export function CompanyDetails({
             </CardContent>
           </Card>
         </div>
+
+        <Card className="mb-8 border-0 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold">Auditor Subscription</CardTitle>
+                <CardDescription>Billing status and recurring charge summary</CardDescription>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <DollarSign className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3 rounded-lg border p-4">
+                <h3 className="font-medium">Subscription</h3>
+                <div className="text-sm text-muted-foreground">Plan: <span className="text-foreground">{renderText(subscription.plan_id)}</span></div>
+                <div className="text-sm text-muted-foreground">Status: <span className="text-foreground">{renderText(subscription.status)}</span></div>
+                <div className="text-sm text-muted-foreground">Active: <span className="text-foreground">{subscription.is_active ? "Yes" : "No"}</span></div>
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <h3 className="font-medium">Payments</h3>
+                <div className="text-sm text-muted-foreground">Last payment date: <span className="text-foreground">{subscription.last_payment_at ? formatDate(subscription.last_payment_at) : "N/A"}</span></div>
+                <div className="text-sm text-muted-foreground">Payments count so far: <span className="text-foreground">{subscription.successful_payments_count}</span></div>
+                <div className="text-sm text-muted-foreground">Next billing date: <span className="text-foreground">{subscription.next_billing_date ? formatDate(subscription.next_billing_date) : "N/A"}</span></div>
+                <div className="text-sm text-muted-foreground">Current period end: <span className="text-foreground">{subscription.current_period_end ? formatDate(subscription.current_period_end) : "N/A"}</span></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-8 border-0 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold">Auditor Intake</CardTitle>
+                <CardDescription>Business, marketing, SEO goals, and access permissions</CardDescription>
+              </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!intake ? (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                No Auditor Intake record found.
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border p-4">
+                  <h3 className="font-medium">Business</h3>
+                  <div className="text-sm text-muted-foreground">Company name: <span className="text-foreground">{renderText(intake.company_name)}</span></div>
+                  <div className="text-sm text-muted-foreground">Website: <span className="text-foreground">{renderText(intake.website)}</span></div>
+                  <div className="text-sm text-muted-foreground">Business age: <span className="text-foreground">{renderText(intake.business_age)}</span></div>
+                  <div className="text-sm text-muted-foreground">Country: <span className="text-foreground">{renderText(intake.country)}</span></div>
+                  <div className="text-sm text-muted-foreground">Languages: <span className="text-foreground">{renderText(intake.languages)}</span></div>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-4">
+                  <h3 className="font-medium">Marketing</h3>
+                  <div className="text-sm text-muted-foreground">SEO done before: <span className="text-foreground">{renderBoolean(intake.seo_done_before)}</span></div>
+                  <div className="text-sm text-muted-foreground">Google Ads before: <span className="text-foreground">{renderBoolean(intake.google_ads_before)}</span></div>
+                  <div className="text-sm text-muted-foreground">GA status: <span className="text-foreground">{renderText(intake.ga_status)}</span></div>
+                  <div className="text-sm text-muted-foreground">GSC status: <span className="text-foreground">{renderText(intake.gsc_status)}</span></div>
+                  <div className="text-sm text-muted-foreground">GTM status: <span className="text-foreground">{renderText(intake.gtm_status)}</span></div>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-4">
+                  <h3 className="font-medium">SEO Goals</h3>
+                  <div className="text-sm text-muted-foreground">Keywords</div>
+                  <p className="whitespace-pre-wrap text-sm">{renderText(intake.keywords)}</p>
+                  <div className="text-sm text-muted-foreground">Competitors</div>
+                  <p className="whitespace-pre-wrap text-sm">{renderText(intake.competitors)}</p>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-4">
+                  <h3 className="font-medium">Access Permissions</h3>
+                  <div className="text-sm text-muted-foreground">Website access</div>
+                  <p className="whitespace-pre-wrap text-sm">{renderText(intake.website_access)}</p>
+                  <div className="text-xs text-muted-foreground">Submitted: {formatDate(intake.created_at)}</div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Documents Table */}
         <Card className="border-0 shadow-sm">

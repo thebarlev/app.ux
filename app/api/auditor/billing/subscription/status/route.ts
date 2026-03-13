@@ -34,12 +34,15 @@ export async function GET() {
       cancel_at_period_end: false,
       canceled_at: null,
       last_invoice_id: null,
+      purchase: null,
     })
   }
 
   const { data: sub } = await admin
     .from("auditor_subscriptions")
-    .select("company_id,plan_id,status,next_billing_date,current_period_start,current_period_end,cancel_at_period_end,canceled_at")
+    .select(
+      "company_id,plan_id,status,next_billing_date,current_period_start,current_period_end,cancel_at_period_end,canceled_at,plan_snapshot_monthly_amount,plan_snapshot_currency"
+    )
     .eq("company_id", companyId)
     .maybeSingle()
 
@@ -50,12 +53,39 @@ export async function GET() {
   // Optional: latest invoice id for customer convenience (no raw payloads)
   const { data: lastCharge } = await admin
     .from("auditor_subscription_charges")
-    .select("issued_invoice_id,subscription_period_start")
+    .select("issued_invoice_id,subscription_period_start,amount,currency,provider_internal_deal_number")
     .eq("company_id", companyId)
     .eq("status", "succeeded")
     .order("subscription_period_start", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  const { data: lastPaidCheckout } = await admin
+    .from("auditor_checkout_sessions")
+    .select("id,provider_internal_deal_number,created_at")
+    .eq("company_id", companyId)
+    .eq("status", "paid")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const chargeAmount = Number((lastCharge as any)?.amount ?? NaN)
+  const snapshotAmount = Number((sub as any)?.plan_snapshot_monthly_amount ?? NaN)
+  const purchaseValue = Number.isFinite(chargeAmount)
+    ? chargeAmount
+    : Number.isFinite(snapshotAmount)
+      ? snapshotAmount
+      : null
+  const purchaseCurrency =
+    String((lastCharge as any)?.currency || (sub as any)?.plan_snapshot_currency || "").trim() || null
+  const transactionId =
+    String(
+      (lastPaidCheckout as any)?.provider_internal_deal_number ||
+      (lastPaidCheckout as any)?.id ||
+      (lastCharge as any)?.provider_internal_deal_number ||
+      ""
+    ).trim() || null
+  const checkoutSessionId = String((lastPaidCheckout as any)?.id || "").trim() || null
 
   return NextResponse.json({
     ok: true,
@@ -68,6 +98,16 @@ export async function GET() {
     cancel_at_period_end: sub.cancel_at_period_end,
     canceled_at: sub.canceled_at,
     last_invoice_id: lastCharge?.issued_invoice_id ?? null,
+    purchase:
+      purchaseValue !== null && purchaseCurrency
+        ? {
+            transaction_id: transactionId,
+            checkout_session_id: checkoutSessionId,
+            value: purchaseValue,
+            currency: purchaseCurrency,
+            plan: sub.plan_id,
+          }
+        : null,
   })
 }
 

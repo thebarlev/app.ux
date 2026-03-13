@@ -160,6 +160,8 @@ export async function POST(req: Request) {
       redirect_url: opened.redirectUrl,
       checkout_session_id: checkoutSessionId,
       plan_id: planId,
+      amount: marketConfig.amount,
+      currency: marketConfig.currency,
     })
   }
 
@@ -230,6 +232,8 @@ export async function POST(req: Request) {
     redirect_url: opened.redirectUrl,
     checkout_session_id: checkoutSessionId,
     plan_id: planId,
+    amount: marketConfig.amount,
+    currency: marketConfig.currency,
   })
 }
 

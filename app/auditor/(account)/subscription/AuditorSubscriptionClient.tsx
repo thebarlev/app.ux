@@ -324,8 +324,7 @@ export default function AuditorSubscriptionClient({
       })
       .catch(() => setError(t.error))
       .finally(() => setLoading(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [t.error])
 
   const handleCancel = async () => {
     setCanceling(true)
