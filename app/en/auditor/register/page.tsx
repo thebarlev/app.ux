@@ -16,7 +16,7 @@ export default async function EnAuditorRegisterPage({
 
   const supabase = await createClient()
 
-  const titleText = "AI visibility for your business"
+  const titleText = "Google & AI Search Optimization"
   const descriptionText = "Quick signup"
   const legalTermsText = "I agree to the terms of use, privacy policy, and service agreement"
   const marketingText = "I want to receive offers and marketing updates by email"
