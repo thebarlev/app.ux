@@ -886,9 +886,9 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
                     onClick={onStart}
                     disabled={!canGoToDetails}
                     aria-label="המשך"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
                   >
-                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowLeft className="h-5 w-5" />}
+                    {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
                   </button>
                   <Input
                     value={siteUrl}
@@ -896,7 +896,8 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
                     onKeyDown={(e) => { if (e.key === "Enter") onStart() }}
                     placeholder="כתובת אתר / עמוד נחיתה"
                     dir="ltr"
-                    className="h-12 rounded-full bg-white pl-12 text-right shadow-sm"
+                    style={{ direction: "ltr" }}
+                    className="h-12 rounded-full bg-white pr-12 pl-5 !text-left placeholder:!text-left shadow-sm"
                   />
                 </>
               )}
