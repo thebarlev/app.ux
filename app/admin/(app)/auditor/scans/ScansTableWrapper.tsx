@@ -2,7 +2,7 @@
 
 import { useTransition } from "react"
 import { AdminAuditorScansTable, type ScanRow } from "@/components/admin/auditor/AdminAuditorScansTable"
-import { retryScan, cancelScan } from "./actions"
+import { retryScan, cancelScan, deleteScan, deleteScans } from "./actions"
 
 export function AdminAuditorScansTableWrapper({
   scans,
@@ -28,6 +28,8 @@ export function AdminAuditorScansTableWrapper({
       hasMore={hasMore}
       onRetry={(scanId) => startTransition(() => { retryScan(scanId) })}
       onCancel={(scanId) => startTransition(() => { cancelScan(scanId) })}
+      onDelete={(scanId) => startTransition(() => { deleteScan(scanId) })}
+      onDeleteMany={(scanIds) => startTransition(() => { deleteScans(scanIds) })}
     />
   )
 }

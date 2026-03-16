@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
-import { AdminAuditorClientsTable, type AuditorClientRow } from "@/components/admin/auditor/AdminAuditorClientsTable"
+import type { AuditorClientRow } from "@/components/admin/auditor/AdminAuditorClientsTable"
+import { ClientsTableWrapper } from "./ClientsTableWrapper"
 
 export const dynamic = "force-dynamic"
 
@@ -73,7 +74,7 @@ export default async function AdminAuditorClientsPage({
           <h1 className="text-2xl font-bold text-slate-900">Auditor Clients</h1>
           <p className="mt-1 text-slate-500">Centralized view of Auditor customers and onboarding progress.</p>
         </div>
-        <AdminAuditorClientsTable rows={[]} query={query} activeOnly={activeOnly} />
+        <ClientsTableWrapper rows={[]} query={query} activeOnly={activeOnly} />
       </div>
     )
   }
@@ -192,7 +193,7 @@ export default async function AdminAuditorClientsPage({
         <p className="mt-1 text-slate-500">Centralized view of Auditor customers and onboarding progress.</p>
       </div>
 
-      <AdminAuditorClientsTable rows={rows} query={query} activeOnly={activeOnly} />
+      <ClientsTableWrapper rows={rows} query={query} activeOnly={activeOnly} />
     </div>
   )
 }

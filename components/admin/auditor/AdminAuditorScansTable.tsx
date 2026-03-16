@@ -2,10 +2,9 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { useCallback } from "react"
-import { Badge } from "@/components/ui/badge"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, RefreshCw, XCircle } from "lucide-react"
+import { ExternalLink, RefreshCw, Trash2, XCircle } from "lucide-react"
 
 export interface ScanRow {
   id: string
@@ -44,6 +43,8 @@ export function AdminAuditorScansTable({
   hasMore,
   onRetry,
   onCancel,
+  onDelete,
+  onDeleteMany,
 }: {
   scans: ScanRow[]
   status?: string
@@ -52,10 +53,13 @@ export function AdminAuditorScansTable({
   hasMore: boolean
   onRetry?: (scanId: string) => void
   onCancel?: (scanId: string) => void
+  onDelete?: (scanId: string) => void
+  onDeleteMany?: (scanIds: string[]) => void
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const buildUrl = useCallback(
     (params: Record<string, string | undefined>) => {
@@ -68,6 +72,31 @@ export function AdminAuditorScansTable({
     },
     [pathname, searchParams],
   )
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [scans])
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const allVisibleSelected = scans.length > 0 && scans.every((scan) => selectedSet.has(scan.id))
+
+  const toggleSelected = useCallback((scanId: string, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) return current.includes(scanId) ? current : [...current, scanId]
+      return current.filter((id) => id !== scanId)
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? scans.map((scan) => scan.id) : [])
+  }, [scans])
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!onDeleteMany || selectedIds.length === 0) return
+    if (!window.confirm(`Delete ${selectedIds.length} scan(s) from the database? This action cannot be undone.`)) return
+    onDeleteMany(selectedIds)
+    setSelectedIds([])
+  }, [onDeleteMany, selectedIds])
 
   const filterOptions = {
     status: ["", "queued", "running", "done", "failed"],
@@ -111,6 +140,19 @@ export function AdminAuditorScansTable({
             Clear filters
           </button>
         )}
+        {onDeleteMany && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto h-8 gap-1 text-red-600 hover:text-red-700"
+            disabled={selectedIds.length === 0}
+            onClick={handleDeleteSelected}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete selected ({selectedIds.length})
+          </Button>
+        )}
       </div>
 
       {/* Table */}
@@ -119,6 +161,15 @@ export function AdminAuditorScansTable({
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50">
               <tr>
+                <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all scans"
+                    checked={allVisibleSelected}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Host</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-600">Step</th>
@@ -131,11 +182,20 @@ export function AdminAuditorScansTable({
             <tbody className="divide-y divide-slate-100">
               {scans.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400">No scans found</td>
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">No scans found</td>
                 </tr>
               ) : (
                 scans.map((scan) => (
                   <tr key={scan.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select scan ${scan.id}`}
+                        checked={selectedSet.has(scan.id)}
+                        onChange={(e) => toggleSelected(scan.id, e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-800">{scan.hostname ?? <span className="text-slate-400">—</span>}</div>
                       {scan.lead_email_normalized && (
@@ -174,6 +234,18 @@ export function AdminAuditorScansTable({
                             onClick={() => onCancel(scan.id)}
                           >
                             <XCircle className="h-3 w-3" />Cancel
+                          </Button>
+                        )}
+                        {onDelete && (
+                          <Button
+                            variant="outline" size="sm"
+                            className="h-7 px-2 text-xs gap-1 text-red-600 hover:text-red-700"
+                            onClick={() => {
+                              if (!window.confirm("Delete this scan from the database? This action cannot be undone.")) return
+                              onDelete(scan.id)
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />Delete
                           </Button>
                         )}
                       </div>

@@ -38,3 +38,33 @@ export async function cancelScan(scanId: string): Promise<{ ok: boolean; error?:
   revalidatePath("/admin/auditor/scans")
   return { ok: true }
 }
+
+export async function deleteScan(scanId: string): Promise<{ ok: boolean; error?: string }> {
+  await requireSystemAdmin()
+  const admin = createServiceRoleClient()
+  const { error } = await admin
+    .from("auditor_scans")
+    .delete()
+    .eq("id", scanId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath("/admin/auditor/scans")
+  revalidatePath(`/admin/auditor/scans/${scanId}`)
+  return { ok: true }
+}
+
+export async function deleteScans(scanIds: string[]): Promise<{ ok: boolean; error?: string }> {
+  await requireSystemAdmin()
+  const ids = Array.from(new Set((scanIds || []).map((scanId) => String(scanId || "").trim()).filter(Boolean)))
+  if (ids.length === 0) return { ok: false, error: "No scans selected" }
+
+  const admin = createServiceRoleClient()
+  const { error } = await admin
+    .from("auditor_scans")
+    .delete()
+    .in("id", ids)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath("/admin/auditor/scans")
+  return { ok: true }
+}

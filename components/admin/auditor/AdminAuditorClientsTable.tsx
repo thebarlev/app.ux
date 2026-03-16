@@ -2,13 +2,13 @@
 
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useCallback } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Building2, ExternalLink, Mail, Search } from "lucide-react"
+import { Building2, ExternalLink, Mail, Search, Trash2 } from "lucide-react"
 
 export type AuditorClientRow = {
   companyId: string
@@ -44,18 +44,29 @@ function statusBadgeClass(value: string | null) {
   }
 }
 
+function isActiveSubscription(value: string | null) {
+  return value === "active"
+}
+
 export function AdminAuditorClientsTable({
   rows,
   query,
   activeOnly,
+  onDisable,
+  onDelete,
+  onDeleteMany,
 }: {
   rows: AuditorClientRow[]
   query?: string
   activeOnly?: boolean
+  onDisable?: (companyId: string) => void
+  onDelete?: (companyId: string) => void
+  onDeleteMany?: (companyIds: string[]) => void
 }) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const buildUrl = useCallback(
     (params: Record<string, string | undefined>) => {
@@ -69,6 +80,46 @@ export function AdminAuditorClientsTable({
     },
     [pathname, searchParams],
   )
+
+  useEffect(() => {
+    setSelectedIds([])
+  }, [rows])
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+  const deletableRows = useMemo(() => rows.filter((row) => !isActiveSubscription(row.subscriptionStatus)), [rows])
+  const allVisibleSelected = deletableRows.length > 0 && deletableRows.every((row) => selectedSet.has(row.companyId))
+
+  const toggleSelected = useCallback((companyId: string, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) return current.includes(companyId) ? current : [...current, companyId]
+      return current.filter((id) => id !== companyId)
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(checked ? deletableRows.map((row) => row.companyId) : [])
+  }, [deletableRows])
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!onDeleteMany || selectedIds.length === 0) return
+    if (!window.confirm(`Delete ${selectedIds.length} client(s) from the database? This action cannot be undone.`)) return
+    onDeleteMany(selectedIds)
+    setSelectedIds([])
+  }, [onDeleteMany, selectedIds])
+
+  const handleDeleteOne = useCallback((companyId: string) => {
+    if (!onDelete) return
+    if (!window.confirm("Delete this client from the database? This action cannot be undone.")) return
+    onDelete(companyId)
+    setSelectedIds((current) => current.filter((id) => id !== companyId))
+  }, [onDelete])
+
+  const handleDisableOne = useCallback((companyId: string) => {
+    if (!onDisable) return
+    if (!window.confirm("Disable this active client? You can delete it afterwards.")) return
+    onDisable(companyId)
+    setSelectedIds((current) => current.filter((id) => id !== companyId))
+  }, [onDisable])
 
   return (
     <div className="space-y-4">
@@ -105,6 +156,19 @@ export function AdminAuditorClientsTable({
                   <SelectItem value="active">Active only</SelectItem>
                 </SelectContent>
               </Select>
+              {onDeleteMany ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1 text-red-600 hover:text-red-700"
+                  disabled={selectedIds.length === 0}
+                  onClick={handleDeleteSelected}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete selected ({selectedIds.length})
+                </Button>
+              ) : null}
             </div>
           </div>
         </CardHeader>
@@ -113,6 +177,16 @@ export function AdminAuditorClientsTable({
             <table className="w-full text-sm">
               <thead className="border-b border-slate-100 bg-slate-50">
                 <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all deletable clients"
+                      checked={allVisibleSelected}
+                      disabled={deletableRows.length === 0}
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Company name</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Full name</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Email</th>
@@ -121,13 +195,13 @@ export function AdminAuditorClientsTable({
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Subscription status</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Intake completed</th>
                   <th className="px-4 py-3 text-left font-semibold text-slate-600">Last scan date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Link</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
+                    <td colSpan={10} className="px-4 py-10 text-center text-slate-400">
                       <div className="flex flex-col items-center gap-2">
                         <Building2 className="h-8 w-8" />
                         <p>No Auditor clients found</p>
@@ -135,8 +209,21 @@ export function AdminAuditorClientsTable({
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
+                  rows.map((row) => {
+                    const deleteDisabled = isActiveSubscription(row.subscriptionStatus)
+
+                    return (
                     <tr key={row.companyId} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select client ${row.companyName}`}
+                          checked={selectedSet.has(row.companyId)}
+                          disabled={deleteDisabled}
+                          onChange={(e) => toggleSelected(row.companyId, e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </td>
                       <td className="px-4 py-3 font-medium text-slate-800">{row.companyName}</td>
                       <td className="px-4 py-3 text-slate-700">{row.fullName || "—"}</td>
                       <td className="px-4 py-3 text-slate-600">
@@ -163,15 +250,41 @@ export function AdminAuditorClientsTable({
                       </td>
                       <td className="px-4 py-3 tabular-nums text-slate-500">{formatDate(row.lastScanAt)}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/admin/companies/${row.companyId}`}>
-                          <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
-                            <ExternalLink className="h-3 w-3" />
-                            View
-                          </Button>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link href={`/admin/companies/${row.companyId}`}>
+                            <Button variant="outline" size="sm" className="h-8 gap-1 text-xs">
+                              <ExternalLink className="h-3 w-3" />
+                              View
+                            </Button>
+                          </Link>
+                          {deleteDisabled && onDisable ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1 text-xs text-amber-700 hover:text-amber-800"
+                              onClick={() => handleDisableOne(row.companyId)}
+                            >
+                              Disable
+                            </Button>
+                          ) : null}
+                          {onDelete ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1 text-xs text-red-600 hover:text-red-700"
+                              disabled={deleteDisabled}
+                              onClick={() => handleDeleteOne(row.companyId)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Delete
+                            </Button>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
-                  ))
+                  )})
                 )}
               </tbody>
             </table>
