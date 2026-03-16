@@ -8,7 +8,8 @@ import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
 import { extractFromHtml } from "../extract"
 import { extractPageAnalysis, extractPageContent } from "../analysis/content-extract"
-import { extractKeywords, persistKeywords } from "../analysis/keywords"
+import { buildKeywordExtractionContext, extractKeywords, persistKeywords } from "../analysis/keywords"
+import { runKeywordEngine } from "../analysis/keyword-engine"
 import { discoverTopics } from "../analysis/topics"
 import { calculateAIScore, summarizeAIReadiness } from "../analysis/ai-readiness"
 import { discoverCompetitors } from "../analysis/competitors"
@@ -700,6 +701,96 @@ export async function continueAuditorScan(params: {
       return { ok: true, kind: "progressed", scan }
     }
 
+    // Step: keyword_engine / keyword_analysis (keyword engine enriches, keyword_analysis remains canonical)
+    if (step === "keyword_engine" || step === "keyword_analysis") {
+      await auditorLog({ supabase, scanId, companyId, message: "keyword_analysis:start" })
+      const currentAdminReport = toRecord(lockedScan.report_admin)
+      let keywordEngineReport: Record<string, unknown> = {
+        keywords: [],
+        topics: [],
+        clusters: [],
+        counts: { pages: 0, keywords: 0, topics: 0, clusters: 0 },
+        skipped: true,
+      }
+
+      try {
+        const result = await runKeywordEngine({ supabase, scanId })
+        keywordEngineReport = {
+          keywords: result.keywords,
+          topics: result.topics,
+          clusters: result.clusters,
+          counts: result.counts,
+          skipped: result.skipped,
+        }
+
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          message: "keyword_analysis:engine_extract_keywords",
+          data: {
+            pagesCount: result.counts.pages,
+            keywordsCount: result.counts.keywords,
+            skipped: result.skipped,
+          },
+        })
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          message: "keyword_analysis:engine_cluster_topics",
+          data: {
+            topicsCount: result.counts.topics,
+            clustersCount: result.counts.clusters,
+          },
+        })
+      } catch (error: any) {
+        keywordEngineReport = {
+          ...keywordEngineReport,
+          error: String(error?.message || error),
+          skipped: true,
+        }
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "keyword_analysis:engine_failed",
+          data: { message: String(error?.message || error) },
+        })
+      }
+
+      await applyScanWhere(
+        supabase.from("auditor_scans").update({
+          report_admin: {
+            ...currentAdminReport,
+            keyword_engine: keywordEngineReport,
+          },
+          step: "topic_discovery",
+          updated_at: nowIso(),
+        }),
+        scanId,
+        companyId
+      )
+
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "keyword_analysis:done",
+        data: {
+          pagesCount: Number((keywordEngineReport.counts as any)?.pages || 0),
+          keywordsCount: Number((keywordEngineReport.counts as any)?.keywords || 0),
+          topicsCount: Number((keywordEngineReport.counts as any)?.topics || 0),
+          clustersCount: Number((keywordEngineReport.counts as any)?.clusters || 0),
+          skipped: Boolean(keywordEngineReport.skipped),
+        },
+      })
+      await releaseLock()
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
     // Step: keyword_analysis (derive page keywords from extracted content)
     if (step === "keyword_analysis") {
       await auditorLog({ supabase, scanId, companyId, message: "keyword_analysis:start" })
@@ -712,24 +803,39 @@ export async function continueAuditorScan(params: {
       q = applyCompanyWhere(q, companyId)
       const { data: extractedPages } = await q
       const pages = Array.isArray(extractedPages) ? extractedPages : []
+      const { data: competitorKeywordRows } = await supabase
+        .from("auditor_competitor_keywords")
+        .select("keyword")
+        .eq("scan_id", scanId)
       let totalKeywords = 0
 
       await supabase.from("auditor_keywords").delete().eq("scan_id", scanId)
 
-      for (const page of pages) {
+      const pageContents = pages.map((page) => {
         const extracted = toRecord((page as any).extracted)
-        const keywords = extractKeywords({
-          title: typeof extracted.contentTitle === "string" ? extracted.contentTitle : (page as any).title || null,
-          headings: Array.isArray(extracted.contentHeadings) ? extracted.contentHeadings : [],
-          paragraphs: Array.isArray(extracted.contentParagraphs) ? extracted.contentParagraphs : [],
-          links: Array.isArray(extracted.contentLinks) ? extracted.contentLinks : [],
-          entities: Array.isArray(extracted.contentEntities) ? extracted.contentEntities : [],
-        })
+        return {
+          id: String((page as any).id),
+          content: {
+            title: typeof extracted.contentTitle === "string" ? extracted.contentTitle : (page as any).title || null,
+            headings: Array.isArray(extracted.contentHeadings) ? extracted.contentHeadings : [],
+            paragraphs: Array.isArray(extracted.contentParagraphs) ? extracted.contentParagraphs : [],
+            links: Array.isArray(extracted.contentLinks) ? extracted.contentLinks : [],
+            entities: Array.isArray(extracted.contentEntities) ? extracted.contentEntities : [],
+          },
+        }
+      })
+      const keywordContext = buildKeywordExtractionContext({
+        pages: pageContents.map((page) => page.content),
+        competitorKeywords: (competitorKeywordRows || []).map((row: any) => String(row.keyword || "")),
+      })
+
+      for (const page of pageContents) {
+        const keywords = extractKeywords(page.content, keywordContext)
 
         await persistKeywords({
           supabase,
           scanId,
-          pageId: String((page as any).id),
+          pageId: page.id,
           keywords,
         })
         totalKeywords += keywords.length
@@ -905,6 +1011,7 @@ export async function continueAuditorScan(params: {
               .map((r) => r.recommendation_he)
               .filter(Boolean)
           : []
+      const currentAdminReport = toRecord(lockedScan.report_admin)
       const adminReport = buildAdminReport({
         score_total: scoreTotal,
         score_search: scoreSearch,
@@ -926,7 +1033,10 @@ export async function continueAuditorScan(params: {
           coverage: { total_pages: totalCount, extracted_pages: extractedCount },
           confidence: { level: confidenceLevel, warning },
           report_public: publicReport,
-          report_admin: adminReport,
+          report_admin: {
+            ...currentAdminReport,
+            ...adminReport,
+          },
           step: "ai_readiness",
           updated_at: nowIso(),
         }),

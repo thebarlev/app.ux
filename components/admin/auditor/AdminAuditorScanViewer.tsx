@@ -14,6 +14,11 @@ import { AdminAuditorTopicsTable, type TopicRow } from "./AdminAuditorTopicsTabl
 import { AdminAuditorRecommendationsTable, type RecommendationRow } from "./AdminAuditorRecommendationsTable"
 import { AdminAuditorCompetitorsTable, type CompetitorRow } from "./AdminAuditorCompetitorsTable"
 import { AdminAuditorContentGapsTable, type ContentGapRow } from "./AdminAuditorContentGapsTable"
+import {
+  AdminAuditorKeywordClustersTable,
+  AdminAuditorKeywordEngineSummary,
+  getKeywordEngineReport,
+} from "./AdminAuditorKeywordEnginePanels"
 
 export interface ScanOverview {
   id: string
@@ -97,6 +102,9 @@ export function AdminAuditorScanViewer({
   const [expandingPages, setExpandingPages] = useState(false)
   const [expandError, setExpandError] = useState<string | null>(null)
   const scoreBreakdown = scan.score_breakdown ?? {}
+  const keywordEngineReport = getKeywordEngineReport(
+    scan.report_admin && typeof scan.report_admin === "object" ? (scan.report_admin as Record<string, unknown>).keyword_engine : undefined
+  )
   const durationMs =
     scan.started_at && scan.finished_at
       ? new Date(scan.finished_at).getTime() - new Date(scan.started_at).getTime()
@@ -133,6 +141,8 @@ export function AdminAuditorScanViewer({
         <TabsTrigger value="pages">Pages ({scan.page_limit ?? pages.length})</TabsTrigger>
         <TabsTrigger value="keywords">Keywords ({keywords.length})</TabsTrigger>
         <TabsTrigger value="topics">Topics ({topics.length})</TabsTrigger>
+        <TabsTrigger value="keyword-engine">Keyword Engine ({keywordEngineReport.counts.keywords})</TabsTrigger>
+        <TabsTrigger value="clusters">Clusters ({keywordEngineReport.counts.clusters})</TabsTrigger>
         <TabsTrigger value="competitors">Competitors ({competitors.length})</TabsTrigger>
         <TabsTrigger value="content-gaps">Content Gaps ({contentGaps.length})</TabsTrigger>
         <TabsTrigger value="rules">Rules ({rules.length})</TabsTrigger>
@@ -241,6 +251,16 @@ export function AdminAuditorScanViewer({
       {/* ── Topics ── */}
       <TabsContent value="topics">
         <AdminAuditorTopicsTable topics={topics} />
+      </TabsContent>
+
+      {/* ── Keyword Engine ── */}
+      <TabsContent value="keyword-engine">
+        <AdminAuditorKeywordEngineSummary report={keywordEngineReport} />
+      </TabsContent>
+
+      {/* ── Clusters ── */}
+      <TabsContent value="clusters">
+        <AdminAuditorKeywordClustersTable report={keywordEngineReport} />
       </TabsContent>
 
       {/* ── Competitors ── */}

@@ -8,6 +8,7 @@ export type AuditorScanStep =
   | "sample"
   | "fetch_pages"
   | "extract"
+  | "keyword_engine"
   | "keyword_analysis"
   | "topic_discovery"
   | "rules"
