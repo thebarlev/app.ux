@@ -98,11 +98,87 @@ function parseRobotsSitemaps(text: string, origin: string): string[] {
   return Array.from(new Set(out))
 }
 
+const STEP_TIMEOUT_NEXT: Record<string, string> = {
+  normalize: "robots",
+  robots: "sitemap",
+  sitemap: "ai_files",
+  ai_files: "sample",
+  sample: "fetch_pages",
+  fetch_pages: "extract",
+  extract: "keyword_analysis",
+  keyword_engine: "topic_discovery",
+  keyword_analysis: "topic_discovery",
+  topic_discovery: "rules",
+  rules: "ai_readiness",
+  ai_readiness: "competitor_discovery",
+  competitor_discovery: "competitor_crawl",
+  competitor_crawl: "competitor_keywords",
+  competitor_keywords: "content_gap_analysis",
+  content_gap_analysis: "recommendations",
+  recommendations: "persist",
+  persist: "done",
+}
+
+const VERIFICATION_STEP_TIMEOUT_NEXT: Record<string, string> = {
+  normalize: "sample",
+  sample: "fetch_pages",
+  fetch_pages: "extract",
+  extract: "done",
+}
+
+function computeVerificationScore(page: {
+  title: string | null
+  metaDescription: string | null
+  canonical: string | null
+  h1Count: number
+  wordCount: number
+  viewportPresent: boolean
+  hasOg: boolean
+  jsonldTypes: string[]
+  imagesMissingAltCount: number
+  internalLinksCount: number
+  tracking: { hasGtm: boolean; hasGa4: boolean }
+}): { scoreTotal: number; scoreSearch: number; scoreAi: number; failedRuleKeys: string[] } {
+  const failedRuleKeys: string[] = []
+  let searchDeduct = 0
+  let aiDeduct = 0
+
+  if (!page.title) { searchDeduct += 20; failedRuleKeys.push("tech.title_present") }
+  if (!page.metaDescription) { searchDeduct += 15; failedRuleKeys.push("tech.meta_description_present") }
+  if (!page.canonical) { searchDeduct += 10; failedRuleKeys.push("tech.canonical_present") }
+  if (page.h1Count === 0 || page.h1Count > 1) { searchDeduct += 10; failedRuleKeys.push("onpage.single_h1") }
+  if (!page.viewportPresent) { searchDeduct += 10; failedRuleKeys.push("onpage.viewport_present") }
+  if (page.imagesMissingAltCount > 3) { searchDeduct += 5; failedRuleKeys.push("onpage.images_alt") }
+
+  if (page.jsonldTypes.length === 0) { aiDeduct += 20; failedRuleKeys.push("schema.jsonld_present") }
+  if (!page.hasOg) { aiDeduct += 10; failedRuleKeys.push("tracking.social_meta_present") }
+  if (page.wordCount < 300) { aiDeduct += 15 }
+  if (!page.tracking.hasGtm && !page.tracking.hasGa4) { aiDeduct += 10; failedRuleKeys.push("tracking.gtm_present") }
+
+  const scoreSearch = Math.max(0, 100 - searchDeduct)
+  const scoreAi = Math.max(0, 100 - aiDeduct)
+  const scoreTotal = Math.round((scoreSearch + scoreAi) / 2)
+
+  return { scoreTotal, scoreSearch, scoreAi, failedRuleKeys }
+}
+
+async function withStepTimeout<T>(fn: () => Promise<T>, limitMs = 4000): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => reject(new Error("step_timeout")), limitMs)
+      // Allow Node to exit even if this timer is pending
+      if (typeof timer === "object" && "unref" in timer) timer.unref()
+    }),
+  ])
+}
+
 export async function continueAuditorScan(params: {
   scanId: string
   companyId?: string | null
   supabase?: SupabaseClient
   requestId?: string
+  maxPagesPerBatch?: number
 }): Promise<ContinueOk> {
   const supabase = params.supabase ?? (await createClient())
   const requestId = params.requestId ?? randomUUID()
@@ -183,6 +259,29 @@ export async function continueAuditorScan(params: {
 
   const scanId = String(lockedScan.id)
   const companyId = lockedScan.company_id ? String(lockedScan.company_id) : null
+  const scanKind = String(lockedScan.scan_kind || "")
+  const isVerification = scanKind === "verification"
+
+  const GLOBAL_SCAN_TIMEOUT_MS = isVerification ? 30_000 : 90_000
+  const scanStartedAt = lockedScan.started_at ? new Date(lockedScan.started_at).getTime() : 0
+  if (scanStartedAt > 0 && Date.now() - scanStartedAt > GLOBAL_SCAN_TIMEOUT_MS) {
+    console.warn("[auditor] global scan timeout, force-finalizing", { scanId, ageMs: Date.now() - scanStartedAt })
+    await auditorLog({ supabase, scanId, companyId, level: "warn", message: "scan:force_finalized_timeout", data: { ageMs: Date.now() - scanStartedAt, step: lockedScan.step } })
+    await applyScanWhere(
+      supabase.from("auditor_scans").update({
+        status: "done",
+        step: "done",
+        finished_at: nowIso(),
+        updated_at: nowIso(),
+        locked_at: null,
+        locked_by: null,
+      }),
+      scanId,
+      companyId
+    )
+    const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+    return { ok: true, kind: "progressed", scan }
+  }
 
   const releaseLock = async (patch: Record<string, any> = {}) => {
     await supabase
@@ -203,7 +302,8 @@ export async function continueAuditorScan(params: {
     const targetUrl = String(lockedScan.target_url || "")
     const normalizedUrl = lockedScan.normalized_url ? String(lockedScan.normalized_url) : null
     const hostname = lockedScan.hostname ? String(lockedScan.hostname) : null
-    const pageLimit = Number.isFinite(Number(lockedScan.page_limit)) ? Math.max(1, Number(lockedScan.page_limit)) : 10
+    const pageLimit = isVerification ? 1 : (Number.isFinite(Number(lockedScan.page_limit)) ? Math.max(1, Number(lockedScan.page_limit)) : 10)
+    const batchSize = isVerification ? 1 : Math.max(1, Math.min(params.maxPagesPerBatch ?? 5, 10))
 
     await supabase.from("auditor_scans").update({ heartbeat_at: nowIso() }).eq("id", scanId).eq("locked_by", requestId)
     await auditorLog({ supabase, scanId, companyId, level: "debug", message: "continue:start", data: { step, requestId } })
@@ -216,12 +316,13 @@ export async function continueAuditorScan(params: {
       const origin = finalUrl.origin.replace(/\/+$/, "")
 
       const nextArtifacts = { ...artifacts, redirects }
+      const normalizeNextStep = isVerification ? "sample" : "robots"
       await applyScanWhere(
         supabase.from("auditor_scans").update({
           normalized_url: origin,
           hostname: finalUrl.hostname,
           started_at: lockedScan.started_at || nowIso(),
-          step: "robots",
+          step: normalizeNextStep,
           artifacts: nextArtifacts,
           updated_at: nowIso(),
         }),
@@ -517,9 +618,9 @@ export async function continueAuditorScan(params: {
       return { ok: true, kind: "progressed", scan }
     }
 
-    // Step: fetch_pages (fetch up to 5 queued pages per continue for time budget)
+    // Step: fetch_pages (fetch up to batchSize queued pages per continue for time budget)
     if (step === "fetch_pages") {
-      let q = supabase.from("auditor_scan_pages").select("id,url").eq("scan_id", scanId).eq("state", "queued").limit(5)
+      let q = supabase.from("auditor_scan_pages").select("id,url").eq("scan_id", scanId).eq("state", "queued").limit(batchSize)
       q = applyCompanyWhere(q, companyId)
       const { data: queuedPages } = await q
 
@@ -566,62 +667,64 @@ export async function continueAuditorScan(params: {
 
       await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:start", data: { count: pages.length } })
 
-      for (const p of pages) {
-        const url = String((p as any).url)
-        const res = await fetchTextBounded({
-          url,
-          timeoutMs: 1800,
-          maxBytes: 400_000,
-          headers: { "user-agent": "VOW-Auditor-POC/1.0" },
-        })
+      await withStepTimeout(async () => {
+        await Promise.allSettled(pages.map(async (p) => {
+          const url = String((p as any).url)
+          const res = await fetchTextBounded({
+            url,
+            timeoutMs: 1000,
+            maxBytes: 400_000,
+            headers: { "user-agent": "VOW-Auditor-POC/1.0" },
+          })
 
-        const contentType = res.ok ? res.contentType : null
-        const isHtml = contentType ? contentType.toLowerCase().includes("text/html") : true
+          const contentType = res.ok ? res.contentType : null
+          const isHtml = contentType ? contentType.toLowerCase().includes("text/html") : true
 
-        if (res.ok && res.status >= 200 && res.status < 300 && isHtml) {
-          await applyCompanyWhere(
-            supabase.from("auditor_scan_pages").update({
-              state: "fetched",
-              status_code: res.status,
-              content_type: contentType,
-              headers: res.headers || {},
-              fetch_ms: res.elapsedMs,
-              content_bytes: res.bytes,
-              html: res.text,
-              fetched_at: nowIso(),
-            }).eq("id", (p as any).id),
-            companyId
-          )
-        } else if (res.ok && res.status >= 200 && res.status < 300 && !isHtml) {
-          await applyCompanyWhere(
-            supabase.from("auditor_scan_pages").update({
-              state: "skipped",
-              status_code: res.status,
-              content_type: contentType,
-              headers: res.headers || {},
-              fetch_ms: res.elapsedMs,
-              content_bytes: res.bytes,
-              error: "non_html",
-              fetched_at: nowIso(),
-            }).eq("id", (p as any).id),
-            companyId
-          )
-        } else {
-          await applyCompanyWhere(
-            supabase.from("auditor_scan_pages").update({
-              state: "failed",
-              status_code: res.ok ? res.status : null,
-              content_type: contentType,
-              headers: res.ok ? res.headers || {} : {},
-              fetch_ms: res.elapsedMs,
-              content_bytes: res.ok ? res.bytes : null,
-              error: res.ok ? `http_${res.status}` : res.error,
-              fetched_at: nowIso(),
-            }).eq("id", (p as any).id),
-            companyId
-          )
-        }
-      }
+          if (res.ok && res.status >= 200 && res.status < 300 && isHtml) {
+            await applyCompanyWhere(
+              supabase.from("auditor_scan_pages").update({
+                state: "fetched",
+                status_code: res.status,
+                content_type: contentType,
+                headers: res.headers || {},
+                fetch_ms: res.elapsedMs,
+                content_bytes: res.bytes,
+                html: res.text,
+                fetched_at: nowIso(),
+              }).eq("id", (p as any).id),
+              companyId
+            )
+          } else if (res.ok && res.status >= 200 && res.status < 300 && !isHtml) {
+            await applyCompanyWhere(
+              supabase.from("auditor_scan_pages").update({
+                state: "skipped",
+                status_code: res.status,
+                content_type: contentType,
+                headers: res.headers || {},
+                fetch_ms: res.elapsedMs,
+                content_bytes: res.bytes,
+                error: "non_html",
+                fetched_at: nowIso(),
+              }).eq("id", (p as any).id),
+              companyId
+            )
+          } else {
+            await applyCompanyWhere(
+              supabase.from("auditor_scan_pages").update({
+                state: "failed",
+                status_code: res.ok ? res.status : null,
+                content_type: contentType,
+                headers: res.ok ? res.headers || {} : {},
+                fetch_ms: res.elapsedMs,
+                content_bytes: res.ok ? res.bytes : null,
+                error: res.ok ? `http_${res.status}` : res.error,
+                fetched_at: nowIso(),
+              }).eq("id", (p as any).id),
+              companyId
+            )
+          }
+        }))
+      })
 
       await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:batch_done" })
 
@@ -630,14 +733,77 @@ export async function continueAuditorScan(params: {
       return { ok: true, kind: "progressed", scan }
     }
 
-    // Step: extract (extract up to 5 fetched pages)
+    // Step: extract (extract up to batchSize fetched pages)
     if (step === "extract") {
-      let q = supabase.from("auditor_scan_pages").select("id,url,path,html").eq("scan_id", scanId).eq("state", "fetched").limit(5)
+      let q = supabase.from("auditor_scan_pages").select("id,url,path,html").eq("scan_id", scanId).eq("state", "fetched").limit(batchSize)
       q = applyCompanyWhere(q, companyId)
       const { data: fetchedPages } = await q
 
       const pages = Array.isArray(fetchedPages) ? fetchedPages : []
       if (pages.length === 0) {
+        if (isVerification) {
+          let extQ = supabase.from("auditor_scan_pages")
+            .select("title,meta_description,canonical,has_og,jsonld_types,tracking,extracted")
+            .eq("scan_id", scanId).eq("state", "extracted").limit(1)
+          extQ = applyCompanyWhere(extQ, companyId)
+          const { data: extractedForScore } = await extQ
+          const pg = (extractedForScore || [])[0] as any || {}
+          const ext = toRecord(pg.extracted)
+
+          const vScore = computeVerificationScore({
+            title: pg.title || null,
+            metaDescription: pg.meta_description || null,
+            canonical: pg.canonical || null,
+            h1Count: Number(ext.h1Count) || 0,
+            wordCount: Number(ext.wordCount) || 0,
+            viewportPresent: Boolean(ext.viewportPresent),
+            hasOg: Boolean(pg.has_og),
+            jsonldTypes: Array.isArray(pg.jsonld_types) ? pg.jsonld_types : [],
+            imagesMissingAltCount: Number(ext.imagesMissingAltCount) || 0,
+            internalLinksCount: Number(ext.internalLinksCount) || 0,
+            tracking: {
+              hasGtm: Boolean(pg.tracking?.hasGtm),
+              hasGa4: Boolean(pg.tracking?.hasGa4),
+            },
+          })
+
+          const publicReport = buildPublicReport({
+            score_total: vScore.scoreTotal,
+            score_search: vScore.scoreSearch,
+            score_ai: vScore.scoreAi,
+            category_scores: { search_readiness: vScore.scoreSearch, ai_readiness: vScore.scoreAi },
+            findings: vScore.failedRuleKeys.map((k) => ({ rule_key: k, severity: "medium", status: "warn" })),
+            confidence_level: "low" as ConfidenceLevel,
+          })
+
+          await applyScanWhere(
+            supabase.from("auditor_scans").update({
+              score_total: vScore.scoreTotal,
+              score_breakdown: { technical: vScore.scoreSearch, schema: vScore.scoreSearch, ai_readiness: vScore.scoreAi },
+              coverage: { total_pages: 1, extracted_pages: 1 },
+              confidence: { level: "low" },
+              report_public: publicReport,
+              report_admin: {
+                score_total: vScore.scoreTotal,
+                score_search: vScore.scoreSearch,
+                score_ai: vScore.scoreAi,
+                issues_overview: publicReport.issues_overview,
+              },
+              status: "done",
+              step: "done",
+              finished_at: nowIso(),
+              updated_at: nowIso(),
+            }),
+            scanId,
+            companyId
+          )
+
+          await auditorLog({ supabase, scanId, companyId, message: "verification:score_done", data: { scoreTotal: vScore.scoreTotal, issues: vScore.failedRuleKeys.length } })
+          await releaseLock()
+          const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+          return { ok: true, kind: "progressed", scan }
+        }
+
         await applyScanWhere(supabase.from("auditor_scans").update({ step: "keyword_analysis", updated_at: nowIso() }), scanId, companyId)
         await auditorLog({ supabase, scanId, companyId, message: "extract:none_left" })
         await releaseLock()
@@ -714,7 +880,7 @@ export async function continueAuditorScan(params: {
       }
 
       try {
-        const result = await runKeywordEngine({ supabase, scanId })
+        const result = await withStepTimeout(() => runKeywordEngine({ supabase, scanId }))
         keywordEngineReport = {
           keywords: result.keywords,
           topics: result.topics,
@@ -1221,7 +1387,7 @@ export async function continueAuditorScan(params: {
     // Step: competitor_crawl (fetch bounded competitor pages)
     if (step === "competitor_crawl") {
       await auditorLog({ supabase, scanId, companyId, message: "competitor_crawl:start" })
-      const crawled = await crawlCompetitorPages({ supabase, scanId })
+      const crawled = await withStepTimeout(() => crawlCompetitorPages({ supabase, scanId }), 8000)
 
       const { error: competitorCrawlError } = await applyScanWhere(
         supabase.from("auditor_scans").update({
@@ -1412,6 +1578,28 @@ export async function continueAuditorScan(params: {
     return { ok: true, kind: "progressed", scan }
   } catch (e: any) {
     const msg = String(e?.message || e)
+
+    if (msg === "step_timeout") {
+      const currentStep = String(lockedScan?.step || "")
+      const lScanKind = String(lockedScan?.scan_kind || "")
+      const lIsVerification = lScanKind === "verification"
+
+      if (lIsVerification) {
+        console.warn("[auditor] verification step_timeout, finalizing", { scanId: params.scanId, step: currentStep })
+        await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "warn", message: "verification:timeout_finalize", data: { step: currentStep } })
+        await supabase.from("auditor_scans").update({ status: "done", step: "done", finished_at: nowIso(), locked_at: null, locked_by: null, updated_at: nowIso() }).eq("id", params.scanId)
+        const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
+        return { ok: true, kind: "progressed", scan }
+      }
+
+      const nextStep = STEP_TIMEOUT_NEXT[currentStep] || "persist"
+      console.warn("[auditor] step_timeout, skipping to next step", { scanId: params.scanId, from: currentStep, to: nextStep })
+      await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "warn", message: "step:timeout_skip", data: { from: currentStep, to: nextStep } })
+      await supabase.from("auditor_scans").update({ step: nextStep, locked_at: null, locked_by: null, updated_at: nowIso() }).eq("id", params.scanId)
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+
     console.error("[auditor] scan error", { scanId: params.scanId, message: msg })
     await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "error", message: "scan:failed", data: { error: msg } })
     const { error: failUpdateError } = await applyScanWhere(

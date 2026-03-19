@@ -4,9 +4,10 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { requireAuditorApiAccess } from "@/lib/auditor/guard"
 import { continueAuditorScan } from "@/lib/auditor/pipeline/continue"
+import { computeProgress } from "@/lib/auditor/pipeline/progress"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 
-const MAX_ITERATIONS = 50
+const BUDGET_MS = 5_000
 
 export async function POST(_: Request, ctx: { params: Promise<{ scanId: string }> }) {
   const access = await requireAuditorApiAccess()
@@ -14,14 +15,16 @@ export async function POST(_: Request, ctx: { params: Promise<{ scanId: string }
 
   const { scanId } = await ctx.params
   const admin = createServiceRoleClient()
+  const started = Date.now()
 
   let res: Awaited<ReturnType<typeof continueAuditorScan>> = { ok: false, kind: "not_found" }
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
+  while (Date.now() - started < BUDGET_MS) {
     res = await continueAuditorScan({
       scanId,
       companyId: access.companyId,
       supabase: admin,
+      maxPagesPerBatch: 3,
     })
 
     if (!res.ok && res.kind === "busy") {
@@ -38,5 +41,11 @@ export async function POST(_: Request, ctx: { params: Promise<{ scanId: string }
   }
 
   const scan = "scan" in res ? res.scan : null
-  return NextResponse.json({ ok: true, scan })
+  const isDone = scan?.status === "done" || scan?.status === "failed"
+  return NextResponse.json({
+    ok: true,
+    scan,
+    partial: !isDone,
+    progress: computeProgress(scan?.step),
+  })
 }

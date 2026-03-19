@@ -12,7 +12,12 @@ const PIPELINE_STEPS = [
   "sample",
   "fetch_pages",
   "extract",
+  "keyword_analysis",
   "rules",
+  "ai_readiness",
+  "competitor_discovery",
+  "competitor_crawl",
+  "recommendations",
   "persist",
   "done",
 ] as const
@@ -20,16 +25,28 @@ const PIPELINE_STEPS = [
 type PipelineStep = (typeof PIPELINE_STEPS)[number]
 
 const STEP_LABELS: Record<PipelineStep, { he: string; en: string }> = {
-  normalize:   { he: "נרמול + SSRF",        en: "Normalize + SSRF" },
-  robots:      { he: "robots.txt",           en: "robots.txt" },
-  sitemap:     { he: "sitemap.xml",          en: "sitemap.xml" },
-  ai_files:    { he: "קבצי AI readiness",    en: "AI readiness files" },
-  sample:      { he: "דגימת עמודים",         en: "Page sampling" },
-  fetch_pages: { he: "משיכת עמודים",         en: "Fetching pages" },
-  extract:     { he: "חילוץ נתונים",         en: "Extracting data" },
-  rules:       { he: "חוקים + ציון",         en: "Rules + scoring" },
-  persist:     { he: "שמירה + סיום",         en: "Save + finish" },
-  done:        { he: "הושלם",                en: "Done" },
+  normalize:              { he: "נרמול + SSRF",           en: "Normalize + SSRF" },
+  robots:                 { he: "robots.txt",              en: "robots.txt" },
+  sitemap:                { he: "sitemap.xml",             en: "sitemap.xml" },
+  ai_files:               { he: "קבצי AI readiness",       en: "AI readiness files" },
+  sample:                 { he: "דגימת עמודים",            en: "Page sampling" },
+  fetch_pages:            { he: "משיכת עמודים",            en: "Fetching pages" },
+  extract:                { he: "חילוץ נתונים",            en: "Extracting data" },
+  keyword_analysis:       { he: "ניתוח מילות מפתח",       en: "Keyword analysis" },
+  rules:                  { he: "חוקים + ציון",            en: "Rules + scoring" },
+  ai_readiness:           { he: "מוכנות AI",              en: "AI readiness" },
+  competitor_discovery:   { he: "גילוי מתחרים",            en: "Competitor discovery" },
+  competitor_crawl:       { he: "סריקת מתחרים",            en: "Competitor crawl" },
+  recommendations:        { he: "המלצות",                  en: "Recommendations" },
+  persist:                { he: "שמירה + סיום",            en: "Save + finish" },
+  done:                   { he: "הושלם",                   en: "Done" },
+}
+
+const STEP_ALIASES: Record<string, PipelineStep> = {
+  keyword_engine: "keyword_analysis",
+  topic_discovery: "keyword_analysis",
+  competitor_keywords: "competitor_crawl",
+  content_gap_analysis: "recommendations",
 }
 
 /**
@@ -39,8 +56,10 @@ const STEP_LABELS: Record<PipelineStep, { he: string; en: string }> = {
  *   at least the first step as active rather than rendering all-pending.
  */
 function normalizeStep(raw: string | null | undefined): PipelineStep {
-  const s = String(raw ?? "").trim().toLowerCase() as PipelineStep
-  return PIPELINE_STEPS.includes(s) ? s : "normalize"
+  const s = String(raw ?? "").trim().toLowerCase()
+  if ((PIPELINE_STEPS as readonly string[]).includes(s)) return s as PipelineStep
+  if (s in STEP_ALIASES) return STEP_ALIASES[s]
+  return "normalize"
 }
 
 function getStepState(

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { continueAuditorScan } from "@/lib/auditor/pipeline/continue"
+import { computeProgress } from "@/lib/auditor/pipeline/progress"
 
 const bodySchema = z.object({
   scanId: z.string().min(1),
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   const admin = createServiceRoleClient()
   const { data: scan } = await admin
     .from("auditor_scans")
-    .select("id,scan_access_token,status,step")
+    .select("id,scan_access_token,status,step,scan_kind")
     .eq("id", parsed.data.scanId)
     .maybeSingle()
 
@@ -38,9 +39,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
   }
 
-  // Idempotency: if already terminal, don't attempt to continue/lock.
   if (scan.status === "done") {
-    return NextResponse.json({ ok: true, status: scan.status, step: scan.step, done: true })
+    return NextResponse.json({ ok: true, status: scan.status, step: scan.step, progress: 100, done: true })
   }
   if (scan.status === "failed") {
     return NextResponse.json(
@@ -56,7 +56,34 @@ export async function POST(req: Request) {
     )
   }
 
-  // Run one step per call (safe). Worker can run multiple in a loop.
+  const isVerification = String((scan as any).scan_kind || "") === "verification"
+
+  if (isVerification) {
+    const BUDGET_MS = 4_000
+    const deadline = Date.now() + BUDGET_MS
+    let lastScan: any = { status: scan.status, step: scan.step }
+
+    while (Date.now() < deadline) {
+      const res = await continueAuditorScan({ scanId: parsed.data.scanId, supabase: admin, maxPagesPerBatch: 1 })
+      if (!res.ok && res.kind === "busy") {
+        await new Promise((r) => setTimeout(r, 150))
+        continue
+      }
+      if (!res.ok) break
+      lastScan = res.scan || lastScan
+      if (lastScan.status === "done" || lastScan.status === "failed") break
+    }
+
+    const done = lastScan.status === "done" || lastScan.status === "failed"
+    return NextResponse.json({
+      ok: true,
+      status: lastScan.status,
+      step: lastScan.step,
+      progress: computeProgress(lastScan.step),
+      done,
+    })
+  }
+
   const res = await continueAuditorScan({ scanId: parsed.data.scanId, supabase: admin })
   if (!res.ok && res.kind === "busy") {
     return NextResponse.json({ ok: false, error: "scan is busy" }, { status: 409 })
@@ -73,6 +100,7 @@ export async function POST(req: Request) {
     ok: true,
     status: s.status,
     step: s.step,
+    progress: computeProgress(s.step),
     done,
   })
 }

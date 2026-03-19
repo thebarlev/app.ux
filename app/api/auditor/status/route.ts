@@ -6,6 +6,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { getIssueForLocale } from "@/lib/auditor/report/public"
+import { computeProgress } from "@/lib/auditor/pipeline/progress"
 
 const querySchema = z.object({
   scanId: z.string().min(1),
@@ -123,6 +124,7 @@ export async function GET(req: Request) {
         ok: true,
         status: scan.status,
         step: scan.step,
+        progress: computeProgress(scan.step),
         screenshot_url,
         score_total: safeReportPublic.score_total ?? scan.score_total ?? null,
         score_search: safeReportPublic.score_search,

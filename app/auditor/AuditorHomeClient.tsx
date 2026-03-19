@@ -475,11 +475,6 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
 
       if (isScanFinished(next)) {
         stopPolling()
-        if (basePath.startsWith("/en")) {
-          const params = new URLSearchParams({ scanId, token })
-          if (linkId) params.set("link_id", linkId)
-          router.replace(`/en/auditor/checkout?${params.toString()}`)
-        }
         return
       }
 
@@ -492,9 +487,9 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       cancelled = true
       stopPolling()
     }
-  }, [step, scanId, token, basePath, router, linkId])
+  }, [step, scanId, token])
 
-  // Step 2: poll only while status is running. Stop ONLY when scan is finished, redirect EN to checkout.
+  // Step 2: poll only while status is running. Stop when scan is finished.
   useEffect(() => {
     if (step !== 2) return
     if (!scanId || !token) return
@@ -518,11 +513,6 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
 
       if (isScanFinished(next)) {
         stopPolling()
-        if (basePath.startsWith("/en")) {
-          const params = new URLSearchParams({ scanId, token })
-          if (linkId) params.set("link_id", linkId)
-          router.replace(`/en/auditor/checkout?${params.toString()}`)
-        }
         return
       }
 
@@ -535,7 +525,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       cancelled = true
       stopPolling()
     }
-  }, [step, scanId, token, basePath, router, linkId])
+  }, [step, scanId, token])
 
   // Step 3: fetch subscription status when entering step 3
   useEffect(() => {

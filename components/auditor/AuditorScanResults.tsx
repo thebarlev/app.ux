@@ -20,7 +20,16 @@ const STEP_LABELS_HE: Record<string, string> = {
   sample: "דגימת עמודים",
   fetch_pages: "משיכת עמודים",
   extract: "חילוץ נתונים",
+  keyword_analysis: "ניתוח מילות מפתח",
+  keyword_engine: "ניתוח מילות מפתח",
+  topic_discovery: "ניתוח מילות מפתח",
   rules: "חוקים + ציון",
+  ai_readiness: "מוכנות AI",
+  competitor_discovery: "גילוי מתחרים",
+  competitor_crawl: "סריקת מתחרים",
+  competitor_keywords: "סריקת מתחרים",
+  content_gap_analysis: "המלצות",
+  recommendations: "המלצות",
   persist: "שמירה + סיום",
   done: "הושלם",
 }
@@ -33,7 +42,16 @@ const STEP_LABELS_EN: Record<string, string> = {
   sample: "Page sampling",
   fetch_pages: "Fetching pages",
   extract: "Extracting data",
+  keyword_analysis: "Keyword analysis",
+  keyword_engine: "Keyword analysis",
+  topic_discovery: "Keyword analysis",
   rules: "Rules + scoring",
+  ai_readiness: "AI readiness",
+  competitor_discovery: "Competitor discovery",
+  competitor_crawl: "Competitor crawl",
+  competitor_keywords: "Competitor crawl",
+  content_gap_analysis: "Recommendations",
+  recommendations: "Recommendations",
   persist: "Save + finish",
   done: "Done",
 }
@@ -327,13 +345,15 @@ export function AuditorScanResults({
       if (r.status === 409) return
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(j?.error || `Continue failed (${r.status})`)
+      // Budget-limited endpoint returns fast; reload immediately to get latest state
+      load()
     } catch {
       // ignore transient continue errors
     } finally {
       continuingRef.current = false
       setIsContinuing(false)
     }
-  }, [scanId])
+  }, [scanId, load])
 
   useEffect(() => {
     load()
@@ -354,12 +374,21 @@ export function AuditorScanResults({
   const scan = state.ok ? state.scan : null
   const rules = state.ok ? state.rules : []
 
+  // Fire continue once per step change; the budget-limited endpoint handles the loop
+  const hasFiredRef = useRef(false)
   useEffect(() => {
     if (!state.ok) return
     const status = String(scan?.status || "")
     if (status === "done" || status === "failed") return
+    if (hasFiredRef.current) return
+    hasFiredRef.current = true
     triggerContinue()
-  }, [state.ok, scan?.status, scan?.step, triggerContinue])
+  }, [state.ok, scan?.status, triggerContinue])
+
+  // Reset fire flag when step changes so we re-trigger if needed
+  useEffect(() => {
+    hasFiredRef.current = false
+  }, [scan?.step])
 
   const top5 = useMemo(() => [...rules].sort((a, b) => rulePriorityScore(b) - rulePriorityScore(a)).slice(0, 5), [rules])
   const breakdown = scan?.score_breakdown || {}
@@ -463,15 +492,66 @@ export function AuditorScanResults({
       {state.ok && !isDone && (
         <>
           <ScanProgress currentStep={currentStep} isDone={false} locale={locale} />
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="space-y-4 lg:col-span-8">
-              <SkeletonCard rows={4} />
-              <SkeletonCard rows={3} />
+
+          {/* Show partial scores + issues once available (after rules step) */}
+          {scoreTotal !== null ? (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              <div className="space-y-4 lg:col-span-8">
+                <div className="text-start">
+                  <h3 className="text-base font-semibold text-slate-800">{t.top5}</h3>
+                  <p className="mt-0.5 text-sm text-slate-500">{t.top5Desc}</p>
+                </div>
+                {top5.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm text-start">
+                    {t.noRulesYet}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {top5.map((r: any) => {
+                      const severity = r.status === "fail" ? "ERROR" : r.status === "warn" ? "WARN" : "INFO"
+                      const issueText = resolveIssueText(r, locale)
+                      return (
+                        <IssueCard
+                          key={String(r.rule_key)}
+                          severity={severity}
+                          text={issueText}
+                          dir={locale === "en" ? "ltr" : "auto"}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+                <SkeletonCard rows={2} />
+              </div>
+              <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-4">
+                <CardContent className="flex flex-col items-center gap-6 p-6 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    {t.score}
+                  </p>
+                  <div className={`flex h-32 w-32 flex-col items-center justify-center rounded-full ring-8 ${scoreColor(scoreTotal).ring}`}>
+                    <span className={`text-6xl font-bold tracking-tight tabular-nums leading-none ${scoreColor(scoreTotal).text}`}>
+                      {typeof scoreTotal === "number" ? scoreTotal : "—"}
+                    </span>
+                    <span className="mt-1 text-xs text-slate-400">/ 100</span>
+                  </div>
+                  <div className="w-full space-y-3">
+                    <ScoreBar value={scoreSearch} label={t.scoreSearch} />
+                    <ScoreBar value={scoreAi} label={t.scoreAi} />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="lg:col-span-4">
-              <SkeletonCard rows={6} />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              <div className="space-y-4 lg:col-span-8">
+                <SkeletonCard rows={4} />
+                <SkeletonCard rows={3} />
+              </div>
+              <div className="lg:col-span-4">
+                <SkeletonCard rows={6} />
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
