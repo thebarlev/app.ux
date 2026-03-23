@@ -11,13 +11,19 @@ import {
   readAuditorPendingPurchase,
   trackPurchase,
 } from "@/lib/tracking/purchase"
+import { captureInvoicePaid, groupPosthogCompany, identifyPosthogUser } from "@/lib/analytics/posthog-events"
 
 type PurchasePayload = {
   transaction_id?: string | null
   checkout_session_id?: string | null
+  charge_id?: string | null
+  company_id?: string | null
   value?: number | null
   currency?: string | null
   plan?: string | null
+  billing_provider?: string | null
+  document_id?: string | null
+  user_id?: string | null
 }
 
 type StatusResponse = {
@@ -82,6 +88,20 @@ export function AuditorSuccessClient({ basePath }: { basePath: string }) {
 
         if (trackedTransactionId !== transactionId) {
           trackPurchase(value, plan, transactionId)
+          captureInvoicePaid({
+            charge_id: String(purchase?.charge_id || "").trim() || null,
+            company_id: String(purchase?.company_id || "").trim() || null,
+            amount: Number.isFinite(value) ? value : null,
+            currency: String(purchase?.currency || "").trim() || null,
+            plan: plan || null,
+            billing_provider: String(purchase?.billing_provider || "").trim() || null,
+            document_id: String(purchase?.document_id || "").trim() || null,
+            user_id: String(purchase?.user_id || "").trim() || null,
+          })
+          const userId = String(purchase?.user_id || "").trim()
+          const companyId = String(purchase?.company_id || "").trim()
+          if (userId) identifyPosthogUser(userId)
+          if (companyId) groupPosthogCompany(companyId)
           pushEvent("onboarding_step", {
             step: "payment_complete",
           })

@@ -53,7 +53,7 @@ export async function GET() {
   // Optional: latest invoice id for customer convenience (no raw payloads)
   const { data: lastCharge } = await admin
     .from("auditor_subscription_charges")
-    .select("issued_invoice_id,subscription_period_start,amount,currency,provider_internal_deal_number")
+    .select("id,issued_invoice_id,subscription_period_start,amount,currency,provider_internal_deal_number")
     .eq("company_id", companyId)
     .eq("status", "succeeded")
     .order("subscription_period_start", { ascending: false })
@@ -86,6 +86,8 @@ export async function GET() {
       ""
     ).trim() || null
   const checkoutSessionId = String((lastPaidCheckout as any)?.id || "").trim() || null
+  const chargeId = String((lastCharge as any)?.id || "").trim() || null
+  const userId = String(auth.user.id || "").trim() || null
 
   return NextResponse.json({
     ok: true,
@@ -103,9 +105,14 @@ export async function GET() {
         ? {
             transaction_id: transactionId,
             checkout_session_id: checkoutSessionId,
+            charge_id: chargeId,
+            company_id: companyId,
             value: purchaseValue,
             currency: purchaseCurrency,
             plan: sub.plan_id,
+            billing_provider: "cardcom",
+            document_id: lastCharge?.issued_invoice_id ?? null,
+            user_id: userId,
           }
         : null,
   })

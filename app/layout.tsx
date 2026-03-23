@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Suspense } from "react";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import PosthogProvider from "@/components/PosthogProvider";
 
 export const metadata: Metadata = {
   title: {
@@ -92,7 +93,9 @@ export default function RootLayout({
           דלג לתוכן הראשי
         </a>
 
-        {children}
+        <Suspense fallback={null}>
+          <PosthogProvider>{children}</PosthogProvider>
+        </Suspense>
       </body>
     </html>
   );

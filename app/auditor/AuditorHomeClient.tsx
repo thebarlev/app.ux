@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, ChevronDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -29,6 +29,11 @@ import { ScanHistoryAccordion } from "@/components/auditor/scan-history/ScanHist
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { PLAN_PRICES_USD } from "@/lib/auditor/pricing"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
+import {
+  captureAuditorScanCompleted,
+  captureAuditorScanStarted,
+  resolvePageLocale,
+} from "@/lib/analytics/posthog-events"
 
 type Step = 1 | 2 | 3
 
@@ -63,6 +68,8 @@ type StatusResponse =
       report_public: any | null
       updated_at: string
       finished_at: string | null
+      hostname?: string | null
+      pages_scanned?: number | null
     }
   | { ok: false; error: string }
 
@@ -290,6 +297,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   const locale = props?.locale ?? "he"
   const basePath = props?.basePath ?? "/auditor"
   const router = useRouter()
+  const pathname = usePathname()
   const sp = useSearchParams()
   const linkId = String(sp.get("link_id") || "").trim() || "a_basic"
 
@@ -317,6 +325,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   const [isSubmitting, setIsSubmitting] = useState(false)
   const continuingRef = useRef(false)
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const completedTrackedScanRef = useRef<string | null>(null)
 
   const canGoToDetails = useMemo(() => siteUrl.trim().length > 0 && !isSubmitting, [siteUrl, isSubmitting])
 
@@ -332,6 +341,37 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
   )
   const step2IsWorking =
     step === 2 && Boolean(scanId && token) && !step2IsFailed && !step2IsDone && (!step2HasScreenshot || !step2HasAllScores)
+
+  const localeCtx = resolvePageLocale(pathname || basePath)
+
+  const detectDomain = (rawUrl: string): string | null => {
+    const input = String(rawUrl || "").trim()
+    if (!input) return null
+    try {
+      const normalized = input.startsWith("http://") || input.startsWith("https://") ? input : `https://${input}`
+      return new URL(normalized).hostname || null
+    } catch {
+      return null
+    }
+  }
+
+  const trackCompletedOnce = (sid: string, next: StatusResponse) => {
+    if (!next || next.ok !== true) return
+    if (completedTrackedScanRef.current === sid) return
+
+    completedTrackedScanRef.current = sid
+    captureAuditorScanCompleted({
+      scan_id: sid,
+      domain: String(next.hostname || "").trim() || detectDomain(siteUrl),
+      score_overall: typeof next.score_total === "number" ? next.score_total : null,
+      score_seo: typeof next.score_search === "number" ? next.score_search : null,
+      score_ai: typeof next.score_ai === "number" ? next.score_ai : null,
+      pages_scanned: typeof next.pages_scanned === "number" ? next.pages_scanned : null,
+      page_language: localeCtx.page_language,
+      page_dir: localeCtx.page_dir,
+      user_id: null,
+    })
+  }
 
   // Resume from query params: /auditor?scanId=...&token=...
   useEffect(() => {
@@ -371,6 +411,16 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       setScanId(sid)
       setToken(t)
       setStep(2)
+
+      captureAuditorScanStarted({
+        scan_id: sid,
+        domain: detectDomain(siteUrl),
+        page_language: localeCtx.page_language,
+        page_dir: localeCtx.page_dir,
+        source_page: pathname || basePath,
+        is_logged_in: false,
+        user_id: null,
+      })
 
       for (let i = 0; i < 3; i++) {
         await triggerContinue(sid, t)
@@ -474,6 +524,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       if (cancelled) return
 
       if (isScanFinished(next)) {
+        trackCompletedOnce(scanId, next)
         stopPolling()
         return
       }
@@ -512,6 +563,7 @@ export default function AuditorHomeClient(props?: { locale?: AuditorLocale; base
       if (cancelled) return
 
       if (isScanFinished(next)) {
+        trackCompletedOnce(scanId, next)
         stopPolling()
         return
       }

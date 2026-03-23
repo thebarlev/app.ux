@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { IssueCard } from "@/components/auditor/scan-results/IssueCard"
 import { IssueChecklist } from "@/components/auditor/scan-results/IssueChecklist"
 import { ScanProgress } from "@/components/auditor/scan-progress/ScanProgress"
+import { captureAuditorScanCompleted, resolvePageLocale } from "@/lib/analytics/posthog-events"
 
 type ApiState =
   | { ok: true; scan: any; pages: any[]; rules: any[]; logs: any[] }
@@ -320,10 +322,12 @@ export function AuditorScanResults({
   showBackExport?: boolean
 }) {
   const t = STRINGS[locale]
+  const pathname = usePathname()
 
   const [state, setState] = useState<ApiState>({ ok: false, error: t.loading })
   const [isContinuing, setIsContinuing] = useState(false)
   const continuingRef = useRef(false)
+  const completedTrackedRef = useRef<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -423,6 +427,26 @@ export function AuditorScanResults({
   const scoreAi = typeof rp.score_ai === "number" ? rp.score_ai : (typeof breakdown.ai_readiness === "number" ? breakdown.ai_readiness : null)
   const isDone = String(scan?.status) === "done"
   const currentStep = String(scan?.step || "")
+
+  useEffect(() => {
+    if (!state.ok || !isDone || !scan) return
+    if (completedTrackedRef.current === scanId) return
+    completedTrackedRef.current = scanId
+
+    const localeCtx = resolvePageLocale(pathname || basePath)
+    const pagesScanned = state.pages.length
+    captureAuditorScanCompleted({
+      scan_id: scanId,
+      domain: String(scan?.normalized_host || scan?.hostname || "").trim() || null,
+      score_overall: scoreTotal,
+      score_seo: scoreSearch,
+      score_ai: scoreAi,
+      pages_scanned: pagesScanned,
+      page_language: localeCtx.page_language,
+      page_dir: localeCtx.page_dir,
+      user_id: null,
+    })
+  }, [state, isDone, scan, scanId, pathname, basePath, scoreTotal, scoreSearch, scoreAi])
 
   // Try to extract hostname from scan data
   const hostname = scan?.hostname || scan?.url || scan?.site_url || null

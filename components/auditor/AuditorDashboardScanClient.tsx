@@ -1,11 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 import { AuditorScanResults } from "./AuditorScanResults"
+import { captureAuditorScanStarted, resolvePageLocale } from "@/lib/analytics/posthog-events"
 
 function normalizeDomain(input: string): string {
   const raw = String(input || "").trim()
@@ -36,6 +38,7 @@ export function AuditorDashboardScanClient({
   const t = STRINGS[locale]
   const isRtl = locale === "he"
   const textAlign = isRtl ? "text-right" : "text-left"
+  const pathname = usePathname()
 
   const [domain, setDomain] = useState("")
   const [scanId, setScanId] = useState<string | null>(null)
@@ -63,6 +66,24 @@ export function AuditorDashboardScanClient({
         return
       }
       if (data.scanId) {
+        let domainHost: string | null = null
+        try {
+          const normalized = normalizeDomain(domain)
+          domainHost = normalized ? new URL(normalized).hostname : null
+        } catch {
+          domainHost = null
+        }
+
+        const localeCtx = resolvePageLocale(pathname || basePath)
+        captureAuditorScanStarted({
+          scan_id: String(data.scanId),
+          domain: domainHost,
+          page_language: localeCtx.page_language,
+          page_dir: localeCtx.page_dir,
+          source_page: pathname || basePath,
+          is_logged_in: true,
+          user_id: null,
+        })
         setScanId(data.scanId)
       }
     } catch {

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
 import { planFromLinkId, pushEvent } from "@/lib/tracking/events"
+import { captureLeadCreated, resolvePageLocale } from "@/lib/analytics/posthog-events"
 
 export default function AuditorRegisterClient(props: {
   linkId: string
@@ -40,6 +41,7 @@ export default function AuditorRegisterClient(props: {
   helperCompanyName?: string
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const basePath = props.basePath ?? "/auditor"
   const locale = props.locale ?? "he"
   const isLtr = locale === "en"
@@ -140,6 +142,18 @@ export default function AuditorRegisterClient(props: {
       })
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
+
+      const localeCtx = resolvePageLocale(pathname || basePath)
+      const safeEmailDomain = String(email.trim().split("@")[1] || "").trim().toLowerCase() || null
+      captureLeadCreated({
+        source: "auditor_register",
+        page_path: pathname || `${basePath}/register`,
+        page_language: localeCtx.page_language,
+        page_dir: localeCtx.page_dir,
+        email_domain: safeEmailDomain,
+        scan_id: scanId || null,
+        user_id: null,
+      })
 
       router.replace(afterCheckout)
       router.refresh()
