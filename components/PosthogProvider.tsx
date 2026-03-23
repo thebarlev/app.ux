@@ -13,9 +13,12 @@ export default function PosthogProvider({ children }: { children: React.ReactNod
   const identifiedRef = useRef(false)
 
   useEffect(() => {
+    console.log("PostHog init running", typeof window)
+    if (typeof window === "undefined") return
     if (initializedRef.current) return
     initializedRef.current = true
-    getPosthog()
+    const ph = getPosthog()
+    console.log("PostHog initialized", Boolean(ph), Boolean((window as any).posthog))
   }, [])
 
   useEffect(() => {
@@ -23,13 +26,16 @@ export default function PosthogProvider({ children }: { children: React.ReactNod
     identifiedRef.current = true
 
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      const userId = String(data?.user?.id || "").trim()
-      if (!userId) return
-      identifyPosthogUser(userId)
-    }).catch(() => {
-      // No-op: analytics should never break app flow.
-    })
+    ;(async () => {
+      try {
+        const result = await supabase.auth.getUser()
+        const userId = String(result?.data?.user?.id || "").trim()
+        if (!userId) return
+        identifyPosthogUser(userId)
+      } catch {
+        // No-op: analytics should never break app flow.
+      }
+    })()
   }, [])
 
   useEffect(() => {
