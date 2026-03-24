@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   // Other admin sections
   { href: "/admin/templates", label: "Templates", icon: <FileText className="h-4 w-4" /> },
   { href: "/admin/texts", label: "System Texts", icon: <FileText className="h-4 w-4" /> },
+  { href: "/admin/index-extractor", label: "Index Data Extractor", icon: <Search className="h-4 w-4" /> },
   { href: "/admin/document-variables", label: "Document Variables", icon: <Settings className="h-4 w-4" /> },
   { href: "/admin/receipt-style", label: "Receipt Style", icon: <Settings className="h-4 w-4" /> },
 ]
