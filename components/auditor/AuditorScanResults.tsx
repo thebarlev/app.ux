@@ -97,6 +97,7 @@ const STRINGS = {
     noIssues: "לא נמצאו בעיות מהותיות.",
     scanInProgress: "הסריקה בתהליך",
     scanInProgressDesc: "הנתונים יטענו כשהסריקה תסתיים.",
+    calculatingScore: "מחשבים את הציון שלך...",
     growthPotential: "פוטנציאל צמיחה",
     growthDesc: "שיפור אפשרי על ידי תיקון כשלים",
     growthSeo: "שיפור חשיפה בחיפוש",
@@ -130,6 +131,7 @@ const STRINGS = {
     noIssues: "No major issues found.",
     scanInProgress: "Scan in progress",
     scanInProgressDesc: "Results will load when the scan completes.",
+    calculatingScore: "Calculating your score...",
     growthPotential: "Growth Potential",
     growthDesc: "Improvement available by fixing failed rules",
     growthSeo: "Search visibility improvement",
@@ -422,7 +424,10 @@ export function AuditorScanResults({
   const issuesOverview = locale === "en" && Array.isArray(rp.issues_overview_en)
     ? rp.issues_overview_en
     : Array.isArray(rp.issues_overview) ? rp.issues_overview : []
-  const scoreTotal = typeof scan?.score_total === "number" ? scan.score_total : (typeof rp.score_total === "number" ? rp.score_total : null)
+  const scoreTotal =
+    typeof scan?.score_total === "number" && Number.isFinite(scan.score_total)
+      ? scan.score_total
+      : null
   const scoreSearch = typeof rp.score_search === "number" ? rp.score_search : (typeof breakdown.technical === "number" ? breakdown.technical : null)
   const scoreAi = typeof rp.score_ai === "number" ? rp.score_ai : (typeof breakdown.ai_readiness === "number" ? breakdown.ai_readiness : null)
   const isDone = String(scan?.status) === "done"
@@ -517,65 +522,51 @@ export function AuditorScanResults({
         <>
           <ScanProgress currentStep={currentStep} isDone={false} locale={locale} />
 
-          {/* Show partial scores + issues once available (after rules step) */}
-          {scoreTotal !== null ? (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              <div className="space-y-4 lg:col-span-8">
-                <div className="text-start">
-                  <h3 className="text-base font-semibold text-slate-800">{t.top5}</h3>
-                  <p className="mt-0.5 text-sm text-slate-500">{t.top5Desc}</p>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-8">
+              <div className="text-start">
+                <h3 className="text-base font-semibold text-slate-800">{t.top5}</h3>
+                <p className="mt-0.5 text-sm text-slate-500">{t.top5Desc}</p>
+              </div>
+              {top5.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm text-start">
+                  {t.noRulesYet}
                 </div>
-                {top5.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm text-start">
-                    {t.noRulesYet}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {top5.map((r: any) => {
-                      const severity = r.status === "fail" ? "ERROR" : r.status === "warn" ? "WARN" : "INFO"
-                      const issueText = resolveIssueText(r, locale)
-                      return (
-                        <IssueCard
-                          key={String(r.rule_key)}
-                          severity={severity}
-                          text={issueText}
-                          dir={locale === "en" ? "ltr" : "auto"}
-                        />
-                      )
-                    })}
-                  </div>
-                )}
-                <SkeletonCard rows={2} />
-              </div>
-              <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-4">
-                <CardContent className="flex flex-col items-center gap-6 p-6 text-center">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                    {t.score}
-                  </p>
-                  <div className={`flex h-32 w-32 flex-col items-center justify-center rounded-full ring-8 ${scoreColor(scoreTotal).ring}`}>
-                    <span className={`text-6xl font-bold tracking-tight tabular-nums leading-none ${scoreColor(scoreTotal).text}`}>
-                      {typeof scoreTotal === "number" ? scoreTotal : "—"}
-                    </span>
-                    <span className="mt-1 text-xs text-slate-400">/ 100</span>
-                  </div>
-                  <div className="w-full space-y-3">
-                    <ScoreBar value={scoreSearch} label={t.scoreSearch} />
-                    <ScoreBar value={scoreAi} label={t.scoreAi} />
-                  </div>
-                </CardContent>
-              </Card>
+              ) : (
+                <div className="space-y-3">
+                  {top5.map((r: any) => {
+                    const severity = r.status === "fail" ? "ERROR" : r.status === "warn" ? "WARN" : "INFO"
+                    const issueText = resolveIssueText(r, locale)
+                    return (
+                      <IssueCard
+                        key={String(r.rule_key)}
+                        severity={severity}
+                        text={issueText}
+                        dir={locale === "en" ? "ltr" : "auto"}
+                      />
+                    )
+                  })}
+                </div>
+              )}
+              <SkeletonCard rows={2} />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-              <div className="space-y-4 lg:col-span-8">
-                <SkeletonCard rows={4} />
-                <SkeletonCard rows={3} />
-              </div>
-              <div className="lg:col-span-4">
-                <SkeletonCard rows={6} />
-              </div>
-            </div>
-          )}
+            <Card className="rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-4">
+              <CardContent className="flex flex-col items-center gap-6 p-6 text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                  {t.score}
+                </p>
+                <div className={`flex h-32 w-32 flex-col items-center justify-center rounded-full ring-8 ${scoreColor(null).ring}`}>
+                  <span className={`text-3xl font-semibold tracking-tight leading-none ${scoreColor(null).text}`}>
+                    {t.calculatingScore}
+                  </span>
+                </div>
+                <div className="w-full space-y-3">
+                  <ScoreBar value={null} label={t.scoreSearch} />
+                  <ScoreBar value={null} label={t.scoreAi} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
 

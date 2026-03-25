@@ -625,6 +625,8 @@ export async function continueAuditorScan(params: {
       const { data: queuedPages } = await q
 
       const pages = Array.isArray(queuedPages) ? queuedPages : []
+      const queuedCount = pages.length
+      console.log("[auditor][fetch_pages] queued:", queuedCount)
       if (pages.length === 0) {
         // Fail-safe: if no fetched pages at all, finalize with minimal report so dashboard receives a result
         let countQ = supabase
@@ -635,6 +637,9 @@ export async function continueAuditorScan(params: {
         countQ = applyCompanyWhere(countQ, companyId)
         const { count: fetchedCount } = await countQ
         const hasFetched = (fetchedCount ?? 0) > 0
+        console.log("[auditor][fetch_pages] fetched:", fetchedCount ?? 0)
+        console.log("[auditor][fetch_pages] saved:", 0)
+        console.log("[auditor][fetch_pages] failed:", 0)
 
         if (!hasFetched) {
           const sampleUrls = Array.isArray(artifacts?.sample?.urls) ? artifacts.sample.urls : []
@@ -643,7 +648,7 @@ export async function continueAuditorScan(params: {
             supabase.from("auditor_scans").update({
               status: "done",
               step: "done",
-              score_total: 0,
+              score_total: null,
               report_public: minimalReport,
               artifacts: { ...artifacts, sample: { urls: sampleUrls, count: sampleUrls.length } },
               finished_at: nowIso(),
@@ -667,14 +672,20 @@ export async function continueAuditorScan(params: {
 
       await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:start", data: { count: pages.length } })
 
+      let fetchedCount = 0
+      let savedCount = 0
+      let failedCount = 0
       await withStepTimeout(async () => {
         await Promise.allSettled(pages.map(async (p) => {
           const url = String((p as any).url)
           const res = await fetchTextBounded({
             url,
-            timeoutMs: 1000,
-            maxBytes: 400_000,
-            headers: { "user-agent": "VOW-Auditor-POC/1.0" },
+            timeoutMs: 3500,
+            maxBytes: 1_200_000,
+            headers: {
+              "user-agent": "Mozilla/5.0 (compatible; VOW-Auditor/1.0; +https://vow.co.il)",
+              accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
           })
 
           const contentType = res.ok ? res.contentType : null
@@ -694,6 +705,8 @@ export async function continueAuditorScan(params: {
               }).eq("id", (p as any).id),
               companyId
             )
+            fetchedCount += 1
+            savedCount += 1
           } else if (res.ok && res.status >= 200 && res.status < 300 && !isHtml) {
             await applyCompanyWhere(
               supabase.from("auditor_scan_pages").update({
@@ -708,6 +721,7 @@ export async function continueAuditorScan(params: {
               }).eq("id", (p as any).id),
               companyId
             )
+            savedCount += 1
           } else {
             await applyCompanyWhere(
               supabase.from("auditor_scan_pages").update({
@@ -722,9 +736,14 @@ export async function continueAuditorScan(params: {
               }).eq("id", (p as any).id),
               companyId
             )
+            failedCount += 1
+            savedCount += 1
           }
         }))
       })
+      console.log("[auditor][fetch_pages] fetched:", fetchedCount)
+      console.log("[auditor][fetch_pages] saved:", savedCount)
+      console.log("[auditor][fetch_pages] failed:", failedCount)
 
       await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:batch_done" })
 
@@ -1042,6 +1061,11 @@ export async function continueAuditorScan(params: {
 
     // Step: rules (compute + persist rule rows + score)
     if (step === "rules") {
+      console.log("[auditor][score] starting score calculation", {
+        scanId,
+        status: String(lockedScan.status || ""),
+        step: String(lockedScan.step || ""),
+      })
       // Load existing rules BEFORE delete (fallback if runRulesAndScore returns empty)
       let rulesFromDb: Array<{ rule_key: string; category: string; status: string; impact: string; effort: string; recommendation_he: string; evidence: unknown }> = []
       {
@@ -1072,6 +1096,10 @@ export async function continueAuditorScan(params: {
       }
 
       const { rules, scoreTotal, scoreBreakdown } = runRulesAndScore(ctx)
+      console.log("[auditor][score] completed", {
+        scanId,
+        score_total: scoreTotal,
+      })
 
       // Guardrails: log when rules unexpectedly empty (no sensitive data)
       const rulesRawCount = rules.length
