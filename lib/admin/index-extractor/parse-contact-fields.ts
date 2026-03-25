@@ -173,7 +173,11 @@ function extractPhonesFromText(content: string): string[] {
       .map((m) => m.replace(/\s+/g, " ").trim())
       .filter((m) => {
         const digits = m.replace(/[^\d]/g, "")
-        return digits.length >= 7 && digits.length <= 12
+        if (digits.length < 7 || digits.length > 12) return false
+        // Filter version/date-like numeric tokens that often appear in content.
+        if (/\d+\.\d+-\d+/.test(m)) return false
+        if (/\d{1,2}\.\d{1,2}\.\d{2,4}/.test(m)) return false
+        return true
       })
   )
 }
@@ -222,6 +226,23 @@ function extractPhonesFromOnClick($: cheerio.CheerioAPI): string[] {
     const onclick = text($(el).attr("onclick"))
     values.push(...extractPhonesFromText(onclick))
   })
+  return uniq(values)
+}
+
+function extractPhonesFromScripts(html: string): string[] {
+  const scriptLike = String(html || "")
+  if (!scriptLike) return []
+  const values: string[] = []
+
+  // Generic phone-like literals inside JS/JSON payloads.
+  values.push(...extractPhonesFromText(scriptLike))
+
+  // Common field assignments in serialized config/state.
+  const assigned = Array.from(scriptLike.matchAll(/(?:phone|mobile|telephone|tel)\s*[:=]\s*["'`]([^"'`]{6,40})["'`]/gi))
+  for (const m of assigned) {
+    values.push(...extractPhonesFromText(String(m[1] || "")))
+  }
+
   return uniq(values)
 }
 
@@ -328,6 +349,30 @@ function pickWithEvidence(values: string[], source: Evidence["source"]): { value
   }
 }
 
+function phoneCandidateScore(value: string): number {
+  const raw = text(value)
+  if (!raw) return -100
+  const digits = raw.replace(/[^\d]/g, "")
+  if (digits.length < 7 || digits.length > 12) return -100
+
+  let score = 0
+  if (raw.includes("(") && raw.includes(")")) score += 3
+  if (raw.includes("-")) score += 2
+  if (raw.includes(" ")) score += 1
+  if (raw.startsWith("+")) score += 2
+  if (/^(0|\+1|\+972)/.test(raw)) score += 2
+  if (digits.length === 10 || digits.length === 9) score += 2
+  if (/\d+\.\d+-\d+/.test(raw)) score -= 6
+  if (/\d{1,2}\.\d{1,2}\.\d{2,4}/.test(raw)) score -= 6
+  return score
+}
+
+function pickBestPhoneCandidate(values: string[]): string {
+  const cleaned = uniq(values).filter(Boolean)
+  if (cleaned.length === 0) return ""
+  return [...cleaned].sort((a, b) => phoneCandidateScore(b) - phoneCandidateScore(a))[0] || ""
+}
+
 function buildContactFromBlock($: cheerio.CheerioAPI, block: unknown, fallbackBusiness: string, pageUrl: string) {
   const node = $(block as any)
   const blockText = text(node.text())
@@ -402,6 +447,21 @@ export function parseContactFieldsFromHtml(html: string, pageUrl: string): Field
   const bodyWithoutScripts = $("body").clone()
   bodyWithoutScripts.find("script,style,noscript").remove()
   const pageText = text(bodyWithoutScripts.text())
+  const footerWithoutScripts = $("footer, [id*='footer'], [class*='footer']").first().clone()
+  footerWithoutScripts.find("script,style,noscript").remove()
+  const footerText = text(footerWithoutScripts.text())
+  const footerMailtoLinks = uniq(
+    $("footer a[href^='mailto:']")
+      .toArray()
+      .map((el) => parseMailto($(el).attr("href") || ""))
+  )
+  const footerTelLinks = uniq(
+    $("footer a[href^='tel:']")
+      .toArray()
+      .map((el) => parseTel($(el).attr("href") || ""))
+  )
+  const footerPhones = extractPhonesFromText(footerText)
+  const footerEmails = extractEmailsFromText(footerText)
   const emailMatches = extractEmailsFromText(pageText)
   const phoneMatches = extractPhonesFromText(pageText)
   const pairs = collectLabeledPairs($)
@@ -413,6 +473,7 @@ export function parseContactFieldsFromHtml(html: string, pageUrl: string): Field
   const attrsEmails = extractEmailsFromAttributes($)
   const scriptEmails = extractEmailsFromScripts(html)
   const onclickPhones = extractPhonesFromOnClick($)
+  const scriptPhones = extractPhonesFromScripts(html)
 
   const title = text($("title").first().text())
   const h1 = text($("h1").first().text())
@@ -431,13 +492,35 @@ export function parseContactFieldsFromHtml(html: string, pageUrl: string): Field
   const businessName = isGenericBusinessName(businessNameRaw) ? "" : businessNameRaw
 
   const emailPick = pickWithEvidence(
-    [emailFromLabel, ...mailtoLinks, ...attrsEmails, ...scriptEmails, ...emailMatches],
-    emailFromLabel ? "label" : mailtoLinks[0] ? "link" : attrsEmails[0] || scriptEmails[0] ? "deobfuscated" : "html"
+    [emailFromLabel, ...mailtoLinks, ...footerMailtoLinks, ...attrsEmails, ...scriptEmails, ...footerEmails, ...emailMatches],
+    emailFromLabel
+      ? "label"
+      : mailtoLinks[0] || footerMailtoLinks[0]
+        ? "link"
+        : attrsEmails[0] || scriptEmails[0]
+          ? "deobfuscated"
+          : "html"
   )
   const mobilePick = pickWithEvidence([mobileFromLabel], "label")
+  const bestPhoneCandidate = pickBestPhoneCandidate([
+    phoneFromLabel,
+    ...telLinks,
+    ...footerTelLinks,
+    ...whatsappPhones,
+    ...onclickPhones,
+    ...scriptPhones,
+    ...footerPhones,
+    ...phoneMatches,
+  ])
   const phonePick = pickWithEvidence(
-    [phoneFromLabel, ...telLinks, ...whatsappPhones, ...onclickPhones, ...phoneMatches],
-    phoneFromLabel ? "label" : telLinks[0] || whatsappPhones[0] ? "link" : onclickPhones[0] ? "script" : "html"
+    [bestPhoneCandidate],
+    phoneFromLabel
+      ? "label"
+      : telLinks[0] || footerTelLinks[0] || whatsappPhones[0]
+        ? "link"
+        : onclickPhones[0] || scriptPhones[0]
+          ? "script"
+          : "html"
   )
 
   const addressRaw = first(
@@ -476,6 +559,8 @@ export function parseContactFieldsFromHtml(html: string, pageUrl: string): Field
   if (attrsEmails.length > 0) notesBits.push("found:data_email")
   if (scriptEmails.length > 0) notesBits.push("found:script_email")
   if (onclickPhones.length > 0) notesBits.push("found:onclick_phone")
+  if (scriptPhones.length > 0) notesBits.push("found:script_phone")
+  if (footerMailtoLinks.length > 0 || footerTelLinks.length > 0 || footerPhones.length > 0) notesBits.push("found:footer_contact")
   if (contacts.length > 1) notesBits.push(`found:multi_contacts:${contacts.length}`)
   if (metaDescription) notesBits.push("found:meta_description")
   if (navTopics) notesBits.push("found:nav_topics")

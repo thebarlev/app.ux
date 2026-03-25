@@ -66,6 +66,7 @@ function dedupeSources(sources: SourceInput[]): SourceInput[] {
     } catch {
       continue
     }
+    domain = domain.replace(/^www\./, "")
     if (!domain || seenDomains.has(domain)) continue
     seenUrls.add(urlKey)
     seenDomains.add(domain)
@@ -304,6 +305,24 @@ export async function discoverSourcesFromGoogleQuery(params: {
   const filteredSources = filteredIn
     .map((candidate) => sourceByUrl.get(candidate.url))
     .filter((value): value is SourceInput => Boolean(value))
+
+  // If heuristics filtered everything out, keep a small best-effort slice
+  // so the run can still proceed instead of hard-failing with zero seeds.
+  if (filteredSources.length === 0 && candidateDiagnostics.length > 0) {
+    diagnostics.warnings?.push("fallback_kept_top_candidates")
+    const fallbackCandidates = [...candidateDiagnostics]
+      .sort((a, b) => b.relevance_score - a.relevance_score)
+      .slice(0, Math.min(5, limit))
+    const fallbackSources = fallbackCandidates
+      .map((candidate) => sourceByUrl.get(candidate.url))
+      .filter((value): value is SourceInput => Boolean(value))
+    if (fallbackSources.length > 0) {
+      diagnostics.candidate_count_filtered_in = fallbackSources.length
+      diagnostics.candidate_count_filtered_out = Math.max(0, candidateDiagnostics.length - fallbackSources.length)
+      diagnostics.crawl_seed_count = fallbackSources.length
+      return { sources: fallbackSources, diagnostics }
+    }
+  }
 
   return { sources: filteredSources, diagnostics }
 }

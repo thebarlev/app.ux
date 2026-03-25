@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ArrowUpDown, Copy, Download, ExternalLink, Play } from "lucide-react"
+import { ArrowUpDown, Copy, Download, ExternalLink, Play, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -59,6 +59,28 @@ type RunResponse = {
   }
 }
 
+type PhoneInventoryItem = {
+  phoneNumberRaw: string
+  phoneNumberFormatted: string
+  isVisibleInHtml: boolean
+  sourceFile: string
+  details: string
+}
+
+type PhoneInventoryResponse = {
+  ok: boolean
+  error?: string
+  inventory: PhoneInventoryItem[]
+  detectedPhoneRegex: string[]
+  summary: {
+    totalMatches: number
+    visibleCount: number
+    hiddenCount: number
+    filesScanned: number
+  }
+  footerIntegrationSuggestions?: string[]
+}
+
 const DEFAULT_CRAWL_LIMIT = "10"
 const DEFAULT_MAX_PAGES = "100"
 const DEFAULT_SEARCH_RESULT_LIMIT = "10"
@@ -95,6 +117,11 @@ export default function IndexExtractorClient() {
   const [summaryText, setSummaryText] = useState("No run yet")
   const [searchDiagnostics, setSearchDiagnostics] = useState<RunResponse["search_diagnostics"] | null>(null)
   const [rawRow, setRawRow] = useState<ExtractedRow | null>(null)
+  const [inventoryLoading, setInventoryLoading] = useState(false)
+  const [phoneInventory, setPhoneInventory] = useState<PhoneInventoryItem[]>([])
+  const [phoneRegexes, setPhoneRegexes] = useState<string[]>([])
+  const [phoneInventorySummary, setPhoneInventorySummary] = useState<PhoneInventoryResponse["summary"] | null>(null)
+  const [footerSuggestions, setFooterSuggestions] = useState<string[]>([])
 
   const [domainFilter, setDomainFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -120,6 +147,32 @@ export default function IndexExtractorClient() {
 
     return out
   }, [rows, domainFilter, statusFilter, sortKey, sortDirection])
+
+  const topSkippedReason = useMemo(() => {
+    if (!skipped.length) return ""
+    const counts = new Map<string, number>()
+    for (const item of skipped) {
+      const reason = String(item.reason || "unknown").trim() || "unknown"
+      counts.set(reason, (counts.get(reason) || 0) + 1)
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1])
+    const winner = sorted[0]
+    if (!winner) return ""
+    return `${winner[0]} (${winner[1]})`
+  }, [skipped])
+
+  const topErrorCode = useMemo(() => {
+    if (!errors.length) return ""
+    const counts = new Map<string, number>()
+    for (const item of errors) {
+      const code = String(item.code || "unknown").trim() || "unknown"
+      counts.set(code, (counts.get(code) || 0) + 1)
+    }
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1])
+    const winner = sorted[0]
+    if (!winner) return ""
+    return `${winner[0]} (${winner[1]})`
+  }, [errors])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -229,6 +282,50 @@ export default function IndexExtractorClient() {
     a.click()
     URL.revokeObjectURL(url)
     toast.success("CSV exported")
+  }
+
+  const handleScanPhoneInventory = async () => {
+    setInventoryLoading(true)
+    try {
+      const res = await fetch("/api/admin/index-extractor/phone-inventory", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      })
+      const data = (await res.json()) as PhoneInventoryResponse
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Phone inventory scan failed")
+      }
+      setPhoneInventory(data.inventory || [])
+      setPhoneRegexes(data.detectedPhoneRegex || [])
+      setPhoneInventorySummary(data.summary || null)
+      setFooterSuggestions(data.footerIntegrationSuggestions || [])
+      toast.success("Phone inventory scan completed")
+    } catch (e: unknown) {
+      toast.error(String(e instanceof Error ? e.message : e))
+    } finally {
+      setInventoryLoading(false)
+    }
+  }
+
+  const handleExportPhoneInventoryJson = () => {
+    if (phoneInventory.length === 0 && phoneRegexes.length === 0) {
+      toast.error("No phone inventory data to export")
+      return
+    }
+    const payload = {
+      inventory: phoneInventory,
+      detectedPhoneRegex: phoneRegexes,
+      summary: phoneInventorySummary,
+      footerIntegrationSuggestions: footerSuggestions,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `index-extractor-phone-inventory-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success("Phone inventory JSON exported")
   }
 
   return (
@@ -341,50 +438,17 @@ export default function IndexExtractorClient() {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
+            <Button variant="outline" onClick={handleScanPhoneInventory} disabled={inventoryLoading}>
+              <Search className="mr-2 h-4 w-4" />
+              {inventoryLoading ? "Scanning phones..." : "Scan Phone Inventory"}
+            </Button>
+            <Button variant="outline" onClick={handleExportPhoneInventoryJson} disabled={phoneInventory.length === 0 && phoneRegexes.length === 0}>
+              <Download className="mr-2 h-4 w-4" />
+              Export Inventory JSON
+            </Button>
           </div>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm">{summaryText}</div>
-        </CardContent>
-      </Card>
-
-      {inputMode === "google_search" && searchDiagnostics ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Search diagnostics</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div>{`Engine requested: ${searchDiagnostics.engine_requested || "google_cse"}, engine used: ${searchDiagnostics.engine_used || "none"}`}</div>
-            <div>{`Fallback used: ${searchDiagnostics.fallback_used ? "yes" : "no"}`}</div>
-            <div>{`Raw: ${searchDiagnostics.candidate_count_raw || 0}, normalized: ${searchDiagnostics.candidate_count_normalized || 0}, deduped: ${searchDiagnostics.candidate_count_deduped || 0}`}</div>
-            <div>{`Filtered-in: ${searchDiagnostics.candidate_count_filtered_in || 0}, filtered-out: ${searchDiagnostics.candidate_count_filtered_out || 0}, crawl seeds: ${searchDiagnostics.crawl_seed_count || 0}`}</div>
-            {searchDiagnostics.warnings?.length ? (
-              <div className="rounded border p-2 font-mono text-xs">{searchDiagnostics.warnings.join("\n")}</div>
-            ) : null}
-            {searchDiagnostics.errors?.length ? (
-              <div className="rounded border p-2 font-mono text-xs">{searchDiagnostics.errors.join("\n")}</div>
-            ) : null}
-            {searchDiagnostics.candidates?.length ? (
-              <details className="rounded border p-2 text-xs">
-                <summary className="cursor-pointer font-medium">Candidate breakdown ({searchDiagnostics.candidates.length})</summary>
-                <div className="mt-2 max-h-56 overflow-auto space-y-1 font-mono">
-                  {searchDiagnostics.candidates.map((candidate) => (
-                    <div key={`${candidate.url}:${candidate.rank}`}>
-                      {`[${candidate.filtered_out ? "OUT" : "IN"}] score=${candidate.relevance_score} rank=${candidate.rank ?? "-"} domain=${candidate.domain} reason=${candidate.filtered_out_reason || "ok"}`}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
 
       <Card>
         <CardHeader className="gap-4">
@@ -463,7 +527,16 @@ export default function IndexExtractorClient() {
                       </div>
                     </TableCell>
                     <TableCell>{row.email || "-"}</TableCell>
-                    <TableCell>{row.mobile || row.phone || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{row.mobile || row.phone || "-"}</span>
+                        {row.mobile ? (
+                          <Button size="sm" variant="ghost" onClick={() => copyValue(row.mobile, "Mobile")}>
+                            Copy mobile
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={row.status === "success" ? "default" : "secondary"}>{row.status}</Badge>
                     </TableCell>
@@ -506,6 +579,135 @@ export default function IndexExtractorClient() {
           </Table>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 text-sm">
+          <div>{summaryText}</div>
+          {topSkippedReason ? <div className="text-muted-foreground">{`Top skipped reason: ${topSkippedReason}`}</div> : null}
+          {topErrorCode ? <div className="text-muted-foreground">{`Top error code: ${topErrorCode}`}</div> : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Phone Inventory</CardTitle>
+          <CardDescription>Code-scan results for index-extractor scoped files only.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {phoneInventorySummary ? (
+            <div className="text-sm text-muted-foreground">
+              {`Matches: ${phoneInventorySummary.totalMatches}, visible: ${phoneInventorySummary.visibleCount}, hidden: ${phoneInventorySummary.hiddenCount}, files: ${phoneInventorySummary.filesScanned}`}
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">No phone inventory scan yet.</div>
+          )}
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Raw</TableHead>
+                <TableHead>Formatted</TableHead>
+                <TableHead>Visible</TableHead>
+                <TableHead>Source File</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {phoneInventory.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                    No phone inventory rows
+                  </TableCell>
+                </TableRow>
+              ) : (
+                phoneInventory.map((item, idx) => (
+                  <TableRow key={`${item.sourceFile}:${item.phoneNumberRaw}:${idx}`}>
+                    <TableCell>{item.phoneNumberRaw}</TableCell>
+                    <TableCell>{item.phoneNumberFormatted}</TableCell>
+                    <TableCell>{item.isVisibleInHtml ? "true" : "false"}</TableCell>
+                    <TableCell>{item.sourceFile}</TableCell>
+                    <TableCell className="max-w-[480px] truncate" title={item.details}>
+                      {item.details}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Detected phone regex patterns</div>
+            <div className="max-h-44 overflow-auto rounded border p-2 font-mono text-xs">
+              {phoneRegexes.length === 0 ? "No phone regex patterns detected yet." : phoneRegexes.join("\n")}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Footer integration suggestions</div>
+            <div className="rounded border p-2 text-sm">
+              {footerSuggestions.length === 0 ? (
+                <div className="text-muted-foreground">No suggestions yet.</div>
+              ) : (
+                footerSuggestions.map((suggestion, idx) => <div key={`${suggestion}-${idx}`}>{`- ${suggestion}`}</div>)
+              )}
+            </div>
+          </div>
+
+          {(phoneInventory.length > 0 || phoneRegexes.length > 0) ? (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Raw phone inventory JSON</div>
+              <pre className="max-h-72 overflow-auto rounded bg-muted p-3 text-xs">
+                {JSON.stringify(
+                  {
+                    inventory: phoneInventory,
+                    detectedPhoneRegex: phoneRegexes,
+                    summary: phoneInventorySummary,
+                    footerIntegrationSuggestions: footerSuggestions,
+                  },
+                  null,
+                  2
+                )}
+              </pre>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {inputMode === "google_search" && searchDiagnostics ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Search diagnostics</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div>{`Engine requested: ${searchDiagnostics.engine_requested || "google_cse"}, engine used: ${searchDiagnostics.engine_used || "none"}`}</div>
+            <div>{`Fallback used: ${searchDiagnostics.fallback_used ? "yes" : "no"}`}</div>
+            <div>{`Raw: ${searchDiagnostics.candidate_count_raw || 0}, normalized: ${searchDiagnostics.candidate_count_normalized || 0}, deduped: ${searchDiagnostics.candidate_count_deduped || 0}`}</div>
+            <div>{`Filtered-in: ${searchDiagnostics.candidate_count_filtered_in || 0}, filtered-out: ${searchDiagnostics.candidate_count_filtered_out || 0}, crawl seeds: ${searchDiagnostics.crawl_seed_count || 0}`}</div>
+            {searchDiagnostics.warnings?.length ? (
+              <div className="rounded border p-2 font-mono text-xs">{searchDiagnostics.warnings.join("\n")}</div>
+            ) : null}
+            {searchDiagnostics.errors?.length ? (
+              <div className="rounded border p-2 font-mono text-xs">{searchDiagnostics.errors.join("\n")}</div>
+            ) : null}
+            {searchDiagnostics.candidates?.length ? (
+              <details className="rounded border p-2 text-xs">
+                <summary className="cursor-pointer font-medium">Candidate breakdown ({searchDiagnostics.candidates.length})</summary>
+                <div className="mt-2 max-h-56 overflow-auto space-y-1 font-mono">
+                  {searchDiagnostics.candidates.map((candidate) => (
+                    <div key={`${candidate.url}:${candidate.rank}`}>
+                      {`[${candidate.filtered_out ? "OUT" : "IN"}] score=${candidate.relevance_score} rank=${candidate.rank ?? "-"} domain=${candidate.domain} reason=${candidate.filtered_out_reason || "ok"}`}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
 
       <Card>
         <CardHeader>

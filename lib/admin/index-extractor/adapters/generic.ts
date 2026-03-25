@@ -146,6 +146,63 @@ function mergeDebugSignals(...values: Array<string[] | undefined>): string[] {
   return out
 }
 
+function inferDialPrefixFromHostname(hostname: string): string {
+  const host = String(hostname || "").toLowerCase()
+  if (!host) return ""
+  if (host.endsWith(".il") || host.endsWith(".co.il")) return "+972"
+  if (host.endsWith(".us") || host.endsWith(".ca")) return "+1"
+  if (host.endsWith(".au")) return "+61"
+  if (host.endsWith(".nz")) return "+64"
+  if (host.endsWith(".uk")) return "+44"
+  return ""
+}
+
+function ensureCountryPrefix(value: string, pageUrl: string): string {
+  const raw = String(value || "").trim()
+  if (!raw) return ""
+  if (raw.startsWith("+")) return raw
+
+  const digits = raw.replace(/[^\d]/g, "")
+  if (!digits) return ""
+  if (digits.startsWith("00")) return `+${digits.slice(2)}`
+
+  let host = ""
+  try {
+    host = new URL(pageUrl).hostname.toLowerCase()
+  } catch {
+    host = ""
+  }
+  const tldPrefix = inferDialPrefixFromHostname(host)
+
+  if (tldPrefix === "+972") {
+    if (digits.startsWith("972")) return `+${digits}`
+    if (digits.startsWith("0")) return `+972${digits.slice(1)}`
+    return `+972${digits}`
+  }
+  if (tldPrefix === "+1") {
+    if (digits.length === 10) return `+1${digits}`
+    if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`
+    return `+1${digits.replace(/^0+/, "")}`
+  }
+  if (tldPrefix === "+61") {
+    if (digits.startsWith("61")) return `+${digits}`
+    return `+61${digits.replace(/^0+/, "")}`
+  }
+  if (tldPrefix === "+64") {
+    if (digits.startsWith("64")) return `+${digits}`
+    return `+64${digits.replace(/^0+/, "")}`
+  }
+  if (tldPrefix === "+44") {
+    if (digits.startsWith("44")) return `+${digits}`
+    return `+44${digits.replace(/^0+/, "")}`
+  }
+
+  // No TLD signal: best-effort heuristic.
+  if (digits.length === 10 && !digits.startsWith("0")) return `+1${digits}`
+  if (digits.startsWith("0") && digits.length >= 9 && digits.length <= 10) return `+972${digits.slice(1)}`
+  return `+${digits}`
+}
+
 function computeConfidence(fields: FieldExtraction, debugMap: Record<string, string>): number {
   let score = 0.15
 
@@ -174,7 +231,7 @@ function computeConfidence(fields: FieldExtraction, debugMap: Record<string, str
 function validateAndFinalize(
   base: FieldExtraction,
   debugItems: string[],
-  sourceHints: { structuredSource: string; rendered: boolean }
+  sourceHints: { structuredSource: string; rendered: boolean; pageUrl: string }
 ): FieldExtraction {
   const out: FieldExtraction = { ...base }
 
@@ -190,6 +247,8 @@ function validateAndFinalize(
   out.phone = normalizedPhone.phone || (normalizedPhone.mobile ? "" : out.phone || "")
   out.mobile = normalizedMobile.mobile || normalizedPhone.mobile || ""
   if (!out.phone && normalizedMobile.phone) out.phone = normalizedMobile.phone
+  out.phone = ensureCountryPrefix(String(out.phone || ""), sourceHints.pageUrl)
+  out.mobile = ensureCountryPrefix(String(out.mobile || ""), sourceHints.pageUrl)
 
   const parsedName = parseNameConservatively(String(out.full_name || ""))
   if (parsedName.confidence >= 0.75) {
@@ -229,8 +288,8 @@ function validateAndFinalize(
         return {
           ...contact,
           email: isValidEmail(rawEmail) ? rawEmail : "",
-          phone: phoneN.phone || (phoneN.mobile ? "" : String(contact.phone || "")),
-          mobile: mobileN.mobile || phoneN.mobile || "",
+          phone: ensureCountryPrefix(phoneN.phone || (phoneN.mobile ? "" : String(contact.phone || "")), sourceHints.pageUrl),
+          mobile: ensureCountryPrefix(mobileN.mobile || phoneN.mobile || "", sourceHints.pageUrl),
           confidence_score: typeof contact.confidence_score === "number" ? Math.max(0, Math.min(1, contact.confidence_score)) : 0.6,
         }
       })
@@ -257,9 +316,12 @@ export const genericAdapter: IndexExtractorAdapter = {
     let mergedDebug = mergeDebugSignals(structured.debug, staticParsed.debug)
 
     const hasCoreSignals = Boolean(merged.email || merged.phone || merged.mobile || merged.business_name || merged.full_name || merged.address)
+    const hasDirectContactSignals = Boolean(merged.email || merged.phone || merged.mobile)
     const hasSiteSignals = hasSiteProfileSignals(merged)
     const isLikelyJsHeavy = ctx.html.length < 6000 || (!ctx.html.includes("mailto:") && !ctx.html.includes("tel:") && !hasCoreSignals)
-    const shouldForceRendered = Boolean(ctx.useRenderedFallback && (isLikelyJsHeavy || (!hasCoreSignals && !hasSiteSignals)))
+    // Trigger rendered fallback whenever explicit contact methods are missing,
+    // even if site-profile/business signals exist from static HTML.
+    const shouldForceRendered = Boolean(ctx.useRenderedFallback && (isLikelyJsHeavy || !hasDirectContactSignals))
     if (ctx.useRenderedFallback) {
       debug.push(`rendered_fallback_decision=${shouldForceRendered ? "triggered" : "not_triggered"}`)
       if (isLikelyJsHeavy) debug.push("rendered_fallback_reason=js_heavy_or_no_contact_signals")
@@ -292,6 +354,7 @@ export const genericAdapter: IndexExtractorAdapter = {
     return validateAndFinalize(merged, combinedDebug, {
       structuredSource: structuredDebug.structured_source || "",
       rendered: methods.includes("rendered_html"),
+      pageUrl: ctx.pageUrl,
     })
   },
 }

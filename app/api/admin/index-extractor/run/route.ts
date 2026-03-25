@@ -123,14 +123,31 @@ export async function POST(req: Request) {
     )
   }
   if (runMode === "google_search" && sources.length === 0) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "No candidate URLs discovered for this search query.",
-        search_diagnostics: searchDiagnostics,
+    return NextResponse.json({
+      ok: true,
+      rows: [],
+      errors: [],
+      skipped: [],
+      page_debug: [],
+      summary: {
+        total_sources: 0,
+        total_pages_attempted: 0,
+        total_rows: 0,
+        total_skipped: 0,
+        total_errors: 0,
       },
-      { status: 400 }
-    )
+      search_diagnostics: {
+        ...(searchDiagnostics || {
+          mode: "google_search",
+          engine_requested: "google_cse",
+          engine_used: "none",
+          warnings: [],
+          errors: [],
+        }),
+        warnings: [...(searchDiagnostics?.warnings || []), "no_candidate_urls_discovered"],
+      },
+      caps,
+    })
   }
 
   const totalPayloadLength = JSON.stringify(body).length

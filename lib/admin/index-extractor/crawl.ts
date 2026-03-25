@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio"
 import pLimit from "p-limit"
+import { normalizeAndClassifyPhone } from "@/lib/admin/index-extractor/normalize-phone"
 import { getAdapterForHostname } from "@/lib/admin/index-extractor/adapters"
 import { dedupeRows } from "@/lib/admin/index-extractor/dedupe"
 import { fetchPageWithRetry } from "@/lib/admin/index-extractor/fetch-page"
@@ -33,6 +34,7 @@ const INTERNAL_LINK_NEGATIVE_HINTS = [
 const CONTACT_PATH_CANDIDATES = ["/contact", "/contact-us", "/about", "/about-us", "/team", "/staff", "/people", "/our-team"]
 const PAGINATION_HINTS = ["?page=", "&page=", "/page/", "rel=\"next\""]
 const DETAIL_HINTS = ["/profile", "/person", "/people/", "/team/", "/staff/", "/listing/", "/member/"]
+const SCRIPT_PHONE_REGEX = /(?:\+?\d[\d\s()./-]{7,}\d)/g
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -186,9 +188,10 @@ function parseDebugEntries(entries: unknown): Record<string, string> {
 
 function isWeakExtraction(fields: Record<string, unknown>): boolean {
   const email = String(fields.email || "").trim()
-  const phone = String(fields.phone || fields.mobile || "").trim()
-  const name = String(fields.full_name || fields.business_name || "").trim()
-  return !email && !phone && !name
+  const phoneOrMobile = String(fields.phone || fields.mobile || "").trim()
+  // Trigger contact-path probing whenever direct contact methods are missing,
+  // even if site-profile fields (business_name/title) were extracted.
+  return !email && !phoneOrMobile
 }
 
 type ContactRecord = Record<string, unknown>
@@ -199,9 +202,10 @@ function createContactRowFields(base: Record<string, unknown>, contact: ContactR
     ...base,
     full_name: contact.full_name || base.full_name || "",
     business_name: contact.business_name || base.business_name || "",
-    email: contact.email || "",
-    phone: contact.phone || "",
-    mobile: contact.mobile || "",
+    // Keep page-level contact signals when a block-level contact is partial.
+    email: contact.email || base.email || "",
+    phone: contact.phone || base.phone || "",
+    mobile: contact.mobile || base.mobile || "",
     address: contact.address || base.address || "",
     city: contact.city || base.city || "",
     category: contact.category || base.category || "",
@@ -229,6 +233,91 @@ function getSourceSearchMeta(source: SourceInput): {
     search_query: source.sourceMeta?.search_query || null,
     search_rank: typeof source.sourceMeta?.search_rank === "number" ? source.sourceMeta.search_rank : null,
   }
+}
+
+function inferDialPrefixFromHostname(hostname: string): string {
+  const host = String(hostname || "").toLowerCase()
+  if (!host) return ""
+  if (host.endsWith(".il") || host.endsWith(".co.il")) return "+972"
+  if (host.endsWith(".us") || host.endsWith(".ca")) return "+1"
+  if (host.endsWith(".au")) return "+61"
+  if (host.endsWith(".nz")) return "+64"
+  if (host.endsWith(".uk")) return "+44"
+  return ""
+}
+
+function applyCountryPrefixForUrl(value: string, pageUrl: URL): string {
+  const raw = String(value || "").trim()
+  if (!raw) return ""
+  if (raw.startsWith("+")) return raw
+  const digits = raw.replace(/[^\d]/g, "")
+  if (!digits) return ""
+  if (digits.startsWith("00")) return `+${digits.slice(2)}`
+
+  const prefix = inferDialPrefixFromHostname(pageUrl.hostname)
+  if (prefix === "+972") return digits.startsWith("0") ? `+972${digits.slice(1)}` : digits.startsWith("972") ? `+${digits}` : `+972${digits}`
+  if (prefix === "+1") return digits.length === 10 ? `+1${digits}` : digits.startsWith("1") ? `+${digits}` : `+1${digits.replace(/^0+/, "")}`
+  if (prefix === "+61") return digits.startsWith("61") ? `+${digits}` : `+61${digits.replace(/^0+/, "")}`
+  if (prefix === "+64") return digits.startsWith("64") ? `+${digits}` : `+64${digits.replace(/^0+/, "")}`
+  if (prefix === "+44") return digits.startsWith("44") ? `+${digits}` : `+44${digits.replace(/^0+/, "")}`
+
+  if (digits.length === 10 && !digits.startsWith("0")) return `+1${digits}`
+  if (digits.startsWith("0") && digits.length >= 9 && digits.length <= 10) return `+972${digits.slice(1)}`
+  return `+${digits}`
+}
+
+function extractPhonesFromTextChunk(content: string): string[] {
+  const matches = String(content || "").match(SCRIPT_PHONE_REGEX) || []
+  const out = new Set<string>()
+  for (const item of matches) {
+    const raw = String(item || "").replace(/\s+/g, " ").trim()
+    const digits = raw.replace(/[^\d]/g, "")
+    if (digits.length < 7 || digits.length > 12) continue
+    if (/\d+\.\d+-\d+/.test(raw)) continue
+    if (/\d{1,2}\.\d{1,2}\.\d{2,4}/.test(raw)) continue
+    const normalized = normalizeAndClassifyPhone(raw)
+    const phone = normalized.mobile || normalized.phone || normalized.normalized || raw
+    if (phone) out.add(phone)
+  }
+  return [...out]
+}
+
+async function extractPhonesFromSameDomainScripts(params: { html: string; baseUrl: URL; userAgent: string }): Promise<string[]> {
+  const $ = cheerio.load(params.html || "")
+  const scriptUrls: string[] = []
+  $("script[src]").each((_, el) => {
+    const rawSrc = String($(el).attr("src") || "").trim()
+    if (!rawSrc) return
+    try {
+      const resolved = new URL(rawSrc, params.baseUrl)
+      if (resolved.hostname.toLowerCase() !== params.baseUrl.hostname.toLowerCase()) return
+      scriptUrls.push(resolved.toString())
+    } catch {
+      // ignore invalid script src
+    }
+  })
+
+  const uniqueScripts = [...new Set(scriptUrls)].slice(0, 4)
+  const collected = new Set<string>()
+  for (const scriptUrl of uniqueScripts) {
+    try {
+      const res = await fetch(scriptUrl, {
+        method: "GET",
+        headers: {
+          "user-agent": params.userAgent,
+          accept: "*/*",
+        },
+      })
+      if (!res.ok) continue
+      const text = await res.text()
+      for (const phone of extractPhonesFromTextChunk(text)) {
+        collected.add(phone)
+      }
+    } catch {
+      // ignore script fetch failures
+    }
+  }
+  return [...collected]
 }
 
 export async function runIndexExtraction(params: {
@@ -486,12 +575,15 @@ export async function runIndexExtraction(params: {
       debugEntry.html_length = pageRes.html.length
       const adapter = getAdapterForHostname(finalUrl.hostname)
       try {
+        // In manual mode, allow rendered fallback even if toggle is off.
+        // This improves recovery on JS-heavy sites where footer/contact isn't in static HTML.
+        const effectiveUseRenderedFallback = Boolean(useRenderedFallback || mode === "manual")
         const extracted = await adapter.extract({
           sourceUrl: source.sourceUrl,
           sourceDomain,
           pageUrl: finalUrl.toString(),
           html: pageRes.html,
-          useRenderedFallback,
+          useRenderedFallback: effectiveUseRenderedFallback,
         })
 
         const debugMap = parseDebugEntries(extracted.debug)
@@ -518,13 +610,6 @@ export async function runIndexExtraction(params: {
         debugEntry.structured_data_detected_rendered = toBool(debugMap.structured_data_rendered)
         debugEntry.fields_found_count = countFieldsFound(extracted as Record<string, unknown>)
 
-        const row = toRow({
-          source,
-          sourceDomain,
-          pageUrl: finalUrl.toString(),
-          fields: extracted as Record<string, unknown>,
-        })
-
         const extractedContacts = Array.isArray((extracted as Record<string, unknown>).contacts)
           ? ((extracted as Record<string, unknown>).contacts as Array<Record<string, unknown>>)
           : []
@@ -548,6 +633,27 @@ export async function runIndexExtraction(params: {
           debugEntry.status = "success"
           debugEntry.final_stop_reason = "multi_rows_extracted"
         } else {
+          // If no direct contact was extracted from HTML/render, try same-domain JS bundles.
+          if (!String((extracted as Record<string, unknown>).phone || "").trim() && !String((extracted as Record<string, unknown>).mobile || "").trim()) {
+            const scriptPhones = await extractPhonesFromSameDomainScripts({
+              html: pageRes.html,
+              baseUrl: finalUrl,
+              userAgent: USER_AGENT,
+            })
+            if (scriptPhones.length > 0) {
+              ;(extracted as Record<string, unknown>).phone = applyCountryPrefixForUrl(scriptPhones[0], finalUrl)
+              const currentNotes = String((extracted as Record<string, unknown>).notes || "")
+              ;(extracted as Record<string, unknown>).notes = [currentNotes, "found:script_src_phone"].filter(Boolean).join("; ")
+            }
+          }
+
+          const row = toRow({
+            source,
+            sourceDomain,
+            pageUrl: finalUrl.toString(),
+            fields: extracted as Record<string, unknown>,
+          })
+
           const lead = scoreLeadForRow(row, debugEntry)
           row.lead_score = lead.lead_score
           row.lead_grade = lead.lead_grade
