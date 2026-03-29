@@ -12,7 +12,7 @@
 - [ ] No edits to `lib/supabase/*` (reuse existing clients as-is)
 - [ ] No new imports added into billing/invoicing libs
 - [ ] Build passes (`npm run build`)
-- [ ] Prod env: `AUDITOR_ENABLED=true` and `PUBLIC_BASE_URL=https://app.vow.co.il`
+- [ ] Prod env: `AUDITOR_ENABLED=true` and `PUBLIC_BASE_URL=https://app.uxellent.com`
 - [ ] Prod env: `AUDITOR_CARDCOM_TERMINAL_NUMBER` / `AUDITOR_CARDCOM_API_USERNAME` / `AUDITOR_CARDCOM_API_PASSWORD`
 - [ ] Prod env: `AUDITOR_TOKEN_ENCRYPTION_KEY` (32-byte base64 recommended) and `AUDITOR_BILLING_CRON_SECRET`
 

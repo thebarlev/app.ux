@@ -10,13 +10,13 @@
 
 ```env
 # אימיילים ללא מגבלה (מופרד בפסיקים)
-UNLIMITED_DOCUMENT_EMAILS=support@vow.co.il
+UNLIMITED_DOCUMENT_EMAILS=support@uxellent.com
 
 # חברות ללא מגבלה (UUID מופרד בפסיקים)
 UNLIMITED_DOCUMENT_COMPANY_IDS=4ae68334-15a0-4fa3-a9ba-fd77deccc95d
 ```
 
-ברירת מחדל: `support@vow.co.il` ו־`4ae68334-15a0-4fa3-a9ba-fd77deccc95d`.
+ברירת מחדל: `support@uxellent.com` ו־`4ae68334-15a0-4fa3-a9ba-fd77deccc95d`.
 
 ### 2. מסד נתונים – טבלת `unlimited_document_companies`
 
@@ -32,7 +32,7 @@ ON CONFLICT (company_id) DO NOTHING;
 
 ### 3. טבלת `system_admins`
 
-משתמשים ב־`system_admins` (למשל `support@vow.co.il`) מקבלים פטור אוטומטי – גם בלי שורת מנוי.
+משתמשים ב־`system_admins` (למשל `support@uxellent.com`) מקבלים פטור אוטומטי – גם בלי שורת מנוי.
 
 ```sql
 -- הרץ scripts/092-add-support-vow-system-admin.sql

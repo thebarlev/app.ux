@@ -22,7 +22,7 @@ Required:
 
 Optional:
 
-- `PUBLIC_BASE_URL` (recommended in production): public site origin, e.g. `https://app.vow.co.il`
+- `PUBLIC_BASE_URL` (recommended in production): public site origin, e.g. `https://app.uxellent.com`
   - If omitted, the server derives the origin from the incoming request.
 
 Supabase required (already used elsewhere in the repo):
@@ -105,7 +105,7 @@ If `document_sequences` is missing for the issuer (VOW) company:
 ---
 
 ## Required in production
-- `PUBLIC_BASE_URL` – **Must be set** (e.g. `https://app.vow.co.il`). Cardcom calls IndicatorUrl from their servers; localhost is not reachable.
+- `PUBLIC_BASE_URL` – **Must be set** (e.g. `https://app.uxellent.com`). Cardcom calls IndicatorUrl from their servers; localhost is not reachable.
 - If missing in production, checkout creation returns 500.
 
 ## Debugging stuck checkout_sessions

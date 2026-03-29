@@ -43,7 +43,7 @@ function ForgotPasswordForm() {
 
       // Supabase Auth Redirect URLs must include:
       // http://localhost:3000/auth/callback
-      // https://app.vow.co.il/auth/callback
+      // https://app.uxellent.com/auth/callback
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       })

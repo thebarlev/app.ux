@@ -448,7 +448,7 @@ export default function AuditorOnboardingClient({ initialData }: { initialData: 
                   options={statusOptions}
                 />
                 {form.ga_status === "connected" && (
-                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@vow.co.il</div>
+                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@uxellent.com</div>
                 )}
               </>
             </Field>
@@ -462,7 +462,7 @@ export default function AuditorOnboardingClient({ initialData }: { initialData: 
                   options={statusOptions}
                 />
                 {form.gsc_status === "connected" && (
-                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@vow.co.il</div>
+                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@uxellent.com</div>
                 )}
               </>
             </Field>
@@ -476,7 +476,7 @@ export default function AuditorOnboardingClient({ initialData }: { initialData: 
                   options={statusOptions}
                 />
                 {form.gtm_status === "connected" && (
-                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@vow.co.il</div>
+                  <div style={connectedHelperStyle}>נא לתת הרשאה ל support@uxellent.com</div>
                 )}
               </>
             </Field>

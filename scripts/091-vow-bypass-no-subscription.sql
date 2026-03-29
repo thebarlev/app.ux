@@ -1,9 +1,9 @@
 -- ====================================================
--- 091 - VOW company + support@vow.co.il: bypass subscription
+-- 091 - VOW company + support@uxellent.com: bypass subscription
 -- ====================================================
 -- Purpose:
 -- - Companies in unlimited_document_companies can finalize without subscription
--- - system_admins (e.g. support@vow.co.il) can finalize regardless of company
+-- - system_admins (e.g. support@uxellent.com) can finalize regardless of company
 -- - המגבלה החודשית (documents_per_month) לא תחול על חשבונות אלה
 -- ====================================================
 
@@ -77,7 +77,7 @@ begin
   where s.company_id = p_company_id;
 
   if not found then
-    -- חברה ב-unlimited_document_companies או system_admin (e.g. support@vow.co.il)
+    -- חברה ב-unlimited_document_companies או system_admin (e.g. support@uxellent.com)
     if exists (select 1 from public.unlimited_document_companies where company_id = p_company_id)
        or exists (select 1 from public.system_admins where auth_user_id = auth.uid())
     then

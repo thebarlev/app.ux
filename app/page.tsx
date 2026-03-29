@@ -3,10 +3,10 @@ import { HomeLanding } from "@/components/home/HomeLanding"
 
 export const metadata: Metadata = {
   alternates: {
-    canonical: "https://app.uxellent.com",
+    canonical: "/",
   },
   openGraph: {
-    url: "https://app.uxellent.com",
+    url: "/",
   },
 }
 

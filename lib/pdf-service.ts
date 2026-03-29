@@ -260,7 +260,7 @@ export async function renderDeterministicPdfBytes(params: {
     typeof process.env.PDF_RENDER_TOKEN === "string" &&
     process.env.PDF_RENDER_TOKEN.length > 0
 
-  // When using pdf.vow.co.il, it should act as renderer only.
+  // When using pdf.uxellent.com, it should act as renderer only.
   // Send the footer as-is to the renderer (no stamping / no fallback).
   const pdfMargin = isRemoteRenderer
     ? { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" }

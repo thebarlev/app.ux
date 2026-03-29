@@ -2,13 +2,13 @@
  * הגדרת חשבונות ללא מגבלת מסמכים חודשית
  *
  * ניתן להגדיר ב-.env.local:
- * - UNLIMITED_DOCUMENT_EMAILS - רשימת אימיילים מופרדת בפסיקים (לדוגמה: support@vow.co.il)
+ * - UNLIMITED_DOCUMENT_EMAILS - רשימת אימיילים מופרדת בפסיקים (לדוגמה: support@uxellent.com)
  * - UNLIMITED_DOCUMENT_COMPANY_IDS - רשימת company IDs מופרדת בפסיקים (לדוגמה: 4ae68334-15a0-4fa3-a9ba-fd77deccc95d)
  *
  * המגבלה החודשית (documents_per_month) לא תחול על חשבונות אלה.
  */
 
-const DEFAULT_UNLIMITED_EMAILS = ["support@vow.co.il"]
+const DEFAULT_UNLIMITED_EMAILS = ["support@uxellent.com"]
 const DEFAULT_UNLIMITED_COMPANY_IDS = ["4ae68334-15a0-4fa3-a9ba-fd77deccc95d"]
 
 function parseEnvList(key: string, fallback: string[], toLower = false): string[] {
