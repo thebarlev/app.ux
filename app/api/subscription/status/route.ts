@@ -201,7 +201,7 @@ export async function GET(request: Request) {
   }
 
   // Placeholder until marketing site is live
-  const baseUpgradeUrl = process.env.MARKETING_UPGRADE_URL_BASE || "https://vow.co.il/pricing"
+  const baseUpgradeUrl = process.env.MARKETING_UPGRADE_URL_BASE || "https://uxellent.com/pricing"
   let upgradeUrl: string | null = null
   try {
     const iat = Math.floor(Date.now() / 1000)

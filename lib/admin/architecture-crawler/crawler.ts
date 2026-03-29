@@ -14,7 +14,7 @@ const MAX_CANDIDATE_DOMAINS = 600
 const MAX_CRAWL_DOMAINS = 450
 const MAX_PAGES_PER_DOMAIN = 3
 const MAX_DOMAIN_RUNTIME_MS = 10_000
-const USER_AGENT = "VOW-Architecture-Crawler/1.0 (+https://app.vow.co.il)"
+const USER_AGENT = "VOW-Architecture-Crawler/1.0 (+https://app.uxellent.com)"
 const FETCH_TIMEOUT_MS = 3_500
 
 const COUNTRY_BY_GL = {

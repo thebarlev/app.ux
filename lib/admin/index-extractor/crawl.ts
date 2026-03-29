@@ -16,7 +16,7 @@ import type { CrawlError, CrawlSkipped, ExtractedRow, PageDebugInfo, RunInput, R
 
 const DEFAULT_CRAWL_DELAY_MS = 400
 const FETCH_MAX_BYTES = 800_000
-const USER_AGENT = "VOW-Index-Extractor/1.0 (+https://app.vow.co.il)"
+const USER_AGENT = "VOW-Index-Extractor/1.0 (+https://app.uxellent.com)"
 const INTERNAL_LINK_POSITIVE_HINTS = ["contact", "about", "team", "staff", "company", "services", "location", "branch", "support"]
 const INTERNAL_LINK_NEGATIVE_HINTS = [
   "/search",

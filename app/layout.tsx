@@ -5,13 +5,31 @@ import { Suspense } from "react";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PosthogProvider from "@/components/PosthogProvider";
 
+const APP_SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.uxellent.com").replace(/\/+$/, "");
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_SITE_URL),
   title: {
     default: "מערכת ניהול עסקי - Business Management System",
     template: "%s | מערכת ניהול עסקי",
   },
   description:
     "מערכת ניהול מסמכים, קבלות וחשבוניות לעסקים - Business document and invoice management system",
+  openGraph: {
+    siteName: "UXellent",
+    locale: "he_IL",
+    type: "website",
+    images: [
+      {
+        url: "/icon.svg",
+        alt: "UXellent",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    images: ["/icon.svg"],
+  },
   icons: {
     icon: "/favicon.ico?v=2",
     shortcut: "/favicon.ico?v=2",

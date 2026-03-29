@@ -683,7 +683,7 @@ export async function continueAuditorScan(params: {
             timeoutMs: 3500,
             maxBytes: 1_200_000,
             headers: {
-              "user-agent": "Mozilla/5.0 (compatible; VOW-Auditor/1.0; +https://vow.co.il)",
+              "user-agent": "Mozilla/5.0 (compatible; VOW-Auditor/1.0; +https://uxellent.com)",
               accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
           })

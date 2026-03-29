@@ -1,13 +1,13 @@
 # VOW AI-Readable Site Guide
 
-Site: https://vow.co.il
+Site: https://uxellent.com
 
 Primary pages:
-https://vow.co.il
-https://vow.co.il/design
-https://vow.co.il/develop
-https://vow.co.il/seo-ai
-https://vow.co.il/pricing
+https://uxellent.com
+https://uxellent.com/design
+https://uxellent.com/develop
+https://uxellent.com/seo-ai
+https://uxellent.com/pricing
 
 Description:
 VOW provides AI-powered accounting, digital invoicing, and advanced website development services for businesses.

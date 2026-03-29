@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://vow.co.il/sitemap.xml",
+    sitemap: "https://uxellent.com/sitemap.xml",
   }
 }

@@ -191,7 +191,7 @@ export const SEO_AUDIT_DEFAULT_OPTIONS: SeoAuditRunOptions = {
   maxRuntimeMs: 60_000,
   fetchTimeoutMs: 8_000,
   maxHtmlBytes: 1_200_000,
-  userAgent: "VOW-SEO-Audit/1.0 (+https://app.vow.co.il)",
+  userAgent: "VOW-SEO-Audit/1.0 (+https://app.uxellent.com)",
 }
 
 export const SEO_AUDIT_CSV_HEADERS = [

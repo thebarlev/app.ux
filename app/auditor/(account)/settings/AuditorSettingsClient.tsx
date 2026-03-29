@@ -286,10 +286,10 @@ function StatusRow({ gaStatus, gscStatus, gtmStatus, onChange, locale }: {
               }}>
                 {isLtr ? "Please grant access to " : "נא לתת הרשאת גישה ל־"}{" "}
                 <a
-                  href="mailto:support@vow.co.il"
+                  href="mailto:support@uxellent.com"
                   style={{ color: "#2563eb", fontWeight: 600, textDecoration: "none", borderBottom: "1px solid #bfdbfe" }}
                 >
-                  support@vow.co.il
+                  support@uxellent.com
                 </a>
               </div>
             )}

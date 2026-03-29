@@ -1,4 +1,4 @@
-const ADMIN_TO = "support@vow.co.il"
+const ADMIN_TO = "support@uxellent.com"
 
 export async function sendAdminNotification({
   subject,
@@ -24,7 +24,7 @@ export async function sendAdminNotification({
       body: JSON.stringify({
         sender: {
           name: "VOW Auditor",
-          email: "noreply@vow.co.il",
+          email: "noreply@uxellent.com",
         },
         to: [
           {
