@@ -49,7 +49,7 @@ const initialData: RegistrationData = {
   phone: "",
   password: "",
   businessName: "",
-  businessType: "",
+  businessType: "osek_patur",
   companyNumber: "",
   businessNumber: "",
   isBusinessFound: false,

@@ -146,7 +146,9 @@ export async function GET(request: Request) {
   // Period-based usage: count finalized docs within the current subscription period
   let periodStartIso: string | null = null
   let periodEndIso: string | null = null
-  if (planId === "free") {
+  const isFreeLikePlan = planId === "free" || planId === "free_patur"
+
+  if (isFreeLikePlan) {
     if (currentPeriodStart && currentPeriodEnd) {
       periodStartIso = currentPeriodStart
       periodEndIso = currentPeriodEnd
@@ -189,10 +191,10 @@ export async function GET(request: Request) {
 
   if (!isUnlimited && ["blocked", "canceled", "past_due"].includes(status)) {
     statusReason = "account_blocked"
-  } else if (!isUnlimited && planId !== "free" && status === "active" && (!periodEndIso || now >= new Date(periodEndIso))) {
+  } else if (!isUnlimited && !isFreeLikePlan && status === "active" && (!periodEndIso || now >= new Date(periodEndIso))) {
     statusReason = "subscription_expired"
   } else if (
-    planId === "free" &&
+    isFreeLikePlan &&
     documentsLimit > 0 &&
     documentsUsed >= documentsLimit &&
     !isUnlimitedByCompany(companyId)
@@ -224,7 +226,7 @@ export async function GET(request: Request) {
     documents_used: documentsUsed,
     documents_limit: documentsLimit,
     upgrade_url: upgradeUrl,
-    upgrade_available: isUnlimited ? false : planId === "free",
+    upgrade_available: isUnlimited ? false : isFreeLikePlan,
   })
 }
 

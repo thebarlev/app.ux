@@ -14,9 +14,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
-  { value: "osek_murshe", label: "עוסק מורשה" },
-  { value: "ltd", label: "חברה בע״מ" },
-  { value: "partnership", label: "שותפות" },
 ]
 
 const INDUSTRIES = [
@@ -270,15 +267,19 @@ export function StepBusinessProfile(props?: { afterCompleteRedirectTo?: string; 
               סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Select
-              value={data.businessType}
-              onValueChange={(value) => updateData({ businessType: value as typeof data.businessType })}
+              value={"osek_patur"}
+              onValueChange={() => {}}
             >
               <SelectTrigger 
                 id="businessType"
                 variant="underline"
-                className={errors.businessType ? "auth-input border-danger focus:border-danger" : "auth-input"}
+                className={
+                  (errors.businessType ? "auth-input border-danger focus:border-danger " : "auth-input ") +
+                  "pointer-events-none select-none opacity-60 text-muted-fg"
+                }
+                aria-disabled="true"
               >
-                <SelectValue placeholder="בחר סוג עסק" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {BUSINESS_TYPES.map((type) => (
@@ -293,6 +294,9 @@ export function StepBusinessProfile(props?: { afterCompleteRedirectTo?: string; 
                 {errors.businessType}
               </p>
             )}
+            <p className="text-xs mt-1 text-right text-muted-fg">
+              בשלב זה סוג העסק נעול (עוסק פטור בלבד).
+            </p>
           </div>
 
           <div className="auth-field">

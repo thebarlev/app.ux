@@ -289,7 +289,8 @@ async function precheckSubscriptionEligibility(params: {
   }
 
   const documentsUsed = Number(count || 0) || 0;
-  if (planId === "free" && documentsLimit > 0 && documentsUsed >= documentsLimit) {
+  const isFreeLikePlan = planId === "free" || planId === "free_patur"
+  if (isFreeLikePlan && documentsLimit > 0 && documentsUsed >= documentsLimit) {
     return {
       ok: false,
       reason: "limit_reached",
