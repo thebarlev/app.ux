@@ -174,6 +174,20 @@ export async function createSigningRequest(params: {
 > {
   const baseUrl = process.env.SECURE_SIGNATURE_BASE_URL?.trim()
   const apiKey = process.env.SECURE_SIGNATURE_API_KEY?.trim()
+
+  // Debug: prefix6+suffix4 only (10 of 48 chars). Lets us cross-check the
+  // API key sent here against the row in DSign's Supabase `sources` table
+  // without exposing the full secret in logs.
+  console.log("[API_KEY_DEBUG][app.uxellent]", {
+    apiKeyLen: typeof apiKey === "string" ? apiKey.length : 0,
+    apiKeyPrefix6: typeof apiKey === "string" ? apiKey.slice(0, 6) : null,
+    apiKeySuffix4: typeof apiKey === "string" ? apiKey.slice(-4) : null,
+    baseUrlHost: (() => {
+      try { return new URL(baseUrl || "").host } catch { return null }
+    })(),
+    apiKeyPresent: Boolean(apiKey),
+  });
+
   const attemptId = params.attemptId || null
 
   if (!baseUrl || !apiKey) {
