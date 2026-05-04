@@ -13,6 +13,7 @@ import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { callShaamInvoiceApprovalV2, type ShaamApprovalV2Payload } from "@/lib/shaam/invoice-allocation"
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
+import { DocIssueTracker } from "@/lib/diagnostics/external-services-check"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -192,7 +193,7 @@ export async function finalizeDocument(
   draftId: string,
   companyId: string,
   documentType: string,
-  opts?: { createdByName?: string | null; createdByEmail?: string | null }
+  opts?: { createdByName?: string | null; createdByEmail?: string | null; attemptId?: string }
 ): Promise<{
   ok: boolean
   documentNumber?: string
@@ -219,6 +220,16 @@ export async function finalizeDocument(
 }> {
   const agentFinalizeStart = Date.now()
 
+  // Reuse caller's attempt_id when threaded through opts; otherwise create
+  // a local tracker. This keeps `[DOC_ISSUE]` lines correlatable with the
+  // route-level handler's chain when present.
+  const tracker = new DocIssueTracker(opts?.attemptId)
+  tracker.step("finalize_entry", {
+    draft_id: draftId,
+    document_type: documentType,
+    company_id8: String(companyId || "").slice(0, 8),
+  })
+
   const requestId = randomUUID()
   const supabase = await createClient()
   const adminClient = createAdminClient()
@@ -232,10 +243,12 @@ export async function finalizeDocument(
     .maybeSingle()
 
   if (existingError) {
+    tracker.fail("sequence_resolved", existingError, { draft_id: draftId })
     return { ok: false, message: existingError.message }
   }
 
   let docNumber = existingDoc?.document_number ?? null
+  const reusedExistingNumber = !!existingDoc?.document_number
 
   if (!docNumber) {
     const { data: generatedNumber, error: rpcError } = await supabase.rpc(
@@ -247,13 +260,20 @@ export async function finalizeDocument(
     )
 
     if (rpcError) {
+      tracker.fail("sequence_resolved", rpcError, { draft_id: draftId })
       return { ok: false, message: rpcError.message }
     }
 
     docNumber = generatedNumber
 
+    tracker.step("sequence_resolved", {
+      draft_id: draftId,
+      reused_existing: false,
+      doc_number_length: docNumber ? String(docNumber).length : 0,
+    })
+
     console.log(`[finalizeDocument] Updating document ${draftId} with document_number: ${docNumber} (before PDF generation)...`)
-    
+
     const { error: updateNumberError } = await supabase
       .from("documents")
       .update({
@@ -262,13 +282,21 @@ export async function finalizeDocument(
       .eq("id", draftId)
       .eq("company_id", companyId)
       .eq("document_status", "draft")
-    
+
     if (updateNumberError) {
+      tracker.fail("update_document_number_failed", updateNumberError, { draft_id: draftId })
       console.error(`[finalizeDocument] Failed to update document_number for document ${draftId}:`, updateNumberError)
       return { ok: false, message: `Failed to update document number: ${updateNumberError.message}` }
     }
-    
+
+    tracker.step("update_document_number_ok", { draft_id: draftId })
     console.log(`✅ [finalizeDocument] Document ${draftId} updated with document_number: ${docNumber}`)
+  } else {
+    tracker.step("sequence_resolved", {
+      draft_id: draftId,
+      reused_existing: true,
+      doc_number_length: docNumber ? String(docNumber).length : 0,
+    })
   }
 
   // ====================================================
@@ -839,13 +867,43 @@ export async function finalizeDocument(
     label: string
     templateVersionId?: string | null
   }) => {
-    const rendered = await renderDeterministicPdfBytes({
-      documentId: draftId,
+    tracker.step("pdf_render_call_start", {
+      draft_id: draftId,
+      variant: args.variant,
       language: args.language,
-      documentCopyLabel: args.label,
-      templateVersionId: args.templateVersionId,
     })
-    if (!rendered.ok) return { ok: false as const, message: rendered.message }
+    let rendered: Awaited<ReturnType<typeof renderDeterministicPdfBytes>>
+    try {
+      rendered = await renderDeterministicPdfBytes({
+        documentId: draftId,
+        language: args.language,
+        documentCopyLabel: args.label,
+        templateVersionId: args.templateVersionId,
+        attemptId: tracker.attemptId,
+      } as any)
+    } catch (e: any) {
+      tracker.fail("pdf_render_call_failed", e, {
+        draft_id: draftId,
+        variant: args.variant,
+        language: args.language,
+      })
+      throw e
+    }
+    if (!rendered.ok) {
+      tracker.fail("pdf_render_call_failed", new Error(rendered.message), {
+        draft_id: draftId,
+        variant: args.variant,
+        language: args.language,
+      })
+      return { ok: false as const, message: rendered.message }
+    }
+    tracker.step("pdf_render_call_ok", {
+      draft_id: draftId,
+      variant: args.variant,
+      language: args.language,
+      pdf_bytes: rendered.pdfBytes.length,
+      pdf_sha256_8: String(rendered.pdfSha256 || "").slice(0, 8),
+    })
 
     const externalDocId = `${draftId}:${args.variant}:${args.language}`
     
@@ -869,26 +927,52 @@ export async function finalizeDocument(
       return createSigningRequest({
       businessId: companyId,
       externalDocId,
-    
+
       // ✅ תיקון שם העסק (לא name!)
       businessName:
         (companyData?.company_name && companyData.company_name.trim())
           ? companyData.company_name.trim()
           : companyId,
-    
+
       businessTaxId: businessTaxId,
       businessContactName: businessContactName,
       businessEmail: companyData?.email || null,
       supplierName: "VOW System",
-    
-        metadata: { ...metadataToSendBase, unsigned_pdf_sha256: unsignedSha },
-    
+
+        metadata: { ...metadataToSendBase, unsigned_pdf_sha256: unsignedSha, sign_attempt_label: attemptLabel },
+
         pdfBytes,
-    })
+        attemptId: tracker.attemptId,
+    } as any)
     }
 
-    const signing = await attemptSign(rendered.pdfBytes, rendered.pdfSha256, "stamped")
+    tracker.step("signing_call_start", {
+      draft_id: draftId,
+      variant: args.variant,
+      language: args.language,
+      pdf_bytes: rendered.pdfBytes.length,
+    })
+    let signing: Awaited<ReturnType<typeof attemptSign>>
+    try {
+      signing = await attemptSign(rendered.pdfBytes, rendered.pdfSha256, "stamped")
+    } catch (e: any) {
+      tracker.fail("signing_call_failed", e, {
+        draft_id: draftId,
+        variant: args.variant,
+        language: args.language,
+        attempt_label: "stamped",
+      })
+      throw e
+    }
     if (!signing.ok) {
+      tracker.fail("signing_call_failed", new Error(signing.message || "signing_failed"), {
+        draft_id: draftId,
+        variant: args.variant,
+        language: args.language,
+        attempt_label: "stamped",
+        sign_code: (signing as any).code ?? null,
+        sign_status: (signing as any).status ?? null,
+      })
       const msg = `Signing failed (${signing.code}): ${signing.message}`
 
       // If stamping produced a PDF DSIGN can't sign, retry once with the raw (pre-stamp) PDF bytes.
@@ -903,6 +987,12 @@ export async function finalizeDocument(
         try {
           const stampedRetry = await attemptSign(rendered.pdfBytes, rendered.pdfSha256, "stamped")
           if ((stampedRetry as any)?.ok) {
+            tracker.step("signing_call_ok", {
+              draft_id: draftId,
+              variant: args.variant,
+              language: args.language,
+              attempt_label: "stamped_retry",
+            })
             return {
               ok: true as const,
               unsignedSha256: rendered.pdfSha256,
@@ -933,6 +1023,12 @@ export async function finalizeDocument(
             const asciiSha = sha256HexFromSigningClient(asciiStamped)
             const asciiTry = await attemptSign(asciiStamped, asciiSha, "ascii")
             if (asciiTry.ok) {
+              tracker.step("signing_call_ok", {
+                draft_id: draftId,
+                variant: args.variant,
+                language: args.language,
+                attempt_label: "ascii",
+              })
               return {
                 ok: true as const,
                 unsignedSha256: asciiSha,
@@ -953,6 +1049,12 @@ export async function finalizeDocument(
 
         const retry = await attemptSign((rendered as any).rawPdfBytes, (rendered as any).rawPdfSha256, "raw")
         if (retry.ok) {
+          tracker.step("signing_call_ok", {
+            draft_id: draftId,
+            variant: args.variant,
+            language: args.language,
+            attempt_label: "raw",
+          })
           return {
             ok: true as const,
             unsignedSha256: (rendered as any).rawPdfSha256,
@@ -987,6 +1089,14 @@ export async function finalizeDocument(
 
       return { ok: false as const, message: msg }
     }
+
+    tracker.step("signing_call_ok", {
+      draft_id: draftId,
+      variant: args.variant,
+      language: args.language,
+      attempt_label: "stamped",
+      signed_pdf_bytes: signing.signedPdfBytes.length,
+    })
 
     try {
       const eventDataToSave = {
@@ -1134,15 +1244,54 @@ export async function finalizeDocument(
     return { ok: true as const, existed: false as const }
   }
 
-  const upOriginal = await uploadPdfIfMissing(originalStorageKey, Uint8Array.from(originalFinal.signedPdfBytes as any))
-  if (!upOriginal.ok) return { ok: false, message: `Failed to upload signed PDF (original_he): ${upOriginal.message}` }
+  tracker.step("storage_upload_start", { draft_id: draftId, which: "original_he", storage_key: originalStorageKey })
+  let upOriginal: Awaited<ReturnType<typeof uploadPdfIfMissing>>
+  try {
+    upOriginal = await uploadPdfIfMissing(originalStorageKey, Uint8Array.from(originalFinal.signedPdfBytes as any))
+  } catch (e: any) {
+    tracker.fail("storage_upload_failed", e, { draft_id: draftId, which: "original_he", storage_key: originalStorageKey })
+    throw e
+  }
+  if (!upOriginal.ok) {
+    tracker.fail("storage_upload_failed", new Error(upOriginal.message ?? "upload_failed"), {
+      draft_id: draftId, which: "original_he", storage_key: originalStorageKey,
+    })
+    return { ok: false, message: `Failed to upload signed PDF (original_he): ${upOriginal.message}` }
+  }
+  tracker.step("storage_upload_ok", { draft_id: draftId, which: "original_he", existed: !!(upOriginal as any).existed })
 
-  const upCopyHe = await uploadPdfIfMissing(copyHeStorageKey, Uint8Array.from(copyFinal.signedPdfBytes as any))
-  if (!upCopyHe.ok) return { ok: false, message: `Failed to upload signed PDF (copy_he): ${upCopyHe.message}` }
+  tracker.step("storage_upload_start", { draft_id: draftId, which: "copy_he", storage_key: copyHeStorageKey })
+  let upCopyHe: Awaited<ReturnType<typeof uploadPdfIfMissing>>
+  try {
+    upCopyHe = await uploadPdfIfMissing(copyHeStorageKey, Uint8Array.from(copyFinal.signedPdfBytes as any))
+  } catch (e: any) {
+    tracker.fail("storage_upload_failed", e, { draft_id: draftId, which: "copy_he", storage_key: copyHeStorageKey })
+    throw e
+  }
+  if (!upCopyHe.ok) {
+    tracker.fail("storage_upload_failed", new Error(upCopyHe.message ?? "upload_failed"), {
+      draft_id: draftId, which: "copy_he", storage_key: copyHeStorageKey,
+    })
+    return { ok: false, message: `Failed to upload signed PDF (copy_he): ${upCopyHe.message}` }
+  }
+  tracker.step("storage_upload_ok", { draft_id: draftId, which: "copy_he", existed: !!(upCopyHe as any).existed })
 
   if (enSignedBytes) {
-    const upEn = await uploadPdfIfMissing(copyEnStorageKey, Uint8Array.from(enSignedBytes as any))
-    if (!upEn.ok) return { ok: false, message: `Failed to upload signed PDF (copy_en): ${upEn.message}` }
+    tracker.step("storage_upload_start", { draft_id: draftId, which: "copy_en", storage_key: copyEnStorageKey })
+    let upEn: Awaited<ReturnType<typeof uploadPdfIfMissing>>
+    try {
+      upEn = await uploadPdfIfMissing(copyEnStorageKey, Uint8Array.from(enSignedBytes as any))
+    } catch (e: any) {
+      tracker.fail("storage_upload_failed", e, { draft_id: draftId, which: "copy_en", storage_key: copyEnStorageKey })
+      throw e
+    }
+    if (!upEn.ok) {
+      tracker.fail("storage_upload_failed", new Error(upEn.message ?? "upload_failed"), {
+        draft_id: draftId, which: "copy_en", storage_key: copyEnStorageKey,
+      })
+      return { ok: false, message: `Failed to upload signed PDF (copy_en): ${upEn.message}` }
+    }
+    tracker.step("storage_upload_ok", { draft_id: draftId, which: "copy_en", existed: !!(upEn as any).existed })
   }
 
   const usedUnsignedFallback = !!(originalFinal as any)?.unsignedFallback || !!(copyFinal as any)?.unsignedFallback
@@ -1177,6 +1326,7 @@ export async function finalizeDocument(
     return { ok: false, message: `Failed to persist signing metadata: ${metaError.message}` }
   }
 
+  tracker.step("accounting_init_start", { draft_id: draftId })
   const { data: docForAccounting, error: docForAccountingError } = await supabase
     .from("documents")
     .select("document_type, total_amount")
@@ -1185,9 +1335,11 @@ export async function finalizeDocument(
     .single()
 
   if (docForAccountingError) {
+    tracker.fail("accounting_init_failed", docForAccountingError, { draft_id: draftId })
     console.error(`[finalizeDocument] Failed to load document for accounting init ${draftId}:`, docForAccountingError)
     return { ok: false, message: `Failed to finalize document: ${docForAccountingError.message}` }
   }
+  tracker.step("accounting_init_ok", { draft_id: draftId })
 
   const docType = String((docForAccounting as any)?.document_type || documentType || "").toLowerCase()
   const totalAmountRaw = (docForAccounting as any)?.total_amount
@@ -1222,6 +1374,14 @@ export async function finalizeDocument(
     | "v2_with_accounting"
     | "v1_no_accounting"
     | "legacy_minimal" = "period_guard"
+
+  tracker.step("finalize_rpc_start", {
+    draft_id: draftId,
+    rpc_mode: "period_guard",
+    accounting_status: initialAccountingStatus,
+    paid_amount: initialPaidAmount,
+    outstanding: initialOutstandingBalance,
+  })
 
   // Prefer new period-based guard (anniversary periods + free hard cap).
   ;({ data: finalizeGuardData, error: finalizeGuardError } = await supabase.rpc(
@@ -1267,6 +1427,10 @@ export async function finalizeDocument(
   }
 
   if (finalizeGuardError) {
+    tracker.fail("finalize_rpc_failed", finalizeGuardError, {
+      draft_id: draftId,
+      rpc_mode: finalizeRpcMode,
+    })
     console.error(`[finalizeDocument] finalize_document_with_usage_guard failed for ${draftId}:`, finalizeGuardError)
     return { ok: false, message: finalizeGuardError.message, reason: null }
   }
@@ -1276,6 +1440,11 @@ export async function finalizeDocument(
   const reason = typeof finalizeRow?.reason === "string" ? finalizeRow.reason : null
 
   if (!finalizeOk) {
+    tracker.fail("finalize_rpc_failed", new Error(reason || "finalize_rpc_returned_not_ok"), {
+      draft_id: draftId,
+      rpc_mode: finalizeRpcMode,
+      reason,
+    })
     const message =
       reason === "limit_reached"
         ? "הגעת למגבלת המסמכים החודשית. לא ניתן להפיק מסמכים חדשים."
@@ -1288,6 +1457,9 @@ export async function finalizeDocument(
               : "לא ניתן להפיק מסמך. נסה שוב."
     return { ok: false, message, reason }
   }
+
+  tracker.step("finalize_rpc_ok", { draft_id: draftId, rpc_mode: finalizeRpcMode })
+  tracker.step("finalize_done", { draft_id: draftId, doc_number_length: docNumber ? String(docNumber).length : 0 })
 
   console.log(`✅ [finalizeDocument] Document ${draftId} finalized successfully with PDF`)
   

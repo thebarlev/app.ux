@@ -27,6 +27,10 @@ import {
   isDigitalSignaturesEnabled,
   DIGITAL_SIGNATURES_DEFERRED_MESSAGE,
 } from "@/lib/documents/signing/feature-flags";
+import {
+  DocIssueTracker,
+  logDocIssueBootOnce,
+} from "@/lib/diagnostics/external-services-check";
 
 const DOCUMENT_ROUTE_SEGMENTS: Record<DocumentIssueType, string> = {
   receipt: "receipt",
@@ -949,6 +953,15 @@ export async function issueDocumentAction(
   payload: DocumentDraftPayload,
   draftId?: string
 ) {
+  // Server-Action entry: emit boot snapshot of external-service env vars
+  // (once per process) and create a fresh attempt id for this issuance.
+  // The attempt id flows into [DOC_ISSUE] lines in finalizeDocument and
+  // into the response object so the user can correlate from the browser
+  // Network tab when issuance fails.
+  logDocIssueBootOnce();
+  const tracker = new DocIssueTracker();
+  const attemptId = tracker.attemptId;
+
   const logPrefix = getLogPrefix(documentType);
   console.log(`${logPrefix} issueDocumentAction entry`, {
     documentType,
@@ -957,7 +970,31 @@ export async function issueDocumentAction(
     total: payload.total,
     paymentsCount: payload.payments?.length,
     payloadKeys: Object.keys(payload),
+    attempt_id: attemptId,
   });
+
+  tracker.step("action_entry", {
+    document_type: documentType,
+    has_draft_id: typeof draftId === "string" && draftId.length > 0,
+    customer_name_length: typeof payload.customerName === "string" ? payload.customerName.length : 0,
+    total: payload.total,
+    currency: payload.currency,
+    payments_count: payload.payments?.length ?? 0,
+    items_count: (payload as any)?.items?.length ?? 0,
+    language: payload.language,
+  });
+
+  // Helper: stamp attempt_id + step on every failure response so the
+  // browser console (and the modal's catch-block) can show exactly where
+  // the chain broke. Success responses are intentionally not modified.
+  const stampError = <T extends { ok: false }>(resp: T, step: string): T & { attempt_id: string; step: string } => {
+    tracker.step("action_exit", {
+      ok: false,
+      step,
+      message: typeof (resp as any).message === "string" ? String((resp as any).message).slice(0, 240) : null,
+    });
+    return { ...resp, attempt_id: attemptId, step };
+  };
 
   let agentFlow: {
     step:
@@ -1002,7 +1039,7 @@ export async function issueDocumentAction(
       agentFlow.note = "validation_failed";
       console.error(`${logPrefix} Validation failed`, { error: err });
       const errorMessage = typeof err === "string" ? err : String(err) || "שגיאת ולידציה";
-      const errorResponse = { ok: false as const, message: errorMessage };
+      const errorResponse = stampError({ ok: false as const, message: errorMessage }, "validation_failed");
       console.log(`${logPrefix} Returning validation error response`, errorResponse);
       return errorResponse;
     }
@@ -1026,23 +1063,26 @@ export async function issueDocumentAction(
         agentFlow.step = "draft_fetch_error_return";
         agentFlow.ok = false;
         agentFlow.note = "draft_fetch_error";
-        return { ok: false as const, message: fetchError.message };
+        return stampError({ ok: false as const, message: fetchError.message }, "draft_fetch_error");
       }
       if (!existing) {
         agentFlow.step = "draft_not_found_return";
         agentFlow.ok = false;
         agentFlow.note = "draft_not_found";
-        return { ok: false as const, message: "Draft not found" };
+        return stampError({ ok: false as const, message: "Draft not found" }, "draft_not_found");
       }
 
       if (existing.document_status !== "draft") {
         agentFlow.step = "draft_not_draft_return";
         agentFlow.ok = false;
         agentFlow.note = `not_draft:${String(existing.document_status || "")}`;
-        return {
-          ok: false as const,
-          message: "Cannot edit final documents. Only drafts can be modified.",
-        };
+        return stampError(
+          {
+            ok: false as const,
+            message: "Cannot edit final documents. Only drafts can be modified.",
+          },
+          "draft_not_draft",
+        );
       }
 
       const taxFields = isItemDocumentType(documentType)
@@ -1083,17 +1123,20 @@ export async function issueDocumentAction(
             .eq("company_id", companyId));
         }
         if (updateError && updateError.code === "PGRST204" && String(updateError.message || "").includes("language")) {
-          return {
-            ok: false as const,
-            message:
-              "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
-          };
+          return stampError(
+            {
+              ok: false as const,
+              message:
+                "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
+            },
+            "draft_update_missing_language_column",
+          );
         }
         if (updateError) {
           agentFlow.step = "update_error_return";
           agentFlow.ok = false;
           agentFlow.note = "update_error";
-          return { ok: false as const, message: updateError.message };
+          return stampError({ ok: false as const, message: updateError.message }, "draft_update_failed");
         }
       }
 
@@ -1114,11 +1157,14 @@ export async function issueDocumentAction(
         agentFlow.step = "eligibility_block_return";
         agentFlow.ok = false;
         agentFlow.note = `${eligibility.reason || "eligibility_blocked"}:${String(eligibility.message || "").slice(0, 120)}`;
-        return {
-          ok: false as const,
-          message: eligibility.message,
-          reason: eligibility.reason,
-        };
+        return stampError(
+          {
+            ok: false as const,
+            message: eligibility.message,
+            reason: eligibility.reason,
+          },
+          "eligibility_blocked",
+        );
       }
 
       // Ensure deterministic issuance uses the canonical Admin template snapshot.
@@ -1145,10 +1191,12 @@ export async function issueDocumentAction(
         draftId,
         companyId: companyId?.substring(0, 8),
         documentType,
+        attempt_id: attemptId,
       });
       const agentFinalizeT0 = Date.now()
 
       agentFlow.step = "calling_finalize";
+      tracker.step("calling_finalize", { draft_id: draftId, branch: "existing_draft" });
 
       const userRes = await supabase.auth.getUser();
       const createdByEmail = userRes?.data?.user?.email ?? null;
@@ -1157,16 +1205,18 @@ export async function issueDocumentAction(
         (userRes?.data?.user?.user_metadata as any)?.name ||
         createdByEmail ||
         null;
-      
+
       const result = await finalizeDocument(draftId, companyId, documentType, {
         createdByName,
         createdByEmail,
+        attemptId,
       });
 
 
       console.log(`${logPrefix} finalizeDocument result`, {
         ok: result.ok,
         documentNumber: result.documentNumber,
+        attempt_id: attemptId,
       });
 
       agentFlow.step = "finalize_done";
@@ -1176,26 +1226,35 @@ export async function issueDocumentAction(
       if (!result.ok) {
         const rawMessage = result.message || "Failed to issue document"
         if (rawMessage === "TEMPLATE_NOT_FOUND") {
-          return {
-            ok: false as const,
-            message:
-              "אין תבנית פעילה למסמך הזה במערכת (Admin Templates). " +
-              "כדי להפיק מסמך חדש חייבת להיות לפחות תבנית אחת פעילה עבור סוג המסמך (tax_invoice / invoice_receipt). " +
-              "פתח /admin/templates וצור/הפעל תבנית מתאימה (is_active=true) וודא שהיא משויכת לסוג המסמך.",
-          }
+          return stampError(
+            {
+              ok: false as const,
+              message:
+                "אין תבנית פעילה למסמך הזה במערכת (Admin Templates). " +
+                "כדי להפיק מסמך חדש חייבת להיות לפחות תבנית אחת פעילה עבור סוג המסמך (tax_invoice / invoice_receipt). " +
+                "פתח /admin/templates וצור/הפעל תבנית מתאימה (is_active=true) וודא שהיא משויכת לסוג המסמך.",
+            },
+            "template_not_found",
+          )
         }
         console.error(`${logPrefix} finalizeDocument failed`, {
           message: rawMessage,
           draftId,
+          attempt_id: attemptId,
         });
-        return {
-          ok: false as const,
-          message: rawMessage,
-          reason: (result as any)?.reason ?? null,
-          shaam: (result as any)?.shaam ?? null,
-          documentId: draftId,
-        };
+        return stampError(
+          {
+            ok: false as const,
+            message: rawMessage,
+            reason: (result as any)?.reason ?? null,
+            shaam: (result as any)?.shaam ?? null,
+            documentId: draftId,
+          },
+          "finalize_failed",
+        );
       }
+
+      tracker.step("action_exit", { ok: true, branch: "existing_draft", document_id: draftId });
 
       const { data: company } = await supabase
         .from("companies")
@@ -1285,16 +1344,22 @@ export async function issueDocumentAction(
         hint: draftError.hint,
       });
       if (draftError.code === "PGRST204" && String(draftError.message || "").includes("language")) {
-        return {
-          ok: false as const,
-          message:
-            "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
-        };
+        return stampError(
+          {
+            ok: false as const,
+            message:
+              "שגיאה במסד הנתונים: חסרה עמודה documents.language. נא להריץ את scripts/018-add-documents-language.sql ב-Supabase SQL Editor ואז לנסות שוב.",
+          },
+          "draft_insert_missing_language_column",
+        );
       }
-      return { ok: false as const, message: draftError.message || "Failed to create draft document" };
+      return stampError(
+        { ok: false as const, message: draftError.message || "Failed to create draft document" },
+        "draft_insert_failed",
+      );
     }
     if (!draft) {
-      return { ok: false as const, message: "Failed to create draft document" };
+      return stampError({ ok: false as const, message: "Failed to create draft document" }, "draft_insert_no_row");
     }
 
     console.log(`${logPrefix} Draft created`, { draftId: draft.id });
@@ -1342,19 +1407,24 @@ export async function issueDocumentAction(
       agentFlow.step = "eligibility_block_return";
       agentFlow.ok = false;
       agentFlow.note = `${eligibility.reason || "eligibility_blocked"}:${String(eligibility.message || "").slice(0, 120)}`;
-      return {
-        ok: false as const,
-        message: eligibility.message,
-        reason: eligibility.reason,
-      };
+      return stampError(
+        {
+          ok: false as const,
+          message: eligibility.message,
+          reason: eligibility.reason,
+        },
+        "eligibility_blocked",
+      );
     }
 
     console.log(`${logPrefix} Calling finalizeDocument`, {
       draftId: draft.id,
       companyId: companyId?.substring(0, 8),
       documentType,
+      attempt_id: attemptId,
     });
-    
+    tracker.step("calling_finalize", { draft_id: draft.id, branch: "new_draft" });
+
     const userRes = await supabase.auth.getUser();
     const createdByEmail = userRes?.data?.user?.email ?? null;
     const createdByName =
@@ -1362,10 +1432,11 @@ export async function issueDocumentAction(
       (userRes?.data?.user?.user_metadata as any)?.name ||
       createdByEmail ||
       null;
-    
+
     const result = await finalizeDocument(draft.id, companyId, documentType, {
       createdByName,
       createdByEmail,
+      attemptId,
     });
 
 
@@ -1373,20 +1444,25 @@ export async function issueDocumentAction(
       ok: result.ok,
       documentNumber: result.documentNumber,
       message: result.message,
+      attempt_id: attemptId,
     });
 
     if (!result.ok) {
       console.error(`${logPrefix} finalizeDocument failed`, {
         message: result.message,
         draftId: draft.id,
+        attempt_id: attemptId,
       });
-      const errorResponse = {
-        ok: false as const,
-        message: result.message ?? "Failed to finalize document",
-        reason: (result as any)?.reason ?? null,
-        shaam: (result as any)?.shaam ?? null,
-        documentId: draft.id,
-      };
+      const errorResponse = stampError(
+        {
+          ok: false as const,
+          message: result.message ?? "Failed to finalize document",
+          reason: (result as any)?.reason ?? null,
+          shaam: (result as any)?.shaam ?? null,
+          documentId: draft.id,
+        },
+        "finalize_failed",
+      );
       return errorResponse;
     }
 
@@ -1405,7 +1481,9 @@ export async function issueDocumentAction(
       documentId: draft.id,
       documentNumber: result.documentNumber,
       companyName: company?.company_name,
+      attempt_id: attemptId,
     });
+    tracker.step("action_exit", { ok: true, branch: "new_draft", document_id: draft.id });
 
     return {
       ok: true as const,
@@ -1426,6 +1504,8 @@ export async function issueDocumentAction(
     const errorName = error?.name || "Unknown";
     const errorCode = error?.code || error?.statusCode || null;
 
+    tracker.fail("action_exit", error, { step: "uncaught_in_action", agent_step: agentFlow.step });
+
     console.error(`${getLogPrefix(documentType)} Exception in issueDocumentAction`, {
       error: errorMessage,
       errorType,
@@ -1433,10 +1513,14 @@ export async function issueDocumentAction(
       errorCode,
       stack: errorStack,
       fullError: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
+      attempt_id: attemptId,
     });
     return {
       ok: false as const,
       message: errorMessage,
+      attempt_id: attemptId,
+      step: "uncaught_in_action",
+      code: errorCode ?? null,
     };
   } finally {
   }

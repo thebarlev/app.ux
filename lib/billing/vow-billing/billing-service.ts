@@ -7,6 +7,7 @@ import { getProvider } from "@/lib/billing/vow-billing/providers"
 import { withRetry } from "@/lib/billing/vow-billing/retry"
 import { logVowBillingFailure } from "@/lib/billing/vow-billing/log-failure"
 import type { VowBillingCreateDocumentInput } from "@/lib/billing/vow-billing/types"
+import { DocIssueTracker } from "@/lib/diagnostics/external-services-check"
 
 const CreateDocumentSchema = z.object({
   user_id: z.string().min(1),
@@ -54,7 +55,10 @@ async function resignDocumentUrl(documentId: string): Promise<string | null> {
   }
 }
 
-export async function createBillingDocument(input: VowBillingCreateDocumentInput): Promise<{
+export async function createBillingDocument(
+  input: VowBillingCreateDocumentInput,
+  opts?: { tracker?: DocIssueTracker },
+): Promise<{
   success: true
   document_id: string
   document_url: string | null
@@ -66,12 +70,17 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
   message: string
   code?: string
 }> {
+  const tracker = opts?.tracker ?? new DocIssueTracker()
   const parsed = CreateDocumentSchema.safeParse(input)
   if (!parsed.success) {
+    const issues = parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")
+    tracker.fail("validate_input", new Error(issues), {
+      paths: parsed.error.issues.map(i => i.path.join(".")),
+    })
     await logVowBillingFailure({
       stage:        "vow_create_document_validation",
       errorCode:    "validation_error",
-      errorMessage: parsed.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; "),
+      errorMessage: issues,
       errorDetails: { issues: parsed.error.issues, received: input },
       userId:       (input as any)?.user_id ?? null,
     })
@@ -82,6 +91,7 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
 
   const issuerCompanyId = String(process.env.VOW_BILLING_COMPANY_ID || "").trim()
   if (!issuerCompanyId) {
+    tracker.fail("resolve_issuer_company", new Error("missing_VOW_BILLING_COMPANY_ID"))
     await logVowBillingFailure({
       stage:        "vow_create_document_validation",
       errorCode:    "misconfigured",
@@ -90,6 +100,7 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
     })
     return { success: false, message: "Missing VOW_BILLING_COMPANY_ID", code: "misconfigured" }
   }
+  tracker.step("resolve_issuer_company", { company_id: issuerCompanyId })
 
   const isIsraeli = body.is_israeli === true
   const language: "he" | "en" = isIsraeli ? "he" : "en"
@@ -152,6 +163,7 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
   }
 
   // ── Issue ────────────────────────────────────────────────────────────
+  tracker.step("provider_issue_start", { provider: provider.name })
   const issued = await withRetry(
     async () => {
       return await provider.issueDocument({
@@ -174,6 +186,7 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
           requested_language: body.language,
           is_israeli: body.is_israeli,
           idempotency_key: idempotencyKey,
+          attempt_id: tracker.attemptId,
         },
       })
     },
@@ -192,6 +205,10 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
   )
 
   if (!issued.ok) {
+    tracker.fail("provider_issue_failed", new Error(String(issued.error || "provider_error")), {
+      provider: provider.name,
+      status: issued.status ?? null,
+    })
     console.error("[VOW_BILLING] provider issueDocument failed", {
       provider: provider.name,
       error: issued.error,
@@ -207,6 +224,11 @@ export async function createBillingDocument(input: VowBillingCreateDocumentInput
     })
     return { success: false, message: "Billing provider error", code: "provider_error" }
   }
+
+  tracker.step("provider_issue_ok", {
+    provider: provider.name,
+    document_id: issued.documentId,
+  })
 
   // ── Persist billing record ───────────────────────────────────────────
   // The provider already inserted/updated the vow_billing_issued_documents

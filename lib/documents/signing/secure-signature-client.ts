@@ -1,6 +1,7 @@
 import "server-only"
 
 import { logSecurityEvent } from "@/lib/security/audit-log"
+import { hostFromUrl } from "@/lib/diagnostics/external-services-check"
 
 type SecureSignatureCreateRequest = {
   business_id: string
@@ -148,6 +149,8 @@ export async function createSigningRequest(params: {
   businessEmail?: string | null
   metadata?: Record<string, any>
   pdfBytes: Buffer
+  /** Optional correlation id from the calling route — threaded into [DOC_ISSUE] logs. */
+  attemptId?: string
 }): Promise<
   | {
       ok: true
@@ -171,8 +174,18 @@ export async function createSigningRequest(params: {
 > {
   const baseUrl = process.env.SECURE_SIGNATURE_BASE_URL?.trim()
   const apiKey = process.env.SECURE_SIGNATURE_API_KEY?.trim()
+  const attemptId = params.attemptId || null
 
   if (!baseUrl || !apiKey) {
+    if (attemptId) {
+      console.error("[DOC_ISSUE]", {
+        attempt_id: attemptId,
+        step: "sign_request_misconfigured",
+        level: "error",
+        secure_signature_base_url_present: !!baseUrl,
+        secure_signature_api_key_present: !!apiKey,
+      })
+    }
     logSecurityEvent({
       event: "signing_failed",
       outcome: "failed",
@@ -259,6 +272,7 @@ export async function createSigningRequest(params: {
 
   let res: Response
   const startedAt = Date.now()
+  const dsignHost = hostFromUrl(baseUrl)
 
   console.log("[SIGN_FLOW] signing API call", {
     endpoint: "/v1/signing/requests",
@@ -267,7 +281,17 @@ export async function createSigningRequest(params: {
     businessId8: String(params.businessId || "").slice(0, 8),
     supplierName: body.supplier_name,
     businessName: body.business_name,
+    attempt_id: attemptId,
   })
+  if (attemptId) {
+    console.log("[DOC_ISSUE]", {
+      attempt_id: attemptId,
+      step: "sign_fetch_start",
+      secure_signature_host: dsignHost,
+      external_doc_id: params.externalDocId,
+      pdf_bytes: params.pdfBytes?.length ?? null,
+    })
+  }
 
   try {
     res = await fetch(url, {
@@ -279,6 +303,18 @@ export async function createSigningRequest(params: {
       body: JSON.stringify(body),
     })
   } catch (e: any) {
+    if (attemptId) {
+      console.error("[DOC_ISSUE]", {
+        attempt_id: attemptId,
+        step: "sign_fetch_failed",
+        level: "error",
+        duration_ms: Date.now() - startedAt,
+        secure_signature_host: dsignHost,
+        error_message: e?.message ?? String(e ?? ""),
+        error_code: e?.code ?? null,
+        error_name: e?.name ?? null,
+      })
+    }
     logSecurityEvent({
       event: "signing_failed",
       outcome: "failed",
@@ -305,7 +341,17 @@ export async function createSigningRequest(params: {
     ok: res.ok,
     time_ms: Date.now() - startedAt,
     externalDocId: params.externalDocId,
+    attempt_id: attemptId,
   })
+  if (attemptId) {
+    console.log("[DOC_ISSUE]", {
+      attempt_id: attemptId,
+      step: res.ok ? "sign_fetch_response_ok" : "sign_fetch_response_http_error",
+      duration_ms: Date.now() - startedAt,
+      secure_signature_host: dsignHost,
+      http_status: res.status,
+    })
+  }
 
   let json: any = null
   // Read once as text, then parse JSON. (res.json() consumes the body, so we can't log body on parse failure.)

@@ -6,6 +6,7 @@ import { renderDeterministicPdfBytes } from "@/lib/pdf-service"
 import { createSigningRequest, sha256Hex } from "@/lib/documents/signing/secure-signature-client"
 import { logVowBillingFailure } from "@/lib/billing/vow-billing/log-failure"
 import type { BillingProvider, IssueDocumentParams, IssueDocumentResult } from "@/lib/billing/vow-billing/providers/types"
+import { DocIssueTracker, hostFromUrl } from "@/lib/diagnostics/external-services-check"
 
 function todayYmdUtc(): string {
   const d = new Date()
@@ -111,8 +112,18 @@ export const internalBillingProvider: BillingProvider = {
   name: "internal",
 
   async issueDocument(params: IssueDocumentParams): Promise<IssueDocumentResult> {
+    // Reuse caller's attempt_id when threaded through metadata; otherwise
+    // create a local tracker so internal-provider always logs with a
+    // correlation id (e.g. when called from a non-instrumented entrypoint).
+    const callerAttemptId =
+      typeof (params.metadata as any)?.attempt_id === "string" && (params.metadata as any).attempt_id
+        ? String((params.metadata as any).attempt_id)
+        : undefined
+    const tracker = new DocIssueTracker(callerAttemptId)
+
     const issuerCompanyId = String(process.env.VOW_BILLING_COMPANY_ID || "").trim()
     if (!issuerCompanyId) {
+      tracker.fail("internal_provider_entry", new Error("missing_VOW_BILLING_COMPANY_ID"))
       return { ok: false, error: "Missing VOW_BILLING_COMPANY_ID" }
     }
 
@@ -157,11 +168,20 @@ export const internalBillingProvider: BillingProvider = {
       .single()
 
     if (docErr || !doc?.id) {
+      tracker.fail("draft_inserted", docErr ?? new Error("no_doc_returned"), {
+        company_id: issuerCompanyId,
+      })
       console.error("[VOW_BILLING][INTERNAL_PROVIDER] failed to create draft document", { error: docErr })
       return { ok: false, error: "Failed to create document" }
     }
 
     const documentId = String(doc.id)
+    tracker.step("draft_inserted", {
+      document_id: documentId,
+      company_id: issuerCompanyId,
+      document_type: dbDocumentType,
+      language,
+    })
 
     // 2) Reserve a document number (best-effort; templates/signing use it when present)
     try {
@@ -218,40 +238,103 @@ export const internalBillingProvider: BillingProvider = {
 
     // 4) Render deterministic PDF (requires pdf_generated_at)
     const label = language === "he" ? "מקור" : "Original"
-    const rendered = await renderDeterministicPdfBytes({
-      documentId,
-      language,
-      documentCopyLabel: label,
+    tracker.step("pdf_render_start", {
+      document_id: documentId,
+      pdf_render_host: hostFromUrl(process.env.PDF_RENDER_URL),
+      pdf_render_token_present: !!String(process.env.PDF_RENDER_TOKEN || "").trim(),
     })
+    let rendered: Awaited<ReturnType<typeof renderDeterministicPdfBytes>>
+    try {
+      rendered = await renderDeterministicPdfBytes({
+        documentId,
+        language,
+        documentCopyLabel: label,
+        attemptId: tracker.attemptId,
+      } as any)
+    } catch (e: any) {
+      tracker.fail("pdf_render_failed", e, {
+        document_id: documentId,
+        pdf_render_host: hostFromUrl(process.env.PDF_RENDER_URL),
+      })
+      throw e
+    }
     if (!rendered.ok) {
+      tracker.fail("pdf_render_failed", new Error(rendered.message), {
+        document_id: documentId,
+        pdf_render_host: hostFromUrl(process.env.PDF_RENDER_URL),
+      })
       console.error("[VOW_BILLING][INTERNAL_PROVIDER] PDF render failed", { documentId, message: rendered.message })
       return { ok: false, error: rendered.message }
     }
-
-    // 5) Sign PDF (secure-signature service)
-    const signing = await createSigningRequest({
-      businessId: issuerCompanyId,
-      externalDocId: `${documentId}:vow_billing:${language}`,
-      supplierName: "VOW Billing",
-      businessName: "Uxellent",
-      businessTaxId: null,
-      businessContactName: null,
-      businessEmail: null,
-      metadata: {
-        ...params.metadata,
-        document_id: documentId,
-        issuer_company_id: issuerCompanyId,
-        country: params.customer?.country,
-        email: params.customer?.email,
-        vat_rate: vatRate,
-        vat_amount: vatAmount,
-        amount,
-        total_amount: totalAmount,
-      },
-      pdfBytes: rendered.pdfBytes,
+    tracker.step("pdf_render_ok", {
+      document_id: documentId,
+      pdf_bytes: rendered.pdfBytes.length,
+      pdf_sha256_8: String(rendered.pdfSha256 || "").slice(0, 8),
     })
 
-    if (!signing.ok) {
+    // 5) Sign PDF (secure-signature service)
+    //
+    // Optional bypass: when SECURE_SIGNATURE_BYPASS=true the document
+    // is uploaded UNSIGNED. Use this only when the signing service is
+    // unavailable (e.g. dev / migration window). Resulting documents
+    // have signed_pdf_sha256=NULL and signature_provider=NULL — the
+    // repair-missing-invoices cron should re-attempt signing once the
+    // service is back. This is NOT compliant for issued tax invoices
+    // and must NOT remain enabled in production.
+    const bypassSigning = String(process.env.SECURE_SIGNATURE_BYPASS || "").toLowerCase() === "true"
+
+    if (bypassSigning) {
+      tracker.step("sign_request_bypassed", { document_id: documentId })
+    } else {
+      tracker.step("sign_request_start", {
+        document_id: documentId,
+        secure_signature_host: hostFromUrl(process.env.SECURE_SIGNATURE_BASE_URL),
+        secure_signature_api_key_present: !!String(process.env.SECURE_SIGNATURE_API_KEY || "").trim(),
+      })
+    }
+
+    let signing: Awaited<ReturnType<typeof createSigningRequest>> | null = null
+    if (!bypassSigning) {
+      try {
+        signing = await createSigningRequest({
+          businessId: issuerCompanyId,
+          externalDocId: `${documentId}:vow_billing:${language}`,
+          supplierName: "VOW Billing",
+          businessName: "Uxellent",
+          businessTaxId: null,
+          businessContactName: null,
+          businessEmail: null,
+          metadata: {
+            ...params.metadata,
+            document_id: documentId,
+            issuer_company_id: issuerCompanyId,
+            country: params.customer?.country,
+            email: params.customer?.email,
+            vat_rate: vatRate,
+            vat_amount: vatAmount,
+            amount,
+            total_amount: totalAmount,
+            attempt_id: tracker.attemptId,
+          },
+          pdfBytes: rendered.pdfBytes,
+          attemptId: tracker.attemptId,
+        } as any)
+      } catch (e: any) {
+        tracker.fail("sign_request_failed", e, {
+          document_id: documentId,
+          secure_signature_host: hostFromUrl(process.env.SECURE_SIGNATURE_BASE_URL),
+        })
+        throw e
+      }
+    }
+
+    if (signing && !signing.ok) {
+      tracker.fail("sign_request_failed", new Error(signing.message), {
+        document_id: documentId,
+        secure_signature_host: hostFromUrl(process.env.SECURE_SIGNATURE_BASE_URL),
+        sign_code: signing.code,
+        sign_status: signing.status ?? null,
+      })
       console.error("[VOW_BILLING][INTERNAL_PROVIDER] signing failed", {
         documentId,
         code: signing.code,
@@ -260,21 +343,55 @@ export const internalBillingProvider: BillingProvider = {
       })
       return { ok: false, error: `signing_failed:${signing.code}` }
     }
+    if (signing && signing.ok) {
+      tracker.step("sign_request_ok", {
+        document_id: documentId,
+        signed_pdf_bytes: signing.signedPdfBytes.length,
+        request_id: signing.requestId ?? null,
+      })
+    }
 
-    const signedPdfSha256 = sha256Hex(signing.signedPdfBytes)
+    if (bypassSigning) {
+      console.warn("[VOW_BILLING][INTERNAL_PROVIDER] SECURE_SIGNATURE_BYPASS=true — uploading UNSIGNED PDF (NOT compliant for tax invoices)", {
+        documentId,
+      })
+      await logVowBillingFailure({
+        stage:        "vow_create_document_persist",
+        errorCode:    "signing_bypassed",
+        errorMessage: "SECURE_SIGNATURE_BYPASS env var enabled — document is unsigned",
+        documentId,
+        userId:       (params.metadata as any)?.user_id ?? null,
+        companyId:    issuerCompanyId,
+      })
+    }
+
+    // Use signed bytes if signing succeeded; otherwise the rendered PDF as-is.
+    const pdfBytesToUpload: Uint8Array = signing
+      ? Uint8Array.from(signing.signedPdfBytes)
+      : Uint8Array.from(rendered.pdfBytes)
+    const signedPdfSha256: string | null = signing ? sha256Hex(signing.signedPdfBytes) : null
     const storageKey = `vow-billing/${documentId}/${language}.pdf`
 
     // 6) Upload to secure bucket (private)
+    tracker.step("upload_start", {
+      document_id: documentId,
+      storage_key: storageKey,
+      pdf_bytes: pdfBytesToUpload.length,
+    })
     const up = await admin.storage
       .from(SECURE_ASSETS_BUCKET)
-      .upload(storageKey, Uint8Array.from(signing.signedPdfBytes), { contentType: "application/pdf", upsert: false })
+      .upload(storageKey, pdfBytesToUpload, { contentType: "application/pdf", upsert: false })
 
     if (up.error) {
       const msg = String(up.error.message || "")
       if (!msg.toLowerCase().includes("already exists") && !msg.toLowerCase().includes("duplicate")) {
+        tracker.fail("upload_failed", up.error, { document_id: documentId, storage_key: storageKey })
         console.error("[VOW_BILLING][INTERNAL_PROVIDER] storage upload failed", { documentId, error: up.error })
         return { ok: false, error: "upload_failed" }
       }
+      tracker.step("upload_already_exists", { document_id: documentId, storage_key: storageKey })
+    } else {
+      tracker.step("upload_ok", { document_id: documentId, storage_key: storageKey })
     }
 
     // 7) Persist signing metadata + mark final (best-effort finalize RPC)
@@ -284,8 +401,8 @@ export const internalBillingProvider: BillingProvider = {
         .update({
           pdf_sha256: rendered.pdfSha256,
           signed_pdf_sha256: signedPdfSha256,
-          signed_at: nowIso,
-          signature_provider: "secure_signature",
+          signed_at: signing ? nowIso : null,
+          signature_provider: signing ? "secure_signature" : null,
           pdf_storage_key: storageKey,
         } as any)
         .eq("id", documentId)
@@ -294,6 +411,7 @@ export const internalBillingProvider: BillingProvider = {
       // ignore
     }
 
+    tracker.step("finalize_start", { document_id: documentId, total_amount: totalAmount })
     const finalized = await finalizeViaServiceRpc({
       admin,
       companyId: issuerCompanyId,
@@ -303,6 +421,10 @@ export const internalBillingProvider: BillingProvider = {
     })
 
     if (!finalized.ok) {
+      tracker.fail("finalize_failed", new Error(finalized.message), {
+        document_id: documentId,
+        rpc_code: finalized.code,
+      })
       console.error("[VOW_BILLING][INTERNAL_PROVIDER] service finalize RPC failed", {
         documentId,
         code: finalized.code,
@@ -334,6 +456,9 @@ export const internalBillingProvider: BillingProvider = {
         totalAmount,
       })
       if (!fb.ok) {
+        tracker.fail("finalize_fallback_failed", new Error(fb.message ?? "fallback_failed"), {
+          document_id: documentId,
+        })
         console.error("[VOW_BILLING][INTERNAL_PROVIDER] fallback finalize also failed", {
           documentId,
           message: fb.message,
@@ -346,7 +471,11 @@ export const internalBillingProvider: BillingProvider = {
           userId:       (params.metadata as any)?.user_id ?? null,
           companyId:    issuerCompanyId,
         })
+      } else {
+        tracker.step("finalize_fallback_ok", { document_id: documentId })
       }
+    } else {
+      tracker.step("finalize_ok", { document_id: documentId })
     }
 
     // 8) Return a signed URL for download
@@ -488,10 +617,11 @@ export const internalBillingProvider: BillingProvider = {
       ok: true,
       documentId: canonicalDocumentId,
       documentUrl: canonicalDocumentUrl,
-      signedPdfBase64: signing.signedPdfBytes.toString("base64"),
+      signedPdfBase64: signing ? signing.signedPdfBytes.toString("base64") : null,
       providerJson: {
         storage_key: storageKey,
-        signing_request_id: signing.requestId,
+        signing_request_id: signing ? signing.requestId : null,
+        signing_bypassed: !signing,
         idempotent_orphan: canonicalDocumentId !== documentId ? documentId : null,
       },
     }

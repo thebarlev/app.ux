@@ -238,20 +238,38 @@ export default function ReceiptConfirmationModal({
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                console.log("[FINALIZE_RECEIPT] Confirm button clicked", { 
-                  isLoading, 
+                console.log("[FINALIZE_RECEIPT] Confirm button clicked", {
+                  isLoading,
                   isFinalizing,
                   customerName,
                   total,
                   currency
                 });
                 try {
-                  await onConfirm();
-                  console.log("[FINALIZE_RECEIPT] onConfirm handler completed");
+                  // Capture the result if the handler returns one. Many
+                  // Server-Action wrappers return `{ ok:false, attempt_id, step }`
+                  // on failure rather than throwing; surface those so the
+                  // attempt_id is visible in the browser console for grepping
+                  // Vercel Functions logs.
+                  const result: any = await (onConfirm as any)();
+                  if (result && result.ok === false) {
+                    console.error("[FINALIZE_RECEIPT] onConfirm returned failure", {
+                      message: result.message ?? null,
+                      attempt_id: result.attempt_id ?? null,
+                      step: result.step ?? null,
+                      code: result.code ?? null,
+                      reason: result.reason ?? null,
+                    });
+                  } else {
+                    console.log("[FINALIZE_RECEIPT] onConfirm handler completed");
+                  }
                 } catch (error: any) {
-                  console.error("[FINALIZE_RECEIPT] Error in onConfirm handler", { 
-                    error: error.message,
-                    stack: error.stack 
+                  console.error("[FINALIZE_RECEIPT] Error in onConfirm handler", {
+                    error: error?.message,
+                    attempt_id: error?.attempt_id ?? null,
+                    step: error?.step ?? null,
+                    code: error?.code ?? null,
+                    stack: error?.stack
                   });
                 }
               }}

@@ -186,6 +186,8 @@ export async function renderDeterministicPdfBytes(params: {
    * Otherwise, will use documents.template_version_id or fall back to runtime selection.
    */
   templateVersionId?: string | null
+  /** Correlation id from the calling route — threaded into [DOC_ISSUE] logs. */
+  attemptId?: string
 }): Promise<
   | {
       ok: true
@@ -198,11 +200,21 @@ export async function renderDeterministicPdfBytes(params: {
     }
   | { ok: false; message: string }
 > {
+  const attemptId = params.attemptId || null
   console.log("[SIGN_FLOW] deterministic PDF render entry", {
     documentId: params.documentId,
     language: params.language,
     label: params.documentCopyLabel,
+    attempt_id: attemptId,
   })
+  if (attemptId) {
+    console.log("[DOC_ISSUE]", {
+      attempt_id: attemptId,
+      step: "deterministic_pdf_render_entry",
+      document_id: params.documentId,
+      language: params.language,
+    })
+  }
   const admin = createAdminClient()
   const { data: doc, error: docError } = await admin
     .from("documents")
@@ -299,7 +311,16 @@ export async function renderDeterministicPdfBytes(params: {
     bytesLength: pdfBytes.length,
     sha256: pdfSha256,
     frozenNowIso,
+    attempt_id: attemptId,
   })
+  if (attemptId) {
+    console.log("[DOC_ISSUE]", {
+      attempt_id: attemptId,
+      step: "deterministic_pdf_render_exit",
+      document_id: params.documentId,
+      pdf_bytes: pdfBytes.length,
+    })
+  }
   return {
     ok: true,
     pdfBytes,
