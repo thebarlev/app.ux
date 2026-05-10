@@ -93,7 +93,24 @@ export async function POST(req: Request) {
       .single()
 
     if (error || !scan?.id) {
-      return NextResponse.json({ ok: false, error: "Failed to create scan" }, { status: 500 })
+      // Surface the actual DB error to logs so we can diagnose constraint
+      // violations (CHECK on scan_kind, unique indexes, missing columns, etc).
+      console.error("[admin/scan/start] insert failed", {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      })
+      return NextResponse.json({
+        ok: false,
+        error: "Failed to create scan",
+        debug: process.env.NODE_ENV === "development" ? {
+          message: error?.message,
+          code: error?.code,
+          details: error?.details,
+          hint: error?.hint,
+        } : undefined,
+      }, { status: 500 })
     }
 
     return NextResponse.json({
