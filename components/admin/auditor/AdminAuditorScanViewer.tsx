@@ -148,6 +148,7 @@ export function AdminAuditorScanViewer({
         <TabsTrigger value="rules">Rules ({rules.length})</TabsTrigger>
         <TabsTrigger value="recommendations">Recommendations ({recommendations.length})</TabsTrigger>
         <TabsTrigger value="findings">Findings ({findings.length})</TabsTrigger>
+        <TabsTrigger value="reports">Reports</TabsTrigger>
         <TabsTrigger value="logs">Logs ({logs.length})</TabsTrigger>
       </TabsList>
 
@@ -288,10 +289,81 @@ export function AdminAuditorScanViewer({
         <AdminAuditorFindingsTable findings={findings} scanId={scan.id} onCreateTask={onCreateTask} />
       </TabsContent>
 
+      {/* ── Reports ── */}
+      <TabsContent value="reports">
+        <ReportsPanel scanId={scan.id} scanStatus={scan.status} />
+      </TabsContent>
+
       {/* ── Logs ── */}
       <TabsContent value="logs">
         <AdminAuditorPipelineLogs logs={logs} />
       </TabsContent>
     </Tabs>
+  )
+}
+
+// ─── Reports panel — download Customer (.docx) and Implementation (.md) ─────
+
+function ReportsPanel({ scanId, scanStatus }: { scanId: string; scanStatus: string }) {
+  const ready = scanStatus === "done"
+  const customerUrl = `/api/admin/auditor/scan/${scanId}/report/customer`
+  const implementationUrl = `/api/admin/auditor/scan/${scanId}/report/implementation`
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="mb-1 text-base font-semibold text-slate-900">Reports</h3>
+        <p className="mb-6 text-sm text-slate-500">
+          Generated from this scan&apos;s data. Customer report is a styled .docx for the business owner; implementation
+          brief is a markdown file optimized for an AI assistant or developer.
+        </p>
+
+        {!ready && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            ⏳ The scan is still in progress. Reports will be available once it finishes (status: {scanStatus}).
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Customer report card */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
+            <div className="mb-3 text-2xl">📄</div>
+            <h4 className="mb-1 text-sm font-semibold text-slate-900">Customer Report</h4>
+            <p className="mb-4 text-xs leading-relaxed text-slate-500">
+              Word document (.docx) in Hebrew — designed to send to the business owner. Includes scores, top issues, what
+              works well, and a 90-day action plan. Easy to edit before sending.
+            </p>
+            <Button asChild disabled={!ready} size="sm">
+              <a href={customerUrl} download={ready ? undefined : false} aria-disabled={!ready}>
+                Download .docx
+              </a>
+            </Button>
+          </div>
+
+          {/* Implementation brief card */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5">
+            <div className="mb-3 text-2xl">🤖</div>
+            <h4 className="mb-1 text-sm font-semibold text-slate-900">Implementation Brief</h4>
+            <p className="mb-4 text-xs leading-relaxed text-slate-500">
+              Markdown file with technical, prescriptive instructions. Pass to an AI assistant or developer to drive
+              concrete fixes. Includes performance targets, all findings with verification steps, keywords, topics,
+              page-level data.
+            </p>
+            <div className="flex gap-2">
+              <Button asChild disabled={!ready} size="sm">
+                <a href={implementationUrl} download={ready ? undefined : false} aria-disabled={!ready}>
+                  Download .md
+                </a>
+              </Button>
+              <Button asChild disabled={!ready} size="sm" variant="outline">
+                <a href={`${implementationUrl}?inline=true`} target="_blank" rel="noopener noreferrer">
+                  View in browser
+                </a>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
