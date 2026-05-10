@@ -1109,6 +1109,74 @@ export async function continueAuditorScan(params: {
         })
       }
 
+      // Google Suggest expansion: load top primary keywords from DB (already
+      // populated by runKeywordEngine), ask Google autocomplete what real users
+      // search for. Free, no API key. Stored in artifacts.google_suggest.
+      try {
+        const { data: primaryRows } = await supabase
+          .from("auditor_keywords")
+          .select("keyword")
+          .eq("scan_id", scanId)
+          .eq("keyword_type", "primary")
+          .order("confidence", { ascending: false })
+          .limit(10)
+        const seeds = Array.from(
+          new Set(
+            (primaryRows || [])
+              .map((r: any) => String(r.keyword || "").trim())
+              .filter((s) => s.length >= 2 && s.length <= 80)
+          )
+        )
+        if (seeds.length > 0) {
+          const suggestResult = await expandKeywordsWithSuggest({
+            seedKeywords: seeds,
+            locale: "he",
+            maxSeeds: 10,
+            timeoutMsPerSeed: 4000,
+          })
+          if (suggestResult.unique_suggestions > 0) {
+            const currentArtifacts = toRecord(lockedScan.artifacts)
+            await applyScanWhere(
+              supabase.from("auditor_scans").update({
+                artifacts: { ...currentArtifacts, google_suggest: suggestResult },
+                updated_at: nowIso(),
+              }),
+              scanId,
+              companyId
+            )
+          }
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            message: "google_suggest:done",
+            data: {
+              seeds: suggestResult.total_seeds,
+              suggestions: suggestResult.total_suggestions,
+              unique: suggestResult.unique_suggestions,
+            },
+          })
+        } else {
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            level: "info",
+            message: "google_suggest:no_seeds",
+            data: { reason: "no_primary_keywords_in_db" },
+          })
+        }
+      } catch (sgErr: any) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "google_suggest:error",
+          data: { message: String(sgErr?.message || sgErr).slice(0, 300) },
+        })
+      }
+
       await applyScanWhere(
         supabase.from("auditor_scans").update({
           report_admin: {
