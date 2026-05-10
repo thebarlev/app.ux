@@ -69,6 +69,19 @@ export async function GET(req: Request) {
 
   const scoreBreakdown = scan.score_breakdown && typeof scan.score_breakdown === "object" ? scan.score_breakdown : null
 
+  // PageSpeed Insights data (mobile + desktop). Set when GOOGLE_PSI_API_KEY env
+  // is configured and PSI was reachable during the scan. Null for scans that
+  // ran before this feature or when PSI was unavailable.
+  const pagespeed = (artifacts as any).pagespeed && typeof (artifacts as any).pagespeed === "object"
+    ? (artifacts as any).pagespeed
+    : null
+
+  // Google Suggest expansion data (free, no API key). Lists what real users
+  // search for around our extracted seed keywords.
+  const google_suggest = (artifacts as any).google_suggest && typeof (artifacts as any).google_suggest === "object"
+    ? (artifacts as any).google_suggest
+    : null
+
   return NextResponse.json({
     ok: true,
     scanId: scan.id,
@@ -86,6 +99,8 @@ export async function GET(req: Request) {
     score_total: reportPublic?.score_total ?? null,
     score_search: reportPublic?.score_search ?? null,
     score_ai: reportPublic?.score_ai ?? null,
+    pagespeed,
+    google_suggest,
     rules,
     pages,
     logs,

@@ -6,8 +6,9 @@ import { fetchTextBounded, AUDITOR_USER_AGENT, AUDITOR_FALLBACK_UA } from "../fe
 import { followRedirectsWithValidation, normalizeInputUrl } from "../ssrf"
 import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
-import { extractInternalLinkUrls } from "../extract"
-import { extractFromHtml } from "../extract"
+import { extractFromHtml, extractInternalLinkUrls } from "../extract"
+import { fetchPageSpeedBoth } from "../analysis/pagespeed"
+import { expandKeywordsWithSuggest } from "../analysis/google-suggest"
 import { extractPageAnalysis, extractPageContent } from "../analysis/content-extract"
 import { buildKeywordExtractionContext, extractKeywords, persistKeywords } from "../analysis/keywords"
 import { runKeywordEngine } from "../analysis/keyword-engine"
@@ -1177,6 +1178,7 @@ export async function continueAuditorScan(params: {
         competitorKeywords: (competitorKeywordRows || []).map((row: any) => String(row.keyword || "")),
       })
 
+      const allExtractedKeywords: string[] = []
       for (const page of pageContents) {
         const keywords = extractKeywords(page.content, keywordContext)
 
@@ -1187,6 +1189,64 @@ export async function continueAuditorScan(params: {
           keywords,
         })
         totalKeywords += keywords.length
+        // Track the highest-confidence "primary" terms across pages so we can
+        // expand them with Google Suggest below.
+        for (const kw of keywords) {
+          if ((kw as any).keyword_type === "primary" || (kw as any).type === "primary") {
+            const term = String((kw as any).keyword || "").trim()
+            if (term && term.length >= 2 && term.length <= 80) {
+              allExtractedKeywords.push(term)
+            }
+          }
+        }
+      }
+
+      // Google Suggest expansion: take top primary keywords and ask Google
+      // autocomplete what real users search for. Free, no API key, ~3-5s for
+      // ~10 seeds. Stored in artifacts.google_suggest — distinct from main
+      // auditor_keywords table to keep the heuristic data clean.
+      try {
+        const uniqueSeeds = Array.from(new Set(allExtractedKeywords)).slice(0, 10)
+        if (uniqueSeeds.length > 0) {
+          const suggestResult = await expandKeywordsWithSuggest({
+            seedKeywords: uniqueSeeds,
+            locale: "he",
+            maxSeeds: 10,
+            timeoutMsPerSeed: 4000,
+          })
+          if (suggestResult.unique_suggestions > 0) {
+            const nextArtifacts = { ...artifacts, google_suggest: suggestResult }
+            await applyScanWhere(
+              supabase.from("auditor_scans").update({
+                artifacts: nextArtifacts,
+                updated_at: nowIso(),
+              }),
+              scanId,
+              companyId
+            )
+            ;(artifacts as any).google_suggest = suggestResult
+          }
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            message: "google_suggest:done",
+            data: {
+              seeds: suggestResult.total_seeds,
+              suggestions: suggestResult.total_suggestions,
+              unique: suggestResult.unique_suggestions,
+            },
+          })
+        }
+      } catch (sgErr: any) {
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "google_suggest:error",
+          data: { message: String(sgErr?.message || sgErr).slice(0, 300) },
+        })
       }
 
       await applyScanWhere(
@@ -1262,6 +1322,58 @@ export async function continueAuditorScan(params: {
           finished_at: nowIso(),
         })
         return { ok: false, kind: "invalid_state", message: errMsg }
+      }
+
+      // PageSpeed Insights enrichment: fetch real Google scores + Core Web Vitals
+      // for the homepage. Gated by GOOGLE_PSI_API_KEY env — gracefully no-op if
+      // unset. Stored in artifacts.pagespeed and surfaced in report_admin.
+      // Mobile + desktop fetched in parallel (~5-15s total).
+      try {
+        const psi = await fetchPageSpeedBoth(origin)
+        if (psi.mobile || psi.desktop) {
+          const nextArtifacts = { ...artifacts, pagespeed: psi }
+          await applyScanWhere(
+            supabase.from("auditor_scans").update({
+              artifacts: nextArtifacts,
+              updated_at: nowIso(),
+            }),
+            scanId,
+            companyId
+          )
+          // Mutate local artifacts so it's visible in the report builder below
+          ;(artifacts as any).pagespeed = psi
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            message: "pagespeed:done",
+            data: {
+              mobile_perf: psi.mobile?.scores.performance ?? null,
+              desktop_perf: psi.desktop?.scores.performance ?? null,
+              mobile_lcp: psi.mobile?.cwv.lcp_ms ?? null,
+              mobile_cls: psi.mobile?.cwv.cls ?? null,
+            },
+          })
+        } else {
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            level: "info",
+            message: "pagespeed:skipped",
+            data: { reason: "no_api_key_or_failed" },
+          })
+        }
+      } catch (psiErr: any) {
+        // Never fail the scan due to PSI issues — it's enrichment-only.
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "pagespeed:error",
+          data: { message: String(psiErr?.message || psiErr).slice(0, 300) },
+        })
       }
 
       // Load existing rules BEFORE delete (fallback if runRulesAndScore returns empty)
