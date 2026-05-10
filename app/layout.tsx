@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Suspense } from "react";
+import { Analytics } from "@vercel/analytics/next";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
 import PosthogProvider from "@/components/PosthogProvider";
 
@@ -114,6 +115,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <PosthogProvider>{children}</PosthogProvider>
         </Suspense>
+        <Analytics />
       </body>
     </html>
   );
