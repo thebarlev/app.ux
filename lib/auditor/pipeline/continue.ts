@@ -592,6 +592,11 @@ export async function continueAuditorScan(params: {
 
       let sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
       let homepageFallbackUsed = false
+      // landingUrl tracks the *actual* landing page after following redirects.
+      // For sites like mioshy.com where / 302→/he, this becomes the post-redirect URL.
+      // Used as the seed origin for pickSamplePages so the homepage entry is the
+      // already-resolved URL (not the one that 302s and would fail in fetch_pages).
+      let landingUrl = origin
 
       // Fallback: if the sitemap was missing/blocked (or skipped entirely for
       // verification scans), fetch the homepage and harvest internal links via
@@ -599,9 +604,6 @@ export async function continueAuditorScan(params: {
       // the rest of their structure from the homepage.
       if (sitemapUrls.length === 0) {
         // Resolve the actual landing URL — many sites 302 from / to /he or /en.
-        // followRedirectsWithValidation gives us the final URL after redirects,
-        // which we then fetch HTML from.
-        let landingUrl = origin
         try {
           const { finalUrl } = await followRedirectsWithValidation({
             startUrl: new URL(origin),
@@ -630,11 +632,7 @@ export async function continueAuditorScan(params: {
         }
 
         if (homepageRes.ok && homepageRes.status >= 200 && homepageRes.status < 300) {
-          // Extract links — accept same-host AND landing-host (in case origin
-          // and landing differ e.g. mioshy.com vs mioshy.com/he both share host).
           sitemapUrls = extractInternalLinkUrls(homepageRes.text, landingUrl, hostLock, 60)
-          // Also include the landing URL itself if not already in the list, since
-          // the homepage is usually the most important page to audit.
           if (sitemapUrls.length > 0 && !sitemapUrls.includes(landingUrl)) {
             sitemapUrls.unshift(landingUrl)
           }
@@ -657,7 +655,12 @@ export async function continueAuditorScan(params: {
         })
       }
 
-      const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: pageLimit })
+      // pickSamplePages prepends `${origin}/` as the homepage. When the homepage
+      // 302s (e.g. mioshy.com → /he), passing the un-resolved origin causes
+      // fetch_pages to fail on the redirect. Use the resolved landingUrl instead
+      // so the homepage entry queued is already the post-redirect URL.
+      const seedOrigin = homepageFallbackUsed ? landingUrl.replace(/\/+$/, "") : origin
+      const sample = pickSamplePages({ origin: seedOrigin, hostLock, sitemapUrls, maxPages: pageLimit })
       let existingUrlsQuery = supabase.from("auditor_scan_pages").select("url").eq("scan_id", scanId)
       existingUrlsQuery = applyCompanyWhere(existingUrlsQuery, companyId)
       const { data: existingPageRows } = await existingUrlsQuery
@@ -765,8 +768,25 @@ export async function continueAuditorScan(params: {
       await withStepTimeout(async () => {
         await Promise.allSettled(pages.map(async (p) => {
           const url = String((p as any).url)
+
+          // Resolve redirects up-front. fetchTextBounded uses redirect: "manual",
+          // so a 302 would otherwise cause state="failed". Following first via
+          // the SSRF-validated helper keeps the validation in place (no internal
+          // IPs reachable through redirects) while still getting the final URL.
+          let resolvedUrl = url
+          try {
+            const { finalUrl } = await followRedirectsWithValidation({
+              startUrl: new URL(url),
+              maxRedirects: 5,
+              timeoutMs: 4000,
+            })
+            resolvedUrl = finalUrl.toString()
+          } catch {
+            // ignore — fall through with original URL (most likely SSRF blocked)
+          }
+
           let res = await fetchTextBounded({
-            url,
+            url: resolvedUrl,
             timeoutMs: 6000,
             maxBytes: 1_200_000,
             headers: {
@@ -788,7 +808,7 @@ export async function continueAuditorScan(params: {
               data: { url, firstStatus: res.status },
             })
             res = await fetchTextBounded({
-              url,
+              url: resolvedUrl,
               timeoutMs: 6000,
               maxBytes: 1_200_000,
               headers: {
