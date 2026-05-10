@@ -2,10 +2,11 @@ import { randomUUID } from "crypto"
 import { createClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { auditorLog } from "../log"
-import { fetchTextBounded } from "../fetch"
+import { fetchTextBounded, AUDITOR_USER_AGENT, AUDITOR_FALLBACK_UA } from "../fetch"
 import { followRedirectsWithValidation, normalizeInputUrl } from "../ssrf"
 import { parseSitemapXml } from "../sitemap"
 import { pickSamplePages, shouldSkipByExtension } from "../sample"
+import { extractInternalLinkUrls } from "../extract"
 import { extractFromHtml } from "../extract"
 import { extractPageAnalysis, extractPageContent } from "../analysis/content-extract"
 import { buildKeywordExtractionContext, extractKeywords, persistKeywords } from "../analysis/keywords"
@@ -53,9 +54,9 @@ async function collectAiFilesArtifacts(origin: string) {
   const brandUrl = `${origin}/brand.json`
 
   const [llms, aiJson, brand] = await Promise.all([
-    fetchTextBounded({ url: llmsUrl, timeoutMs: 1200, maxBytes: 200_000 }),
-    fetchTextBounded({ url: aiJsonUrl, timeoutMs: 1200, maxBytes: 200_000 }),
-    fetchTextBounded({ url: brandUrl, timeoutMs: 1200, maxBytes: 200_000 }),
+    fetchTextBounded({ url: llmsUrl, timeoutMs: 4000, maxBytes: 200_000, headers: { "user-agent": AUDITOR_USER_AGENT } }),
+    fetchTextBounded({ url: aiJsonUrl, timeoutMs: 4000, maxBytes: 200_000, headers: { "user-agent": AUDITOR_USER_AGENT } }),
+    fetchTextBounded({ url: brandUrl, timeoutMs: 4000, maxBytes: 200_000, headers: { "user-agent": AUDITOR_USER_AGENT } }),
   ])
 
   const pack = (r: any, url: string) => ({
@@ -330,26 +331,31 @@ export async function continueAuditorScan(params: {
         companyId
       )
 
-      // Best-effort screenshot capture (do NOT fail scan if it errors).
-      try {
-        const { publicPath } = await captureSiteScreenshot({ scanId, url: origin, supabase })
-        await applyScanWhere(
-          supabase.from("auditor_scans").update({
-            artifacts: { ...nextArtifacts, screenshot_url: publicPath },
-            updated_at: nowIso(),
-          }),
-          scanId,
-          companyId
-        )
-      } catch (e: any) {
-        await auditorLog({
-          supabase,
-          scanId,
-          companyId,
-          level: "warn",
-          message: "screenshot:failed",
-          data: { message: String(e?.message || e) },
-        })
+      // Screenshot is opt-in via AUDITOR_SCREENSHOT_ENABLED=true. Disabled by default
+      // because Chromium (via @sparticuz/chromium) blows up the function memory/duration
+      // budget on Vercel and was the leading cause of admin scan stalls.
+      const screenshotEnabled = String(process.env.AUDITOR_SCREENSHOT_ENABLED || "").trim() === "true"
+      if (screenshotEnabled) {
+        try {
+          const { publicPath } = await captureSiteScreenshot({ scanId, url: origin, supabase })
+          await applyScanWhere(
+            supabase.from("auditor_scans").update({
+              artifacts: { ...nextArtifacts, screenshot_url: publicPath },
+              updated_at: nowIso(),
+            }),
+            scanId,
+            companyId
+          )
+        } catch (e: any) {
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            level: "warn",
+            message: "screenshot:failed",
+            data: { message: String(e?.message || e) },
+          })
+        }
       }
 
       await auditorLog({
@@ -381,7 +387,12 @@ export async function continueAuditorScan(params: {
     // Step: robots
     if (step === "robots") {
       const robotsUrl = `${origin}/robots.txt`
-      const r = await fetchTextBounded({ url: robotsUrl, timeoutMs: 1200, maxBytes: 200_000 })
+      const r = await fetchTextBounded({
+        url: robotsUrl,
+        timeoutMs: 4000,
+        maxBytes: 200_000,
+        headers: { "user-agent": AUDITOR_USER_AGENT },
+      })
       const found = r.ok && r.status >= 200 && r.status < 300
       const robotsText = r.ok ? r.text : ""
       const sitemapHints = found ? parseRobotsSitemaps(robotsText, origin) : []
@@ -448,7 +459,12 @@ export async function continueAuditorScan(params: {
 
       // First run: fetch primary sitemap, parse, and store index children (if any).
       if (!artifacts?.sitemap || artifacts.sitemap.url !== primary) {
-        const fetched = await fetchTextBounded({ url: primary, timeoutMs: 1500, maxBytes: 1_000_000 })
+        const fetched = await fetchTextBounded({
+          url: primary,
+          timeoutMs: 6000,
+          maxBytes: 1_000_000,
+          headers: { "user-agent": AUDITOR_USER_AGENT },
+        })
         let urls: string[] = []
         let childSitemaps: string[] = []
         if (fetched.ok && fetched.status >= 200 && fetched.status < 300) {
@@ -499,7 +515,12 @@ export async function continueAuditorScan(params: {
       // Subsequent runs for sitemapindex: fetch ONE child sitemap per continue to stay within budget.
       if (existingChild.length > 0 && existingUrls.length < cap && childIndex < existingChild.length) {
         const childUrl = existingChild[childIndex]
-        const smRes = await fetchTextBounded({ url: childUrl, timeoutMs: 1500, maxBytes: 1_000_000 })
+        const smRes = await fetchTextBounded({
+          url: childUrl,
+          timeoutMs: 6000,
+          maxBytes: 1_000_000,
+          headers: { "user-agent": AUDITOR_USER_AGENT },
+        })
         const acc = [...existingUrls]
         if (smRes.ok && smRes.status >= 200 && smRes.status < 300) {
           const parsedChild = parseSitemapXml(smRes.text)
@@ -569,7 +590,49 @@ export async function continueAuditorScan(params: {
     if (step === "sample") {
       let nextArtifacts = { ...artifacts }
 
-      const sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
+      let sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
+      let homepageFallbackUsed = false
+
+      // Fallback: if the sitemap was missing/blocked, fetch the homepage and
+      // harvest internal links via cheerio. Many small/static sites don't expose
+      // a sitemap but still link the rest of their structure from the homepage.
+      if (sitemapUrls.length === 0) {
+        const tryFetch = async (ua: string) =>
+          await fetchTextBounded({
+            url: origin,
+            timeoutMs: 8000,
+            maxBytes: 500_000,
+            headers: {
+              "user-agent": ua,
+              accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+          })
+
+        let homepageRes = await tryFetch(AUDITOR_USER_AGENT)
+        if (homepageRes.ok && (homepageRes.status === 403 || homepageRes.status === 406 || homepageRes.status === 429 || homepageRes.status === 451)) {
+          homepageRes = await tryFetch(AUDITOR_FALLBACK_UA)
+        }
+
+        if (homepageRes.ok && homepageRes.status >= 200 && homepageRes.status < 300) {
+          sitemapUrls = extractInternalLinkUrls(homepageRes.text, origin, hostLock, 60)
+          homepageFallbackUsed = true
+        }
+
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: homepageFallbackUsed ? "info" : "warn",
+          message: "sample:homepage_fallback",
+          data: {
+            ok: homepageRes.ok,
+            status: homepageRes.ok ? homepageRes.status : null,
+            linksFound: sitemapUrls.length,
+            used: homepageFallbackUsed,
+          },
+        })
+      }
+
       const sample = pickSamplePages({ origin, hostLock, sitemapUrls, maxPages: pageLimit })
       let existingUrlsQuery = supabase.from("auditor_scan_pages").select("url").eq("scan_id", scanId)
       existingUrlsQuery = applyCompanyWhere(existingUrlsQuery, companyId)
@@ -598,7 +661,7 @@ export async function continueAuditorScan(params: {
 
       nextArtifacts = {
         ...nextArtifacts,
-        sample: { urls: sample, count: sample.length, pageLimit },
+        sample: { urls: sample, count: sample.length, pageLimit, homepage_fallback_used: homepageFallbackUsed },
       }
 
       await applyScanWhere(
@@ -678,15 +741,38 @@ export async function continueAuditorScan(params: {
       await withStepTimeout(async () => {
         await Promise.allSettled(pages.map(async (p) => {
           const url = String((p as any).url)
-          const res = await fetchTextBounded({
+          let res = await fetchTextBounded({
             url,
-            timeoutMs: 3500,
+            timeoutMs: 6000,
             maxBytes: 1_200_000,
             headers: {
-              "user-agent": "Mozilla/5.0 (compatible; VOW-Auditor/1.0; +https://uxellent.com)",
+              "user-agent": AUDITOR_USER_AGENT,
               accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
           })
+
+          // Retry with browser-like UA on bot-blocking responses (403/406/429/451).
+          // First attempt is intentionally transparent (bot UA); browser fallback only
+          // triggers when the target explicitly rejects bots.
+          if (res.ok && (res.status === 403 || res.status === 406 || res.status === 429 || res.status === 451)) {
+            await auditorLog({
+              supabase,
+              scanId,
+              companyId,
+              level: "warn",
+              message: "fetch_pages:retry_with_browser_ua",
+              data: { url, firstStatus: res.status },
+            })
+            res = await fetchTextBounded({
+              url,
+              timeoutMs: 6000,
+              maxBytes: 1_200_000,
+              headers: {
+                "user-agent": AUDITOR_FALLBACK_UA,
+                accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+              },
+            })
+          }
 
           const contentType = res.ok ? res.contentType : null
           const isHtml = contentType ? contentType.toLowerCase().includes("text/html") : true
@@ -1066,6 +1152,41 @@ export async function continueAuditorScan(params: {
         status: String(lockedScan.status || ""),
         step: String(lockedScan.step || ""),
       })
+
+      // Sanity gate: if pages were queued but ZERO got extracted (all blocked or
+      // unreachable), fail the scan loudly rather than producing a misleading
+      // "done" state with score=null. Surfaces a clear message in admin UI:
+      // "scan failed because target blocked us / unreachable".
+      const { data: pageStatesEarly } = await supabase
+        .from("auditor_scan_pages")
+        .select("state")
+        .eq("scan_id", scanId)
+      const earlyStates = Array.isArray(pageStatesEarly) ? pageStatesEarly.map((r: any) => String(r.state)) : []
+      const earlyExtracted = earlyStates.filter((s) => s === "extracted").length
+      const earlyTotal = earlyStates.length
+
+      if (earlyTotal > 0 && earlyExtracted === 0) {
+        const failedCount = earlyStates.filter((s) => s === "failed").length
+        const errMsg =
+          failedCount === earlyTotal
+            ? "all_pages_blocked_or_unreachable"
+            : "no_pages_extracted"
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "error",
+          message: "rules:abort_no_extracted_pages",
+          data: { totalPages: earlyTotal, extracted: earlyExtracted, failed: failedCount },
+        })
+        await releaseLock({
+          status: "failed",
+          last_error: errMsg,
+          finished_at: nowIso(),
+        })
+        return { ok: false, kind: "invalid_state", message: errMsg }
+      }
+
       // Load existing rules BEFORE delete (fallback if runRulesAndScore returns empty)
       let rulesFromDb: Array<{ rule_key: string; category: string; status: string; impact: string; effort: string; recommendation_he: string; evidence: unknown }> = []
       {

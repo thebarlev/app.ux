@@ -1,3 +1,14 @@
+// Bot-friendly identifying User-Agent. Used for robots.txt, sitemap, ai_files,
+// and any other auditor outbound HTTP. Site owners can block this UA cleanly
+// if they wish (RFC 9309 best-practice). Browser-like UA below is reserved for
+// pages we already tried with the bot UA and got 403/406/429/451.
+export const AUDITOR_USER_AGENT =
+  "Mozilla/5.0 (compatible; VOW-Auditor/1.0; +https://uxellent.com)"
+
+// Last-resort fallback when target site explicitly rejects bots.
+export const AUDITOR_FALLBACK_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 export type FetchTextResult =
   | {
       ok: true

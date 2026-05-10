@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   const admin = createServiceRoleClient()
   const { data: scan, error } = await admin
     .from("auditor_scans")
-    .select("id,status,step,normalized_host,created_at,finished_at,updated_at,report_public,report_admin,score_breakdown,artifacts")
+    .select("id,status,step,normalized_host,created_at,finished_at,updated_at,report_public,report_admin,score_breakdown,artifacts,last_error")
     .eq("id", parsed.data.scanId)
     .eq("company_id", companyId)
     .maybeSingle()
@@ -78,6 +78,7 @@ export async function GET(req: Request) {
     created_at: scan.created_at,
     updated_at: scan.updated_at,
     finished_at: scan.finished_at,
+    last_error: typeof (scan as any).last_error === "string" ? (scan as any).last_error : null,
     screenshot_url,
     report_public: scan.status === "done" ? reportPublic : null,
     report_admin: reportAdmin,

@@ -294,3 +294,41 @@ export function extractFromHtml(html: string, pageUrl?: string | null): Extracte
   }
 }
 
+// Lightweight URL-only extractor for the homepage-fallback path. Used by the
+// sample step when the target site has no usable sitemap. Returns up to maxLinks
+// absolute, deduped, same-host URLs ready to be queued for fetch_pages.
+export function extractInternalLinkUrls(
+  html: string,
+  origin: string,
+  hostLock: string,
+  maxLinks: number = 60
+): string[] {
+  const $ = cheerio.load(html || "")
+  const out: string[] = []
+  const seen = new Set<string>()
+  const wantedHost = String(hostLock || "").toLowerCase()
+
+  $("a[href]").each((_, el) => {
+    if (out.length >= maxLinks) return false
+    const href = String($(el).attr("href") || "").trim()
+    if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:") || href.startsWith("javascript:")) {
+      return
+    }
+    let absUrl: URL
+    try {
+      absUrl = new URL(href, origin)
+    } catch {
+      return
+    }
+    if (absUrl.protocol !== "http:" && absUrl.protocol !== "https:") return
+    if (absUrl.hostname.toLowerCase() !== wantedHost) return
+    absUrl.hash = ""
+    const norm = absUrl.toString()
+    if (seen.has(norm)) return
+    seen.add(norm)
+    out.push(norm)
+  })
+
+  return out
+}
+

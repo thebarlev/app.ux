@@ -16,7 +16,18 @@ function notFoundIfDisabled() {
   return null
 }
 
+function isVercelCron(req: Request): boolean {
+  // Vercel Cron always sends user-agent starting with "vercel-cron/" and an
+  // x-vercel-cron-schedule header. Implicit auth from the platform.
+  const ua = req.headers.get("user-agent") || ""
+  if (ua.startsWith("vercel-cron/")) return true
+  if (req.headers.get("x-vercel-cron-schedule")) return true
+  return false
+}
+
 function checkSecret(req: Request): boolean {
+  if (isVercelCron(req)) return true
+
   const expected = String(process.env.AUDITOR_WORKER_SECRET || "").trim()
   const cronExpected = String(process.env.AUDITOR_CRON_SECRET || "").trim()
   if (!expected && !cronExpected) return false
@@ -25,7 +36,7 @@ function checkSecret(req: Request): boolean {
   return got === expected || gotBearer === expected || got === cronExpected || gotBearer === cronExpected
 }
 
-export async function POST(req: Request) {
+async function handler(req: Request) {
   const nf = notFoundIfDisabled()
   if (nf) return nf
   if (!checkSecret(req)) return unauthorized()
@@ -64,5 +75,14 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, progressed })
+}
+
+// Vercel Cron uses GET. External callers can POST.
+export async function GET(req: Request) {
+  return handler(req)
+}
+
+export async function POST(req: Request) {
+  return handler(req)
 }
 

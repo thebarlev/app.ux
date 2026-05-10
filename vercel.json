@@ -3,8 +3,22 @@
   "buildCommand": "pnpm build",
   "functions": {
     "app/api/auditor/continue/route.ts": {
-      "memory": 1024,
+      "memory": 512,
+      "maxDuration": 60
+    },
+    "app/api/admin/auditor/scan/continue/route.ts": {
+      "memory": 512,
+      "maxDuration": 60
+    },
+    "app/api/auditor/admin/worker/run/route.ts": {
+      "memory": 512,
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/auditor/admin/worker/run",
+      "schedule": "*/2 * * * *"
+    }
+  ]
 }

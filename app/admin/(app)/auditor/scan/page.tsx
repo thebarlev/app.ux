@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Loader2, RefreshCw, Search } from "lucide-react"
@@ -13,6 +13,12 @@ export default function AdminAuditorScanPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [continueLoading, setContinueLoading] = useState(false)
+  const [continueWarning, setContinueWarning] = useState<string | null>(null)
+  // Guards the auto-continue interval against firing while a previous request
+  // is still in flight. Without this guard, the 2s interval fires multiple
+  // overlapping requests during a slow step (each gets 409 "busy") and the lock
+  // can stay held longer than necessary.
+  const continuingRef = useRef(false)
 
   const fetchStatus = useCallback(async (sid: string) => {
     try {
@@ -84,26 +90,49 @@ export default function AdminAuditorScanPage() {
 
   useEffect(() => {
     if (!scanId || done) return
-    const t = setInterval(() => fetchStatus(scanId), 3000)
+    const t = setInterval(() => fetchStatus(scanId), 3500)
     return () => clearInterval(t)
   }, [scanId, done, fetchStatus])
 
+  // Auto-continue: advance pipeline when scan is in progress. Guarded by
+  // continuingRef to prevent overlapping requests.
   useEffect(() => {
     if (!scanId || done) return
     let cancelled = false
     const run = async () => {
+      if (continuingRef.current) return
+      continuingRef.current = true
       try {
         const r = await fetch("/api/admin/auditor/scan/continue", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ scanId }),
         })
-        if (cancelled || r.status === 409) return
+        if (cancelled) return
+        if (r.status === 409) {
+          setContinueWarning("Previous step still running — waiting…")
+          return
+        }
+        const j = await r.json().catch(() => null)
+        if (!r.ok) {
+          const msg = j?.error || `Continue failed (${r.status})`
+          setContinueWarning(`Error: ${msg}`)
+          return
+        }
+        setContinueWarning(null)
         await fetchStatus(scanId)
-      } catch { /* ignore */ }
+      } catch (e: unknown) {
+        if (!cancelled) setContinueWarning(`Network error: ${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        continuingRef.current = false
+      }
     }
-    const t = setInterval(run, 2000)
-    return () => { cancelled = true; clearInterval(t) }
+    const t = setInterval(run, 3500)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+      continuingRef.current = false
+    }
   }, [scanId, done, fetchStatus])
 
   return (
@@ -167,9 +196,23 @@ export default function AdminAuditorScanPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!done && (
+            {!done && !continueWarning && (
               <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-sm text-blue-700">
                 Scan is auto-advancing. No need to press Continue.
+              </div>
+            )}
+            {!done && continueWarning && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+                {continueWarning}
+              </div>
+            )}
+            {status?.status === "failed" && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive space-y-1">
+                <div className="font-semibold">Scan failed</div>
+                {typeof (status as any)?.last_error === "string" && (
+                  <div className="font-mono text-xs">{String((status as any).last_error)}</div>
+                )}
+                <div className="text-xs">Click &quot;New Scan&quot; to start over.</div>
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
