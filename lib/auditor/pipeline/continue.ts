@@ -593,13 +593,29 @@ export async function continueAuditorScan(params: {
       let sitemapUrls: string[] = Array.isArray(artifacts?.sitemap?.urls) ? artifacts.sitemap.urls : []
       let homepageFallbackUsed = false
 
-      // Fallback: if the sitemap was missing/blocked, fetch the homepage and
-      // harvest internal links via cheerio. Many small/static sites don't expose
-      // a sitemap but still link the rest of their structure from the homepage.
+      // Fallback: if the sitemap was missing/blocked (or skipped entirely for
+      // verification scans), fetch the homepage and harvest internal links via
+      // cheerio. Many small/static sites don't expose a sitemap but still link
+      // the rest of their structure from the homepage.
       if (sitemapUrls.length === 0) {
+        // Resolve the actual landing URL — many sites 302 from / to /he or /en.
+        // followRedirectsWithValidation gives us the final URL after redirects,
+        // which we then fetch HTML from.
+        let landingUrl = origin
+        try {
+          const { finalUrl } = await followRedirectsWithValidation({
+            startUrl: new URL(origin),
+            maxRedirects: 5,
+            timeoutMs: 4000,
+          })
+          landingUrl = finalUrl.toString()
+        } catch {
+          // ignore — fall through with origin as-is
+        }
+
         const tryFetch = async (ua: string) =>
           await fetchTextBounded({
-            url: origin,
+            url: landingUrl,
             timeoutMs: 8000,
             maxBytes: 500_000,
             headers: {
@@ -614,7 +630,14 @@ export async function continueAuditorScan(params: {
         }
 
         if (homepageRes.ok && homepageRes.status >= 200 && homepageRes.status < 300) {
-          sitemapUrls = extractInternalLinkUrls(homepageRes.text, origin, hostLock, 60)
+          // Extract links — accept same-host AND landing-host (in case origin
+          // and landing differ e.g. mioshy.com vs mioshy.com/he both share host).
+          sitemapUrls = extractInternalLinkUrls(homepageRes.text, landingUrl, hostLock, 60)
+          // Also include the landing URL itself if not already in the list, since
+          // the homepage is usually the most important page to audit.
+          if (sitemapUrls.length > 0 && !sitemapUrls.includes(landingUrl)) {
+            sitemapUrls.unshift(landingUrl)
+          }
           homepageFallbackUsed = true
         }
 
@@ -627,6 +650,7 @@ export async function continueAuditorScan(params: {
           data: {
             ok: homepageRes.ok,
             status: homepageRes.ok ? homepageRes.status : null,
+            landingUrl,
             linksFound: sitemapUrls.length,
             used: homepageFallbackUsed,
           },
@@ -852,6 +876,39 @@ export async function continueAuditorScan(params: {
             .eq("scan_id", scanId).eq("state", "extracted").limit(1)
           extQ = applyCompanyWhere(extQ, companyId)
           const { data: extractedForScore } = await extQ
+
+          // Sanity gate: if no pages at all got extracted, the verification scan
+          // produced nothing meaningful. Mark as failed loudly rather than going
+          // to "done" with a misleading score=0. Fixes the case where the target
+          // blocks our crawler entirely (gov.il-style) or all pages failed.
+          if (!extractedForScore || extractedForScore.length === 0) {
+            const { data: allPageStates } = await supabase
+              .from("auditor_scan_pages")
+              .select("state")
+              .eq("scan_id", scanId)
+            const states = Array.isArray(allPageStates) ? allPageStates.map((r: any) => String(r.state)) : []
+            const failedCount = states.filter((s) => s === "failed").length
+            const totalCount = states.length
+            const errMsg =
+              failedCount === totalCount && totalCount > 0
+                ? "all_pages_blocked_or_unreachable"
+                : "no_pages_extracted"
+            await auditorLog({
+              supabase,
+              scanId,
+              companyId,
+              level: "error",
+              message: "verification:abort_no_extracted",
+              data: { totalPages: totalCount, failed: failedCount },
+            })
+            await releaseLock({
+              status: "failed",
+              last_error: errMsg,
+              finished_at: nowIso(),
+            })
+            return { ok: false, kind: "invalid_state", message: errMsg }
+          }
+
           const pg = (extractedForScore || [])[0] as any || {}
           const ext = toRecord(pg.extracted)
 
