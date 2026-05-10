@@ -1422,6 +1422,95 @@ export async function continueAuditorScan(params: {
               mobile_cls: psi.mobile?.cwv.cls ?? null,
             },
           })
+
+          // Surface PSI failed_audits as Findings rows. These are concrete,
+          // actionable items with Hebrew titles already (PSI returns them
+          // localised when locale=he is requested). Severity mapped from the
+          // PSI audit score: lower score = higher severity.
+          // Mobile and desktop audits often overlap; we dedupe by audit id.
+          const seenAuditIds = new Set<string>()
+          const psiFindings: Array<{
+            scan_id: string
+            company_id: string | null
+            rule_key: string
+            severity: "low" | "medium" | "high" | "critical"
+            status: "fail"
+            scope: "site"
+            url: string
+            title: string
+            summary: string
+            recommendation: string
+            evidence: Record<string, unknown>
+          }> = []
+
+          for (const strategy of ["mobile", "desktop"] as const) {
+            const result = strategy === "mobile" ? psi.mobile : psi.desktop
+            if (!result || !Array.isArray(result.failed_audits)) continue
+            for (const audit of result.failed_audits) {
+              if (!audit?.id || !audit?.title) continue
+              if (seenAuditIds.has(audit.id)) continue
+              seenAuditIds.add(audit.id)
+
+              const score = typeof audit.score === "number" ? audit.score : null
+              const severity: "critical" | "high" | "medium" | "low" =
+                score === null ? "medium"
+                : score < 30 ? "critical"
+                : score < 60 ? "high"
+                : score < 90 ? "medium"
+                : "low"
+
+              psiFindings.push({
+                scan_id: scanId,
+                company_id: companyId,
+                rule_key: `psi.${audit.id}`,
+                severity,
+                status: "fail",
+                scope: "site",
+                url: result.url,
+                title: audit.title,
+                summary: audit.title,
+                recommendation: `מקור: Google PageSpeed Insights (${strategy}). ציון Lighthouse לסעיף הזה: ${score ?? "N/A"}/100. יש לתקן כדי לשפר את ציון Performance/Accessibility/SEO/Best-Practices האמיתי שגוגל מודד.`,
+                evidence: {
+                  source: "google_psi",
+                  audit_id: audit.id,
+                  strategy,
+                  score,
+                },
+              })
+            }
+          }
+
+          if (psiFindings.length > 0) {
+            // Remove any prior PSI findings from earlier scans of this same scan_id
+            // (in case rules step re-runs). Use rule_key prefix to scope deletion.
+            await supabase
+              .from("auditor_scan_findings")
+              .delete()
+              .eq("scan_id", scanId)
+              .like("rule_key", "psi.%")
+
+            const { error: insertErr } = await supabase
+              .from("auditor_scan_findings")
+              .insert(psiFindings)
+            if (insertErr) {
+              await auditorLog({
+                supabase,
+                scanId,
+                companyId,
+                level: "warn",
+                message: "pagespeed:findings_insert_failed",
+                data: { message: insertErr.message, count: psiFindings.length },
+              })
+            } else {
+              await auditorLog({
+                supabase,
+                scanId,
+                companyId,
+                message: "pagespeed:findings_inserted",
+                data: { count: psiFindings.length },
+              })
+            }
+          }
         } else {
           await auditorLog({
             supabase,
@@ -1514,8 +1603,14 @@ export async function continueAuditorScan(params: {
         await supabase.from("auditor_scan_rules").insert(rows)
       }
 
-      // Persist findings (admin/internal)
-      await supabase.from("auditor_scan_findings").delete().eq("scan_id", scanId)
+      // Persist findings (admin/internal). Delete only rule-based findings —
+      // preserve PSI-sourced findings (rule_key prefix "psi.*") that were
+      // inserted earlier in this same step from PageSpeed Insights audits.
+      await supabase
+        .from("auditor_scan_findings")
+        .delete()
+        .eq("scan_id", scanId)
+        .not("rule_key", "like", "psi.%")
       if (rules.length > 0) {
         const findingsRows = rules.map((r) => ({
           scan_id: scanId,

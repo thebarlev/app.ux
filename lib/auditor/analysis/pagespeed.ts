@@ -146,13 +146,26 @@ export async function fetchPageSpeed(params: {
 
 // Convenience: run mobile + desktop in parallel and return both. Saves time
 // vs sequential calls (~30s vs ~60s for a typical site).
+//
+// Mobile-specific resilience: PSI's Lighthouse mobile run is heavier than
+// desktop and frequently times out on JS-heavy sites or when Google's PSI
+// servers are under load. We give mobile a longer initial timeout (45s vs
+// desktop's 30s) and one retry. Desktop almost always succeeds first try.
 export async function fetchPageSpeedBoth(url: string): Promise<{
   mobile: PageSpeedResult | null
   desktop: PageSpeedResult | null
 }> {
+  const fetchMobileWithRetry = async (): Promise<PageSpeedResult | null> => {
+    let result = await fetchPageSpeed({ url, strategy: "mobile", timeoutMs: 45_000 })
+    if (result) return result
+    // One retry — PSI mobile failures are usually transient (timeout / load).
+    result = await fetchPageSpeed({ url, strategy: "mobile", timeoutMs: 60_000 })
+    return result
+  }
+
   const [mobile, desktop] = await Promise.all([
-    fetchPageSpeed({ url, strategy: "mobile" }),
-    fetchPageSpeed({ url, strategy: "desktop" }),
+    fetchMobileWithRetry(),
+    fetchPageSpeed({ url, strategy: "desktop", timeoutMs: 30_000 }),
   ])
   return { mobile, desktop }
 }
