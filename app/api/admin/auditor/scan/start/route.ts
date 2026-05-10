@@ -62,12 +62,16 @@ export async function POST(req: Request) {
         lead_id: null,
         lead_email_normalized: null,
         created_by_role: "system",
-        // "manual" triggers the FULL pipeline (keywords, topics, clusters,
+        // "initial" triggers the FULL pipeline (keywords, topics, clusters,
         // competitors, content gaps, recommendations, findings). The previous
         // value "verification" was the marketing teaser pipeline (1 page only,
         // no AI) — wrong for the admin tool, which is the concierge expert's
         // primary working surface and needs all data.
-        scan_kind: "manual",
+        // Note: scripts/080 defines a CHECK constraint allowing only
+        // ('initial','verification','scheduled'). The unique index that prevents
+        // duplicate "initial" scans is partial (created_by_role='customer'),
+        // so admin scans (created_by_role='system') are not affected.
+        scan_kind: "initial",
         // 10 pages is the same default as "initial" (lead-and-scan) full scans.
         // Increase if needed for sites with deep content; cron-driven scheduled
         // scans cap at 10 too. Higher values multiply Vercel cost roughly linearly.
