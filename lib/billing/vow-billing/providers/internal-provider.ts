@@ -139,9 +139,12 @@ export const internalBillingProvider: BillingProvider = {
     const subtotal = clampMoney(totalAmount - vatAmount)
     const vatRate = clampMoney(params.vatRate)
 
+    const customerEmail = params.customer?.email ? String(params.customer.email).trim() : ""
+    const customerPhone = params.customer?.phone ? String(params.customer.phone).trim() : ""
+    // Prefer explicit name; otherwise email; otherwise the generic fallback.
     const customerName =
       (params.customer?.name && String(params.customer.name).trim()) ||
-      (params.customer?.email ? String(params.customer.email).trim() : "") ||
+      customerEmail ||
       "Customer"
 
     // 1) Create draft document (service role)
@@ -154,6 +157,8 @@ export const internalBillingProvider: BillingProvider = {
         document_number: null,
         customer_id: null,
         customer_name: customerName,
+        customer_email: customerEmail || null,
+        customer_phone: customerPhone || null,
         issue_date: todayYmdUtc(),
         total_amount: totalAmount,
         currency: params.currency,
@@ -201,18 +206,36 @@ export const internalBillingProvider: BillingProvider = {
       // ignore
     }
 
-    // 3) Insert a single line item (required by some templates and downstream logic)
-    try {
-      const lineDesc =
-        language === "he"
-          ? "שירות SaaS (Uxellent)"
-          : "SaaS service (Uxellent)"
+    // 3) Insert TWO document_line_items rows:
+    //
+    //   - line 1: the ITEM (kind="item")     → renders in "פירוט פריטים"
+    //   - line 2: the PAYMENT (kind="payment")→ renders in "פירוט תקבולים"
+    //
+    // Why both: pdf-service.ts splits document_line_items by the
+    // payment_metadata.kind discriminator (see hasKindDiscriminator
+    // in pdf-service.ts ~line 1134). If we insert only one row,
+    // the template falls back to showing the same line in BOTH
+    // sections — which caused receipts to be misreported as the
+    // net subtotal instead of the gross amount the customer paid.
+    //
+    // BKMV / receipt compliance: the receipts total MUST equal the
+    // amount actually charged on Cardcom (`totalAmount` = gross,
+    // including VAT). VAT is internal accounting; the customer paid
+    // the full sum.
+    const itemDescription =
+      (params.productName && String(params.productName).trim()) ||
+      (language === "he" ? "מיאושי - עולם הזוגיות" : "Mioshy — Relationship Hub")
+    const paymentMethodLabel =
+      (params.paymentMethod && String(params.paymentMethod).trim()) ||
+      (language === "he" ? "כרטיס אשראי" : "Credit card")
 
+    try {
+      // line 1 — ITEM (net before VAT)
       await admin.from("document_line_items").insert({
         document_id: documentId,
         company_id: issuerCompanyId,
         line_number: 1,
-        description: lineDesc,
+        description: itemDescription,
         item_date: todayYmdUtc(),
         unit_price: subtotal,
         quantity: 1,
@@ -223,10 +246,33 @@ export const internalBillingProvider: BillingProvider = {
         account_number: null,
         item_sku: null,
         payment_metadata: {
+          kind: "item",
           billing_user_id: params.metadata?.user_id || null,
           billing_email: params.customer?.email || null,
           billing_country: params.customer?.country || null,
           vat_rate: vatRate,
+        },
+      } as any)
+
+      // line 2 — PAYMENT (gross amount actually charged)
+      await admin.from("document_line_items").insert({
+        document_id: documentId,
+        company_id: issuerCompanyId,
+        line_number: 2,
+        description: paymentMethodLabel,
+        item_date: todayYmdUtc(),
+        unit_price: totalAmount,
+        quantity: 1,
+        line_total: totalAmount,
+        currency: params.currency,
+        bank_name: null,
+        branch: null,
+        account_number: null,
+        item_sku: null,
+        payment_metadata: {
+          kind: "payment",
+          billing_user_id: params.metadata?.user_id || null,
+          billing_email: params.customer?.email || null,
         },
       } as any)
     } catch (e: any) {

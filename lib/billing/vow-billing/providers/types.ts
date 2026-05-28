@@ -4,6 +4,7 @@ export type BillingProviderCustomer = {
   name?: string | null
   email: string
   country: string
+  phone?: string | null
 }
 
 export type IssueDocumentParams = {
@@ -16,6 +17,19 @@ export type IssueDocumentParams = {
   vatRate: number
   vatAmount: number
   totalAmount: number
+  /**
+   * Optional. Free-text line-item description that appears in the
+   * "items" table of the invoice. When omitted, the provider applies
+   * a sensible default for its own product (e.g. mioshy default).
+   */
+  productName?: string | null
+  /**
+   * Optional. Human-readable payment-method label that appears in
+   * the "receipts" table (e.g. "כרטיס אשראי"). When omitted, the
+   * provider applies a default appropriate for the caller (Cardcom
+   * for mioshy).
+   */
+  paymentMethod?: string | null
   metadata?: Record<string, any>
   /**
    * Optional. Persisted on the issued-documents row alongside `provider`

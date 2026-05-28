@@ -18,6 +18,27 @@ const CreateDocumentSchema = z.object({
   language: z.enum(["he", "en"]),
   is_israeli: z.boolean(),
   /**
+   * Optional. End-customer display name. When provided, appears in
+   * the "to" block of the PDF instead of falling back to email.
+   */
+  name: z.string().min(1).max(200).optional(),
+  /**
+   * Optional. End-customer phone. When provided, appears in the
+   * "to" block of the PDF after email.
+   */
+  phone: z.string().min(1).max(50).optional(),
+  /**
+   * Optional. Free-text product/service description for the invoice's
+   * item line (e.g. "מיאושי - עולם הזוגיות"). When omitted the provider
+   * applies a default.
+   */
+  product_name: z.string().min(1).max(200).optional(),
+  /**
+   * Optional. Payment-method label that appears in the receipts table
+   * (e.g. "כרטיס אשראי"). When omitted the provider applies a default.
+   */
+  payment_method: z.string().min(1).max(100).optional(),
+  /**
    * Optional caller-supplied idempotency key. Bounded length to keep
    * the index small and to defend against accidentally gigantic strings.
    * When supplied, two calls with the same (provider, idempotency_key)
@@ -189,15 +210,18 @@ export async function createBillingDocument(
         documentType,
         language,
         customer: {
-          name: null,
+          name: body.name ?? null,
           email: body.email,
           country: body.country,
+          phone: body.phone ?? null,
         },
         amount,
         currency: body.currency,
         vatRate,
         vatAmount,
         totalAmount,
+        productName: body.product_name ?? null,
+        paymentMethod: body.payment_method ?? null,
         idempotencyKey,
         metadata: {
           user_id: body.user_id,
