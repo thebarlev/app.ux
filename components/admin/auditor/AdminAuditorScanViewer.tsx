@@ -333,11 +333,13 @@ function ReportsPanel({ scanId, scanStatus }: { scanId: string; scanStatus: stri
               Word document (.docx) in Hebrew — designed to send to the business owner. Includes scores, top issues, what
               works well, and a 90-day action plan. Easy to edit before sending.
             </p>
-            <Button asChild disabled={!ready} size="sm">
-              <a href={customerUrl} download={ready ? undefined : false} aria-disabled={!ready}>
-                Download .docx
+            {ready ? (
+              <a href={customerUrl} download>
+                <Button size="sm">Download .docx</Button>
               </a>
-            </Button>
+            ) : (
+              <Button size="sm" disabled>Download .docx</Button>
+            )}
           </div>
 
           {/* Implementation brief card */}
@@ -350,16 +352,20 @@ function ReportsPanel({ scanId, scanStatus }: { scanId: string; scanStatus: stri
               page-level data.
             </p>
             <div className="flex gap-2">
-              <Button asChild disabled={!ready} size="sm">
-                <a href={implementationUrl} download={ready ? undefined : false} aria-disabled={!ready}>
-                  Download .md
+              {ready ? (
+                <a href={implementationUrl} download>
+                  <Button size="sm">Download .md</Button>
                 </a>
-              </Button>
-              <Button asChild disabled={!ready} size="sm" variant="outline">
+              ) : (
+                <Button size="sm" disabled>Download .md</Button>
+              )}
+              {ready ? (
                 <a href={`${implementationUrl}?inline=true`} target="_blank" rel="noopener noreferrer">
-                  View in browser
+                  <Button size="sm" variant="outline">View in browser</Button>
                 </a>
-              </Button>
+              ) : (
+                <Button size="sm" variant="outline" disabled>View in browser</Button>
+              )}
             </div>
           </div>
         </div>

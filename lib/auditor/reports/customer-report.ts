@@ -49,7 +49,7 @@ function rtlBold(text: string, color?: string): TextRun {
   return new TextRun({ text, rightToLeft: true, bold: true, color })
 }
 
-function paragraph(text: string, opts: { bold?: boolean; size?: number; color?: string; align?: AlignmentType } = {}): Paragraph {
+function paragraph(text: string, opts: { bold?: boolean; size?: number; color?: string; align?: typeof AlignmentType[keyof typeof AlignmentType] } = {}): Paragraph {
   return new Paragraph({
     bidirectional: true,
     alignment: opts.align ?? AlignmentType.RIGHT,
@@ -92,7 +92,7 @@ function shadedCell(text: string, color: string): TableCell {
   })
 }
 
-function plainCell(text: string, opts: { bold?: boolean; align?: AlignmentType } = {}): TableCell {
+function plainCell(text: string, opts: { bold?: boolean; align?: typeof AlignmentType[keyof typeof AlignmentType] } = {}): TableCell {
   return new TableCell({
     width: { size: 25, type: WidthType.PERCENTAGE },
     children: [
@@ -472,7 +472,9 @@ export async function buildCustomerReportDocx(data: ReportData): Promise<Buffer>
       default: {
         document: {
           run: { font: "Arial", size: 22, rightToLeft: true },
-          paragraph: { bidirectional: true, alignment: AlignmentType.RIGHT },
+          // `bidirectional` is set per-paragraph (see paragraph() / heading()
+          // helpers above) — docx's style-default type doesn't accept it.
+          paragraph: { alignment: AlignmentType.RIGHT },
         },
       },
     },
