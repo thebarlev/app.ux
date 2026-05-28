@@ -106,10 +106,28 @@ export async function createBillingDocument(
   const language: "he" | "en" = isIsraeli ? "he" : "en"
   const documentType = isIsraeli ? ("invoice_receipt" as const) : ("invoice_receipt" as const)
 
-  const vatRate = isIsraeli ? 17 : 0
-  const amount = money2(body.amount)
-  const vatAmount = money2((amount * vatRate) / 100)
-  const totalAmount = money2(amount + vatAmount)
+  // `body.amount` is the GROSS amount actually charged on Cardcom
+  // (VAT-inclusive for Israeli customers, no VAT for non-Israeli). The
+  // invoice must break that gross into subtotal + VAT where the two add
+  // up to exactly what the customer paid — otherwise the "receipts"
+  // section on the invoice would not match the Cardcom charge.
+  //
+  // Israeli VAT rate is 18% as of 2025-01-01 (was 17%).
+  //
+  // We derive vatAmount as `gross - subtotal` (not `subtotal * rate`) so
+  // the two pieces always sum to `gross` after rounding.
+  const vatRate     = isIsraeli ? 18 : 0
+  const grossPaid   = money2(body.amount)
+  const subtotal    = isIsraeli
+    ? money2(grossPaid / (1 + vatRate / 100))
+    : grossPaid
+  const vatAmount   = money2(grossPaid - subtotal)
+  const totalAmount = grossPaid
+
+  // The provider's `IssueDocumentParams.amount` field is the line-item
+  // unit price (pre-VAT subtotal). Keep the existing identifier so the
+  // call site below doesn't change.
+  const amount = subtotal
 
   const provider = getProvider(process.env.VOW_BILLING_PROVIDER || "internal")
 

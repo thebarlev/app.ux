@@ -68,6 +68,12 @@ export function logDocIssueBootOnce(): void {
   const billingCompanyIdPresent = !!String(process.env.VOW_BILLING_COMPANY_ID || "").trim()
   const dsignBypass = String(process.env.SECURE_SIGNATURE_BYPASS || "").toLowerCase() === "true"
 
+  // Length (not value) of UXELLENT_BILLING_API_KEY — exposes whether the
+  // env var was actually loaded at runtime, and lets us spot accidental
+  // whitespace/newline padding without leaking the secret itself.
+  const billingApiKeyRaw = process.env.UXELLENT_BILLING_API_KEY || ""
+  const billingApiKeyTrimmed = billingApiKeyRaw.trim()
+
   console.log("[DOC_ISSUE_BOOT]", {
     pdf_render_host: pdfHost,
     secure_signature_host: dsignHost,
@@ -77,6 +83,9 @@ export function logDocIssueBootOnce(): void {
     pdf_render_token_present: !!String(process.env.PDF_RENDER_TOKEN || "").trim(),
     secure_signature_api_key_present: !!String(process.env.SECURE_SIGNATURE_API_KEY || "").trim(),
     supabase_service_role_present: !!String(process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim(),
+    uxellent_billing_api_key_present: billingApiKeyTrimmed.length > 0,
+    uxellent_billing_api_key_length: billingApiKeyTrimmed.length,
+    uxellent_billing_api_key_has_padding: billingApiKeyRaw.length !== billingApiKeyTrimmed.length,
     vercel_env: process.env.VERCEL_ENV || "(unset)",
     node_env: process.env.NODE_ENV || "(unset)",
   })

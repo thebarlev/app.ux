@@ -27,7 +27,8 @@ export async function POST(req: Request) {
   // ── Auth: Supabase session  OR  x-api-key (server-to-server from mioshy) ──
   const incomingApiKey = req.headers.get("x-api-key") ?? ""
   const expectedApiKey = process.env.UXELLENT_BILLING_API_KEY ?? ""
-  const isApiKeyAuth   = !!(incomingApiKey && expectedApiKey && incomingApiKey === expectedApiKey)
+  const apiKeyPresent  = incomingApiKey.length > 0
+  const isApiKeyAuth   = !!(apiKeyPresent && expectedApiKey && incomingApiKey === expectedApiKey)
 
   let resolvedUserId: string
   let resolvedEmail:  string
@@ -41,6 +42,8 @@ export async function POST(req: Request) {
     resolvedEmail  = typeof body?.email   === "string" && body.email.trim()   ? body.email.trim()   : ""
 
     if (!resolvedUserId || !resolvedEmail) {
+      // Caller authenticated correctly but sent a bad payload — that IS
+      // a misconfiguration worth surfacing at error severity.
       tracker.fail("auth_resolved", new Error("missing_user_id_or_email_for_api_key_auth"), { auth_mode: "api_key" })
       return NextResponse.json(
         { success: false, message: "user_id and email are required for API key auth", attempt_id: tracker.attemptId, step: "auth_resolved" },
@@ -52,7 +55,21 @@ export async function POST(req: Request) {
     const userClient = await createClient()
     const { data: auth } = await userClient.auth.getUser()
     if (!auth?.user) {
-      tracker.fail("auth_resolved", new Error("no_session"), { auth_mode: "session" })
+      // 401s on this endpoint are common (external probes, expired
+      // sessions, mioshy with a rotated key) and are NOT pipeline
+      // failures. Log at warn so they don't drown out real DOC_ISSUE
+      // errors, and disambiguate what the caller actually attempted so
+      // a key-rotation incident is obvious from one log line.
+      const attemptedAuth =
+        apiKeyPresent ? "api_key_mismatch" :
+        req.headers.get("cookie") ? "session_invalid_or_expired" :
+        "none"
+      console.warn("[create-document] unauthorized", {
+        attempt_id: tracker.attemptId,
+        attempted_auth: attemptedAuth,
+        expected_api_key_configured: expectedApiKey.length > 0,
+        ip,
+      })
       return NextResponse.json({ success: false, message: "Unauthorized", attempt_id: tracker.attemptId, step: "auth_resolved" }, { status: 401 })
     }
     resolvedUserId = typeof body?.user_id === "string" && body.user_id.trim() ? body.user_id.trim() : auth.user.id
