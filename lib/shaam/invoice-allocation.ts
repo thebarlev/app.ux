@@ -77,12 +77,31 @@ export type ShaamApprovalV2CallResult =
   | { ok: false; kind: "bad_request"; provider_json: any }
   | { ok: false; kind: "temporary_failure"; provider_json: any }
 
+/**
+ * The ITA gateway validates against its own JSON schema and rejects an explicit
+ * null for an optional field with 422 [JSV0001] "Invalid value type 'null'".
+ * Optional fields must be omitted, not sent as null. Verified against the
+ * sandbox: identical payload 422s with nulls present, 200s with them removed.
+ */
+function omitNullish<T extends Record<string, any>>(obj: T): Partial<T> {
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue
+    out[k] = v
+  }
+  return out as Partial<T>
+}
+
 export async function callShaamInvoiceApprovalV2(params: {
   accessToken: string
   payload: ShaamApprovalV2Payload
 }): Promise<ShaamApprovalV2CallResult> {
   // Runtime validation: strict schema, correct types/formats, no extra keys.
   const payload = ShaamApprovalV2PayloadSchema.parse(params.payload)
+
+  // Validate first (nullable stays legal in our own contract), then drop the
+  // nulls on the wire only.
+  const wirePayload = omitNullish(payload)
 
   const dispatcher = getShaamDispatcher()
   const url = `${getShaamConfig().baseUrl}${SHAAM_APPROVAL_V2_PATH}`
@@ -94,7 +113,7 @@ export async function callShaamInvoiceApprovalV2(params: {
       Accept: "application/json",
       Authorization: `Bearer ${params.accessToken}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(wirePayload),
     // Do NOT cache; this is a regulatory call.
     cache: "no-store",
     ...(dispatcher ? { dispatcher } : {}),
