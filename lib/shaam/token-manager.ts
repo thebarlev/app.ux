@@ -63,11 +63,12 @@ function looksLikeNeedsReauth(params: { status: number; code: string; message: s
 async function refreshAccessToken(params: { companyId: string; refreshToken: string }) {
   const cfg = getShaamConfig()
 
+  // ITA token endpoint expects client credentials via HTTP Basic auth, not in the body.
   const body = new URLSearchParams()
   body.set("grant_type", "refresh_token")
   body.set("refresh_token", params.refreshToken)
-  body.set("client_id", cfg.clientId)
-  body.set("client_secret", cfg.clientSecret)
+
+  const basicAuth = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")
 
   // Force IPv4 + timeout (same mitigation as callback)
   const dispatcher = new Agent({ connect: { family: 4 } })
@@ -80,6 +81,7 @@ async function refreshAccessToken(params: { companyId: string; refreshToken: str
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         accept: "application/json",
+        authorization: `Basic ${basicAuth}`,
       },
       body,
       cache: "no-store",

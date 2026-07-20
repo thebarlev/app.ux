@@ -69,12 +69,14 @@ export async function GET(req: Request) {
 
   const companyId = ver.payload.company_id
 
+  // ITA token endpoint expects client credentials via HTTP Basic auth, not in the body.
   const body = new URLSearchParams()
   body.set("grant_type", "authorization_code")
   body.set("code", code)
   body.set("redirect_uri", cfg.redirectUri)
-  body.set("client_id", cfg.clientId)
-  body.set("client_secret", cfg.clientSecret)
+  body.set("scope", cfg.scopes)
+
+  const basicAuth = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")
 
   // Force IPv4 (common fix for connect timeouts to some government domains)
   const dispatcher = new Agent({ connect: { family: 4 } })
@@ -88,6 +90,7 @@ export async function GET(req: Request) {
       headers: {
         "content-type": "application/x-www-form-urlencoded",
         accept: "application/json",
+        authorization: `Basic ${basicAuth}`,
       },
       body,
       cache: "no-store",

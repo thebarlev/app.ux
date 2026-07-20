@@ -240,11 +240,12 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
 
   const refreshToken = decryptSecret(String(rtEnc))
 
+  // ITA token endpoint expects client credentials via HTTP Basic auth, not in the body.
   const body = new URLSearchParams()
   body.set("grant_type", "refresh_token")
   body.set("refresh_token", refreshToken)
-  body.set("client_id", cfg.clientId)
-  body.set("client_secret", cfg.clientSecret)
+
+  const basicAuth = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")
 
   // Cooldown enforcement should apply to attempts too (not only successes).
   const attemptedAt = new Date()
@@ -258,6 +259,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
     headers: {
       "content-type": "application/x-www-form-urlencoded",
       accept: "application/json",
+      authorization: `Basic ${basicAuth}`,
     },
     body,
     cache: "no-store",
