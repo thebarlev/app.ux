@@ -1,7 +1,7 @@
 import "server-only"
 
-import { Agent } from "undici"
 import { getShaamConfig } from "@/lib/shaam/config"
+import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { decryptSecret, encryptSecret } from "@/lib/shaam/crypto"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
@@ -70,8 +70,8 @@ async function refreshAccessToken(params: { companyId: string; refreshToken: str
 
   const basicAuth = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")
 
-  // Force IPv4 + timeout (same mitigation as callback)
-  const dispatcher = new Agent({ connect: { family: 4 } })
+  // Proxy when SHAAM_HTTPS_PROXY is set, else IPv4 + timeout (same as callback)
+  const dispatcher = getShaamDispatcher({ ipv4Fallback: true })
 
   let res: Response
   let json: any = null
@@ -85,8 +85,7 @@ async function refreshAccessToken(params: { companyId: string; refreshToken: str
       },
       body,
       cache: "no-store",
-      // @ts-expect-error undici extension supported in Node runtime
-      dispatcher,
+      ...(dispatcher ? { dispatcher } : {}),
       signal: AbortSignal.timeout(20_000),
     })
     json = await res.json().catch(() => null)

@@ -2,6 +2,8 @@ import "server-only"
 
 import { z } from "zod"
 
+import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
+
 const SHAAM_APPROVAL_V2_URL = "https://ita-api.taxes.gov.il/shaam/tsandbox/Invoices/v2/Approval" as const
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -82,6 +84,8 @@ export async function callShaamInvoiceApprovalV2(params: {
   // Temporary debug log (token-free). Do NOT log headers or access token.
   console.log("SHAAM Approval payload:", JSON.stringify(payload))
 
+  const dispatcher = getShaamDispatcher()
+
   const res = await fetch(SHAAM_APPROVAL_V2_URL, {
     method: "POST",
     headers: {
@@ -92,6 +96,7 @@ export async function callShaamInvoiceApprovalV2(params: {
     body: JSON.stringify(payload),
     // Do NOT cache; this is a regulatory call.
     cache: "no-store",
+    ...(dispatcher ? { dispatcher } : {}),
   })
 
   const json = await res.json().catch(() => ({}))

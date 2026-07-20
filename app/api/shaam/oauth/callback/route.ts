@@ -2,9 +2,9 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
-import { Agent } from "undici"
 import { createClient } from "@/lib/supabase/server"
 import { getShaamConfig } from "@/lib/shaam/config"
+import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
@@ -78,8 +78,9 @@ export async function GET(req: Request) {
 
   const basicAuth = Buffer.from(`${cfg.clientId}:${cfg.clientSecret}`).toString("base64")
 
-  // Force IPv4 (common fix for connect timeouts to some government domains)
-  const dispatcher = new Agent({ connect: { family: 4 } })
+  // Routes via SHAAM_HTTPS_PROXY when set; otherwise forces IPv4 as before
+  // (common fix for connect timeouts to some government domains).
+  const dispatcher = getShaamDispatcher({ ipv4Fallback: true })
 
   let res: Response
   let json: any = null
@@ -94,8 +95,7 @@ export async function GET(req: Request) {
       },
       body,
       cache: "no-store",
-      // @ts-expect-error - undici extension supported in Node runtime
-      dispatcher,
+      ...(dispatcher ? { dispatcher } : {}),
       signal: AbortSignal.timeout(20_000),
     })
 

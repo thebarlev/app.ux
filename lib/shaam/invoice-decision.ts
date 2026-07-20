@@ -1,5 +1,7 @@
 import "server-only"
 
+import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
+
 const SHAAM_INVOICE_SANDBOX_BASE_URL = "https://t-ita-api.taxes.gov.il/shaam/tsandbox" as const
 
 export type ShaamInvoiceDecisionType = "CANCEL" | "CONTINUE" | "FURTHEROBJECTION"
@@ -41,6 +43,8 @@ export async function callShaamInvoiceDecision(params: {
   validatePayload(params.payload)
 
   const url = endpointForDecision(params.decision)
+  const dispatcher = getShaamDispatcher()
+
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -50,6 +54,7 @@ export async function callShaamInvoiceDecision(params: {
     },
     body: JSON.stringify(params.payload),
     cache: "no-store",
+    ...(dispatcher ? { dispatcher } : {}),
   })
 
   const json = await res.json().catch(() => ({}))

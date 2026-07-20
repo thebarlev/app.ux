@@ -1,6 +1,7 @@
 import "server-only"
 
 import { getShaamConfig } from "@/lib/shaam/config"
+import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { decryptSecret, encryptSecret } from "@/lib/shaam/crypto"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 
@@ -254,6 +255,8 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
     .update({ last_refresh_at: attemptedAt.toISOString() })
     .eq("company_id", params.companyId)
 
+  const dispatcher = getShaamDispatcher()
+
   const res = await fetch(cfg.tokenUrl, {
     method: "POST",
     headers: {
@@ -263,6 +266,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
     },
     body,
     cache: "no-store",
+    ...(dispatcher ? { dispatcher } : {}),
   })
 
   const json: any = await res.json().catch(() => null)
