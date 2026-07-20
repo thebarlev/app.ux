@@ -102,6 +102,14 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
   </div>
   {{/if}}
 
+  <!-- SHAAM allocation number (regulated invoices above the statutory threshold) -->
+  {{#if allocation_number}}
+  <div class="allocation-section">
+    <span class="label">מספר הקצאה:</span>
+    <span class="value">{{allocation_number}}</span>
+  </div>
+  {{/if}}
+
   <!-- Footer -->
   <div class="footer">
     <p>{{t.receipt_footer_generated_text}}</p>
@@ -422,6 +430,14 @@ export function getDefaultGenericDocumentTemplate(): { html: string; css: string
   {{#if notes_data.signature}}
   <div class="signature-section">
     <img src="{{notes_data.signature}}" alt="signature" class="signature" />
+  </div>
+  {{/if}}
+
+  <!-- SHAAM allocation number (regulated invoices above the statutory threshold) -->
+  {{#if allocation_number}}
+  <div class="allocation-section">
+    <span class="label">מספר הקצאה:</span>
+    <span class="value">{{allocation_number}}</span>
   </div>
   {{/if}}
 </div>
