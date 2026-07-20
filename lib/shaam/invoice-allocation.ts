@@ -2,9 +2,12 @@ import "server-only"
 
 import { z } from "zod"
 
+import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 
-const SHAAM_APPROVAL_V2_URL = "https://ita-api.taxes.gov.il/shaam/tsandbox/Invoices/v2/Approval" as const
+// Path only — the host comes from getShaamConfig().baseUrl so that token and
+// API calls can never diverge onto different hosts.
+const SHAAM_APPROVAL_V2_PATH = "/Invoices/v2/Approval" as const
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
 const HM = /^\d{2}:\d{2}$/
@@ -81,12 +84,10 @@ export async function callShaamInvoiceApprovalV2(params: {
   // Runtime validation: strict schema, correct types/formats, no extra keys.
   const payload = ShaamApprovalV2PayloadSchema.parse(params.payload)
 
-  // Temporary debug log (token-free). Do NOT log headers or access token.
-  console.log("SHAAM Approval payload:", JSON.stringify(payload))
-
   const dispatcher = getShaamDispatcher()
+  const url = `${getShaamConfig().baseUrl}${SHAAM_APPROVAL_V2_PATH}`
 
-  const res = await fetch(SHAAM_APPROVAL_V2_URL, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

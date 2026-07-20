@@ -33,15 +33,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, message: "shaam_misconfigured" }, { status: 500 })
   }
 
-  // DEBUG (Phase 1): print what we actually send to SHAAM (no secrets)
-  console.log("[shaam][start] env=", cfg.env)
-  console.log("[shaam][start] authUrl=", cfg.authUrl)
-  console.log("[shaam][start] tokenUrl=", cfg.tokenUrl)
-  console.log("[shaam][start] baseUrl=", cfg.baseUrl)
-  console.log("[shaam][start] clientId=", cfg.clientId ? `${cfg.clientId.slice(0, 6)}…` : "")
-  console.log("[shaam][start] scopes=", cfg.scopes)
-  console.log("[shaam][start] redirectUri=", cfg.redirectUri)
-
   const supabase = await createClient()
   const {
     data: { user },

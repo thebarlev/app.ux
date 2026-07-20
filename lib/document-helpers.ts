@@ -348,7 +348,28 @@ export async function finalizeDocument(
         .maybeSingle(),
     ])
 
-    if (!companyErr && !docErr && companyRow && docRow) {
+    // Fail-closed: for supervised document types we cannot silently skip the
+    // allocation block when the issuer/document lookup fails — that would issue
+    // a regulated invoice with no allocation attempt at all.
+    if (companyErr || docErr || !companyRow || !docRow) {
+      await recordShaamEvent({
+        companyId,
+        eventType: "allocation_failed",
+        payload: {
+          document_id: draftId,
+          reason: "context_load_failed",
+          company_error: Boolean(companyErr),
+          document_error: Boolean(docErr),
+        },
+      })
+      return {
+        ok: false,
+        message: "לא ניתן לאמת את נתוני העסק/המסמך מול רשות המסים. נסה שוב בעוד רגע.",
+        reason: "shaam_allocation_context_load_failed",
+      }
+    }
+
+    {
       const dbDocType = String((docRow as any).document_type || "")
       const isInvoiceLike = dbDocType === "tax_invoice" || dbDocType === "invoice_receipt"
 
@@ -358,9 +379,11 @@ export async function finalizeDocument(
       const businessType = typeof (companyRow as any).business_type === "string" ? String((companyRow as any).business_type) : ""
       const isExemptOsekPatur = businessType === "osek_patur"
 
-      const thresholdRaw = thresholdRow?.setting_value ? String(thresholdRow.setting_value) : "10000"
+      // Fail-safe default: fall back to the stricter (lower) statutory threshold
+      // so a missing/corrupt setting never lets an invoice through unallocated.
+      const thresholdRaw = thresholdRow?.setting_value ? String(thresholdRow.setting_value) : "5000"
       const thresholdIls = Number(thresholdRaw)
-      const thresholdSafe = Number.isFinite(thresholdIls) && thresholdIls > 0 ? thresholdIls : 10000
+      const thresholdSafe = Number.isFinite(thresholdIls) && thresholdIls > 0 ? thresholdIls : 5000
 
       const subtotalRaw = (docRow as any).subtotal
       const vatAmountRaw = (docRow as any).vat_amount

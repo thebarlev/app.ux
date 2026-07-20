@@ -1,8 +1,11 @@
 import "server-only"
 
+import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 
-const SHAAM_INVOICE_SANDBOX_BASE_URL = "https://t-ita-api.taxes.gov.il/shaam/tsandbox" as const
+// Paths only — host comes from getShaamConfig().baseUrl. The previous
+// hardcoded host (t-ita-api.taxes.gov.il) has no DNS record at all.
+const DECISION_PATH_PREFIX = "/InvoiceDecisionApi/v1" as const
 
 export type ShaamInvoiceDecisionType = "CANCEL" | "CONTINUE" | "FURTHEROBJECTION"
 
@@ -20,9 +23,10 @@ export type ShaamInvoiceDecisionCallResult =
   | { ok: false; kind: "unauthorized" | "bad_request" | "temporary_failure"; provider_json: any }
 
 function endpointForDecision(decision: ShaamInvoiceDecisionType): string {
-  if (decision === "CANCEL") return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/Cancel`
-  if (decision === "CONTINUE") return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/Continue`
-  return `${SHAAM_INVOICE_SANDBOX_BASE_URL}/InvoiceDecisionApi/v1/FurtherObjection`
+  const base = `${getShaamConfig().baseUrl}${DECISION_PATH_PREFIX}`
+  if (decision === "CANCEL") return `${base}/Cancel`
+  if (decision === "CONTINUE") return `${base}/Continue`
+  return `${base}/FurtherObjection`
 }
 
 function validatePayload(p: ShaamInvoiceDecisionPayload) {
