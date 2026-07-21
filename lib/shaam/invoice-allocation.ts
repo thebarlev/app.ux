@@ -45,7 +45,9 @@ export const ShaamApprovalV2PayloadSchema = z
     invoice_issuance_date: z.string().regex(YMD),
     branch_id: z.string().min(1),
     accounting_software_number: z.number().int().finite(),
-    client_software_key: z.string().min(1),
+    // Optional per ITA: omitted from the wire entirely when not configured.
+    // Must never be sent as "" or null — the gateway rejects both.
+    client_software_key: z.string().min(1).optional(),
     amount_before_discount: z.number().finite(),
     discount: z.number().finite(),
     payment_amount: z.number().finite(),

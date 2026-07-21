@@ -495,7 +495,10 @@ export async function finalizeDocument(
           const toStrOrEmpty = (v: any): string => (v === null || v === undefined ? "" : String(v))
 
           const accountingSoftwareNumber = reqEnvInt("SHAAM_ACCOUNTING_SOFTWARE_NUMBER")
-          const clientSoftwareKey = reqEnvString("SHAAM_CLIENT_SOFTWARE_KEY")
+          // Optional per ITA. Undefined when unset, so omitNullish drops the key
+          // from the wire rather than sending "" or null (both rejected).
+          const clientSoftwareKeyRaw = String(process.env.SHAAM_CLIENT_SOFTWARE_KEY || "").trim()
+          const clientSoftwareKey = clientSoftwareKeyRaw ? clientSoftwareKeyRaw : undefined
 
           const invoiceTypeTaxInvoice = reqEnvInt("SHAAM_APPROVAL_INVOICE_TYPE_TAX_INVOICE")
           const invoiceTypeInvoiceReceipt = reqEnvInt("SHAAM_APPROVAL_INVOICE_TYPE_INVOICE_RECEIPT")
