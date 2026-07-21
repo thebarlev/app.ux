@@ -505,16 +505,20 @@ export async function finalizeDocument(
           const invoiceType = dbDocType === "tax_invoice" ? invoiceTypeTaxInvoice : invoiceTypeInvoiceReceipt
 
           const branchId = String(process.env.SHAAM_APPROVAL_BRANCH_ID || "0").trim() || "0"
+          // action: ITA enum. 0 = standard tax invoice. Verified against the
+          // sandbox: 1 and 2 are rejected with 422 [JSV0013] (not in the enum).
           const action = (() => {
-            const raw = String(process.env.SHAAM_APPROVAL_ACTION || "1").trim()
-            const n = Number(raw)
-            return Number.isFinite(n) && Number.isInteger(n) ? n : 1
-          })()
-
-          const defaultCategory = (() => {
-            const raw = String(process.env.SHAAM_APPROVAL_DEFAULT_ITEM_CATEGORY || "0").trim()
+            const raw = String(process.env.SHAAM_APPROVAL_ACTION || "0").trim()
             const n = Number(raw)
             return Number.isFinite(n) && Number.isInteger(n) ? n : 0
+          })()
+
+          // item category: ITA requires 1-4 ("Category must start with 1, 2, 3,
+          // or 4", error 450). 2 = service, which is what we invoice.
+          const defaultCategory = (() => {
+            const raw = String(process.env.SHAAM_APPROVAL_DEFAULT_ITEM_CATEGORY || "2").trim()
+            const n = Number(raw)
+            return Number.isFinite(n) && Number.isInteger(n) ? n : 2
           })()
           const measureUnitDescription = String(process.env.SHAAM_APPROVAL_DEFAULT_MEASURE_UNIT_DESCRIPTION || "יחידה").trim() || "יחידה"
 
