@@ -235,6 +235,49 @@ export async function finalizeDocument(
   const adminClient = createAdminClient()
   const sequenceDocumentType = toSequenceDocumentType(documentType)
 
+  // ====================================================
+  // Osek patur guard.
+  // An osek patur may not issue a tax invoice and may not charge VAT.
+  // Checked before the document number is reserved, so a rejected document
+  // never consumes a number and leaves a gap in the sequence.
+  // ====================================================
+  {
+    const [{ data: guardCompany, error: guardCompanyErr }, { data: guardDoc, error: guardDocErr }] = await Promise.all([
+      adminClient.from("companies").select("business_type").eq("id", companyId).maybeSingle(),
+      adminClient.from("documents").select("vat_rate, vat_amount").eq("id", draftId).eq("company_id", companyId).maybeSingle(),
+    ])
+
+    // Fail-closed: never issue when we cannot establish the issuer's status.
+    if (guardCompanyErr || guardDocErr || !guardCompany) {
+      return {
+        ok: false,
+        message: "לא ניתן לאמת את סוג העסק. נסה שוב בעוד רגע.",
+        reason: "business_type_load_failed",
+      }
+    }
+
+    if (String((guardCompany as any).business_type || "") === "osek_patur") {
+      const supervised = sequenceDocumentType === "tax_invoice" || sequenceDocumentType === "invoice_receipt"
+      if (supervised) {
+        return {
+          ok: false,
+          message: "עוסק פטור אינו רשאי להנפיק חשבונית מס. יש להנפיק חשבונית עסקה או קבלה.",
+          reason: "osek_patur_cannot_issue_tax_invoice",
+        }
+      }
+
+      const vatRate = Number((guardDoc as any)?.vat_rate ?? 0)
+      const vatAmount = Number((guardDoc as any)?.vat_amount ?? 0)
+      if ((Number.isFinite(vatRate) && vatRate > 0) || (Number.isFinite(vatAmount) && vatAmount > 0)) {
+        return {
+          ok: false,
+          message: "עוסק פטור אינו רשאי לגבות מע״מ. יש לאפס את שיעור המע״מ במסמך.",
+          reason: "osek_patur_cannot_charge_vat",
+        }
+      }
+    }
+  }
+
   const { data: existingDoc, error: existingError } = await supabase
     .from("documents")
     .select("document_number")

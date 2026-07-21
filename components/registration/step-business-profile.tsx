@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const BUSINESS_TYPES = [
   { value: "osek_patur", label: "עוסק פטור" },
+  { value: "osek_murshe", label: "עוסק מורשה" },
+  { value: "ltd", label: 'חברה בע"מ' },
 ]
 
 const INDUSTRIES = [
@@ -267,17 +269,18 @@ export function StepBusinessProfile(props?: { afterCompleteRedirectTo?: string; 
               סוג העסק <span style={{ color: 'var(--danger)' }} aria-label="שדה חובה">*</span>
             </Label>
             <Select
-              value={"osek_patur"}
-              onValueChange={() => {}}
+              value={data.businessType || "osek_patur"}
+              onValueChange={(value) => {
+                updateData({ businessType: value as typeof data.businessType })
+                if (errors.businessType) setErrors((prev) => ({ ...prev, businessType: "" }))
+              }}
             >
-              <SelectTrigger 
+              <SelectTrigger
                 id="businessType"
                 variant="underline"
                 className={
-                  (errors.businessType ? "auth-input border-danger focus:border-danger " : "auth-input ") +
-                  "pointer-events-none select-none opacity-60 text-muted-fg"
+                  errors.businessType ? "auth-input border-danger focus:border-danger" : "auth-input"
                 }
-                aria-disabled="true"
               >
                 <SelectValue />
               </SelectTrigger>

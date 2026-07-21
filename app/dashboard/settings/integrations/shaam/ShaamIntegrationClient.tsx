@@ -36,10 +36,11 @@ function computeUiStatus(conn: SafeConnection | null): {
   if (conn.status === "revoked") return { key: "revoked", label: "נותק", tone: "muted" }
   if (conn.status === "error") return { key: "error", label: "שגיאה", tone: "danger" }
 
-  // Informational expiry view (we don't proactively block; user can refresh/reconnect).
-  const exp = conn.expires_at ? new Date(conn.expires_at).getTime() : NaN
-  const isExpiredByTime = Number.isFinite(exp) && exp < Date.now()
-  if (conn.status === "expired" || isExpiredByTime) return { key: "expired", label: "פג תוקף", tone: "warning" }
+  // expires_at is the short-lived access token (~4h), which refreshes automatically.
+  // It says nothing about the connection, so it must not drive this status —
+  // otherwise a healthy connection reads as expired every few hours.
+  // Only the server-recorded status marks a connection as actually expired.
+  if (conn.status === "expired") return { key: "expired", label: "פג תוקף", tone: "warning" }
 
   return { key: "active", label: "מחובר ✓", tone: "success" }
 }
@@ -60,7 +61,7 @@ export default function ShaamIntegrationClient(props: { connection: SafeConnecti
     const ui = computeUiStatus(props.connection)
     return {
       ui,
-      expiresAt: props.connection?.expires_at || null,
+      connectedAt: props.connection?.connected_at || props.connection?.issued_at || null,
       lastRefreshAt: props.connection?.last_refresh_at || null,
       revokedAt: props.connection?.revoked_at || null,
       lastError: props.connection?.last_error_message || null,
@@ -194,8 +195,10 @@ export default function ShaamIntegrationClient(props: { connection: SafeConnecti
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="text-right">
-              <div className="text-sm text-muted-fg">תוקף עד</div>
-              <div className="font-mono text-sm">{formatDateTimeHe(view.expiresAt)}</div>
+              <div className="text-sm text-muted-fg">סטטוס חיבור</div>
+              <div className="font-mono text-sm">
+                {view.ui.key === "active" ? `מחובר · מ־${formatDateTimeHe(view.connectedAt)}` : view.ui.label}
+              </div>
             </div>
             <div className="text-right">
               <div className="text-sm text-muted-fg">רענון אחרון</div>
