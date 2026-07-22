@@ -617,7 +617,23 @@ export async function finalizeDocument(
             (docRow as any).customer_name ? String((docRow as any).customer_name).trim() :
             customerRow?.name ? String(customerRow.name).trim() :
             ""
-          const customerCountryCode = customerRow?.address_country ? String(customerRow.address_country).trim() : "IL"
+          // ITA requires an ISO country code (max 3 chars). The customer record's
+          // address_country is free text and may be a full name ("ישראל" → 5 chars,
+          // which the gateway rejects with 422 [JSV0006]). Map to ISO: pass valid
+          // 2–3 letter codes through, Israel names → IL, and for any other non-empty
+          // value default to IL but LOG it — never silently mislabel a foreign
+          // customer as Israeli.
+          const customerCountryCode = (() => {
+            const raw = customerRow?.address_country ? String(customerRow.address_country).trim() : ""
+            if (!raw) return "IL"
+            if (/^[A-Za-z]{2,3}$/.test(raw)) return raw.toUpperCase()
+            if (/^(ישראל|israel)$/i.test(raw)) return "IL"
+            console.warn("[shaam][allocation] customer_country_code fell back to IL for non-ISO value", {
+              document_id: draftId,
+              raw_value: raw,
+            })
+            return "IL"
+          })()
 
           const vatRate = toFiniteNumber((docRow as any).vat_rate, 0)
 
