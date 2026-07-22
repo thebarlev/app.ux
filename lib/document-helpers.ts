@@ -347,7 +347,7 @@ export async function finalizeDocument(
   // Applies ONLY to: tax_invoice, invoice_receipt (invoiceReceipt)
   // Business rule precision:
   // - Apply only from invoice_date >= 2026-01-01
-  // - Require when subtotal (before VAT) >= global threshold (invoice_allocation_threshold_ils)
+  // - Require when subtotal (before VAT) > global threshold (invoice_allocation_threshold_ils); exactly the threshold is exempt
   // - Exempt issuer business_type == 'osek_patur'
   // ====================================================
   if (documentType === "tax_invoice" || documentType === "invoiceReceipt") {
@@ -450,8 +450,11 @@ export async function finalizeDocument(
       const paymentAmountSafe = Number.isFinite(paymentAmountBeforeVat) ? Number(paymentAmountBeforeVat.toFixed(2)) : 0
       const vatAmountSafe = Number.isFinite(vatAmount) ? Number(vatAmount.toFixed(2)) : 0
 
+      // ITA requires an allocation number only ABOVE the threshold (₪5,001+).
+      // An invoice of exactly ₪5,000 must issue with no allocation and no customer
+      // ID — hence strictly greater-than, not >=.
       const requiresAllocation =
-        isInvoiceLike && isInEffect && !isExemptOsekPatur && paymentAmountSafe >= thresholdSafe
+        isInvoiceLike && isInEffect && !isExemptOsekPatur && paymentAmountSafe > thresholdSafe
 
       // Persist informational flags early (best-effort; never block issuance on this update).
       try {
