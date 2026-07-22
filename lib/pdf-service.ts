@@ -1703,12 +1703,18 @@ export async function prepareDocumentData(
   const allocationNumberRaw = (doc as any)?.allocation_number
   const allocation_number =
     allocationNumberRaw === null || allocationNumberRaw === undefined ? null : String(allocationNumberRaw).trim() || null
-  
+  // Split for display: the rightmost 9 digits are emphasised in the template;
+  // the head is everything before them. (Full string still available as allocation_number.)
+  const allocation_number_tail = allocation_number ? allocation_number.slice(-9) : null
+  const allocation_number_head = allocation_number ? allocation_number.slice(0, -9) : null
+
   const templateData: ReceiptTemplateData & Record<string, any> = {
     t,
     DOCUMENT_COPY_LABEL: options?.documentCopyLabel ?? "",
     HAS_SKU_DATA: hasSkuData, // ✅ משתנה חדש - האם יש מק"ט בשורות
     allocation_number,
+    allocation_number_head,
+    allocation_number_tail,
     HAS_ALLOCATION_NUMBER: !!allocation_number,
     company: {
       name: companyNameLocalized, // Required by template validation {{company.name}}
