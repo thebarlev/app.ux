@@ -34,8 +34,13 @@ export const ShaamApprovalV2PayloadSchema = z
     invoice_type: z.number().int().finite(),
     vat_number: z.number().int().finite(),
     union_vat_number: z.number().int().finite().nullable(),
-    authorized_company: z.number().int().finite(),
-    user_id: z.number().int().finite(),
+    // Nullable per ITA: third-party-proxy field only. For self-issuance it is
+    // null and omitNullish drops it from the wire (verified — HTTP 200).
+    authorized_company: z.number().int().finite().nullable(),
+    // ITA requires at least one of user_id (ת.ז) or user_name. We populate
+    // user_id from the issuer's registration_number; nullable only as a
+    // last-resort fallback, where user_name still satisfies the requirement.
+    user_id: z.number().int().finite().nullable(),
     user_name: z.string().min(1),
     invoice_reference_number: z.string().min(1),
     customer_vat_number: z.number().int().finite().nullable(),

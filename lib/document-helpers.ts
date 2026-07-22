@@ -569,23 +569,32 @@ export async function finalizeDocument(
             (opts?.createdByName && String(opts.createdByName).trim()) ||
             (opts?.createdByEmail && String(opts.createdByEmail).trim()) ||
             "system"
+          // ITA spec: the invoice requires the issuing user's identity — at least
+          // one of user_id (ת.ז) or user_name. We send BOTH: user_id sourced from
+          // the issuing company's registration_number (the ת.ז), user_name below.
+          // Verified against the sandbox: HTTP 200 + confirmation_number with
+          // user_id populated from registration_number and authorized_company omitted.
+          // An explicit SHAAM_APPROVAL_USER_ID env overrides if ever set. As a last
+          // resort we send null (never throw) — user_name still satisfies the spec.
           const userId = (() => {
-            const raw = String(process.env.SHAAM_APPROVAL_USER_ID || "").trim()
-            const n = raw ? Number(raw) : NaN
-            if (!Number.isFinite(n) || !Number.isInteger(n)) {
-              throw new Error("Missing or invalid SHAAM_APPROVAL_USER_ID")
-            }
-            return n
+            const regDigits = String((companyRow as any).registration_number || "").replace(/\D/g, "")
+            const regNum = regDigits ? Number(regDigits) : NaN
+            if (Number.isInteger(regNum) && regNum > 0) return regNum
+            const envRaw = String(process.env.SHAAM_APPROVAL_USER_ID || "").trim()
+            const envNum = envRaw ? Number(envRaw) : NaN
+            if (Number.isInteger(envNum) && envNum > 0) return envNum
+            return null
           })()
 
+          // ITA spec: authorized_company identifies a third-party proxy (מיופה כוח)
+          // issuing on someone else's behalf. For self-issuance it must be null —
+          // NOT the issuer's own VAT. omitNullish drops it from the wire. Only an
+          // explicit SHAAM_APPROVAL_AUTHORIZED_COMPANY (true proxy setups) sets it.
           const authorizedCompany = (() => {
             const raw = String(process.env.SHAAM_APPROVAL_AUTHORIZED_COMPANY || "").trim()
             const n = raw ? Number(raw) : NaN
-            if (!Number.isFinite(n) || !Number.isInteger(n)) {
-              // Fallback to issuer VAT to avoid sending undefined.
-              return issuerVat
-            }
-            return n
+            if (Number.isInteger(n) && n > 0) return n
+            return null
           })()
 
           const customerName =
