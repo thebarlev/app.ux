@@ -520,30 +520,28 @@ export async function finalizeDocument(
             return { ok: false, message: "מספר מסמך לא תקין להקצאה. נסה שוב.", reason: "shaam_allocation_invalid_reference" }
           }
 
+          // Issuer identity (the subscriber's own company) is MANDATORY and always
+          // sent: vat_number and user_id are sourced dynamically from the connected
+          // company (tax_id / registration_number), never a global constant.
           const issuerVatMissing = !Number.isInteger(issuerVat) || issuerVat <= 0
-          const customerVatMissing = !Number.isInteger(customerVat) || customerVat <= 0
-
-          if (issuerVatMissing || customerVatMissing) {
+          if (issuerVatMissing) {
             await recordShaamEvent({
               companyId,
               eventType: "allocation_failed",
-              payload: {
-                document_id: draftId,
-                reason: "missing_vat_numbers",
-                // Which side is missing — both cases occur and they need different fixes.
-                issuer_vat_missing: issuerVatMissing,
-                customer_vat_missing: customerVatMissing,
-              },
+              payload: { document_id: draftId, reason: "missing_issuer_vat", issuer_vat_missing: true },
             })
-
-            // Point at the exact field to fix. A generic "update customer details"
-            // is a dead end when the customer is free text with no saved record.
-            const message = issuerVatMissing
-              ? "חסר מספר עוסק/ח.פ של העסק שלך. עדכן אותו בהגדרות › פרטי העסק ונסה שוב."
-              : 'חסר מספר עוסק/ח.פ של הלקוח. מלא את השדה "מספר עוסק / ח.פ של הלקוח" בטופס החשבונית ונסה שוב.'
-
-            return { ok: false, message, reason: "shaam_allocation_missing_vat" }
+            return {
+              ok: false,
+              message: "חסר מספר עוסק/ח.פ של העסק שלך. עדכן אותו בהגדרות › פרטי העסק ונסה שוב.",
+              reason: "shaam_allocation_missing_issuer_vat",
+            }
           }
+
+          // Customer VAT is OPTIONAL per ITA — required only "when required by law"
+          // (e.g. the customer is an osek deducting input VAT). A tax invoice to a
+          // private consumer needs none, so a missing customer_tax_id must NOT block
+          // issuance: it is sent as null below and omitNullish drops it from the wire.
+          const customerVatMissing = !Number.isInteger(customerVat) || customerVat <= 0
 
           // Build full Approval v2 payload (spec-compliant, snake_case, no undefined).
           const toFiniteNumber = (v: any, fallback = 0): number => {
@@ -699,7 +697,9 @@ export async function finalizeDocument(
             user_id: userId,
             user_name: String(userName).slice(0, 80),
             invoice_reference_number: invoiceReference,
-            customer_vat_number: customerVat,
+            // Optional: null when the customer has no VAT number (private consumer),
+            // dropped from the wire by omitNullish.
+            customer_vat_number: customerVatMissing ? null : customerVat,
             customer_name: customerName,
             customer_country_code: customerCountryCode || "IL",
             invoice_date: issueDateYmd,
@@ -726,6 +726,20 @@ export async function finalizeDocument(
             additional_information_3: null,
             items,
           }
+
+          // Non-secret audit: log the identity fields actually sent to ITA (invoice
+          // party identifiers, not secrets) so a request can be verified from logs.
+          console.log("[shaam][allocation] payload_identity", {
+            document_id: draftId,
+            invoice_reference_number: invoiceReference,
+            invoice_type: invoiceType,
+            vat_number: issuerVat,
+            user_id: userId,
+            authorized_company: authorizedCompany,
+            customer_vat_number: customerVatMissing ? null : customerVat,
+            customer_country_code: customerCountryCode || "IL",
+            items_count: items.length,
+          })
 
           // Ensure we have a valid token (server-only); refreshes if needed.
           let accessToken: string
