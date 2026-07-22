@@ -103,8 +103,14 @@ async function refreshAccessToken(params: { companyId: string; refreshToken: str
     throw new ShaamTransientError(safe.code, safe.message)
   }
 
+  // Non-secret visibility: response KEYS only (never values/tokens).
+  console.log("[shaam][refresh] token_response_keys", {
+    keys: json && typeof json === "object" ? Object.keys(json) : null,
+  })
+
   const accessToken = typeof json?.access_token === "string" ? String(json.access_token) : ""
   const expiresIn = typeof json?.expires_in === "number" ? Number(json.expires_in) : NaN
+  const refreshExpiresIn = typeof json?.refresh_token_expires_in === "number" ? Number(json.refresh_token_expires_in) : NaN
   const refreshTokenNew = typeof json?.refresh_token === "string" ? String(json.refresh_token).trim() : ""
   const tokenType = typeof json?.token_type === "string" ? String(json.token_type).trim() : ""
   const scope = typeof json?.scope === "string" ? String(json.scope) : null
@@ -116,6 +122,7 @@ async function refreshAccessToken(params: { companyId: string; refreshToken: str
   return {
     accessToken,
     expiresInSeconds: Math.floor(expiresIn),
+    refreshExpiresInSeconds: Number.isFinite(refreshExpiresIn) && refreshExpiresIn > 0 ? Math.floor(refreshExpiresIn) : null,
     refreshToken: refreshTokenNew || null,
     tokenType: tokenType || null,
     scope,
@@ -179,6 +186,12 @@ export async function getValidShaamAccessToken(companyId: string, opts?: GetVali
 
     const issuedAt = now()
     const newExpiresAt = new Date(issuedAt.getTime() + refreshed.expiresInSeconds * 1000).toISOString()
+    // Only advance refresh_expires_at when ITA actually returned a lifetime;
+    // otherwise leave the column untouched (don't clobber a known value with null).
+    const refreshExpiresPatch =
+      refreshed.refreshExpiresInSeconds != null
+        ? { refresh_expires_at: new Date(issuedAt.getTime() + refreshed.refreshExpiresInSeconds * 1000).toISOString() }
+        : {}
 
     await admin
       .from("company_shaam_connections")
@@ -188,6 +201,8 @@ export async function getValidShaamAccessToken(companyId: string, opts?: GetVali
         token_type: refreshed.tokenType || "Bearer",
         issued_at: issuedAt.toISOString(),
         expires_at: newExpiresAt,
+        access_expires_at: newExpiresAt,
+        ...refreshExpiresPatch,
         last_refresh_at: issuedAt.toISOString(),
         status: "active",
         revoked_at: null,

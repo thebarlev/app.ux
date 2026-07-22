@@ -12,6 +12,9 @@ type TokenResponse = {
   refresh_token: string
   token_type?: string
   expires_in: number
+  // Long-lived refresh-token lifetime (~89d) returned by ITA as
+  // `refresh_token_expires_in`. Optional: older rows / partial responses omit it.
+  refresh_expires_in?: number
   scope?: string
 }
 
@@ -77,6 +80,11 @@ export async function upsertConnectionFromTokenResponse(params: {
 }) {
   const issuedAt = params.issuedAt ?? new Date()
   const expiresAt = toExpiresAtIso(issuedAt, params.token.expires_in)
+  // Refresh-token expiry is the real ITA value when present; otherwise leave null.
+  const refreshExpiresAt =
+    typeof params.token.refresh_expires_in === "number" && params.token.refresh_expires_in > 0
+      ? new Date(issuedAt.getTime() + Math.floor(params.token.refresh_expires_in) * 1000).toISOString()
+      : null
   const admin = createServiceRoleClient()
 
   await admin.from("company_shaam_connections").upsert(
@@ -88,6 +96,8 @@ export async function upsertConnectionFromTokenResponse(params: {
       token_type: params.token.token_type || "Bearer",
       issued_at: issuedAt.toISOString(),
       expires_at: expiresAt,
+      access_expires_at: expiresAt,
+      refresh_expires_at: refreshExpiresAt,
       connected_at: nowIso(),
       last_refresh_at: null,
       revoked_at: null,

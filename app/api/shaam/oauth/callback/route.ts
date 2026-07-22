@@ -129,10 +129,17 @@ export async function GET(req: Request) {
     return redirectToSettings(url, { error: "1" })
   }
 
+  // Non-secret visibility: log only the response KEYS (never values/tokens) so
+  // we can confirm which lifetime fields ITA returns without leaking secrets.
+  console.log("[shaam][callback] token_response_keys", {
+    keys: json && typeof json === "object" ? Object.keys(json) : null,
+  })
+
   const accessToken = typeof json?.access_token === "string" ? json.access_token : null
   const refreshToken = typeof json?.refresh_token === "string" ? json.refresh_token : null
   const tokenType = typeof json?.token_type === "string" ? json.token_type : "Bearer"
   const expiresIn = typeof json?.expires_in === "number" ? json.expires_in : null
+  const refreshExpiresIn = typeof json?.refresh_token_expires_in === "number" ? json.refresh_token_expires_in : null
   const scope = typeof json?.scope === "string" ? json.scope : null
 
   if (!accessToken || !refreshToken || !expiresIn) {
@@ -152,6 +159,7 @@ export async function GET(req: Request) {
       refresh_token: refreshToken,
       token_type: tokenType,
       expires_in: expiresIn,
+      refresh_expires_in: refreshExpiresIn ?? undefined,
       scope: scope || undefined,
     },
   })
