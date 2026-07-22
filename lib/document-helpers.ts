@@ -520,28 +520,37 @@ export async function finalizeDocument(
             return { ok: false, message: "מספר מסמך לא תקין להקצאה. נסה שוב.", reason: "shaam_allocation_invalid_reference" }
           }
 
-          // Issuer identity (the subscriber's own company) is MANDATORY and always
-          // sent: vat_number and user_id are sourced dynamically from the connected
-          // company (tax_id / registration_number), never a global constant.
+          // Both identities are MANDATORY for the allocation path. The issuer
+          // (vat_number + user_id) is sourced dynamically from the connected company.
+          //
+          // customer_vat_number is REQUIRED by ITA's live v2/Approval schema: it must
+          // be present, a number, >= 10 — verified against the sandbox (omitting it,
+          // null, and 0 all return 422 [JSV0002/JSV0001/JSV0008]). It may be the
+          // customer's ח.פ (business) or ת.ז (individual). This applies ONLY on the
+          // allocation path (>= statutory threshold); invoices below it never reach
+          // this call and are unaffected.
           const issuerVatMissing = !Number.isInteger(issuerVat) || issuerVat <= 0
-          if (issuerVatMissing) {
+          const customerVatMissing = !Number.isInteger(customerVat) || customerVat <= 0
+
+          if (issuerVatMissing || customerVatMissing) {
             await recordShaamEvent({
               companyId,
               eventType: "allocation_failed",
-              payload: { document_id: draftId, reason: "missing_issuer_vat", issuer_vat_missing: true },
+              payload: {
+                document_id: draftId,
+                reason: "missing_vat_numbers",
+                // Which side is missing — different fixes.
+                issuer_vat_missing: issuerVatMissing,
+                customer_vat_missing: customerVatMissing,
+              },
             })
-            return {
-              ok: false,
-              message: "חסר מספר עוסק/ח.פ של העסק שלך. עדכן אותו בהגדרות › פרטי העסק ונסה שוב.",
-              reason: "shaam_allocation_missing_issuer_vat",
-            }
-          }
 
-          // Customer VAT is OPTIONAL per ITA — required only "when required by law"
-          // (e.g. the customer is an osek deducting input VAT). A tax invoice to a
-          // private consumer needs none, so a missing customer_tax_id must NOT block
-          // issuance: it is sent as null below and omitNullish drops it from the wire.
-          const customerVatMissing = !Number.isInteger(customerVat) || customerVat <= 0
+            const message = issuerVatMissing
+              ? "חסר מספר עוסק/ח.פ של העסק שלך. עדכן אותו בהגדרות › פרטי העסק ונסה שוב."
+              : 'חסר מספר עוסק/ח.פ של הלקוח. מלא את השדה "מספר עוסק / ח.פ של הלקוח" בטופס החשבונית ונסה שוב.'
+
+            return { ok: false, message, reason: "shaam_allocation_missing_vat" }
+          }
 
           // Build full Approval v2 payload (spec-compliant, snake_case, no undefined).
           const toFiniteNumber = (v: any, fallback = 0): number => {
@@ -697,9 +706,9 @@ export async function finalizeDocument(
             user_id: userId,
             user_name: String(userName).slice(0, 80),
             invoice_reference_number: invoiceReference,
-            // Optional: null when the customer has no VAT number (private consumer),
-            // dropped from the wire by omitNullish.
-            customer_vat_number: customerVatMissing ? null : customerVat,
+            // Required by ITA (present, number, >= 10); guaranteed valid past the
+            // guard above. Customer's ח.פ or ת.ז.
+            customer_vat_number: customerVat,
             customer_name: customerName,
             customer_country_code: customerCountryCode || "IL",
             invoice_date: issueDateYmd,
@@ -736,7 +745,7 @@ export async function finalizeDocument(
             vat_number: issuerVat,
             user_id: userId,
             authorized_company: authorizedCompany,
-            customer_vat_number: customerVatMissing ? null : customerVat,
+            customer_vat_number: customerVat,
             customer_country_code: customerCountryCode || "IL",
             items_count: items.length,
           })

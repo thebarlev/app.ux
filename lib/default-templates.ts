@@ -105,8 +105,8 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
   <!-- SHAAM allocation number (regulated invoices above the statutory threshold) -->
   {{#if allocation_number}}
   <div class="allocation-section">
-    <span class="label">מספר הקצאה:</span>
-    <span class="value">{{allocation_number}}</span>
+    <span class="label">הקצאה מספר:</span>
+    <span class="value" dir="ltr">{{allocation_number_head}}<strong>{{allocation_number_tail}}</strong></span>
   </div>
   {{/if}}
 
@@ -436,8 +436,8 @@ export function getDefaultGenericDocumentTemplate(): { html: string; css: string
   <!-- SHAAM allocation number (regulated invoices above the statutory threshold) -->
   {{#if allocation_number}}
   <div class="allocation-section">
-    <span class="label">מספר הקצאה:</span>
-    <span class="value">{{allocation_number}}</span>
+    <span class="label">הקצאה מספר:</span>
+    <span class="value" dir="ltr">{{allocation_number_head}}<strong>{{allocation_number_tail}}</strong></span>
   </div>
   {{/if}}
 </div>
