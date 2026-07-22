@@ -108,7 +108,7 @@ export default function StartingNumberModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 p-[30px] pb-0">
+        <div className="flex items-start justify-between gap-4 p-5 sm:p-[30px] pb-0">
           <div className="flex items-start gap-4 flex-1">
             <div className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-primary/10 flex-shrink-0">
               <Hash className="h-6 w-6 text-primary" />
@@ -137,7 +137,7 @@ export default function StartingNumberModal({
         </div>
 
         {/* Content */}
-        <div className="p-[30px] space-y-[50px]">
+        <div className="p-5 sm:p-[30px] space-y-8 sm:space-y-[50px]">
           {/* Warning Alert */}
         
 
@@ -182,6 +182,7 @@ export default function StartingNumberModal({
           >
             <Input
               id="customNumber"
+              className="w-full"
               type="number"
               min={1}
               required
@@ -204,14 +205,15 @@ export default function StartingNumberModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-[30px] pt-0">
-          <div className="flex gap-3 justify-start">
+        <div className="p-5 sm:p-[30px] pt-0">
+          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-start">
             <Button
               type="button"
               variant="secondary"
               onClick={onClose}
               disabled={loading}
               aria-label="ביטול ללא שמירה"
+              className="w-full sm:w-auto"
             >
               ביטול
             </Button>
@@ -223,6 +225,7 @@ export default function StartingNumberModal({
               loading={loading}
               aria-busy={loading}
               aria-label={loading ? "שומר מספר התחלתי" : "אישור והתחלת מיספור"}
+              className="w-full sm:w-auto"
             >
               {loading ? "שומר..." : "אישור והתחלת מיספור"}
             </Button>

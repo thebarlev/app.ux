@@ -48,6 +48,12 @@ const Ic = {
   fileReceipt: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M9 13h6" /></svg>
   ),
+  fileCredit: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M8 13l3 3 5-6" /></svg>
+  ),
+  moreChev: (
+    <svg className="dcx-more-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+  ),
   receipt: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
   ),
@@ -107,13 +113,22 @@ const NAV: NavItem[] = [
   },
 ]
 
-// Real document types for the "+" (new document) menu.
-const NEW_DOCS: { href: string; label: string; icon: React.ReactNode }[] = [
+// Real document types for the "+" (new document) menu — primary + collapsible "more".
+const PRIMARY_DOCS: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: "/dashboard/incomes/documents/new/invoice", label: "חשבונית מס", icon: Ic.file },
   { href: "/dashboard/incomes/documents/new/invoiceReceipt", label: "חשבונית מס / קבלה", icon: Ic.fileReceipt },
+  { href: "/dashboard/incomes/documents/new/creditNote", label: "חשבונית זיכוי", icon: Ic.fileCredit },
   { href: "/dashboard/incomes/documents/new/receipt", label: "קבלה", icon: Ic.receipt },
   { href: "/business/documents/new/quote", label: "הצעת מחיר", icon: Ic.quote },
-  { href: "/business/documents/new/proforma", label: "חשבון עסקה", icon: Ic.proforma },
+  { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)", icon: Ic.proforma },
+]
+const MORE_DOCS: { href: string; label: string }[] = [
+  { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
+  { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
+  { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
+  { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
+  { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
+  { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
 ]
 
 function isActive(pathname: string, href?: string) {
@@ -122,6 +137,40 @@ function isActive(pathname: string, href?: string) {
 }
 function anyChildActive(pathname: string, item: NavItem) {
   return !!item.subItems?.some((s) => pathname === s.href)
+}
+
+/** New-document list: 6 primary types + a collapsible "מסמכים נוספים" group. */
+function DocList({ onSelect }: { onSelect: () => void }) {
+  const [moreOpen, setMoreOpen] = React.useState(false)
+  return (
+    <>
+      {PRIMARY_DOCS.map((d) => (
+        <Link key={d.href} href={d.href} role="menuitem" className="dcx-doc-a" onClick={onSelect}>
+          <span aria-hidden="true">{d.icon}</span>
+          {d.label}
+        </Link>
+      ))}
+      <div className={`dcx-more-wrap${moreOpen ? " open" : ""}`}>
+        <button
+          type="button"
+          className="dcx-more-toggle"
+          aria-expanded={moreOpen}
+          aria-controls="dcx-more-list"
+          onClick={() => setMoreOpen((v) => !v)}
+        >
+          מסמכים נוספים
+          {Ic.moreChev}
+        </button>
+        <div className="dcx-more-list" id="dcx-more-list" role="group" aria-label="מסמכים נוספים">
+          {MORE_DOCS.map((d) => (
+            <Link key={d.href} href={d.href} role="menuitem" className="dcx-doc-a" onClick={onSelect}>
+              {d.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </>
+  )
 }
 
 export default function DashboardChrome({ children }: { children: React.ReactNode }) {
@@ -258,12 +307,7 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
           </button>
           <div className="dcx-fab-menu" role="menu">
             <div className="dcx-fab-h">מסמך חדש</div>
-            {NEW_DOCS.map((d) => (
-              <Link key={d.href} href={d.href} role="menuitem" onClick={() => setFabOpen(false)}>
-                <span aria-hidden="true">{d.icon}</span>
-                {d.label}
-              </Link>
-            ))}
+            <DocList key={fabOpen ? "fab-open" : "fab-closed"} onSelect={() => setFabOpen(false)} />
           </div>
         </div>
 
@@ -307,12 +351,7 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
       <div className={`dcx-sheet${sheet === "plus" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="מסמך חדש" aria-hidden={sheet !== "plus"}>
         <div className="dcx-grip" />
         <div className="dcx-sheet-h">מסמך חדש</div>
-        {NEW_DOCS.map((d) => (
-          <Link key={d.href} href={d.href} onClick={() => setSheet(null)}>
-            <span aria-hidden="true">{d.icon}</span>
-            {d.label}
-          </Link>
-        ))}
+        <DocList key={sheet === "plus" ? "sheet-open" : "sheet-closed"} onSelect={() => setSheet(null)} />
       </div>
 
       <div className={`dcx-sheet${sheet === "more" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="תפריט" aria-hidden={sheet !== "more"}>
@@ -353,14 +392,21 @@ const DCX_CSS = `
 .dcx-fab{width:48px;height:48px;border-radius:13px;background:var(--dcx-green);color:#173a0b;border:none;cursor:pointer;
   display:grid;place-items:center;font-size:28px;font-weight:700;box-shadow:0 6px 16px rgba(139,212,79,.45);line-height:1;transition:.15s}
 .dcx-fab:hover{transform:translateY(-1px)}
-.dcx-fab-menu{position:absolute;bottom:0;right:58px;width:214px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
+.dcx-fab-menu{position:absolute;bottom:0;right:58px;width:220px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
   box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;opacity:0;transform:translateY(10px) scale(.96);transform-origin:bottom right;
-  pointer-events:none;transition:.2s cubic-bezier(.2,.8,.2,1);z-index:60}
+  pointer-events:none;transition:.2s cubic-bezier(.2,.8,.2,1);z-index:60;max-height:min(74vh,540px);overflow-y:auto}
 .dcx-fab-wrap.open .dcx-fab-menu{opacity:1;transform:none;pointer-events:auto}
 .dcx-fab-h{font-size:12px;color:var(--dcx-muted);font-weight:700;padding:6px 10px 4px}
-.dcx-fab-menu a{display:flex;align-items:center;gap:10px;padding:10px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:600;font-size:14.5px}
-.dcx-fab-menu a:hover{background:var(--dcx-accent-soft);color:var(--dcx-accent)}
-.dcx-fab-menu a svg{width:17px;height:17px;color:var(--dcx-accent)}
+.dcx-doc-a{display:flex;align-items:center;gap:10px;padding:10px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:600;font-size:14.5px}
+.dcx-doc-a:hover{background:var(--dcx-accent-soft);color:var(--dcx-accent)}
+.dcx-doc-a svg{width:17px;height:17px;color:var(--dcx-accent);flex-shrink:0}
+.dcx-more-wrap{display:flex;flex-direction:column}
+.dcx-more-toggle{display:flex;align-items:center;gap:8px;padding:10px;margin-top:4px;border:none;border-top:1px solid var(--dcx-line);
+  color:#3A4155;font-weight:700;font-size:13.5px;cursor:pointer;background:none;font-family:inherit;width:100%;text-align:right}
+.dcx-more-chev{margin-inline-start:auto;width:15px;height:15px;transition:transform .25s}
+.dcx-more-wrap.open .dcx-more-chev{transform:rotate(90deg)}
+.dcx-more-list{max-height:0;overflow:hidden;transition:max-height .28s ease;display:flex;flex-direction:column}
+.dcx-more-wrap.open .dcx-more-list{max-height:360px}
 .dcx-side-bottom{margin-top:auto;display:flex;flex-direction:column;gap:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18)}
 .dcx-side-bottom a,.dcx-side-bottom button{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:#EAF2F9;text-decoration:none;font-weight:600;font-size:16px;background:none;border:none;cursor:pointer;font-family:inherit;width:100%;text-align:right}
 .dcx-side-bottom a:hover,.dcx-side-bottom button:hover{background:rgba(255,255,255,.16)}
@@ -390,6 +436,8 @@ const DCX_CSS = `
   .dcx-sheet a,.dcx-sheet button{display:flex;align-items:center;gap:12px;padding:14px 8px;border-radius:11px;color:var(--dcx-ink);text-decoration:none;font-weight:700;font-size:16px;width:100%;background:none;border:none;cursor:pointer;font-family:inherit;text-align:right}
   .dcx-sheet a:active,.dcx-sheet button:active{background:var(--dcx-accent-soft)}
   .dcx-sheet svg{width:20px;height:20px;color:var(--dcx-accent)}
+  .dcx-sheet .dcx-more-toggle{padding:14px 8px;font-size:15px;color:#3A4155;border:none;border-top:1px solid var(--dcx-line);margin-top:2px}
+  .dcx-sheet .dcx-more-chev{width:17px;height:17px}
 }
 @media(min-width:901px){.dcx-mobilebar,.dcx-backdrop,.dcx-sheet{display:none !important}}
 @media(prefers-reduced-motion:reduce){
