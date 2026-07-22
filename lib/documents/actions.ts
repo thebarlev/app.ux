@@ -827,6 +827,7 @@ export async function saveDocumentDraftAction(
       const baseUpdate = {
         customer_id: payload.customerId || null,
         customer_name: payload.customerName,
+        customer_tax_id: payload.customerTaxId || null,
         issue_date: payload.documentDate,
         payment_due_date: payload.paymentDueDate || null,
         document_description: payload.description || null,
@@ -880,6 +881,7 @@ export async function saveDocumentDraftAction(
     document_number: null,
     customer_id: payload.customerId || null,
     customer_name: payload.customerName,
+    customer_tax_id: payload.customerTaxId || null,
     issue_date: payload.documentDate,
     payment_due_date: payload.paymentDueDate || null,
     document_description: payload.description || null,
@@ -1096,6 +1098,7 @@ export async function issueDocumentAction(
       const baseUpdate = {
         customer_id: payload.customerId || null,
         customer_name: payload.customerName,
+        customer_tax_id: payload.customerTaxId || null,
         issue_date: payload.documentDate,
         payment_due_date: payload.paymentDueDate || null,
         document_description: payload.description || null,
@@ -1309,6 +1312,7 @@ export async function issueDocumentAction(
       template_version_id: templateVersionId,
       customer_id: payload.customerId || null,
       customer_name: payload.customerName,
+      customer_tax_id: payload.customerTaxId || null,
       issue_date: payload.documentDate,
       payment_due_date: payload.paymentDueDate || null,
       document_description: payload.description || null,
@@ -1567,6 +1571,7 @@ export async function updateDocumentDraftAction(
   const baseUpdate = {
     customer_id: payload.customerId || null,
     customer_name: payload.customerName,
+    customer_tax_id: payload.customerTaxId || null,
     issue_date: payload.documentDate,
     payment_due_date: payload.paymentDueDate || null,
     document_description: payload.description || null,

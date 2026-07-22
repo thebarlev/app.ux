@@ -520,13 +520,29 @@ export async function finalizeDocument(
             return { ok: false, message: "מספר מסמך לא תקין להקצאה. נסה שוב.", reason: "shaam_allocation_invalid_reference" }
           }
 
-          if (!Number.isInteger(issuerVat) || issuerVat <= 0 || !Number.isInteger(customerVat) || customerVat <= 0) {
+          const issuerVatMissing = !Number.isInteger(issuerVat) || issuerVat <= 0
+          const customerVatMissing = !Number.isInteger(customerVat) || customerVat <= 0
+
+          if (issuerVatMissing || customerVatMissing) {
             await recordShaamEvent({
               companyId,
               eventType: "allocation_failed",
-              payload: { document_id: draftId, reason: "missing_vat_numbers" },
+              payload: {
+                document_id: draftId,
+                reason: "missing_vat_numbers",
+                // Which side is missing — both cases occur and they need different fixes.
+                issuer_vat_missing: issuerVatMissing,
+                customer_vat_missing: customerVatMissing,
+              },
             })
-            return { ok: false, message: "חסר מספר עוסק ללקוח או לעסק. עדכן פרטי לקוח ונסה שוב.", reason: "shaam_allocation_missing_vat" }
+
+            // Point at the exact field to fix. A generic "update customer details"
+            // is a dead end when the customer is free text with no saved record.
+            const message = issuerVatMissing
+              ? "חסר מספר עוסק/ח.פ של העסק שלך. עדכן אותו בהגדרות › פרטי העסק ונסה שוב."
+              : 'חסר מספר עוסק/ח.פ של הלקוח. מלא את השדה "מספר עוסק / ח.פ של הלקוח" בטופס החשבונית ונסה שוב.'
+
+            return { ok: false, message, reason: "shaam_allocation_missing_vat" }
           }
 
           // Build full Approval v2 payload (spec-compliant, snake_case, no undefined).

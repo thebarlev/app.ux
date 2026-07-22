@@ -88,6 +88,10 @@ export type ReceiptDraftPayload = {
   documentType: "receipt";
   customerName: string;
   customerId?: string | null; // Link to customers table
+  // Customer VAT/company number. Required by SHAAM allocation for invoices above
+  // the statutory threshold; entered inline on the invoice form so a free-text
+  // customer (no customers row) can still be allocated.
+  customerTaxId?: string | null;
   documentDate: string; // YYYY-MM-DD
   description: string; // Receipt description (document_description column)
   payments: PaymentRow[];

@@ -146,6 +146,7 @@ export default function TaxInvoiceFormClient({
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerTaxId, setCustomerTaxId] = useState("");
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [dueDate, setDueDate] = useState(endOfMonthYmd(todayYmd()));
@@ -220,6 +221,7 @@ export default function TaxInvoiceFormClient({
   useEffect(() => {
     if (editData) {
       setCustomerName(editData.customerName);
+      if (typeof (editData as any).customerTaxId === "string") setCustomerTaxId((editData as any).customerTaxId);
       setDocumentDate(editData.documentDate);
       setDueDate(editData.paymentDueDate || editData.documentDate);
       setDueDateAuto(false);
@@ -358,6 +360,7 @@ export default function TaxInvoiceFormClient({
       documentType,
       customerName,
       customerId,
+      customerTaxId: customerTaxId.replace(/\D/g, "") || null,
       documentDate,
       paymentDueDate: showDueDate ? dueDate : "",
       description,
@@ -379,6 +382,7 @@ export default function TaxInvoiceFormClient({
   }, [
     customerName,
     customerId,
+    customerTaxId,
     documentDate,
     description,
     items,
@@ -942,6 +946,9 @@ export default function TaxInvoiceFormClient({
                         if (customer) {
                           setCustomerId(customer.id);
                           setCustomerNameError(null);
+                          // Prefill from the saved customer, but leave it editable —
+                          // the invoice may need a different number than the record.
+                          if (customer.tax_id) setCustomerTaxId(String(customer.tax_id));
                         }
                       }}
                       onAddNewCustomer={() => setShowQuickAddModal(true)}
@@ -949,6 +956,16 @@ export default function TaxInvoiceFormClient({
                       containerClassName="w-full min-w-0"
                     />
                   </div>
+
+                  <FloatingInput
+                    id="customerTaxId"
+                    label="מספר עוסק / ח.פ של הלקוח"
+                    value={customerTaxId}
+                    onChange={(e) => setCustomerTaxId(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    inputMode="numeric"
+                    placeholder="9 ספרות"
+                    containerClassName="w-full min-w-0"
+                  />
 
                   <FloatingDateInput
                     label="תאריך מסמך"
