@@ -154,6 +154,7 @@ export default function TaxInvoiceFormClient({
   const [description, setDescription] = useState("");
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
+  const [customerTaxIdError, setCustomerTaxIdError] = useState<string | null>(null);
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
@@ -164,6 +165,7 @@ export default function TaxInvoiceFormClient({
 
   const descriptionInputRef = useRef<HTMLInputElement>(null);
   const customerNameRef = useRef<HTMLDivElement>(null);
+  const customerTaxIdRef = useRef<HTMLDivElement>(null);
   const itemsTableRef = useRef<HTMLDivElement>(null);
 
   const [items, setItems] = useState<ItemRow[]>([
@@ -608,6 +610,17 @@ export default function TaxInvoiceFormClient({
       focusFieldWithError(itemsTableRef);
       return;
     }
+    // Above the statutory threshold ITA requires an allocation number, which needs a
+    // customer ID (ח.פ / ת.ז). Block here so a missing ID is an immediate inline field
+    // error on the first click, not a round-trip to ITA that fails. The server remains
+    // authoritative (global_settings > 5,000, strictly greater-than).
+    const ALLOCATION_THRESHOLD_ILS = 5000;
+    if (subtotal > ALLOCATION_THRESHOLD_ILS && customerTaxId.replace(/\D/g, "").length === 0) {
+      setCustomerTaxIdError("חובה למלא ח.פ/ת.ז של הלקוח לחשבונית מעל ₪5,000");
+      toast.error("חובה למלא ח.פ/ת.ז של הלקוח לחשבונית מעל ₪5,000");
+      focusFieldWithError(customerTaxIdRef);
+      return;
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -957,15 +970,22 @@ export default function TaxInvoiceFormClient({
                     />
                   </div>
 
-                  <FloatingInput
-                    id="customerTaxId"
-                    label="מספר עוסק / ח.פ של הלקוח"
-                    value={customerTaxId}
-                    onChange={(e) => setCustomerTaxId(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                    inputMode="numeric"
-                    placeholder="9 ספרות"
-                    containerClassName="w-full min-w-0"
-                  />
+                  <div ref={customerTaxIdRef}>
+                    <FloatingInput
+                      id="customerTaxId"
+                      label="מספר עוסק / ח.פ של הלקוח"
+                      value={customerTaxId}
+                      error={customerTaxIdError}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                        setCustomerTaxId(digits);
+                        if (customerTaxIdError && digits.length > 0) setCustomerTaxIdError(null);
+                      }}
+                      inputMode="numeric"
+                      placeholder="9 ספרות"
+                      containerClassName="w-full min-w-0"
+                    />
+                  </div>
 
                   <FloatingDateInput
                     label="תאריך מסמך"

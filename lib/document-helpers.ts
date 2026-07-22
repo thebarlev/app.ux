@@ -507,10 +507,17 @@ export async function finalizeDocument(
                 .maybeSingle()
             : { data: null as any }
 
+          // Track which field customer_vat_number came from (for the audit log).
+          const customerVatFromDoc = Boolean(customerTaxIdRaw && String(customerTaxIdRaw).replace(/\D/g, ""))
           if (!customerVatDigits && customerRow?.tax_id) {
             customerVatDigits = String(customerRow.tax_id).replace(/\D/g, "")
           }
           const customerVat = customerVatDigits ? Number(customerVatDigits) : NaN
+          const customerVatSource = customerVatFromDoc
+            ? "document.customer_tax_id"
+            : customerRow?.tax_id
+              ? "customer.tax_id"
+              : "none"
 
           const invoiceReference = String(docNumber || "").trim()
           const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(invoiceReference)
@@ -749,6 +756,7 @@ export async function finalizeDocument(
             user_id: userId,
             authorized_company: authorizedCompany,
             customer_vat_number: customerVat,
+            customer_vat_source: customerVatSource,
             customer_country_code: customerCountryCode || "IL",
             items_count: items.length,
           })
