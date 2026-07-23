@@ -343,7 +343,7 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
         <div className="dcx-brand">
           <Image
             className="dcx-logo dcx-logo-full"
-            src="/brand/vow_white.svg"
+            src="/email/white-logo.svg"
             alt="Uxellent"
             width={135}
             height={36}
@@ -535,8 +535,10 @@ const DCX_CSS = `
   box-shadow:0 10px 30px rgba(60,110,160,.25);z-index:50}
 .dcx-sidebar{transition:width .22s cubic-bezier(.2,.8,.2,1)}
 .dcx-brand{display:flex;align-items:center;margin:2px 6px 22px;min-height:36px}
-/* vow_white.svg is white text with a #5389BB mark — that blue sits too close to the
-   sidebar gradient to read, so the logo is forced to solid white. */
+/* white-logo.svg is byte-identical to brand/vow_white.svg (same md5): the wordmark
+   is white but the star mark is #5389BB, which is the sidebar gradient's own blue
+   (#5f97c6 → #4d81b0) and effectively disappears on it. The whitening therefore
+   stays. Drop this filter only once the asset itself has no blue left in it. */
 .dcx-logo{filter:brightness(0) invert(1);height:36px;width:auto;display:block}
 .dcx-logo-mark{display:none}
 /* overflow must stay visible: the sub-menu flyouts escape the nav box. */
