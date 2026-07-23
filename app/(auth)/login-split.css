@@ -83,9 +83,11 @@
   margin-bottom: 26px;
 }
 .auth-scope.login-split .ls-logo img {
-  height: auto;
+  /* Height-constrained, width auto → the wide Uxellent wordmark keeps its
+     aspect ratio instead of being stretched to the box. */
+  height: 42px;
   width: auto;
-  max-height: 60px;
+  max-width: 100%;
 }
 .auth-scope.login-split .ls-fh {
   font-size: 26px;

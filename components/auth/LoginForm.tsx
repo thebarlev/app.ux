@@ -151,7 +151,7 @@ export function LoginForm(props: {
           <section className="ls-half ls-form-side">
             <div className="ls-form-col">
               <div className="ls-logo">
-                <Image src="/brand/vow.svg" alt="Uxellent" width={168} height={75} priority />
+                <Image src="/brand/uxellent.svg" alt="Uxellent" width={165} height={44} priority />
               </div>
 
               <h1 className="ls-fh">{titleText}</h1>
