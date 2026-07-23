@@ -5,6 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { logoutAction } from "@/app/dashboard/actions"
+import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/scroll-lock"
 
 /**
  * DashboardChrome — refreshed shared app shell (sidebar + mobile bottom bar).
@@ -275,6 +276,15 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
     document.addEventListener("click", onDocClick)
     return () => document.removeEventListener("click", onDocClick)
   }, [fabOpen, openFly])
+
+  // Freeze the page behind the "+" menu and the bottom-sheets. The overlays
+  // themselves scroll only when their own content overflows (overflow-y:auto +
+  // overscroll-contain in the CSS), so the page never moves underneath.
+  React.useEffect(() => {
+    if (!fabOpen && !sheet) return
+    lockBodyScroll()
+    return () => unlockBodyScroll()
+  }, [fabOpen, sheet])
 
   // Escape closes fab + flyouts + sheets.
   React.useEffect(() => {
@@ -582,8 +592,11 @@ const DCX_CSS = `
 .dcx-fab{width:56px;height:56px;border-radius:15px;background:var(--dcx-green);color:#173a0b;border:none;cursor:pointer;
   display:grid;place-items:center;font-size:34px;font-weight:700;box-shadow:0 6px 16px rgba(139,212,79,.45);line-height:1;transition:.15s}
 .dcx-fab:hover{transform:translateY(-1px)}
+/* Scrolls only when its own content is taller than the space available, and never
+   chains that scroll to the page behind it. */
 .dcx-fab-menu{position:absolute;bottom:0;right:66px;width:290px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
   box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;transform-origin:bottom right;z-index:60;
+  max-height:calc(100vh - 40px);overflow-y:auto;overscroll-behavior:contain;
   animation:dcxpop .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes dcxpop{from{opacity:0;transform:translateY(10px) scale(.96)}}
 .dcx-fab-h{font-size:13px;color:var(--dcx-muted);font-weight:700;padding:6px 12px 6px}
@@ -622,7 +635,11 @@ const DCX_CSS = `
 .dcx-mobilebar,.dcx-backdrop,.dcx-sheet{display:none}
 @media(max-width:900px){
   .dcx-sidebar{display:none}
-  .dcx-main{margin-right:0;padding-bottom:82px}
+  /* The .collapsed override lives outside this query and is more specific, so it
+     used to keep a 105px right margin on phones — and doc-create routes default to
+     collapsed, which is why "מסמך חדש" was the page that looked squeezed. Both
+     selectors are reset here so no sidebar spacing can survive below 900px. */
+  .dcx-main,.dcx-root.collapsed .dcx-main{margin-right:0;padding-bottom:82px}
   .dcx-mobilebar{display:flex;position:fixed;bottom:0;left:0;right:0;height:66px;background:#fff;border-top:1px solid var(--dcx-line);
     box-shadow:0 -6px 20px rgba(20,24,45,.07);z-index:70;align-items:center;justify-content:space-around;padding:0 8px;padding-bottom:env(safe-area-inset-bottom)}
   .dcx-mobilebar a,.dcx-mobilebar button{background:none;border:none;font-family:inherit;cursor:pointer;color:var(--dcx-muted);text-decoration:none;
@@ -634,8 +651,10 @@ const DCX_CSS = `
     font-size:27px;box-shadow:0 4px 12px rgba(139,212,79,.4)}
   .dcx-backdrop{display:block;position:fixed;inset:0;background:rgba(20,24,45,.4);opacity:0;pointer-events:none;transition:.22s;z-index:75}
   .dcx-backdrop.on{opacity:1;pointer-events:auto}
+  /* Scrolls only if its own content overflows, and never chains to the page. */
   .dcx-sheet{display:block;position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;z-index:80;
-    padding:10px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 40px rgba(20,24,45,.2)}
+    padding:10px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 40px rgba(20,24,45,.2);
+    max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
   .dcx-sheet.on{transform:none}
   /* Grip: swipe down to dismiss (tap also closes). Overrides the generic
      ".dcx-sheet button" rule above, and touch-action:none keeps the browser
@@ -648,7 +667,10 @@ const DCX_CSS = `
   .dcx-sheet a,.dcx-sheet button{display:flex;align-items:center;gap:12px;padding:14px 8px;border-radius:11px;color:var(--dcx-ink);text-decoration:none;font-weight:700;font-size:16px;width:100%;background:none;border:none;cursor:pointer;font-family:inherit;text-align:right}
   .dcx-sheet a:active,.dcx-sheet button:active{background:var(--dcx-accent-soft)}
   .dcx-sheet svg{width:20px;height:20px;color:var(--dcx-accent)}
-  .dcx-sheet .dcx-more-toggle{padding:14px 8px;font-size:15px;color:#3A4155;border:none;border-top:1px solid var(--dcx-line);margin-top:2px}
+  /* Document items match the desktop "+" menu: 18px regular, not the sheet's
+     default 16px/700 — that generic rule above is more specific than .dcx-doc-a. */
+  .dcx-sheet .dcx-doc-a{font-size:18px;font-weight:400;padding:13px 8px}
+  .dcx-sheet .dcx-more-toggle{padding:14px 8px;font-size:18px;font-weight:400;color:#3A4155;border:none;border-top:1px solid var(--dcx-line);margin-top:2px}
   .dcx-sheet .dcx-more-chev{width:17px;height:17px}
 }
 @media(min-width:901px){.dcx-mobilebar,.dcx-backdrop,.dcx-sheet{display:none !important}}
