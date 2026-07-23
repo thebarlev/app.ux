@@ -10,11 +10,13 @@ export const dynamic = "force-dynamic"
 function money(n: number, decimals = 0): string {
   return new Intl.NumberFormat("he-IL", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n)
 }
+// Keeps the minus outside the ₪ sign, so a negative month reads "-₪500", not "₪-500".
 function shekel(n: number, decimals = 0) {
   return (
     <>
+      {n < 0 ? "-" : ""}
       <span className="dcx-cur">₪</span>
-      {money(n, decimals)}
+      {money(Math.abs(n), decimals)}
     </>
   )
 }
@@ -44,15 +46,19 @@ async function getFirstName(): Promise<string> {
 }
 
 // Build the revenue chart SVG paths from 7 monthly values.
+// Values may be negative (credits exceeding invoices); they are floored at zero
+// for plotting only, so the line stays inside the viewBox. The figures shown to
+// the user come from the raw values, not from these.
 function buildChart(values: number[]) {
   const W = 640
   const H = 180
   const padTop = 20
   const padBottom = 30
   const n = values.length
-  const max = Math.max(1, ...values)
-  const xs = values.map((_, i) => (n === 1 ? W / 2 : 20 + (i * (W - 40)) / (n - 1)))
-  const ys = values.map((v) => padTop + (1 - v / max) * (H - padTop - padBottom))
+  const plot = values.map((v) => Math.max(0, v))
+  const max = Math.max(1, ...plot)
+  const xs = plot.map((_, i) => (n === 1 ? W / 2 : 20 + (i * (W - 40)) / (n - 1)))
+  const ys = plot.map((v) => padTop + (1 - v / max) * (H - padTop - padBottom))
   const line = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(0)},${ys[i].toFixed(0)}`).join(" ")
   const area = `${line} L${xs[n - 1].toFixed(0)},${(H - padBottom + 20).toFixed(0)} L${xs[0].toFixed(0)},${(H - padBottom + 20).toFixed(0)} Z`
   return { W, H, xs, ys, line, area, lastX: xs[n - 1], lastY: ys[n - 1] }
@@ -147,7 +153,7 @@ export default async function DashboardPage() {
         <div className="dcx-panel">
           <div className="dcx-panel-head">
             <div><h3>הכנסות ב־7 החודשים האחרונים</h3><div className="dcx-sub">כולל מע״מ</div></div>
-            <div className="dcx-legend">סה״כ תקופה <b>₪ {money(periodTotal)}</b></div>
+            <div className="dcx-legend">סה״כ תקופה <b>{periodTotal < 0 ? "-" : ""}₪ {money(Math.abs(periodTotal))}</b></div>
           </div>
           <svg className="dcx-chart" viewBox={`0 0 ${chart.W} ${chart.H}`} preserveAspectRatio="none" role="img" aria-label="גרף הכנסות חודשי">
             <defs><linearGradient id="dcxg1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#5389BB" stopOpacity=".35" /><stop offset="1" stopColor="#5389BB" stopOpacity="0" /></linearGradient></defs>

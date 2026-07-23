@@ -15,6 +15,20 @@ const CREDIT_TYPES = ["credit_note", "creditNote"]
  */
 const REVENUE_TYPES = ["tax_invoice", "invoice_receipt"]
 
+/**
+ * THE single definition of revenue for the dashboard: invoices count positive,
+ * credit notes negative, everything else is zero. The month KPI, the revenue
+ * chart and the per-month panel all go through this, so the same month can
+ * never show three different numbers.
+ */
+function netRevenueOf(doc: any): number {
+  const t = String(doc?.document_type || "")
+  const total = num(doc?.total_amount)
+  if (REVENUE_TYPES.includes(t)) return total
+  if (CREDIT_TYPES.includes(t)) return -total
+  return 0
+}
+
 const TYPE_LABELS: Record<string, string> = {
   tax_invoice: "חשבונית מס",
   invoice_receipt: "חשבונית/קבלה",
@@ -75,6 +89,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
   const supabase = await createClient()
 
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const nextMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
   const window7Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1))
 
   const { data: rows } = await supabase
@@ -89,21 +104,26 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     .limit(500)
 
   const docs: any[] = Array.isArray(rows) ? (rows as any[]) : []
-  const inMonth = (iso: string | null) => !!iso && String(iso).slice(0, 10) >= ymd(monthStart)
+  // Upper-bounded, so a future-dated document lands in its own month rather than
+  // inflating the current-month KPI — which would put the KPI out of step with
+  // the chart and the per-month panel, both of which bucket by calendar month.
+  const inMonth = (iso: string | null) => {
+    if (!iso) return false
+    const day = String(iso).slice(0, 10)
+    return day >= ymd(monthStart) && day < ymd(nextMonthStart)
+  }
+  // Still the broad set (includes standalone receipts) — used for outstanding
+  // balances and allocation flags, which are per-document, not summed revenue.
   const isIncome = (t: string) => INCOME_TYPES.includes(t)
-  const isCredit = (t: string) => CREDIT_TYPES.includes(t)
 
   // ── KPIs ──
   let monthRevenue = 0
   let docsThisMonth = 0
   let allocationsThisMonth = 0
   for (const d of docs) {
-    const t = String((d as any).document_type || "")
-    const total = num((d as any).total_amount)
     if (inMonth((d as any).issue_date)) {
       docsThisMonth++
-      if (isIncome(t)) monthRevenue += total
-      else if (isCredit(t)) monthRevenue -= total
+      monthRevenue += netRevenueOf(d)
       if ((d as any).allocation_number) allocationsThisMonth++
     }
   }
@@ -128,17 +148,18 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     buckets.set(`${d.getUTCFullYear()}-${d.getUTCMonth()}`, 0)
   }
   for (const d of docs) {
-    const t = String((d as any).document_type || "")
     const iso = (d as any).issue_date ? new Date(String((d as any).issue_date)) : null
     if (!iso) continue
     const key = `${iso.getUTCFullYear()}-${iso.getUTCMonth()}`
     if (!buckets.has(key)) continue
-    const total = num((d as any).total_amount)
-    buckets.set(key, (buckets.get(key) || 0) + (isIncome(t) ? total : isCredit(t) ? -total : 0))
+    buckets.set(key, (buckets.get(key) || 0) + netRevenueOf(d))
   }
+  // Not clamped at zero any more: a month whose credits exceed its invoices must
+  // report the same negative figure here as in the per-month panel. The chart
+  // clamps for geometry only (see buildChart).
   const revenueByMonth = Array.from(buckets.entries()).map(([key, value]) => {
     const m = Number(key.split("-")[1])
-    return { label: MONTHS_HE[m] || "", value: Math.max(0, Math.round(value)) }
+    return { label: MONTHS_HE[m] || "", value: Math.round(value) }
   })
 
   // ── Documents issued per month (same window and same rows as above) ──
@@ -158,10 +179,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     const bucket = monthDocs.get(`${iso.getUTCFullYear()}-${iso.getUTCMonth()}`)
     if (!bucket) continue
     bucket.count++
-    const t = String(d.document_type || "")
-    const total = num(d.total_amount)
-    if (REVENUE_TYPES.includes(t)) bucket.amount += total
-    else if (isCredit(t)) bucket.amount -= total
+    bucket.amount += netRevenueOf(d)
   }
   const docsByMonth = Array.from(monthDocs.entries())
     .map(([key, v]) => {
