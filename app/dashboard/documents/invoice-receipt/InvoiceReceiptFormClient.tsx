@@ -2203,8 +2203,9 @@ export default function InvoiceReceiptFormClient({
           {showStartingNumberModal && (
             <StartingNumberModal
               documentType="invoiceReceipt"
+              // Closing (X / ביטול) only dismisses the modal and stays on the page.
               onClose={() => {
-                window.location.href = basePath;
+                setShowStartingNumberModal(false);
               }}
               onSuccess={() => {
                 setShowStartingNumberModal(false);

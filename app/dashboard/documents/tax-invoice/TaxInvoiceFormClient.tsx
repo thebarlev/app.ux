@@ -1540,8 +1540,11 @@ export default function TaxInvoiceFormClient({
           {showStartingNumberModal && (
             <StartingNumberModal
               documentType={documentType}
+              // Closing (X / ביטול) only dismisses the modal and stays put. It used to
+              // navigate to basePath, which is /business/documents for business-category
+              // documents — a route with no page.tsx, i.e. a 404.
               onClose={() => {
-                window.location.href = basePath;
+                setShowStartingNumberModal(false);
               }}
               onSuccess={() => {
                 setShowStartingNumberModal(false);

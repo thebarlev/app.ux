@@ -1372,8 +1372,9 @@ export default function CreditNoteFormClient({
           {showStartingNumberModal && (
             <StartingNumberModal
               documentType="creditNote"
+              // Closing (X / ביטול) only dismisses the modal and stays on the page.
               onClose={() => {
-                window.location.href = "/dashboard/documents";
+                setShowStartingNumberModal(false);
               }}
               onSuccess={() => {
                 setShowStartingNumberModal(false);

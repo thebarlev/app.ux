@@ -291,6 +291,37 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
     return () => document.removeEventListener("keydown", onKey)
   }, [])
 
+  // ── Mobile bottom-sheet: drag the grip down to dismiss ──
+  // Only one sheet is open at a time, so a single drag offset is enough.
+  const [dragY, setDragY] = React.useState(0)
+  const dragStartY = React.useRef<number | null>(null)
+  const DISMISS_PX = 70
+
+  const gripHandlers = {
+    onTouchStart: (e: React.TouchEvent) => {
+      dragStartY.current = e.touches[0].clientY
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      if (dragStartY.current == null) return
+      // Downward only — dragging up must not lift the sheet off the bottom edge.
+      const dy = e.touches[0].clientY - dragStartY.current
+      setDragY(dy > 0 ? dy : 0)
+    },
+    onTouchEnd: () => {
+      if (dragStartY.current != null && dragY > DISMISS_PX) setSheet(null)
+      dragStartY.current = null
+      // Always reset so the inline transform stops overriding the class-based one.
+      setDragY(0)
+    },
+    onTouchCancel: () => {
+      dragStartY.current = null
+      setDragY(0)
+    },
+  }
+  // While dragging, follow the finger with no transition; on release, animate.
+  const sheetDragStyle = (open: boolean): React.CSSProperties =>
+    open && dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: "none" } : {}
+
   const [isLoggingOut, setLoggingOut] = React.useState(false)
   const onLogout = async () => {
     if (isLoggingOut) return
@@ -444,14 +475,32 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
       {/* ===== Mobile backdrop + sheets ===== */}
       <div className={`dcx-backdrop${sheet ? " on" : ""}`} onClick={() => setSheet(null)} aria-hidden={!sheet} />
 
-      <div className={`dcx-sheet${sheet === "plus" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="מסמך חדש" aria-hidden={sheet !== "plus"}>
-        <div className="dcx-grip" />
+      <div
+        className={`dcx-sheet${sheet === "plus" ? " on" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="מסמך חדש"
+        aria-hidden={sheet !== "plus"}
+        style={sheetDragStyle(sheet === "plus")}
+      >
+        <button type="button" className="dcx-grip-hit" aria-label="סגור" onClick={() => setSheet(null)} {...gripHandlers}>
+          <span className="dcx-grip" aria-hidden="true" />
+        </button>
         <div className="dcx-sheet-h">מסמך חדש</div>
         {sheet === "plus" && <DocList id="sheet" onSelect={() => setSheet(null)} />}
       </div>
 
-      <div className={`dcx-sheet${sheet === "more" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="תפריט" aria-hidden={sheet !== "more"}>
-        <div className="dcx-grip" />
+      <div
+        className={`dcx-sheet${sheet === "more" ? " on" : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="תפריט"
+        aria-hidden={sheet !== "more"}
+        style={sheetDragStyle(sheet === "more")}
+      >
+        <button type="button" className="dcx-grip-hit" aria-label="סגור" onClick={() => setSheet(null)} {...gripHandlers}>
+          <span className="dcx-grip" aria-hidden="true" />
+        </button>
         <div className="dcx-sheet-h">תפריט</div>
         <Link href="/dashboard/documents/income" onClick={() => setSheet(null)}><span aria-hidden="true">{Ic.income}</span>הכנסות</Link>
         <Link href="/dashboard/documents/ongoing" onClick={() => setSheet(null)}><span aria-hidden="true">{Ic.file}</span>ניהול שוטף</Link>
@@ -508,17 +557,17 @@ const DCX_CSS = `
 .dcx-fab{width:56px;height:56px;border-radius:15px;background:var(--dcx-green);color:#173a0b;border:none;cursor:pointer;
   display:grid;place-items:center;font-size:34px;font-weight:700;box-shadow:0 6px 16px rgba(139,212,79,.45);line-height:1;transition:.15s}
 .dcx-fab:hover{transform:translateY(-1px)}
-.dcx-fab-menu{position:absolute;bottom:0;right:66px;width:302px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
+.dcx-fab-menu{position:absolute;bottom:0;right:66px;width:290px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
   box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;transform-origin:bottom right;z-index:60;
   animation:dcxpop .2s cubic-bezier(.2,.8,.2,1)}
 @keyframes dcxpop{from{opacity:0;transform:translateY(10px) scale(.96)}}
 .dcx-fab-h{font-size:13px;color:var(--dcx-muted);font-weight:700;padding:6px 12px 6px}
-.dcx-doc-a{display:flex;align-items:center;gap:12px;padding:12px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:600;font-size:20px;line-height:1.45}
+.dcx-doc-a{display:flex;align-items:center;gap:12px;padding:12px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:400;font-size:18px;line-height:1.45}
 .dcx-doc-a:hover{background:var(--dcx-accent-soft);color:var(--dcx-accent)}
-.dcx-doc-a svg{width:22px;height:22px;color:var(--dcx-accent);flex-shrink:0}
+.dcx-doc-a svg{width:21px;height:21px;color:var(--dcx-accent);flex-shrink:0}
 .dcx-more-wrap{display:flex;flex-direction:column}
 .dcx-more-toggle{display:flex;align-items:center;gap:12px;padding:12px;margin-top:4px;border:none;border-top:1px solid var(--dcx-line);
-  color:#3A4155;font-weight:700;font-size:20px;line-height:1.45;cursor:pointer;background:none;font-family:inherit;width:100%;text-align:right}
+  color:#3A4155;font-weight:400;font-size:18px;line-height:1.45;cursor:pointer;background:none;font-family:inherit;width:100%;text-align:right}
 .dcx-more-chev{margin-inline-start:auto;width:18px;height:18px;transition:transform .25s;flex-shrink:0}
 .dcx-more-wrap.open .dcx-more-chev{transform:rotate(-90deg)}
 /* expands in place — no inner scrolling */
@@ -562,7 +611,13 @@ const DCX_CSS = `
   .dcx-sheet{display:block;position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;z-index:80;
     padding:10px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 40px rgba(20,24,45,.2)}
   .dcx-sheet.on{transform:none}
-  .dcx-grip{width:40px;height:4px;border-radius:4px;background:#D7DBE3;margin:6px auto 12px}
+  /* Grip: swipe down to dismiss (tap also closes). Overrides the generic
+     ".dcx-sheet button" rule above, and touch-action:none keeps the browser
+     from scrolling the page while the finger drags the sheet. */
+  .dcx-sheet .dcx-grip-hit{display:flex;align-items:center;justify-content:center;width:100%;padding:10px 0 8px;
+    background:none;border:none;cursor:grab;touch-action:none;-webkit-tap-highlight-color:transparent;font-size:0;gap:0}
+  .dcx-sheet .dcx-grip-hit:active{cursor:grabbing;background:none}
+  .dcx-grip{display:block;width:44px;height:5px;border-radius:4px;background:#D7DBE3;margin:0}
   .dcx-sheet-h{font-size:13px;color:var(--dcx-muted);font-weight:700;margin:2px 4px 8px}
   .dcx-sheet a,.dcx-sheet button{display:flex;align-items:center;gap:12px;padding:14px 8px;border-radius:11px;color:var(--dcx-ink);text-decoration:none;font-weight:700;font-size:16px;width:100%;background:none;border:none;cursor:pointer;font-family:inherit;text-align:right}
   .dcx-sheet a:active,.dcx-sheet button:active{background:var(--dcx-accent-soft)}
