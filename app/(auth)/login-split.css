@@ -125,8 +125,10 @@
   padding: 12px 14px !important;
   border: 1px solid var(--ls-line-l) !important;
   border-radius: 11px !important;
-  font-size: 15px !important;
-  font-weight: 500 !important;
+  /* 20px regular across all three auth pages, so the fields read the same
+     everywhere and iOS never zooms the viewport on focus. */
+  font-size: 20px !important;
+  font-weight: 400 !important;
   color: var(--ls-ink-t);
 }
 .auth-scope.login-split .auth-input::placeholder {
@@ -507,9 +509,6 @@
   .auth-scope.login-split .ls-visual-side {
     order: 2;
   }
-  .auth-scope.login-split .auth-input {
-    font-size: 20px !important;
-  }
   .auth-scope.login-split .auth-input::placeholder {
     font-size: 20px;
   }
@@ -528,4 +527,162 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ---- register + forgot: shared additions -------------------------------- */
+
+/* The step components render a <Card>. On the split layout the white form side
+   is already the surface, so the card chrome is flattened away. */
+.auth-scope.login-split .auth-card {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.auth-scope.login-split .auth-card [data-slot="card-content"],
+.auth-scope.login-split .auth-card > div {
+  padding: 0 !important;
+}
+
+/* the auth-form gap inside steps, tightened to match the login rhythm */
+.auth-scope.login-split .auth-form {
+  gap: 15px;
+}
+
+/* step heading inside a step card */
+.auth-scope.login-split .auth-card h2 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--ls-ink-t);
+  text-align: right;
+  margin: 0 0 2px;
+  padding: 0 !important;
+}
+.auth-scope.login-split .auth-card h2 + p {
+  color: var(--ls-muted-l);
+  font-size: 14.5px;
+  text-align: right;
+  margin: 0 0 8px;
+}
+
+/* register step indicator ("שלב X מתוך 2") */
+.auth-scope.login-split .ls-steps {
+  margin-bottom: 22px;
+}
+.auth-scope.login-split .ls-step-ind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.auth-scope.login-split .ls-sdot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ls-line-l);
+  flex: none;
+  transition: background 0.25s ease;
+}
+.auth-scope.login-split .ls-sdot-on {
+  background: var(--ls-accent);
+}
+.auth-scope.login-split .ls-sbar {
+  flex: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ls-line-l);
+  overflow: hidden;
+}
+.auth-scope.login-split .ls-sbar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ls-accent);
+  border-radius: 999px;
+  transition: width 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.auth-scope.login-split .ls-sbar-full i {
+  width: 100%;
+}
+.auth-scope.login-split .ls-step-lbl {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ls-muted-l);
+}
+.auth-scope.login-split .ls-step-lbl b {
+  color: var(--ls-accent);
+  font-weight: 800;
+}
+
+/* consent checkboxes (legal + marketing) */
+.auth-scope.login-split .auth-checkbox-label {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--ls-muted-l) !important;
+  line-height: 1.5;
+}
+
+/* register step-2 select, styled like the inputs */
+.auth-scope.login-split select.auth-input,
+.auth-scope.login-split [data-slot="select-trigger"] {
+  font-size: 20px !important;
+  font-weight: 400 !important;
+  border-radius: 11px !important;
+  border-color: var(--ls-line-l) !important;
+  min-height: 0 !important;
+  padding: 12px 14px !important;
+  color: var(--ls-ink-t) !important;
+}
+
+/* "back to previous step" / secondary link under a step */
+.auth-scope.login-split .ls-step-alt {
+  text-align: center;
+  color: var(--ls-muted-l);
+  font-size: 14.5px;
+  margin-top: 18px;
+}
+.auth-scope.login-split .ls-step-alt a,
+.auth-scope.login-split .ls-step-alt .auth-link {
+  color: var(--ls-accent) !important;
+  font-weight: 700 !important;
+  font-size: 14.5px !important;
+}
+
+/* forgot success banner */
+.auth-scope.login-split .ls-success {
+  background: rgba(99, 214, 166, 0.12);
+  border: 1px solid rgba(99, 214, 166, 0.4);
+  color: #1f9d6b;
+  padding: 13px 15px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  line-height: 1.5;
+}
+
+/* step submit buttons (register uses .auth-primary-button) get the same
+   gradient skin as the login submit */
+.auth-scope.login-split .auth-primary-button {
+  width: 100%;
+  border: none !important;
+  cursor: pointer;
+  font-weight: 800 !important;
+  font-size: 16px !important;
+  color: #fff !important;
+  padding: 13px !important;
+  height: auto !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #6da0ce, var(--ls-accent)) !important;
+  box-shadow: 0 14px 30px -14px rgba(83, 137, 187, 0.7) !important;
+  transition: filter 0.2s ease, transform 0.2s ease !important;
+}
+.auth-scope.login-split .auth-primary-button:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.auth-scope.login-split .auth-primary-button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
