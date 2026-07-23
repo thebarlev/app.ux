@@ -13,12 +13,20 @@ import DocumentView, { type DocumentViewSnapshot } from "@/components/documents/
  * static segments first, so those keep working; only an unmatched segment such as
  * a document id reaches here.
  */
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function DocumentPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  // documents.id is a uuid column, so a non-uuid segment (e.g. /documents/1) makes
+  // Postgres raise a type error rather than return no rows. Reject it up front so
+  // it renders "מסמך לא נמצא" instead of surfacing as a database failure.
+  if (!UUID_RE.test(id)) notFound();
 
   const supabase = await createClient();
   const {
