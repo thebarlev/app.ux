@@ -1,14 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import { Download, Eye } from "lucide-react";
+import { Download, ArrowRight } from "lucide-react";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import { currencySymbol } from "@/lib/currency/symbol";
+import { downloadDocumentPdf } from "@/lib/documents/download-pdf";
+
+/**
+ * Document view — the destination behind /dashboard/documents/[id].
+ *
+ * Was DocumentsQuickViewDrawer, a floating Sheet opened from the documents list.
+ * It renders real content (line items, linked documents), which makes it a place
+ * you navigate INTO, so it is now a page: it has a URL, back works, and it can be
+ * refreshed or shared. Same content, same queries — only the Sheet chrome is gone.
+ */
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -18,7 +28,7 @@ const ITEM_DOCUMENT_TYPES = new Set(
   getAllDocumentConfigs().map((config) => config.dbValue)
 );
 
-export type DocumentsQuickViewDocumentSnapshot = {
+export type DocumentViewSnapshot = {
   id: string;
   document_number: string | null;
   document_type: string;
@@ -96,7 +106,7 @@ function formatLinkType(t: string): string {
 type UIStatus = "open" | "closed" | "canceling" | "canceled";
 
 function computeUiStatusFromDocAndLinks(params: {
-  doc: DocumentsQuickViewDocumentSnapshot | null;
+  doc: DocumentViewSnapshot | null;
   links: DocumentLinkLine[] | null;
 }): UIStatus {
   const { doc, links } = params;
@@ -152,19 +162,17 @@ function getStatusBadgeFromUi(status: UIStatus): { label: string; style: React.C
   }
 }
 
-export default function DocumentsQuickViewDrawer(props: {
-  open: boolean;
-  onClose: () => void;
-  documentId: string | null;
-  initialDoc?: DocumentsQuickViewDocumentSnapshot | null;
-  companyId?: string | null;
-  onViewDocument?: () => Promise<void> | void;
-  onOpenSummary?: () => Promise<void> | void;
-  onDownload?: () => Promise<void> | void;
+export default function DocumentView(props: {
+  documentId: string;
+  doc: DocumentViewSnapshot;
+  /** Where the back link points; the list the user most likely came from. */
+  backHref?: string;
 }) {
-  const doc = props.initialDoc || null;
+  const router = useRouter();
+  const doc = props.doc;
+  const backHref = props.backHref || "/dashboard/documents/all";
 
-  const [isMobile, setIsMobile] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [paymentsState, setPaymentsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
     message?: string;
@@ -177,13 +185,12 @@ export default function DocumentsQuickViewDrawer(props: {
     links?: DocumentLinkLine[];
   }>({ status: "idle" });
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const apply = () => setIsMobile(mq.matches);
-    apply();
-    mq.addEventListener?.("change", apply);
-    return () => mq.removeEventListener?.("change", apply);
-  }, []);
+  const summaryHref = useMemo(() => {
+    const config = DOCUMENT_CONFIGS_BY_DB.get(doc?.document_type || "");
+    if (!config) return null;
+    const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+    return `${basePath}/${config.routeSegment}/${props.documentId}/summary`;
+  }, [doc?.document_type, props.documentId]);
 
   const title = useMemo(() => {
     const typeLabel = getDocumentTypeLabel(doc?.document_type || "");
@@ -199,7 +206,7 @@ export default function DocumentsQuickViewDrawer(props: {
   const uiBadge = useMemo(() => getStatusBadgeFromUi(uiStatus), [uiStatus]);
 
   const reloadLinks = useCallback(async () => {
-    if (!props.open || !props.documentId) return;
+    if (!props.documentId) return;
     setLinksState({ status: "loading" });
 
     try {
@@ -236,10 +243,10 @@ export default function DocumentsQuickViewDrawer(props: {
     } catch (e: any) {
       setLinksState({ status: "error", message: e?.message || "שגיאה בטעינת שיוכים" });
     }
-  }, [props.open, props.documentId]);
+  }, [props.documentId]);
 
   useEffect(() => {
-    if (!props.open || !props.documentId) return;
+    if (!props.documentId) return;
     if (!doc?.document_type || !ITEM_DOCUMENT_TYPES.has(doc.document_type)) {
       setPaymentsState({ status: "idle" });
       return;
@@ -287,7 +294,7 @@ export default function DocumentsQuickViewDrawer(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.open, props.documentId, doc?.document_type]);
+  }, [props.documentId, doc?.document_type]);
 
   // Load document links (incoming + outgoing)
   useEffect(() => {
@@ -295,52 +302,44 @@ export default function DocumentsQuickViewDrawer(props: {
   }, [reloadLinks]);
 
   return (
-    <>
-      <Sheet
-        open={props.open}
-        onOpenChange={(next) => {
-          if (!next) props.onClose();
-        }}
-      >
-        <SheetContent
-          side={isMobile ? "bottom" : "right"}
-          className={cn(
-            // Move the built-in Sheet close (X) to the left side (opposite the RTL title),
-            // and reserve header space so it won't overlap the title text.
-            "flex flex-col bg-[#EDF1F5] z-[60] [&_[data-slot=sheet-close]]:left-4 [&_[data-slot=sheet-close]]:right-auto",
-            isMobile ? "h-[85vh] rounded-t-xl" : "w-full sm:max-w-md"
-          )}
+    <div dir="rtl" className="min-h-screen bg-[#EDF1F5]">
+      <div className="mx-auto w-full max-w-3xl px-4 py-6">
+        <Link
+          href={backHref}
+          className="mb-4 inline-flex items-center gap-2 text-[16px] text-muted-foreground hover:text-foreground"
         >
-          <div dir="rtl" className="flex h-full flex-col bg-[#EDF1F5]">
-            <SheetHeader className="flex-shrink-0 pl-14">
-              <SheetTitle className="text-right text-2xl font-bold">
-                <div className="flex items-center justify-end gap-2">
-                  <span
-                    className="ui-badge"
-                    style={{
-                      display: "inline-block",
-                      padding: "4px 10px",
-                      borderRadius: "999px",
-                      fontSize: "14px",
-                      fontWeight: 400,
-                      ...uiBadge.style,
-                    }}
-                    title="חיווי UI בלבד"
-                  >
-                    {uiBadge.label}
-                  </span>
-                  <span>{title}</span>
-                </div>
-              </SheetTitle>
+          <ArrowRight className="h-4 w-4" />
+          חזרה לרשימת המסמכים
+        </Link>
 
-            {doc ? (
-              <div className="text-right text-muted-foreground text-[18px]">
-                <span>תאריך מסמך: {formatDate(doc.document_date)}</span>
-              </div>
-            ) : null}
-          </SheetHeader>
+        <div className="mb-5">
+          <h1 className="text-right text-2xl font-bold">
+            <span className="flex flex-wrap items-center justify-end gap-2">
+              <span
+                className="ui-badge"
+                style={{
+                  display: "inline-block",
+                  padding: "4px 10px",
+                  borderRadius: "999px",
+                  fontSize: "14px",
+                  fontWeight: 400,
+                  ...uiBadge.style,
+                }}
+                title="חיווי UI בלבד"
+              >
+                {uiBadge.label}
+              </span>
+              <span>{title}</span>
+            </span>
+          </h1>
+          {doc ? (
+            <div className="mt-1 text-right text-muted-foreground text-[18px]">
+              <span>תאריך מסמך: {formatDate(doc.document_date)}</span>
+            </div>
+          ) : null}
+        </div>
 
-          <div className="flex-1 overflow-auto px-4 pb-4">
+        <div className="pb-4">
             {!doc ? (
               <div className="ui-alert-danger">
                 <div className="font-bold">שגיאה</div>
@@ -463,69 +462,41 @@ export default function DocumentsQuickViewDrawer(props: {
             )}
           </div>
 
-          <SheetFooter className="flex-shrink-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                {["receipt", "tax_invoice"].includes(doc?.document_type || "") && props.onOpenSummary ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={async () => {
-                      await props.onOpenSummary?.();
-                    }}
-                  >
-                    לעמוד המסמך
-                  </Button>
-                ) : null}
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {summaryHref ? (
+            <Button type="button" variant="secondary" onClick={() => router.push(summaryHref)}>
+              לעמוד המסמך
+            </Button>
+          ) : null}
 
-                {props.onViewDocument ? (
-                  <div className="relative group">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="צפייה במסמך"
-                      onClick={async () => {
-                        await props.onViewDocument?.();
-                      }}
-                    >
-                      <Eye className="h-5 w-5" />
-                    </Button>
-                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                        צפייה במסמך
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={async () => {
+              setDownloadError(null);
+              try {
+                await downloadDocumentPdf(
+                  props.documentId,
+                  `document-${doc?.document_number || props.documentId}.pdf`
+                );
+              } catch (e: any) {
+                setDownloadError(e?.message || "שגיאה בהורדת המסמך");
+              }
+            }}
+          >
+            <Download className="ml-2 h-5 w-5" />
+            הורדה
+          </Button>
+        </div>
 
-                {props.onDownload ? (
-                  <div className="relative group">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="הורדה"
-                      onClick={async () => {
-                        await props.onDownload?.();
-                      }}
-                    >
-                      <Download className="h-5 w-5" />
-                    </Button>
-                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
-                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
-                        הורדה
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            </SheetFooter>
+        {downloadError ? (
+          <div className="ui-alert-danger mt-3" role="alert">
+            <div className="font-bold">שגיאה</div>
+            <div className="mt-2">{downloadError}</div>
           </div>
-        </SheetContent>
-      </Sheet>
-    </>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

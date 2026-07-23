@@ -13,7 +13,6 @@ import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
 import { Eye, Download, GitBranchPlus, XCircle, X } from "lucide-react";
-import DocumentsQuickViewDrawer, { type DocumentsQuickViewDocumentSnapshot } from "@/components/documents/DocumentsQuickViewDrawer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,9 +216,6 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
   const [bulkDownloading, setBulkDownloading] = useState(false);
 
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [selectedDocSnapshot, setSelectedDocSnapshot] = useState<DocumentsQuickViewDocumentSnapshot | null>(null);
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [closeConfirmDocumentId, setCloseConfirmDocumentId] = useState<string | null>(null);
   const [closeConfirmLoading, setCloseConfirmLoading] = useState(false);
   const [cancelConfirmSource, setCancelConfirmSource] = useState<any | null>(null);
@@ -616,9 +612,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
     if (!openDocumentId || lastOpenedRef.current === openDocumentId) return;
     const doc = documents.find((d) => d.id === openDocumentId);
     if (!doc) return;
-    setSelectedDocumentId(doc.id);
-    setSelectedDocSnapshot(doc);
-    setIsQuickViewOpen(true);
+    router.push(`/dashboard/documents/${doc.id}`);
     lastOpenedRef.current = openDocumentId;
   }, [documents, openDocumentId]);
 
@@ -1603,9 +1597,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                               router.push(`${basePath}/${config.routeSegment}/${doc.id}/summary`);
                               return;
                             }
-                            setSelectedDocumentId(doc.id);
-                            setSelectedDocSnapshot(doc);
-                            setIsQuickViewOpen(true);
+                            router.push(`/dashboard/documents/${doc.id}`);
                           }}
                           style={{
                             background: "transparent",
@@ -1692,9 +1684,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                               size="icon"
                               aria-label="צפייה"
                               onClick={() => {
-                                setSelectedDocumentId(doc.id);
-                                setSelectedDocSnapshot(doc);
-                                setIsQuickViewOpen(true);
+                                router.push(`/dashboard/documents/${doc.id}`);
                               }}
                             >
                               <Eye className="h-5 w-5" />
@@ -1791,68 +1781,6 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
         </FormSection>
       </div>
 
-      <DocumentsQuickViewDrawer
-        open={isQuickViewOpen}
-        onClose={() => setIsQuickViewOpen(false)}
-        documentId={selectedDocumentId}
-        initialDoc={selectedDocSnapshot}
-        companyId={companyId}
-        onDownload={selectedDocumentId ? async () => {
-          try {
-            await downloadDocumentPdf(selectedDocumentId, `document-${selectedDocSnapshot?.document_number || selectedDocumentId}.pdf`);
-          } catch (e: any) {
-            alert(e?.message || "שגיאה בהורדת המסמך");
-          }
-        } : undefined}
-        onOpenSummary={
-          selectedDocSnapshot?.document_type && selectedDocumentId
-            ? async () => {
-                setIsQuickViewOpen(false);
-                const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
-                if (!config) return;
-                const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
-                agentLogNav({
-                  location: "DocumentsListClient.tsx:onOpenSummary",
-                  message: "Navigate to summary from drawer open summary",
-                  data: {
-                    documentId: selectedDocumentId,
-                    documentType: selectedDocSnapshot.document_type,
-                    category: config.category,
-                    basePath,
-                    routeSegment: config.routeSegment,
-                  },
-                  timestamp: Date.now(),
-                  hypothesisId: "H_NAV_BASEPATH",
-                });
-                router.push(`${basePath}/${config.routeSegment}/${selectedDocumentId}/summary`);
-              }
-            : undefined
-        }
-        onViewDocument={
-          selectedDocSnapshot?.document_type && selectedDocumentId
-            ? async () => {
-                setIsQuickViewOpen(false);
-                const config = DOCUMENT_CONFIGS_BY_DB.get(selectedDocSnapshot.document_type);
-                if (!config) return;
-                const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
-                agentLogNav({
-                  location: "DocumentsListClient.tsx:onViewDocument",
-                  message: "Navigate to summary from drawer eye button",
-                  data: {
-                    documentId: selectedDocumentId,
-                    documentType: selectedDocSnapshot.document_type,
-                    category: config.category,
-                    basePath,
-                    routeSegment: config.routeSegment,
-                  },
-                  timestamp: Date.now(),
-                  hypothesisId: "H_NAV_BASEPATH",
-                });
-                router.push(`${basePath}/${config.routeSegment}/${selectedDocumentId}/summary`);
-              }
-            : undefined
-        }
-      />
 
       {closeConfirmDocumentId && (
         <div
