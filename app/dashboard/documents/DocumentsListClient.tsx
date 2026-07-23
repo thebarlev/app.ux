@@ -37,6 +37,20 @@ const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
 );
 
+/**
+ * The real document page — the same "לעמוד המסמך" / number-click target
+ * (…/<routeSegment>/<id>/summary). "צפייה" and every other document open must land
+ * here, NOT on the general-overview page (/dashboard/documents/[id]), which is not
+ * the compliant invoice. Returns null for an unknown type; callers fall back to a
+ * list rather than the overview page.
+ */
+function documentSummaryHref(documentType: string, id: string): string | null {
+  const config = DOCUMENT_CONFIGS_BY_DB.get(documentType);
+  if (!config) return null;
+  const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
+  return `${basePath}/${config.routeSegment}/${id}/summary`;
+}
+
 function agentLogNav(payload: any) {
   // #region agent log
   fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
@@ -612,7 +626,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
     if (!openDocumentId || lastOpenedRef.current === openDocumentId) return;
     const doc = documents.find((d) => d.id === openDocumentId);
     if (!doc) return;
-    router.push(`/dashboard/documents/${doc.id}`);
+    router.push(documentSummaryHref(doc.document_type, doc.id) || "/dashboard/documents/income");
     lastOpenedRef.current = openDocumentId;
   }, [documents, openDocumentId]);
 
@@ -1597,7 +1611,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                               router.push(`${basePath}/${config.routeSegment}/${doc.id}/summary`);
                               return;
                             }
-                            router.push(`/dashboard/documents/${doc.id}`);
+                            router.push("/dashboard/documents/income");
                           }}
                           style={{
                             background: "transparent",
@@ -1684,7 +1698,7 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                               size="icon"
                               aria-label="צפייה"
                               onClick={() => {
-                                router.push(`/dashboard/documents/${doc.id}`);
+                                router.push(documentSummaryHref(doc.document_type, doc.id) || "/dashboard/documents/income");
                               }}
                             >
                               <Eye className="h-5 w-5" />

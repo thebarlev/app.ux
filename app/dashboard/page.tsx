@@ -199,7 +199,7 @@ export default async function DashboardPage() {
               {recentDocs.map((d) => (
                 <tr key={d.id}>
                   <td className="dcx-cust">{d.customerId ? <Link className="dcx-lnk" href={`/dashboard/customers/${d.customerId}`}>{d.customerName || "—"}</Link> : <span>{d.customerName || "—"}</span>}</td>
-                  <td><Link className="dcx-lnk dcx-doc-c" href={`/dashboard/documents/${d.id}`}>{d.typeLabel} {d.number}</Link></td>
+                  <td><Link className="dcx-lnk dcx-doc-c" href={d.href || "/dashboard/documents/income"}>{d.typeLabel} {d.number}</Link></td>
                   <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber || ""}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
                   <td><span className={`dcx-st ${d.status}`}>{d.status === "paid" ? "שולם" : "ממתין"}</span></td>

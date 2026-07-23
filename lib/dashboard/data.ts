@@ -2,6 +2,22 @@ import "server-only"
 
 import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
+import { getAllDocumentConfigs } from "@/lib/documents/document-configs"
+
+const DOC_CONFIG_BY_DB = new Map(getAllDocumentConfigs().map((c) => [c.dbValue, c]))
+
+/**
+ * The real document page (…/<routeSegment>/<id>/summary) — the same target as the
+ * documents-list number click and the "צפייה" action. NOT /dashboard/documents/[id],
+ * which is the general-overview page, not the compliant invoice. Null for an
+ * unknown type.
+ */
+function documentSummaryHref(documentType: string, id: string): string | null {
+  const config = DOC_CONFIG_BY_DB.get(documentType)
+  if (!config) return null
+  const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents"
+  return `${basePath}/${config.routeSegment}/${id}/summary`
+}
 
 // Revenue-generating income document types (DB snake_case).
 const INCOME_TYPES = ["tax_invoice", "invoice_receipt", "receipt"]
@@ -59,6 +75,8 @@ export type DashboardData = {
     number: string
     type: string
     typeLabel: string
+    /** Link to the real document page; null when the type has no configured route. */
+    href: string | null
     customerName: string
     customerId: string | null
     allocationNumber: string | null
@@ -222,6 +240,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
       number: String(d.document_number || ""),
       type: t,
       typeLabel: TYPE_LABELS[t] || t,
+      href: documentSummaryHref(t, String(d.id)),
       customerName: (cid && customerNameById.get(cid)) || String(d.customer_name || ""),
       customerId: cid,
       allocationNumber: d.allocation_number ? String(d.allocation_number) : null,
