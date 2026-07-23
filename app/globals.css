@@ -1697,3 +1697,20 @@ body[style*="padding-left"] {
 [data-radix-scroll-area-viewport] {
   overflow-y: auto !important;
 }
+
+/* =====================================================
+   App-owned scroll lock for overlays (lib/ui/scroll-lock.ts)
+   =====================================================
+   Class-based on purpose. The anti-Radix hack above,
+   `body[style*="overflow"] { overflow: auto !important }`, force-reverts ANY
+   inline overflow on <body> — an !important stylesheet rule outranks a
+   non-important inline style — which silently defeated the previous
+   inline-style lock and let the page scroll behind the starting-number modal.
+   A class sets no inline `style`, so that selector cannot match it.
+   Must stay last: it has to outrank the hacks above (it also wins on
+   specificity, 0-1-2 vs 0-1-1, so order alone is not load-bearing). */
+html.ux-scroll-locked,
+html.ux-scroll-locked body {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}

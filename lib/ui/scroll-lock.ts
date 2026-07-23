@@ -5,33 +5,33 @@
  * lock/unlock pair would let the first one to close restore scrolling while
  * another is still up.
  *
- * Locks BOTH documentElement and body: components/ScrollLockFix.tsx runs a
- * MutationObserver that forces `overflow: auto !important` back onto <body>
- * whenever something sets it to hidden. It only watches <body> attributes, so
- * the <html> lock survives it. ScrollLockFix is not mounted on the dashboard
- * chrome today, but locking both keeps this correct if that ever changes.
+ * Deliberately CLASS-based, not inline styles. app/globals.css carries anti-Radix
+ * hacks that actively fight inline scroll locks:
+ *   body[style*="overflow"] { overflow: auto !important }
+ * An `!important` stylesheet declaration beats a non-important inline style, so
+ * setting body.style.overflow = "hidden" was silently reverted — which is why the
+ * background still scrolled behind the starting-number modal. A class carries no
+ * inline `style` attribute, so that selector never matches it.
+ * components/ScrollLockFix.tsx watches <body> style/class attributes too, hence
+ * the lock is driven from <html>, which it does not observe.
+ *
+ * The matching CSS lives at the end of app/globals.css (`html.ux-scroll-locked`).
  */
 
+const LOCK_CLASS = "ux-scroll-locked"
+
 let locks = 0
-let prevHtmlOverflow = ""
-let prevBodyOverflow = ""
 
 export function lockBodyScroll(): void {
   if (typeof document === "undefined") return
-  if (locks === 0) {
-    prevHtmlOverflow = document.documentElement.style.overflow
-    prevBodyOverflow = document.body.style.overflow
-    document.documentElement.style.overflow = "hidden"
-    document.body.style.overflow = "hidden"
-  }
   locks += 1
+  document.documentElement.classList.add(LOCK_CLASS)
 }
 
 export function unlockBodyScroll(): void {
   if (typeof document === "undefined") return
   locks = Math.max(0, locks - 1)
   if (locks === 0) {
-    document.documentElement.style.overflow = prevHtmlOverflow
-    document.body.style.overflow = prevBodyOverflow
+    document.documentElement.classList.remove(LOCK_CLASS)
   }
 }
