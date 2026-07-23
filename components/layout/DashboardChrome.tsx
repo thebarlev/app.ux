@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { logoutAction } from "@/app/dashboard/actions"
@@ -99,9 +100,6 @@ const Ic = {
   ),
   menu: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
-  ),
-  spark: (
-    <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.4 6.8L21 11l-6.6 2.2L12 20l-2.4-6.8L3 11l6.6-2.2z" /></svg>
   ),
 }
 
@@ -343,8 +341,26 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
       {/* ===== DESKTOP SIDEBAR ===== */}
       <aside className="dcx-sidebar" aria-label="ניווט ראשי">
         <div className="dcx-brand">
-          <span className="dcx-spark" aria-hidden="true">{Ic.spark}</span>
-          <span className="dcx-brand-t">UXellent</span>
+          <Image
+            className="dcx-logo dcx-logo-full"
+            src="/brand/vow_white.svg"
+            alt="Uxellent"
+            width={135}
+            height={36}
+            priority
+          />
+          {/* Minimised sidebar is 74px wide — the wordmark would be illegible, so
+              the square mark stands in for it. Decorative: the full logo above
+              already carries the accessible name. */}
+          <Image
+            className="dcx-logo dcx-logo-mark"
+            src="/brand/icon.svg"
+            alt=""
+            aria-hidden="true"
+            width={36}
+            height={36}
+            priority
+          />
         </div>
 
         <nav className="dcx-nav" ref={navRef}>
@@ -518,8 +534,11 @@ const DCX_CSS = `
   background:linear-gradient(180deg,#5f97c6,#4d81b0);color:#fff;padding:20px 15px;display:flex;flex-direction:column;
   box-shadow:0 10px 30px rgba(60,110,160,.25);z-index:50}
 .dcx-sidebar{transition:width .22s cubic-bezier(.2,.8,.2,1)}
-.dcx-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;color:#fff;margin:2px 6px 20px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden}
-.dcx-spark{width:22px;height:22px;display:inline-flex;flex-shrink:0}.dcx-spark svg{width:22px;height:22px}
+.dcx-brand{display:flex;align-items:center;margin:2px 6px 22px;min-height:36px}
+/* vow_white.svg is white text with a #5389BB mark — that blue sits too close to the
+   sidebar gradient to read, so the logo is forced to solid white. */
+.dcx-logo{filter:brightness(0) invert(1);height:36px;width:auto;display:block}
+.dcx-logo-mark{display:none}
 /* overflow must stay visible: the sub-menu flyouts escape the nav box. */
 .dcx-nav{display:flex;flex-direction:column;gap:3px;overflow:visible}
 .dcx-nav-item{display:flex;flex-direction:column;position:relative}
@@ -585,8 +604,9 @@ const DCX_CSS = `
 /* --- Minimised sidebar (icons only) --- */
 .dcx-root.collapsed .dcx-sidebar{width:74px;padding:20px 11px}
 .dcx-root.collapsed .dcx-main{margin-right:105px}
-.dcx-root.collapsed .dcx-brand{justify-content:center;margin:2px 0 20px}
-.dcx-root.collapsed .dcx-brand-t,
+.dcx-root.collapsed .dcx-brand{justify-content:center;margin:2px 0 22px}
+.dcx-root.collapsed .dcx-logo-full{display:none}
+.dcx-root.collapsed .dcx-logo-mark{display:block;height:34px;width:34px}
 .dcx-root.collapsed .dcx-nav-t,
 .dcx-root.collapsed .dcx-chev{display:none}
 .dcx-root.collapsed .dcx-nav-link{justify-content:center;padding:12px 0;gap:0}
