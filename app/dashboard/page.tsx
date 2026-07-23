@@ -199,8 +199,8 @@ export default async function DashboardPage() {
               {recentDocs.map((d) => (
                 <tr key={d.id}>
                   <td className="dcx-cust">{d.customerId ? <Link className="dcx-lnk" href={`/dashboard/customers/${d.customerId}`}>{d.customerName || "—"}</Link> : <span>{d.customerName || "—"}</span>}</td>
-                  <td><Link className="dcx-lnk dcx-doc-c" href="/dashboard/documents/all">{d.typeLabel} {d.number}</Link></td>
-                  <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber ? d.allocationNumber : "לא נדרש"}</td>
+                  <td><Link className="dcx-lnk dcx-doc-c" href={`/dashboard/documents/${d.id}`}>{d.typeLabel} {d.number}</Link></td>
+                  <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber || ""}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
                   <td><span className={`dcx-st ${d.status}`}>{d.status === "paid" ? "שולם" : "ממתין"}</span></td>
                   <td className="dcx-numc">{heDate(d.date)}</td>
@@ -262,7 +262,9 @@ const DASH_CSS = `
 .dcx-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .dcx-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
 .dcx-tbl th{text-align:right;color:var(--dcx-muted);font-weight:600;font-size:12.5px;padding:9px 12px;border-bottom:1px solid var(--dcx-line);white-space:nowrap}
-.dcx-tbl td{padding:13px 12px;border-bottom:1px solid var(--dcx-line);color:var(--dcx-ink-2);white-space:nowrap}
+/* Every cell's text is 16px. Sub-elements below that set their own size
+   (the status pill) are bumped to match, so the whole row reads uniformly. */
+.dcx-tbl td{padding:13px 12px;border-bottom:1px solid var(--dcx-line);color:var(--dcx-ink-2);white-space:nowrap;font-size:16px}
 .dcx-tbl tr:last-child td{border-bottom:none}
 .dcx-tbl tbody tr{transition:.12s}.dcx-tbl tbody tr:hover{background:#F7F9FC}
 .dcx-lnk{color:var(--dcx-ink);font-weight:700;text-decoration:none}.dcx-tbl tbody tr:hover .dcx-lnk{color:var(--dcx-accent);text-decoration:underline}
@@ -272,7 +274,7 @@ const DASH_CSS = `
 .dcx-numc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 .dcx-alloc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right;font-weight:700;color:var(--dcx-ink)}
 .dcx-alloc.none{color:var(--dcx-muted);font-weight:600}
-.dcx-st{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px}
+.dcx-st{font-size:16px;font-weight:700;padding:3px 12px;border-radius:20px}
 .dcx-st.paid{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.wait{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
 @media(max-width:900px){
   .dcx-dash{padding:16px 16px 24px}
@@ -280,7 +282,6 @@ const DASH_CSS = `
   .dcx-shaam{max-width:100%}
   .dcx-kpis{grid-template-columns:repeat(2,1fr)}
   .dcx-kpi{padding:14px 13px}.dcx-k-val{font-size:21px}
-  .dcx-tbl{font-size:15.5px}
 }
 @media(prefers-reduced-motion:reduce){
   .dcx-line{animation:none;stroke-dashoffset:0}.dcx-mon-track i{animation:none}

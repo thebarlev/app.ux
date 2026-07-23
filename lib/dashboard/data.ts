@@ -189,18 +189,41 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     .reverse()
 
   // ── Recent documents ──
-  const recentDocs = docs.slice(0, 8).map((d: any) => {
+  const recent = docs.slice(0, 8)
+
+  // documents.customer_name can hold a stale value or an email (same bug already
+  // fixed in the forms). Resolve the real name from the customers table by id and
+  // prefer it; fall back to the document's stored name only when there is no
+  // customer_id to resolve against.
+  const recentCustomerIds = Array.from(
+    new Set(recent.map((d: any) => d.customer_id).filter(Boolean).map(String))
+  )
+  const customerNameById = new Map<string, string>()
+  if (recentCustomerIds.length > 0) {
+    const { data: custRows } = await supabase
+      .from("customers")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .in("id", recentCustomerIds)
+    for (const c of custRows || []) {
+      const nm = String((c as any).name || "").trim()
+      if (nm) customerNameById.set(String((c as any).id), nm)
+    }
+  }
+
+  const recentDocs = recent.map((d: any) => {
     const t = String(d.document_type || "")
     const outstanding = num(d.outstanding_balance)
     const total = num(d.total_amount)
     const requiresAlloc = isIncome(t)
+    const cid = d.customer_id ? String(d.customer_id) : null
     return {
       id: String(d.id),
       number: String(d.document_number || ""),
       type: t,
       typeLabel: TYPE_LABELS[t] || t,
-      customerName: String(d.customer_name || ""),
-      customerId: d.customer_id ? String(d.customer_id) : null,
+      customerName: (cid && customerNameById.get(cid)) || String(d.customer_name || ""),
+      customerId: cid,
       allocationNumber: d.allocation_number ? String(d.allocation_number) : null,
       total,
       status: (outstanding > 0.005 ? "wait" : "paid") as "paid" | "wait",

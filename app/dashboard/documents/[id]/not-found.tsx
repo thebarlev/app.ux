@@ -12,7 +12,7 @@ import { ArrowRight } from "lucide-react";
  */
 export default function DocumentNotFound() {
   return (
-    <div dir="rtl" className="min-h-screen bg-[#EDF1F5]">
+    <div dir="rtl" className="min-h-screen bg-white">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <Link
           href="/dashboard/documents/income"
@@ -22,7 +22,7 @@ export default function DocumentNotFound() {
           חזרה לרשימת המסמכים
         </Link>
 
-        <div className="flex flex-col items-center justify-center rounded-xl bg-white px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-[#E9ECF2] bg-white px-6 py-16 text-center">
           <h1 className="mb-3 text-2xl font-bold text-fg">מסמך לא נמצא</h1>
           <p className="mb-8 text-lg text-muted-fg">
             המסמך המבוקש אינו קיים, נמחק, או שאינו שייך לעסק שלך.

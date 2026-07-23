@@ -319,7 +319,7 @@ export default function DocumentView(props: {
   }, [reloadLinks]);
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#EDF1F5]">
+    <div dir="rtl" className="min-h-screen bg-white">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <button
           type="button"
