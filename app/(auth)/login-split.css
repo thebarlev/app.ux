@@ -215,13 +215,13 @@
 .auth-scope.login-split .ls-alt {
   text-align: center;
   color: var(--ls-muted-l);
-  font-size: 14.5px;
+  font-size: 14px;
   margin-top: 20px;
 }
 .auth-scope.login-split .ls-alt-link {
   color: var(--ls-accent) !important;
   font-weight: 700 !important;
-  font-size: 14.5px !important;
+  font-size: 14px !important;
   text-decoration: none !important;
 }
 .auth-scope.login-split .ls-alt-link:hover {
@@ -617,7 +617,7 @@
 
 /* consent checkboxes (legal + marketing) */
 .auth-scope.login-split .auth-checkbox-label {
-  font-size: 13px !important;
+  font-size: 14px !important;
   font-weight: 400 !important;
   color: var(--ls-muted-l) !important;
   line-height: 1.5;
