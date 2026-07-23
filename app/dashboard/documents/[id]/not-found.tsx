@@ -15,7 +15,7 @@ export default function DocumentNotFound() {
     <div dir="rtl" className="min-h-screen bg-[#EDF1F5]">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <Link
-          href="/dashboard/documents/all"
+          href="/dashboard/documents/income"
           className="mb-4 inline-flex items-center gap-2 text-[16px] text-muted-foreground hover:text-foreground"
         >
           <ArrowRight className="h-4 w-4" />
@@ -28,7 +28,7 @@ export default function DocumentNotFound() {
             המסמך המבוקש אינו קיים, נמחק, או שאינו שייך לעסק שלך.
           </p>
           <Link
-            href="/dashboard/documents/all"
+            href="/dashboard/documents/income"
             className="rounded-ui bg-primary px-6 py-3 text-base font-bold text-primary-fg transition-colors hover:bg-primary-hover"
           >
             לרשימת המסמכים

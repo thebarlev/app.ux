@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,7 +169,25 @@ export default function DocumentView(props: {
 }) {
   const router = useRouter();
   const doc = props.doc;
-  const backHref = props.backHref || "/dashboard/documents/all";
+  // NOT /dashboard/documents/all — that route is still a stub with no list.
+  const backHref = props.backHref || "/dashboard/documents/income";
+
+  // Prefer real history so the user lands back on the exact list and filters they
+  // came from. Fall back for deep links (fresh tab, shared URL) and when the
+  // previous entry is outside the app, where back() would leave the site.
+  const handleBack = () => {
+    try {
+      const ref = document.referrer;
+      const cameFromApp = !!ref && new URL(ref).origin === window.location.origin;
+      if (cameFromApp && window.history.length > 1) {
+        router.back();
+        return;
+      }
+    } catch {
+      // fall through to the fallback route
+    }
+    router.push(backHref);
+  };
 
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [paymentsState, setPaymentsState] = useState<{
@@ -304,13 +321,14 @@ export default function DocumentView(props: {
   return (
     <div dir="rtl" className="min-h-screen bg-[#EDF1F5]">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
-        <Link
-          href={backHref}
+        <button
+          type="button"
+          onClick={handleBack}
           className="mb-4 inline-flex items-center gap-2 text-[16px] text-muted-foreground hover:text-foreground"
         >
           <ArrowRight className="h-4 w-4" />
           חזרה לרשימת המסמכים
-        </Link>
+        </button>
 
         <div className="mb-5">
           <h1 className="text-right text-2xl font-bold">
