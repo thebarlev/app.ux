@@ -215,7 +215,7 @@
 .auth-scope.login-split .ls-alt {
   text-align: center;
   color: var(--ls-muted-l);
-  font-size: 14px;
+  font-size: 14px !important;
   margin-top: 20px;
 }
 .auth-scope.login-split .ls-alt-link {
@@ -511,6 +511,20 @@
   }
   .auth-scope.login-split .auth-input::placeholder {
     font-size: 20px;
+  }
+
+  /*
+   * The consent labels and the "already have an account?" line must stay 14px
+   * on mobile too. This explicit, high-specificity, media-scoped !important
+   * rule wins over any base or mobile rule, and text-size-adjust: 100% stops
+   * mobile browsers from inflating the rendered glyphs above the set size.
+   */
+  .auth-scope.login-split .auth-checkbox-label,
+  .auth-scope.login-split .ls-alt,
+  .auth-scope.login-split .ls-alt-link {
+    font-size: 14px !important;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 }
 
