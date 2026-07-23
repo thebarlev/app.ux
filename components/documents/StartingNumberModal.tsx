@@ -107,33 +107,36 @@ export default function StartingNumberModal({
         aria-describedby="modal-description"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 p-5 sm:p-[30px] pb-0">
-          <div className="flex items-start gap-4 flex-1">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[5px] bg-primary/10 flex-shrink-0">
-              <Hash className="h-6 w-6 text-primary" />
+        {/* Header — the close button is taken out of flow so it never competes with
+            the title for width. On mobile the icon sits on its own row and the
+            title/description get the modal's full width; from sm up they sit beside
+            the icon, with left padding to clear the absolutely-positioned X.
+            A plain <button> is used because cn() is a plain join (no tailwind-merge),
+            so Button's size="icon" (50×50) cannot be reliably overridden. */}
+        <div className="relative p-5 sm:p-[30px] pb-0">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            aria-label="סגור חלון"
+            className="absolute top-3 left-3 sm:top-5 sm:left-5 inline-flex h-9 w-9 items-center justify-center rounded-[5px] text-current opacity-70 transition hover:bg-black/5 hover:opacity-100 disabled:opacity-40"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:gap-4 sm:pl-14">
+            <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-[5px] bg-primary/10 flex-shrink-0">
+              <Hash className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
-            <div className="flex-1 min-w-0">
-              <h2 id="modal-title" className="mb-2">
+            <div className="w-full min-w-0 sm:flex-1">
+              <h2 id="modal-title" className="mb-2 w-full text-right">
                 בחירת מספר מסמך ראשון
               </h2>
-              <p id="modal-description" className="leading-relaxed">
+              <p id="modal-description" className="w-full text-right leading-relaxed">
                 זוהי פעולה חד-פעמית. לאחר בחירת המספר הראשון, המיספור ימשיך אוטומטית ולא ניתן יהיה לשנותו.
               </p>
             </div>
           </div>
-          <Button
-            ref={closeButtonRef}
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            disabled={loading}
-            aria-label="סגור חלון"
-            className="flex-shrink-0"
-          >
-            <X className="h-5 w-5" />
-          </Button>
         </div>
 
         {/* Content */}

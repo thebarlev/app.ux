@@ -523,7 +523,9 @@ const DCX_CSS = `
 /* overflow must stay visible: the sub-menu flyouts escape the nav box. */
 .dcx-nav{display:flex;flex-direction:column;gap:3px;overflow:visible}
 .dcx-nav-item{display:flex;flex-direction:column;position:relative}
-.dcx-nav-link{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;color:#F0F5FA;text-decoration:none;font-weight:600;font-size:20px;cursor:pointer;transition:background .15s,color .15s;background:none;border:none;width:100%;text-align:right;font-family:inherit;white-space:nowrap}
+/* Regular items are 20px regular-weight — semi-bold at this size read as bloated.
+   The active item keeps 600 + brand blue (see the .active rules below). */
+.dcx-nav-link{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;color:#F0F5FA;text-decoration:none;font-weight:400;font-size:20px;cursor:pointer;transition:background .15s,color .15s;background:none;border:none;width:100%;text-align:right;font-family:inherit;white-space:nowrap}
 .dcx-nav-t{overflow:hidden;text-overflow:ellipsis}
 .dcx-nav-ic{display:inline-flex;flex-shrink:0}.dcx-nav-link svg{width:20px;height:20px;flex-shrink:0}
 .dcx-chev{margin-inline-start:auto;width:17px !important;height:17px !important;transition:transform .25s}
@@ -573,7 +575,7 @@ const DCX_CSS = `
 /* expands in place — no inner scrolling */
 .dcx-more-list{display:flex;flex-direction:column}
 .dcx-side-bottom{display:flex;flex-direction:column;gap:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18)}
-.dcx-side-bottom a,.dcx-side-bottom button{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:#EAF2F9;text-decoration:none;font-weight:600;font-size:16px;background:none;border:none;cursor:pointer;font-family:inherit;width:100%;text-align:right;white-space:nowrap}
+.dcx-side-bottom a,.dcx-side-bottom button{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:#EAF2F9;text-decoration:none;font-weight:400;font-size:16px;background:none;border:none;cursor:pointer;font-family:inherit;width:100%;text-align:right;white-space:nowrap}
 .dcx-side-bottom a:hover,.dcx-side-bottom button:hover{background:rgba(255,255,255,.16)}
 .dcx-side-bottom a.active{background:rgba(255,255,255,.2)}
 .dcx-side-bottom svg{width:18px;height:18px;flex-shrink:0}
