@@ -51,8 +51,33 @@ const Ic = {
   fileCredit: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M8 13l3 3 5-6" /></svg>
   ),
+  // RTL: collapsed points LEFT (toward the content), rotates to point DOWN when open.
   moreChev: (
-    <svg className="dcx-more-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+    <svg className="dcx-more-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
+  ),
+  collapse: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
+  ),
+  expand: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
+  ),
+  workOrder: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m8.5 15 1.5 1.5 3-3" /></svg>
+  ),
+  delivery: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 3h13v13H1z" /><path d="M14 8h4l3 3v5h-7z" /><circle cx="6" cy="18.5" r="2" /><circle cx="17" cy="18.5" r="2" /></svg>
+  ),
+  returnNote: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-15-6.7L3 13" /></svg>
+  ),
+  purchase: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="20" r="1.5" /><circle cx="18" cy="20" r="1.5" /><path d="M2 3h3l2.6 12.4a1.5 1.5 0 0 0 1.5 1.1h8.4a1.5 1.5 0 0 0 1.5-1.2L22 7H6" /></svg>
+  ),
+  selfInvoice: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><circle cx="12" cy="15" r="2.5" /></svg>
+  ),
+  selfCreditNote: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 15h6" /><circle cx="12" cy="15" r="4" /></svg>
   ),
   receipt: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M2 10h20" /></svg>
@@ -122,14 +147,18 @@ const PRIMARY_DOCS: { href: string; label: string; icon: React.ReactNode }[] = [
   { href: "/business/documents/new/quote", label: "הצעת מחיר", icon: Ic.quote },
   { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)", icon: Ic.proforma },
 ]
-const MORE_DOCS: { href: string; label: string }[] = [
-  { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
-  { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
-  { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
-  { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
-  { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
-  { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
+// Same shape (and same `dcx-doc-a` rendering) as PRIMARY_DOCS so spacing/icons match exactly.
+const MORE_DOCS: { href: string; label: string; icon: React.ReactNode }[] = [
+  { href: "/business/documents/new/workOrder", label: "הזמנת עבודה", icon: Ic.workOrder },
+  { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח", icon: Ic.delivery },
+  { href: "/business/documents/new/returnNote", label: "תעודת החזרה", icon: Ic.returnNote },
+  { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש", icon: Ic.purchase },
+  { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית", icon: Ic.selfInvoice },
+  { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית", icon: Ic.selfCreditNote },
 ]
+
+/** Shared with the production layout so the minimise preference carries over. */
+const SIDEBAR_LS_KEY = "docsSidebarPinnedCollapsed"
 
 function isActive(pathname: string, href?: string) {
   if (!href) return false
@@ -139,9 +168,16 @@ function anyChildActive(pathname: string, item: NavItem) {
   return !!item.subItems?.some((s) => pathname === s.href)
 }
 
-/** New-document list: 6 primary types + a collapsible "מסמכים נוספים" group. */
-function DocList({ onSelect }: { onSelect: () => void }) {
+/**
+ * New-document list: 6 primary types + a collapsible "מסמכים נוספים" group.
+ *
+ * The "more" items render with the SAME `dcx-doc-a` markup + icons as the primary
+ * ones, so spacing is identical, and the group expands in place (no inner scroll).
+ * `id` keeps the aria-controls unique between the desktop menu and the mobile sheet.
+ */
+function DocList({ id, onSelect }: { id: string; onSelect: () => void }) {
   const [moreOpen, setMoreOpen] = React.useState(false)
+  const listId = `dcx-more-list-${id}`
   return (
     <>
       {PRIMARY_DOCS.map((d) => (
@@ -155,19 +191,22 @@ function DocList({ onSelect }: { onSelect: () => void }) {
           type="button"
           className="dcx-more-toggle"
           aria-expanded={moreOpen}
-          aria-controls="dcx-more-list"
+          aria-controls={listId}
           onClick={() => setMoreOpen((v) => !v)}
         >
           מסמכים נוספים
           {Ic.moreChev}
         </button>
-        <div className="dcx-more-list" id="dcx-more-list" role="group" aria-label="מסמכים נוספים">
-          {MORE_DOCS.map((d) => (
-            <Link key={d.href} href={d.href} role="menuitem" className="dcx-doc-a" onClick={onSelect}>
-              {d.label}
-            </Link>
-          ))}
-        </div>
+        {moreOpen && (
+          <div className="dcx-more-list" id={listId} role="group" aria-label="מסמכים נוספים">
+            {MORE_DOCS.map((d) => (
+              <Link key={d.href} href={d.href} role="menuitem" className="dcx-doc-a" onClick={onSelect}>
+                <span aria-hidden="true">{d.icon}</span>
+                {d.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </>
   )
@@ -179,39 +218,73 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
   // Receipt preview is a full-screen view — render children with no chrome.
   const isReceiptPreview = pathname.startsWith("/dashboard/documents/receipt/preview")
 
-  // Which accordion is open (single-open). Default-open the section whose child is active.
-  const initialOpen =
-    NAV.find((n) => n.subItems && anyChildActive(pathname, n))?.key ?? null
-  const [openAcc, setOpenAcc] = React.useState<string | null>(initialOpen)
+  // Which sub-menu flyout is open (single-open). Flyouts float next to the sidebar
+  // (like the "+" menu) instead of pushing the items below them down.
+  const [openFly, setOpenFly] = React.useState<string | null>(null)
   const [fabOpen, setFabOpen] = React.useState(false)
   const [sheet, setSheet] = React.useState<null | "plus" | "more">(null)
   const fabWrapRef = React.useRef<HTMLDivElement>(null)
+  const navRef = React.useRef<HTMLElement>(null)
 
-  // Keep active section open on navigation.
+  // Sidebar minimise/expand — same behaviour + localStorage key as production
+  // (components/layout/DashboardLayout.tsx), so the user's preference carries over.
+  const isDocCreateRoute =
+    pathname.startsWith("/dashboard/documents/receipt") ||
+    pathname.startsWith("/dashboard/documents/tax-invoice") ||
+    pathname.startsWith("/dashboard/incomes/documents/new") ||
+    pathname.startsWith("/business/documents/new")
+  // Start expanded on the server so SSR and the first client render agree; the stored
+  // preference is applied right after mount.
+  const [collapsed, setCollapsed] = React.useState(false)
   React.useEffect(() => {
-    const active = NAV.find((n) => n.subItems && anyChildActive(pathname, n))
-    if (active) setOpenAcc(active.key)
-    // close transient overlays on route change
+    try {
+      const stored = window.localStorage.getItem(SIDEBAR_LS_KEY)
+      if (stored != null) setCollapsed(stored === "true")
+      else if (isDocCreateRoute) setCollapsed(true)
+    } catch {
+      // ignore
+    }
+    // Only on mount — later route changes must not fight the user's choice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const toggleCollapsed = () => {
+    setCollapsed((v) => {
+      const next = !v
+      try {
+        window.localStorage.setItem(SIDEBAR_LS_KEY, String(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
+
+  // Close transient overlays on route change.
+  React.useEffect(() => {
     setFabOpen(false)
     setSheet(null)
+    setOpenFly(null)
   }, [pathname])
 
-  // Fab: close on outside click.
+  // Fab + sub-menu flyouts: close on outside click.
   React.useEffect(() => {
-    if (!fabOpen) return
+    if (!fabOpen && !openFly) return
     const onDocClick = (e: MouseEvent) => {
-      if (fabWrapRef.current && !fabWrapRef.current.contains(e.target as Node)) setFabOpen(false)
+      const t = e.target as Node
+      if (fabWrapRef.current && !fabWrapRef.current.contains(t)) setFabOpen(false)
+      if (navRef.current && !navRef.current.contains(t)) setOpenFly(null)
     }
     document.addEventListener("click", onDocClick)
     return () => document.removeEventListener("click", onDocClick)
-  }, [fabOpen])
+  }, [fabOpen, openFly])
 
-  // Escape closes fab + sheets.
+  // Escape closes fab + flyouts + sheets.
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setFabOpen(false)
         setSheet(null)
+        setOpenFly(null)
       }
     }
     document.addEventListener("keydown", onKey)
@@ -230,7 +303,7 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="dcx-root" dir="rtl">
+    <div className={`dcx-root${collapsed ? " collapsed" : ""}`} dir="rtl">
       <style>{DCX_CSS}</style>
 
       {/* ===== MAIN ===== */}
@@ -240,10 +313,10 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
       <aside className="dcx-sidebar" aria-label="ניווט ראשי">
         <div className="dcx-brand">
           <span className="dcx-spark" aria-hidden="true">{Ic.spark}</span>
-          UXellent
+          <span className="dcx-brand-t">UXellent</span>
         </div>
 
-        <nav className="dcx-nav">
+        <nav className="dcx-nav" ref={navRef}>
           {NAV.map((item) => {
             if (!item.subItems) {
               return (
@@ -254,37 +327,46 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
                     aria-current={isActive(pathname, item.href) ? "page" : undefined}
                   >
                     <span className="dcx-nav-ic" aria-hidden="true">{item.icon}</span>
-                    {item.label}
+                    <span className="dcx-nav-t">{item.label}</span>
                   </Link>
                 </div>
               )
             }
-            const open = openAcc === item.key
+            const open = openFly === item.key
             return (
               <div className={`dcx-nav-item${open ? " open" : ""}`} key={item.key}>
                 <button
                   type="button"
                   className={`dcx-nav-link${anyChildActive(pathname, item) ? " has-active" : ""}`}
+                  aria-haspopup="menu"
                   aria-expanded={open}
                   aria-controls={`dcx-sub-${item.key}`}
-                  onClick={() => setOpenAcc((k) => (k === item.key ? null : item.key))}
+                  title={item.label}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setOpenFly((k) => (k === item.key ? null : item.key))
+                  }}
                 >
                   <span className="dcx-nav-ic" aria-hidden="true">{item.icon}</span>
-                  {item.label}
+                  <span className="dcx-nav-t">{item.label}</span>
                   {Ic.chevron}
                 </button>
-                <div className="dcx-submenu" id={`dcx-sub-${item.key}`} role="region" aria-label={item.label}>
-                  {item.subItems.map((s) => (
-                    <Link
-                      key={s.href}
-                      href={s.href}
-                      className={pathname === s.href ? "active" : undefined}
-                      aria-current={pathname === s.href ? "page" : undefined}
-                    >
-                      {s.label}
-                    </Link>
-                  ))}
-                </div>
+                {open && (
+                  <div className="dcx-submenu" id={`dcx-sub-${item.key}`} role="menu" aria-label={item.label}>
+                    {item.subItems.map((s) => (
+                      <Link
+                        key={s.href}
+                        href={s.href}
+                        role="menuitem"
+                        className={pathname === s.href ? "active" : undefined}
+                        aria-current={pathname === s.href ? "page" : undefined}
+                        onClick={() => setOpenFly(null)}
+                      >
+                        {s.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -305,10 +387,12 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
           >
             +
           </button>
-          <div className="dcx-fab-menu" role="menu">
-            <div className="dcx-fab-h">מסמך חדש</div>
-            <DocList key={fabOpen ? "fab-open" : "fab-closed"} onSelect={() => setFabOpen(false)} />
-          </div>
+          {fabOpen && (
+            <div className="dcx-fab-menu" role="menu">
+              <div className="dcx-fab-h">מסמך חדש</div>
+              <DocList id="fab" onSelect={() => setFabOpen(false)} />
+            </div>
+          )}
         </div>
 
         <div className="dcx-side-bottom">
@@ -316,12 +400,24 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
             href="/dashboard/settings"
             className={pathname.startsWith("/dashboard/settings") ? "active" : undefined}
             aria-current={pathname.startsWith("/dashboard/settings") ? "page" : undefined}
+            title="הגדרות"
           >
-            <span aria-hidden="true">{Ic.settings}</span>הגדרות
+            <span aria-hidden="true">{Ic.settings}</span>
+            <span className="dcx-nav-t">הגדרות</span>
           </Link>
-          <button type="button" onClick={onLogout} disabled={isLoggingOut} aria-label="התנתקות מהמערכת">
+          <button type="button" onClick={onLogout} disabled={isLoggingOut} aria-label="התנתקות מהמערכת" title="התנתקות">
             <span aria-hidden="true">{Ic.logout}</span>
-            {isLoggingOut ? "מתנתק..." : "התנתקות"}
+            <span className="dcx-nav-t">{isLoggingOut ? "מתנתק..." : "התנתקות"}</span>
+          </button>
+          <button
+            type="button"
+            className="dcx-collapse"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "הרחב תפריט" : "כווץ תפריט"}
+            title={collapsed ? "הרחב תפריט" : "כווץ תפריט"}
+          >
+            <span aria-hidden="true">{collapsed ? Ic.expand : Ic.collapse}</span>
+            <span className="dcx-nav-t">כווץ תפריט</span>
           </button>
         </div>
       </aside>
@@ -351,7 +447,7 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
       <div className={`dcx-sheet${sheet === "plus" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="מסמך חדש" aria-hidden={sheet !== "plus"}>
         <div className="dcx-grip" />
         <div className="dcx-sheet-h">מסמך חדש</div>
-        <DocList key={sheet === "plus" ? "sheet-open" : "sheet-closed"} onSelect={() => setSheet(null)} />
+        {sheet === "plus" && <DocList id="sheet" onSelect={() => setSheet(null)} />}
       </div>
 
       <div className={`dcx-sheet${sheet === "more" ? " on" : ""}`} role="dialog" aria-modal="true" aria-label="תפריט" aria-hidden={sheet !== "more"}>
@@ -372,47 +468,82 @@ const DCX_CSS = `
 .dcx-sidebar{position:fixed;right:15px;top:15px;height:calc(100% - 30px);width:224px;border-radius:14px;
   background:linear-gradient(180deg,#5f97c6,#4d81b0);color:#fff;padding:20px 15px;display:flex;flex-direction:column;
   box-shadow:0 10px 30px rgba(60,110,160,.25);z-index:50}
-.dcx-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;color:#fff;margin:2px 6px 20px;letter-spacing:-.02em}
-.dcx-spark{width:22px;height:22px;display:inline-flex}.dcx-spark svg{width:22px;height:22px}
-.dcx-nav{display:flex;flex-direction:column;gap:3px;overflow-y:auto}
-.dcx-nav-item{display:flex;flex-direction:column}
-.dcx-nav-link{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;color:#F0F5FA;text-decoration:none;font-weight:600;font-size:20px;cursor:pointer;transition:.15s;background:none;border:none;width:100%;text-align:right;font-family:inherit}
-.dcx-nav-ic{display:inline-flex}.dcx-nav-link svg{width:20px;height:20px;flex-shrink:0}
+.dcx-sidebar{transition:width .22s cubic-bezier(.2,.8,.2,1)}
+.dcx-brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:22px;color:#fff;margin:2px 6px 20px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden}
+.dcx-spark{width:22px;height:22px;display:inline-flex;flex-shrink:0}.dcx-spark svg{width:22px;height:22px}
+/* overflow must stay visible: the sub-menu flyouts escape the nav box. */
+.dcx-nav{display:flex;flex-direction:column;gap:3px;overflow:visible}
+.dcx-nav-item{display:flex;flex-direction:column;position:relative}
+.dcx-nav-link{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:11px;color:#F0F5FA;text-decoration:none;font-weight:600;font-size:20px;cursor:pointer;transition:background .15s,color .15s;background:none;border:none;width:100%;text-align:right;font-family:inherit;white-space:nowrap}
+.dcx-nav-t{overflow:hidden;text-overflow:ellipsis}
+.dcx-nav-ic{display:inline-flex;flex-shrink:0}.dcx-nav-link svg{width:20px;height:20px;flex-shrink:0}
 .dcx-chev{margin-inline-start:auto;width:17px !important;height:17px !important;transition:transform .25s}
 .dcx-nav-link:hover{background:rgba(255,255,255,.16)}
-.dcx-nav-link.active{background:#fff;color:var(--dcx-side);font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,.08)}
-.dcx-nav-link.has-active{color:#fff}
 .dcx-nav-item.open .dcx-chev{transform:rotate(180deg)}
-.dcx-submenu{max-height:0;overflow:hidden;transition:max-height .28s ease;display:flex;flex-direction:column;gap:2px}
-.dcx-nav-item.open .dcx-submenu{max-height:260px}
-.dcx-submenu a{display:block;padding:9px 45px 9px 13px;color:#DCE9F4;text-decoration:none;font-size:16px;font-weight:600;border-radius:9px}
-.dcx-submenu a:hover{background:rgba(255,255,255,.14);color:#fff}
-.dcx-submenu a.active{background:rgba(255,255,255,.22);color:#fff}
-.dcx-fab-wrap{position:relative;margin:14px 6px 6px;align-self:flex-start}
-.dcx-fab{width:48px;height:48px;border-radius:13px;background:var(--dcx-green);color:#173a0b;border:none;cursor:pointer;
-  display:grid;place-items:center;font-size:28px;font-weight:700;box-shadow:0 6px 16px rgba(139,212,79,.45);line-height:1;transition:.15s}
+
+/* --- Active item -------------------------------------------------------
+   app/globals.css has a legacy blanket rule "aside nav, aside nav * {color:
+   var(--neutral-white) !important}" which turned the active item white-on-white.
+   These selectors are class-based (higher specificity) and !important, so the
+   brand blue wins for the label AND the icon. */
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active{background:#fff;font-weight:600;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active,
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active *,
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active svg{color:#5389BB !important;font-weight:600}
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.has-active,
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.has-active *{color:#fff !important}
+
+/* --- Sub-menu: floating flyout (like the "+" menu), not a pushing accordion --- */
+.dcx-submenu{position:absolute;top:-6px;right:calc(100% + 12px);min-width:215px;background:#fff;border:1px solid var(--dcx-line);
+  border-radius:14px;box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;display:flex;flex-direction:column;gap:2px;
+  z-index:60;transform-origin:top right;animation:dcxfly .18s cubic-bezier(.2,.8,.2,1)}
+@keyframes dcxfly{from{opacity:0;transform:translateX(8px) scale(.97)}}
+.dcx-root .dcx-sidebar .dcx-nav .dcx-submenu a{display:block;padding:11px 12px;font-size:16px;font-weight:600;border-radius:9px;
+  text-decoration:none;white-space:nowrap;color:var(--dcx-ink) !important}
+.dcx-root .dcx-sidebar .dcx-nav .dcx-submenu a:hover,
+.dcx-root .dcx-sidebar .dcx-nav .dcx-submenu a.active{background:var(--dcx-accent-soft);color:var(--dcx-accent) !important}
+
+/* --- "+" new document: sits low in the sidebar, slightly larger --- */
+.dcx-fab-wrap{position:relative;margin:14px 6px 10px;margin-top:auto;align-self:flex-start}
+.dcx-fab{width:56px;height:56px;border-radius:15px;background:var(--dcx-green);color:#173a0b;border:none;cursor:pointer;
+  display:grid;place-items:center;font-size:34px;font-weight:700;box-shadow:0 6px 16px rgba(139,212,79,.45);line-height:1;transition:.15s}
 .dcx-fab:hover{transform:translateY(-1px)}
-.dcx-fab-menu{position:absolute;bottom:0;right:58px;width:220px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
-  box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;opacity:0;transform:translateY(10px) scale(.96);transform-origin:bottom right;
-  pointer-events:none;transition:.2s cubic-bezier(.2,.8,.2,1);z-index:60;max-height:min(74vh,540px);overflow-y:auto}
-.dcx-fab-wrap.open .dcx-fab-menu{opacity:1;transform:none;pointer-events:auto}
-.dcx-fab-h{font-size:12px;color:var(--dcx-muted);font-weight:700;padding:6px 10px 4px}
-.dcx-doc-a{display:flex;align-items:center;gap:10px;padding:10px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:600;font-size:14.5px}
+.dcx-fab-menu{position:absolute;bottom:0;right:66px;width:302px;background:#fff;border:1px solid var(--dcx-line);border-radius:14px;
+  box-shadow:0 16px 40px rgba(20,24,45,.18);padding:8px;transform-origin:bottom right;z-index:60;
+  animation:dcxpop .2s cubic-bezier(.2,.8,.2,1)}
+@keyframes dcxpop{from{opacity:0;transform:translateY(10px) scale(.96)}}
+.dcx-fab-h{font-size:13px;color:var(--dcx-muted);font-weight:700;padding:6px 12px 6px}
+.dcx-doc-a{display:flex;align-items:center;gap:12px;padding:12px;border-radius:9px;color:var(--dcx-ink);text-decoration:none;font-weight:600;font-size:20px;line-height:1.45}
 .dcx-doc-a:hover{background:var(--dcx-accent-soft);color:var(--dcx-accent)}
-.dcx-doc-a svg{width:17px;height:17px;color:var(--dcx-accent);flex-shrink:0}
+.dcx-doc-a svg{width:22px;height:22px;color:var(--dcx-accent);flex-shrink:0}
 .dcx-more-wrap{display:flex;flex-direction:column}
-.dcx-more-toggle{display:flex;align-items:center;gap:8px;padding:10px;margin-top:4px;border:none;border-top:1px solid var(--dcx-line);
-  color:#3A4155;font-weight:700;font-size:13.5px;cursor:pointer;background:none;font-family:inherit;width:100%;text-align:right}
-.dcx-more-chev{margin-inline-start:auto;width:15px;height:15px;transition:transform .25s}
-.dcx-more-wrap.open .dcx-more-chev{transform:rotate(90deg)}
-.dcx-more-list{max-height:0;overflow:hidden;transition:max-height .28s ease;display:flex;flex-direction:column}
-.dcx-more-wrap.open .dcx-more-list{max-height:360px}
-.dcx-side-bottom{margin-top:auto;display:flex;flex-direction:column;gap:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18)}
-.dcx-side-bottom a,.dcx-side-bottom button{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:#EAF2F9;text-decoration:none;font-weight:600;font-size:16px;background:none;border:none;cursor:pointer;font-family:inherit;width:100%;text-align:right}
+.dcx-more-toggle{display:flex;align-items:center;gap:12px;padding:12px;margin-top:4px;border:none;border-top:1px solid var(--dcx-line);
+  color:#3A4155;font-weight:700;font-size:20px;line-height:1.45;cursor:pointer;background:none;font-family:inherit;width:100%;text-align:right}
+.dcx-more-chev{margin-inline-start:auto;width:18px;height:18px;transition:transform .25s;flex-shrink:0}
+.dcx-more-wrap.open .dcx-more-chev{transform:rotate(-90deg)}
+/* expands in place — no inner scrolling */
+.dcx-more-list{display:flex;flex-direction:column}
+.dcx-side-bottom{display:flex;flex-direction:column;gap:3px;padding-top:10px;border-top:1px solid rgba(255,255,255,.18)}
+.dcx-side-bottom a,.dcx-side-bottom button{display:flex;align-items:center;gap:11px;padding:10px 13px;border-radius:11px;color:#EAF2F9;text-decoration:none;font-weight:600;font-size:16px;background:none;border:none;cursor:pointer;font-family:inherit;width:100%;text-align:right;white-space:nowrap}
 .dcx-side-bottom a:hover,.dcx-side-bottom button:hover{background:rgba(255,255,255,.16)}
 .dcx-side-bottom a.active{background:rgba(255,255,255,.2)}
-.dcx-side-bottom svg{width:18px;height:18px}
-.dcx-main{margin-right:255px;min-height:100vh}
+.dcx-side-bottom svg{width:18px;height:18px;flex-shrink:0}
+.dcx-collapse{opacity:.85}
+.dcx-main{margin-right:255px;min-height:100vh;transition:margin-right .22s cubic-bezier(.2,.8,.2,1)}
+
+/* --- Minimised sidebar (icons only) --- */
+.dcx-root.collapsed .dcx-sidebar{width:74px;padding:20px 11px}
+.dcx-root.collapsed .dcx-main{margin-right:105px}
+.dcx-root.collapsed .dcx-brand{justify-content:center;margin:2px 0 20px}
+.dcx-root.collapsed .dcx-brand-t,
+.dcx-root.collapsed .dcx-nav-t,
+.dcx-root.collapsed .dcx-chev{display:none}
+.dcx-root.collapsed .dcx-nav-link{justify-content:center;padding:12px 0;gap:0}
+.dcx-root.collapsed .dcx-side-bottom a,
+.dcx-root.collapsed .dcx-side-bottom button{justify-content:center;padding:11px 0;gap:0}
+.dcx-root.collapsed .dcx-fab-wrap{align-self:center;margin-inline:0}
+.dcx-root.collapsed .dcx-fab{width:50px;height:50px;font-size:30px}
+.dcx-root.collapsed .dcx-fab-menu{right:60px}
 .dcx-mobilebar,.dcx-backdrop,.dcx-sheet{display:none}
 @media(max-width:900px){
   .dcx-sidebar{display:none}
@@ -440,7 +571,12 @@ const DCX_CSS = `
   .dcx-sheet .dcx-more-chev{width:17px;height:17px}
 }
 @media(min-width:901px){.dcx-mobilebar,.dcx-backdrop,.dcx-sheet{display:none !important}}
+/* Safety only for short viewports — the fully expanded list is ~700px tall. */
+@media(min-width:901px) and (max-height:860px){
+  .dcx-fab-menu{max-height:calc(100vh - 70px);overflow-y:auto}
+}
 @media(prefers-reduced-motion:reduce){
-  .dcx-nav-link,.dcx-chev,.dcx-submenu,.dcx-fab,.dcx-fab-menu,.dcx-backdrop,.dcx-sheet{transition:none !important;animation:none !important}
+  .dcx-nav-link,.dcx-chev,.dcx-submenu,.dcx-fab,.dcx-fab-menu,.dcx-backdrop,.dcx-sheet,
+  .dcx-sidebar,.dcx-main,.dcx-more-chev{transition:none !important;animation:none !important}
 }
 `

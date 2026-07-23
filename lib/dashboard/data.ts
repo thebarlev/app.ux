@@ -26,7 +26,8 @@ export type DashboardData = {
     pendingCount: number
   }
   revenueByMonth: { label: string; value: number }[]
-  docTypeBreakdown: { label: string; count: number }[]
+  /** Payment state of income documents in the loaded window (paid / awaiting / overdue). */
+  paymentStatus: { key: "paid" | "wait" | "late"; label: string; count: number; amount: number }[]
   recentDocs: {
     id: string
     number: string
@@ -64,18 +65,28 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
   const window7Start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1))
 
-  const { data: rows } = await supabase
-    .from("documents")
-    .select(
-      "id, document_number, document_type, document_status, issue_date, total_amount, outstanding_balance, allocation_number, allocation_status, customer_name, customer_id"
-    )
-    .eq("company_id", companyId)
-    .eq("document_status", "final")
-    .gte("issue_date", ymd(window7Start))
-    .order("issue_date", { ascending: false })
-    .limit(500)
+  const BASE_COLS =
+    "id, document_number, document_type, document_status, issue_date, total_amount, outstanding_balance, allocation_number, allocation_status, customer_name, customer_id"
 
-  const docs = Array.isArray(rows) ? rows : []
+  const selectDocs = (cols: string) =>
+    supabase
+      .from("documents")
+      .select(cols)
+      .eq("company_id", companyId)
+      .eq("document_status", "final")
+      .gte("issue_date", ymd(window7Start))
+      .order("issue_date", { ascending: false })
+      .limit(500)
+
+  // `payment_due_date` is missing on some older deployments (see lib/documents/actions.ts,
+  // which handles the same PGRST204). Fall back to the base column set if so.
+  let { data: rows, error: rowsError } = await selectDocs(`${BASE_COLS}, payment_due_date`)
+  if (rowsError) {
+    const retry = await selectDocs(BASE_COLS)
+    rows = retry.data
+  }
+
+  const docs: any[] = Array.isArray(rows) ? (rows as any[]) : []
   const inMonth = (iso: string | null) => !!iso && String(iso).slice(0, 10) >= ymd(monthStart)
   const isIncome = (t: string) => INCOME_TYPES.includes(t)
   const isCredit = (t: string) => CREDIT_TYPES.includes(t)
@@ -128,17 +139,42 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     return { label: MONTHS_HE[m] || "", value: Math.max(0, Math.round(value)) }
   })
 
-  // ── Document type breakdown (this month) ──
-  const typeCounts = new Map<string, number>()
-  for (const d of docs) {
-    if (!inMonth((d as any).issue_date)) continue
-    const t = String((d as any).document_type || "")
-    typeCounts.set(t, (typeCounts.get(t) || 0) + 1)
+  // ── Payment status (income documents in the loaded window) ──
+  // paid   → nothing outstanding; amount is the document total.
+  // wait   → outstanding, due date not passed; amount is what is still owed.
+  // late   → outstanding and past due; amount is what is still owed.
+  // Due date falls back to issue_date + DEFAULT_TERMS_DAYS when the document has none.
+  const DEFAULT_TERMS_DAYS = 30
+  const today = ymd(now)
+  const pay = {
+    paid: { count: 0, amount: 0 },
+    wait: { count: 0, amount: 0 },
+    late: { count: 0, amount: 0 },
   }
-  const docTypeBreakdown = Array.from(typeCounts.entries())
-    .map(([t, count]) => ({ label: TYPE_LABELS[t] || t, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
+  for (const d of docs) {
+    const t = String(d.document_type || "")
+    if (!isIncome(t)) continue
+    const outstanding = num(d.outstanding_balance)
+    if (outstanding <= 0.005) {
+      pay.paid.count++
+      pay.paid.amount += num(d.total_amount)
+      continue
+    }
+    const due = d.payment_due_date
+      ? String(d.payment_due_date).slice(0, 10)
+      : d.issue_date
+        ? ymd(new Date(new Date(String(d.issue_date)).getTime() + DEFAULT_TERMS_DAYS * 86_400_000))
+        : null
+    const overdue = !!due && due < today
+    const b = overdue ? pay.late : pay.wait
+    b.count++
+    b.amount += outstanding
+  }
+  const paymentStatus: DashboardData["paymentStatus"] = [
+    { key: "paid", label: "שולם", count: pay.paid.count, amount: Math.round(pay.paid.amount) },
+    { key: "wait", label: "ממתין", count: pay.wait.count, amount: Math.round(pay.wait.amount) },
+    { key: "late", label: "באיחור", count: pay.late.count, amount: Math.round(pay.late.amount) },
+  ]
 
   // ── Recent documents ──
   const recentDocs = docs.slice(0, 8).map((d: any) => {
@@ -195,7 +231,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
   return {
     kpis: { monthRevenue: Math.round(monthRevenue), docsThisMonth, allocationsThisMonth, pendingPayment: Math.round(pendingPayment), pendingCount },
     revenueByMonth,
-    docTypeBreakdown,
+    paymentStatus,
     recentDocs,
     shaam: { state, refreshExpiresAt, daysToRefreshExpiry },
   }

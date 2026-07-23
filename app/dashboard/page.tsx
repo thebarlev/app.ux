@@ -80,11 +80,11 @@ const SHAAM_MSG = {
 export default async function DashboardPage() {
   const now = new Date()
   const [data, firstName] = await Promise.all([getDashboardData(now), getFirstName()])
-  const { kpis, revenueByMonth, docTypeBreakdown, recentDocs, shaam } = data
+  const { kpis, revenueByMonth, paymentStatus, recentDocs, shaam } = data
 
   const periodTotal = revenueByMonth.reduce((a, b) => a + b.value, 0)
   const chart = buildChart(revenueByMonth.map((r) => r.value))
-  const maxBar = Math.max(1, ...docTypeBreakdown.map((d) => d.count))
+  const payTotalCount = paymentStatus.reduce((a, p) => a + p.count, 0)
   const israelDate = new Date(now.getTime() + 3 * 3600 * 1000)
   const dateLine = `יום ${WEEKDAYS[israelDate.getUTCDay()]}, ${israelDate.getUTCDate()} ב${MONTHS[israelDate.getUTCMonth()]} ${israelDate.getUTCFullYear()} · תמונת המצב של העסק`
   const refreshDateHe = shaam.refreshExpiresAt ? heDate(String(shaam.refreshExpiresAt).slice(0, 10)) : ""
@@ -161,14 +161,15 @@ export default async function DashboardPage() {
           </svg>
         </div>
         <div className="dcx-panel">
-          <h3>מסמכים לפי סוג</h3><div className="dcx-sub">החודש הנוכחי</div>
-          <div className="dcx-bars">
-            {docTypeBreakdown.length === 0 && <div className="dcx-empty">אין מסמכים החודש</div>}
-            {docTypeBreakdown.map((d, i) => (
-              <div className="dcx-bar-row" key={i}>
-                <span className="dcx-name">{d.label}</span>
-                <div className="dcx-bar-track"><i style={{ width: `${Math.round((d.count / maxBar) * 100)}%` }} /></div>
-                <span className="dcx-n">{d.count}</span>
+          <h3>סטטוס תשלומים</h3><div className="dcx-sub">מסמכי הכנסה ב־7 החודשים האחרונים</div>
+          <div className="dcx-pay">
+            {payTotalCount === 0 && <div className="dcx-empty">אין מסמכי הכנסה בתקופה</div>}
+            {payTotalCount > 0 && paymentStatus.map((p) => (
+              <div className={`dcx-pay-row ${p.key}`} key={p.key}>
+                <span className="dcx-pay-dot" aria-hidden="true" />
+                <span className="dcx-pay-lab">{p.label}</span>
+                <span className="dcx-pay-cnt">{p.count} מסמכים</span>
+                <span className="dcx-pay-amt">₪{money(p.amount)}</span>
               </div>
             ))}
           </div>
@@ -180,15 +181,15 @@ export default async function DashboardPage() {
         <div className="dcx-panel-head"><div><h3>מסמכים אחרונים</h3><div className="dcx-sub">כולל מספרי הקצאה מרשות המסים</div></div></div>
         <div className="dcx-table-wrap">
           <table className="dcx-tbl">
-            <thead><tr><th>מסמך</th><th>לקוח</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th></tr></thead>
+            <thead><tr><th className="dcx-cust">לקוח</th><th>סוג ומספר מסמך</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th></tr></thead>
             <tbody>
               {recentDocs.length === 0 && (
                 <tr><td colSpan={6} className="dcx-empty">עדיין אין מסמכים</td></tr>
               )}
               {recentDocs.map((d) => (
                 <tr key={d.id}>
-                  <td><Link className="dcx-lnk" href="/dashboard/documents/all">{d.typeLabel} {d.number}</Link></td>
-                  <td>{d.customerId ? <Link className="dcx-lnk" href={`/dashboard/customers/${d.customerId}`}>{d.customerName || "—"}</Link> : <span>{d.customerName || "—"}</span>}</td>
+                  <td className="dcx-cust">{d.customerId ? <Link className="dcx-lnk" href={`/dashboard/customers/${d.customerId}`}>{d.customerName || "—"}</Link> : <span>{d.customerName || "—"}</span>}</td>
+                  <td><Link className="dcx-lnk dcx-doc-c" href="/dashboard/documents/all">{d.typeLabel} {d.number}</Link></td>
                   <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber ? d.allocationNumber : "לא נדרש"}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
                   <td><span className={`dcx-st ${d.status}`}>{d.status === "paid" ? "שולם" : "ממתין"}</span></td>
@@ -238,13 +239,18 @@ const DASH_CSS = `
 .dcx-line{fill:none;stroke:var(--dcx-accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:1400;stroke-dashoffset:1400;animation:dcxdraw 1.6s ease forwards}
 @keyframes dcxdraw{to{stroke-dashoffset:0}}
 .dcx-cdot{fill:#fff;stroke:var(--dcx-accent);stroke-width:3}.dcx-xlab text{font-size:11px;fill:var(--dcx-muted)}
-.dcx-bars{display:flex;flex-direction:column;gap:11px;margin-top:4px}
-.dcx-bar-row{display:flex;align-items:center;gap:10px;font-size:14px}
-.dcx-bar-row .dcx-name{width:110px;color:var(--dcx-ink);font-weight:600;flex-shrink:0}
-.dcx-bar-track{flex:1;height:10px;background:var(--dcx-line);border-radius:8px;overflow:hidden;min-width:40px}
-.dcx-bar-track i{display:block;height:100%;border-radius:8px;background:var(--dcx-accent);transform-origin:right;animation:dcxgrow 1s ease}
-@keyframes dcxgrow{from{transform:scaleX(0)}}
-.dcx-bar-row .dcx-n{width:30px;text-align:left;color:var(--dcx-ink-2);font-weight:700}
+.dcx-pay{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.dcx-pay-row{display:flex;align-items:center;gap:10px;font-size:14px;padding:11px 12px;border-radius:12px;border:1px solid var(--dcx-line);background:#fff}
+.dcx-pay-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.dcx-pay-lab{font-weight:700;color:var(--dcx-ink)}
+.dcx-pay-cnt{color:var(--dcx-muted);font-size:12.5px;font-weight:600}
+.dcx-pay-amt{margin-inline-start:auto;font-weight:800;color:var(--dcx-ink);font-variant-numeric:tabular-nums;direction:ltr;white-space:nowrap}
+.dcx-pay-row.paid{background:var(--dcx-ok-soft);border-color:#CDE7DA}
+.dcx-pay-row.paid .dcx-pay-dot{background:var(--dcx-ok)}.dcx-pay-row.paid .dcx-pay-amt{color:var(--dcx-ok)}
+.dcx-pay-row.wait{background:var(--dcx-amber-soft);border-color:#F1D89C}
+.dcx-pay-row.wait .dcx-pay-dot{background:var(--dcx-amber)}.dcx-pay-row.wait .dcx-pay-amt{color:var(--dcx-amber)}
+.dcx-pay-row.late{background:var(--dcx-red-soft);border-color:#F0C4C4}
+.dcx-pay-row.late .dcx-pay-dot{background:var(--dcx-red)}.dcx-pay-row.late .dcx-pay-amt{color:var(--dcx-red)}
 .dcx-empty{color:var(--dcx-muted);font-size:13.5px;padding:14px 4px;text-align:center}
 .dcx-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .dcx-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
@@ -253,6 +259,9 @@ const DASH_CSS = `
 .dcx-tbl tr:last-child td{border-bottom:none}
 .dcx-tbl tbody tr{transition:.12s}.dcx-tbl tbody tr:hover{background:#F7F9FC}
 .dcx-lnk{color:var(--dcx-ink);font-weight:700;text-decoration:none}.dcx-tbl tbody tr:hover .dcx-lnk{color:var(--dcx-accent);text-decoration:underline}
+/* customer column leads and gets the room long names need; doc type/number is not emphasised */
+.dcx-tbl th.dcx-cust,.dcx-tbl td.dcx-cust{min-width:240px;max-width:340px;white-space:normal;word-break:break-word}
+.dcx-tbl .dcx-doc-c{font-weight:500;color:var(--dcx-ink-2)}
 .dcx-numc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 .dcx-alloc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right;font-weight:700;color:var(--dcx-ink)}
 .dcx-alloc.none{color:var(--dcx-muted);font-weight:600}
@@ -267,6 +276,6 @@ const DASH_CSS = `
   .dcx-tbl{font-size:15.5px}
 }
 @media(prefers-reduced-motion:reduce){
-  .dcx-line{animation:none;stroke-dashoffset:0}.dcx-bar-track i{animation:none}
+  .dcx-line{animation:none;stroke-dashoffset:0}
 }
 `
