@@ -535,12 +535,14 @@ const DCX_CSS = `
   box-shadow:0 10px 30px rgba(60,110,160,.25);z-index:50}
 .dcx-sidebar{transition:width .22s cubic-bezier(.2,.8,.2,1)}
 .dcx-brand{display:flex;align-items:center;margin:2px 6px 22px;min-height:36px}
-/* white-logo.svg is byte-identical to brand/vow_white.svg (same md5): the wordmark
-   is white but the star mark is #5389BB, which is the sidebar gradient's own blue
-   (#5f97c6 → #4d81b0) and effectively disappears on it. The whitening therefore
-   stays. Drop this filter only once the asset itself has no blue left in it. */
-.dcx-logo{filter:brightness(0) invert(1);height:36px;width:auto;display:block}
-.dcx-logo-mark{display:none}
+/* No CSS whitening: /email/white-logo.svg is fully white in the file itself (its
+   star mark was #5389BB, the sidebar gradient's own blue, and is now #FFFFFF).
+   public/brand/vow_white.svg keeps the blue star on purpose — it is used on light
+   backgrounds, where white would erase it. Two separate files, opposite backgrounds. */
+.dcx-logo{height:36px;width:auto;display:block}
+/* The collapsed-state mark keeps its whitening: brand/icon.svg still contains a
+   fill="black" path, which would read as a black blob on the blue sidebar. */
+.dcx-logo-mark{display:none;filter:brightness(0) invert(1)}
 /* overflow must stay visible: the sub-menu flyouts escape the nav box. */
 .dcx-nav{display:flex;flex-direction:column;gap:3px;overflow:visible}
 .dcx-nav-item{display:flex;flex-direction:column;position:relative}
