@@ -1,0 +1,44 @@
+# Files excluded from the Vercel deployment upload.
+#
+# This file exists because .gitignore cannot be relied on during a release.
+# `git stash -u` takes the working copy of .gitignore with it, and the entries
+# that cover local tooling (.claude/ in particular, ~1.4GB of worktrees and
+# node_modules) live only in that uncommitted copy — so a stashed tree would have
+# uploaded the whole thing. These rules are committed, so they always apply.
+#
+# Only build-irrelevant paths belong here. Anything the Vercel build needs
+# (app/, components/, lib/, public/, package.json, config files) must NOT be listed.
+
+# Local tooling / agent state
+.claude/
+
+# Design sources — reference material, not part of the build
+design-mockups/
+
+# Dependencies (Vercel installs its own)
+node_modules/
+.pnpm-store/
+**/.pnpm-store/
+
+# Local build output (Vercel builds from source)
+.next/
+out/
+build/
+dist/
+tsconfig.tsbuildinfo
+
+# VCS + local backups
+.git/
+backups/
+*.zip
+
+# Local env files — env vars come from the Vercel project settings
+.env.local
+.env*.local
+
+# Runtime-generated assets
+public/auditor-screenshots/
+
+# OS noise
+.DS_Store
+**/.DS_Store
