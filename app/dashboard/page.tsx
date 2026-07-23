@@ -162,7 +162,7 @@ export default async function DashboardPage() {
           </svg>
         </div>
         <div className="dcx-panel">
-          <h3>מסמכים לפי חודש</h3><div className="dcx-sub">כל המסמכים שהופקו · 7 החודשים האחרונים</div>
+          <h3>מסמכים לפי חודש</h3><div className="dcx-sub">כמות: כל המסמכים · ₪: הכנסה נטו · 7 החודשים האחרונים</div>
           <div className="dcx-mon">
             {docsTotalCount === 0 && <div className="dcx-empty">עדיין לא הופקו מסמכים</div>}
             {docsTotalCount > 0 && docsByMonth.map((m, i) => (
@@ -172,7 +172,8 @@ export default async function DashboardPage() {
                 <div className="dcx-mon-track">
                   <i style={{ width: `${Math.round((m.count / maxMonthCount) * 100)}%` }} />
                 </div>
-                <span className="dcx-mon-amt">₪{money(m.amount)}</span>
+                {/* credits can push a month negative — keep the sign outside the ₪ */}
+                <span className="dcx-mon-amt">{m.amount < 0 ? "-" : ""}₪{money(Math.abs(m.amount))}</span>
               </div>
             ))}
           </div>

@@ -7,6 +7,14 @@ import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 const INCOME_TYPES = ["tax_invoice", "invoice_receipt", "receipt"]
 const CREDIT_TYPES = ["credit_note", "creditNote"]
 
+/**
+ * Types that represent the actual charge to the customer, for net-revenue sums.
+ * Deliberately excludes `receipt`: a standalone receipt is the payment of a
+ * tax invoice, so counting both would double the amount. Also excludes quotes,
+ * proformas and delivery notes, which are not money.
+ */
+const REVENUE_TYPES = ["tax_invoice", "invoice_receipt"]
+
 const TYPE_LABELS: Record<string, string> = {
   tax_invoice: "חשבונית מס",
   invoice_receipt: "חשבונית/קבלה",
@@ -134,8 +142,11 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
   })
 
   // ── Documents issued per month (same window and same rows as above) ──
-  // Every issued document counts, regardless of type or payment state, so this
-  // panel cannot be skewed by the accounting-status gaps. Newest month first.
+  // count  → every issued document, whatever its type (issuing volume).
+  // amount → net revenue only: tax invoices + invoice/receipts, minus credit
+  //          notes. Standalone receipts are excluded so a paid tax invoice is
+  //          not counted twice, and quotes/proformas/delivery notes never count.
+  // Neither figure touches payment state or document_links, so both stay accurate.
   const monthDocs = new Map<string, { count: number; amount: number }>()
   for (let i = 6; i >= 0; i--) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
@@ -147,7 +158,10 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     const bucket = monthDocs.get(`${iso.getUTCFullYear()}-${iso.getUTCMonth()}`)
     if (!bucket) continue
     bucket.count++
-    bucket.amount += num(d.total_amount)
+    const t = String(d.document_type || "")
+    const total = num(d.total_amount)
+    if (REVENUE_TYPES.includes(t)) bucket.amount += total
+    else if (isCredit(t)) bucket.amount -= total
   }
   const docsByMonth = Array.from(monthDocs.entries())
     .map(([key, v]) => {
