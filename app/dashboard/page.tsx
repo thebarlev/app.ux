@@ -80,11 +80,12 @@ const SHAAM_MSG = {
 export default async function DashboardPage() {
   const now = new Date()
   const [data, firstName] = await Promise.all([getDashboardData(now), getFirstName()])
-  const { kpis, revenueByMonth, paymentStatus, recentDocs, shaam } = data
+  const { kpis, revenueByMonth, docsByMonth, recentDocs, shaam } = data
 
   const periodTotal = revenueByMonth.reduce((a, b) => a + b.value, 0)
   const chart = buildChart(revenueByMonth.map((r) => r.value))
-  const payTotalCount = paymentStatus.reduce((a, p) => a + p.count, 0)
+  const docsTotalCount = docsByMonth.reduce((a, m) => a + m.count, 0)
+  const maxMonthCount = Math.max(1, ...docsByMonth.map((m) => m.count))
   const israelDate = new Date(now.getTime() + 3 * 3600 * 1000)
   const dateLine = `יום ${WEEKDAYS[israelDate.getUTCDay()]}, ${israelDate.getUTCDate()} ב${MONTHS[israelDate.getUTCMonth()]} ${israelDate.getUTCFullYear()} · תמונת המצב של העסק`
   const refreshDateHe = shaam.refreshExpiresAt ? heDate(String(shaam.refreshExpiresAt).slice(0, 10)) : ""
@@ -161,15 +162,17 @@ export default async function DashboardPage() {
           </svg>
         </div>
         <div className="dcx-panel">
-          <h3>סטטוס תשלומים</h3><div className="dcx-sub">מסמכי הכנסה ב־7 החודשים האחרונים</div>
-          <div className="dcx-pay">
-            {payTotalCount === 0 && <div className="dcx-empty">אין מסמכי הכנסה בתקופה</div>}
-            {payTotalCount > 0 && paymentStatus.map((p) => (
-              <div className={`dcx-pay-row ${p.key}`} key={p.key}>
-                <span className="dcx-pay-dot" aria-hidden="true" />
-                <span className="dcx-pay-lab">{p.label}</span>
-                <span className="dcx-pay-cnt">{p.count} מסמכים</span>
-                <span className="dcx-pay-amt">₪{money(p.amount)}</span>
+          <h3>מסמכים לפי חודש</h3><div className="dcx-sub">כל המסמכים שהופקו · 7 החודשים האחרונים</div>
+          <div className="dcx-mon">
+            {docsTotalCount === 0 && <div className="dcx-empty">עדיין לא הופקו מסמכים</div>}
+            {docsTotalCount > 0 && docsByMonth.map((m, i) => (
+              <div className="dcx-mon-row" key={i}>
+                <span className="dcx-mon-lab">{m.label}</span>
+                <span className="dcx-mon-cnt">{m.count}</span>
+                <div className="dcx-mon-track">
+                  <i style={{ width: `${Math.round((m.count / maxMonthCount) * 100)}%` }} />
+                </div>
+                <span className="dcx-mon-amt">₪{money(m.amount)}</span>
               </div>
             ))}
           </div>
@@ -239,18 +242,15 @@ const DASH_CSS = `
 .dcx-line{fill:none;stroke:var(--dcx-accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:1400;stroke-dashoffset:1400;animation:dcxdraw 1.6s ease forwards}
 @keyframes dcxdraw{to{stroke-dashoffset:0}}
 .dcx-cdot{fill:#fff;stroke:var(--dcx-accent);stroke-width:3}.dcx-xlab text{font-size:11px;fill:var(--dcx-muted)}
-.dcx-pay{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-.dcx-pay-row{display:flex;align-items:center;gap:10px;font-size:14px;padding:11px 12px;border-radius:12px;border:1px solid var(--dcx-line);background:#fff}
-.dcx-pay-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.dcx-pay-lab{font-weight:700;color:var(--dcx-ink)}
-.dcx-pay-cnt{color:var(--dcx-muted);font-size:12.5px;font-weight:600}
-.dcx-pay-amt{margin-inline-start:auto;font-weight:800;color:var(--dcx-ink);font-variant-numeric:tabular-nums;direction:ltr;white-space:nowrap}
-.dcx-pay-row.paid{background:var(--dcx-ok-soft);border-color:#CDE7DA}
-.dcx-pay-row.paid .dcx-pay-dot{background:var(--dcx-ok)}.dcx-pay-row.paid .dcx-pay-amt{color:var(--dcx-ok)}
-.dcx-pay-row.wait{background:var(--dcx-amber-soft);border-color:#F1D89C}
-.dcx-pay-row.wait .dcx-pay-dot{background:var(--dcx-amber)}.dcx-pay-row.wait .dcx-pay-amt{color:var(--dcx-amber)}
-.dcx-pay-row.late{background:var(--dcx-red-soft);border-color:#F0C4C4}
-.dcx-pay-row.late .dcx-pay-dot{background:var(--dcx-red)}.dcx-pay-row.late .dcx-pay-amt{color:var(--dcx-red)}
+.dcx-mon{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.dcx-mon-row{display:flex;align-items:center;gap:10px;font-size:14px}
+.dcx-mon-lab{width:42px;flex-shrink:0;color:var(--dcx-ink);font-weight:600}
+.dcx-mon-cnt{width:26px;flex-shrink:0;text-align:left;color:var(--dcx-ink);font-weight:800;font-variant-numeric:tabular-nums}
+.dcx-mon-track{flex:1;height:10px;background:var(--dcx-line);border-radius:8px;overflow:hidden;min-width:32px}
+.dcx-mon-track i{display:block;height:100%;border-radius:8px;background:var(--dcx-accent);transform-origin:right;animation:dcxgrow 1s ease}
+@keyframes dcxgrow{from{transform:scaleX(0)}}
+.dcx-mon-amt{width:96px;flex-shrink:0;text-align:left;color:var(--dcx-ink-2);font-weight:700;font-size:13px;
+  font-variant-numeric:tabular-nums;direction:ltr;white-space:nowrap}
 .dcx-empty{color:var(--dcx-muted);font-size:13.5px;padding:14px 4px;text-align:center}
 .dcx-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .dcx-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
@@ -276,6 +276,6 @@ const DASH_CSS = `
   .dcx-tbl{font-size:15.5px}
 }
 @media(prefers-reduced-motion:reduce){
-  .dcx-line{animation:none;stroke-dashoffset:0}
+  .dcx-line{animation:none;stroke-dashoffset:0}.dcx-mon-track i{animation:none}
 }
 `
