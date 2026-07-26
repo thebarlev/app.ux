@@ -2,12 +2,21 @@ import "server-only"
 
 import { createHmac, randomUUID, timingSafeEqual } from "crypto"
 
+import { sanitizeReturnTo } from "@/lib/shaam/return-to"
+
 export type ShaamOauthStatePayload = {
   company_id: string
   user_id: string
   nonce: string
   iat: number
   exp: number
+  /**
+   * Same-origin path to return the user to once the round-trip completes,
+   * so a connect prompted mid-issuance lands back on that document instead of
+   * the settings screen. Signed with the rest of the state, so it cannot be
+   * rewritten into an open redirect after the flow has started.
+   */
+  return_to?: string
 }
 
 const STATE_TTL_SECONDS = 10 * 60
@@ -34,14 +43,16 @@ function getSecret(): string {
   return String(s).trim()
 }
 
-export function createShaamOauthState(params: { companyId: string; userId: string }): string {
+export function createShaamOauthState(params: { companyId: string; userId: string; returnTo?: string | null }): string {
   const now = Math.floor(Date.now() / 1000)
+  const returnTo = sanitizeReturnTo(params.returnTo)
   const payload: ShaamOauthStatePayload = {
     company_id: params.companyId,
     user_id: params.userId,
     nonce: randomUUID(),
     iat: now,
     exp: now + STATE_TTL_SECONDS,
+    ...(returnTo ? { return_to: returnTo } : {}),
   }
   const body = base64UrlEncode(JSON.stringify(payload))
   const sig = sign(body, getSecret())
@@ -75,6 +86,14 @@ export function verifyShaamOauthState(state: string): { ok: true; payload: Shaam
   if (typeof payload.iat !== "number" || typeof payload.exp !== "number") return { ok: false }
   if (payload.exp < now) return { ok: false }
 
-  return { ok: true, payload: payload as ShaamOauthStatePayload }
+  // Re-validate on the way out as well. The signature already guarantees the
+  // value is ours, but the redirect target is worth checking at the point of
+  // use so a future change to the issuing side cannot open a redirect here.
+  const returnTo = sanitizeReturnTo(typeof payload.return_to === "string" ? payload.return_to : null)
+
+  return {
+    ok: true,
+    payload: { ...(payload as ShaamOauthStatePayload), return_to: returnTo ?? undefined },
+  }
 }
 

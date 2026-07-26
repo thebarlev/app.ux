@@ -36,6 +36,10 @@ import { FxRateDialog } from "@/components/payments/FxRateDialog";
 import { currencySymbol } from "@/lib/currency/symbol";
 import { SubscriptionBlockModal, type SubscriptionBlockKind } from "@/components/subscription/SubscriptionBlockModal";
 import {
+  DocumentIssueFailureModal,
+  type DocumentIssueFailure,
+} from "@/components/documents/DocumentIssueFailureModal";
+import {
   createDocumentLinkAction,
   getDocumentForChainingAction,
   markDocumentCancelledAction,
@@ -152,6 +156,7 @@ export default function ReceiptFormClient({
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [blockModalKind, setBlockModalKind] = useState<null | SubscriptionBlockKind>(null);
+  const [issueFailure, setIssueFailure] = useState<DocumentIssueFailure | null>(null);
 
   // Consent is treated as granted-on-login; keep state removed to avoid accidental blocking.
 
@@ -664,10 +669,16 @@ export default function ReceiptFormClient({
         } else if (reason === "subscription_expired" || reason === "past_due" || reason === "account_blocked") {
           setBlockModalKind("renewal_required");
         } else {
-          toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
+          // Never a bare toast: a document that did not issue must state why and
+          // what is missing, in something the user has to dismiss.
+          setIssueFailure({
+            message: result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה",
+            reason: reason || null,
+          });
         }
         setBusy(null);
         setIsFinalizing(false);
+        setConfirmationModalOpen(false);
         return;
       }
 
@@ -746,6 +757,7 @@ export default function ReceiptFormClient({
           router.push("/pricing");
         }}
       />
+      <DocumentIssueFailureModal failure={issueFailure} onClose={() => setIssueFailure(null)} />
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {message && (

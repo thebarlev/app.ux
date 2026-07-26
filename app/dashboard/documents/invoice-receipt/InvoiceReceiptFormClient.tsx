@@ -15,6 +15,11 @@ import ReceiptPreviewModal from "@/components/documents/ReceiptPreviewModal";
 import ReceiptConfirmationModal from "@/components/documents/ReceiptConfirmationModal";
 import ReceiptSuccessModal from "@/components/documents/ReceiptSuccessModal";
 import { InvoiceDecisionModal, type InvoiceDecisionType } from "@/components/documents/InvoiceDecisionModal";
+import {
+  DocumentIssueFailureModal,
+  type DocumentIssueFailure,
+} from "@/components/documents/DocumentIssueFailureModal";
+import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import PaymentDetailsSection from "../receipt/PaymentDetailsSection";
 import { FloatingInput } from "@/components/ui/floating-input";
@@ -201,6 +206,43 @@ export default function InvoiceReceiptFormClient({
   } | null>(null);
 
   const [shaamReconnectRequired, setShaamReconnectRequired] = useState(false);
+  const [issueFailure, setIssueFailure] = useState<DocumentIssueFailure | null>(null);
+  const [shaamJustConnected, setShaamJustConnected] = useState(false);
+
+  // Leaves for the tax authority carrying the current document URL, so the
+  // callback brings the user back here rather than to the settings screen.
+  // The draft is already saved server-side, so nothing entered is lost.
+  const goConnectShaam = useCallback(() => {
+    const currentDraftId = draftId || (editData as any)?.id || undefined;
+    window.location.href = buildShaamConnectUrl(buildDocumentReturnPath(currentDraftId));
+  }, [draftId, editData]);
+
+  // Returning from the SHAAM OAuth round-trip: confirm, and clear the one-shot
+  // marker so a refresh does not replay it.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("shaam_connected") === "1";
+    const shaamError = params.get("shaam_error");
+    if (!connected && !shaamError) return;
+
+    if (connected) {
+      setShaamJustConnected(true);
+      setShaamReconnectRequired(false);
+      toast.success("החיבור לרשות המסים הושלם. אפשר להמשיך בהפקת המסמך.");
+    } else {
+      setIssueFailure({
+        message: "ההתחברות לרשות המסים לא הושלמה.",
+        reason: "shaam_reconnect_required",
+        needsShaamConnect: true,
+      });
+    }
+
+    params.delete("shaam_connected");
+    params.delete("shaam_error");
+    const qs = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+  }, []);
   const [shaamDecision, setShaamDecision] = useState<{
     open: boolean;
     errorId: string;
@@ -885,7 +927,15 @@ export default function InvoiceReceiptFormClient({
         const shaam = (result as any)?.shaam as any;
         if (shaam?.kind === "reconnect_required") {
           setShaamReconnectRequired(true);
-          toast.error("יצירת מסמך זה דורשת חיבור לרשות המסים.");
+          setIssueFailure({
+            message: result?.message || "יצירת מסמך זה דורשת חיבור לרשות המסים.",
+            reason: reason || "shaam_reconnect_required",
+            needsShaamConnect: true,
+          });
+          setBusy(null);
+          setIsFinalizing(false);
+          setConfirmationModalOpen(false);
+          return;
         } else if (shaam?.kind === "decision_required") {
           setShaamReconnectRequired(false);
           const docIdForDecision =
@@ -906,10 +956,16 @@ export default function InvoiceReceiptFormClient({
         } else if (reason === "subscription_expired" || reason === "past_due" || reason === "account_blocked") {
           setBlockModalKind("renewal_required");
         } else {
-          toast.error(result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה");
+          // Never a bare toast: a document that did not issue must state why and
+          // what is missing, in something the user has to dismiss.
+          setIssueFailure({
+            message: result?.message || "הפקת המסמך נכשלה - שגיאה לא ידועה",
+            reason: reason || null,
+          });
         }
         setBusy(null);
         setIsFinalizing(false);
+        setConfirmationModalOpen(false);
         return;
       }
 
@@ -1036,6 +1092,11 @@ export default function InvoiceReceiptFormClient({
           router.push("/pricing");
         }}
       />
+      <DocumentIssueFailureModal
+        failure={issueFailure}
+        onClose={() => setIssueFailure(null)}
+        onConnectShaam={goConnectShaam}
+      />
       <div className="w-full pt-2 px-4 sm:px-6 lg:px-8">
         <div className="ui-container" style={{ paddingLeft: 0, paddingRight: 0 }}>
           {shaamReconnectRequired ? (
@@ -1043,13 +1104,19 @@ export default function InvoiceReceiptFormClient({
               <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-right">
                   <div className="font-semibold">יצירת מסמך זה דורשת חיבור לרשות המסים.</div>
+                  <div className="text-sm">מה שהזנת נשמר — אחרי ההתחברות תוחזר לכאן כדי לסיים.</div>
                 </div>
-                <Button
-                  onClick={() => router.push("/dashboard/settings/integrations/shaam")}
-                  className="w-full sm:w-auto"
-                >
+                <Button onClick={goConnectShaam} className="w-full sm:w-auto">
                   התחבר עכשיו
                 </Button>
+              </CardContent>
+            </Card>
+          ) : null}
+          {shaamJustConnected ? (
+            <Card className="mb-6 border-success bg-success/10">
+              <CardContent className="p-4 text-right">
+                <div className="font-semibold">החיבור לרשות המסים הושלם.</div>
+                <div className="text-sm">הפרטים שהזנת נשמרו — לחץ "לאישור והפקה" כדי לסיים.</div>
               </CardContent>
             </Card>
           ) : null}

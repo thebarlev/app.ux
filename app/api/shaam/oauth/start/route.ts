@@ -51,9 +51,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, message: "company_not_found" }, { status: 400 })
   }
 
+  // Carried through the round-trip so a connect prompted mid-issuance returns
+  // the user to that document rather than dumping them on the settings screen.
+  // Sanitized inside createShaamOauthState and signed with the rest of state.
+  const returnTo = new URL(req.url).searchParams.get("returnTo")
+
   let state: string
   try {
-    state = createShaamOauthState({ companyId, userId: user.id })
+    state = createShaamOauthState({ companyId, userId: user.id, returnTo })
   } catch (e: any) {
     console.error("[shaam][start] state_failed", e?.message || e)
     return NextResponse.json({ ok: false, message: "state_failed" }, { status: 500 })
