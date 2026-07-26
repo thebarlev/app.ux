@@ -25,6 +25,7 @@ import {
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
+import { requiresCustomerTaxIdForAllocation } from "@/lib/documents/allocation-rules";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FloatingTextarea } from "@/components/ui/floating-textarea";
@@ -664,8 +665,15 @@ export default function TaxInvoiceFormClient({
     // customer ID (ח.פ / ת.ז). Block here so a missing ID is an immediate inline field
     // error on the first click, not a round-trip to ITA that fails. The server remains
     // authoritative (global_settings > 5,000, strictly greater-than).
-    const ALLOCATION_THRESHOLD_ILS = 5000;
-    if (subtotal > ALLOCATION_THRESHOLD_ILS && customerTaxId.replace(/\D/g, "").length === 0) {
+    //
+    // Only tax_invoice / invoiceReceipt are in the allocation regime. This form is
+    // shared with חשבון עסקה, הצעת מחיר, תעודת משלוח, הזמנת עבודה and the rest, which
+    // never request an allocation number — demanding a customer ID from them was
+    // asking for something that would never be used.
+    if (
+      requiresCustomerTaxIdForAllocation({ documentType, subtotalBeforeVat: subtotal }) &&
+      customerTaxId.replace(/\D/g, "").length === 0
+    ) {
       setCustomerTaxIdError("חובה למלא ח.פ/ת.ז של הלקוח לחשבונית מעל ₪5,000");
       toast.error("חובה למלא ח.פ/ת.ז של הלקוח לחשבונית מעל ₪5,000");
       focusFieldWithError(customerTaxIdRef);
