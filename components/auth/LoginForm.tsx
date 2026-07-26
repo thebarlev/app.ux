@@ -10,6 +10,10 @@ import Image from "next/image"
 import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { LoginVisualPanel } from "@/components/auth/LoginVisualPanel"
+
+/** Where the marketing site lives — the target of the "back to site" link. */
+const MARKETING_SITE_URL = "https://uxellent.com"
 
 export function LoginForm(props: {
   afterLoginRedirectTo: string
@@ -18,6 +22,13 @@ export function LoginForm(props: {
   titleText?: string
   descriptionText?: string
   locale?: "he" | "en"
+  /**
+   * "card" (default) is the original centred card, used by the auditor login
+   * pages and anything else that already renders this form. "split" is the
+   * redesigned 50/50 layout for the product login (/login). The auth logic is
+   * identical for both — only the surrounding layout differs.
+   */
+  variant?: "card" | "split"
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -115,6 +126,121 @@ export function LoginForm(props: {
   const forgotHref = props.forgotPasswordHref || "/forgot-password"
   const titleText = (props.titleText || (isEn ? "Sign in" : "התחברות לחשבון")).trim()
   const descriptionText = (props.descriptionText || (isEn ? "Enter your credentials to continue" : "הזן את פרטי ההתחברות שלך כדי להמשיך")).trim()
+
+  const passwordToggle = (
+    <button
+      type="button"
+      onClick={() => setShowPassword(!showPassword)}
+      className="ls-eye"
+      aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+    >
+      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+    </button>
+  )
+
+  // ---- Redesigned split layout (product login) -----------------------------
+  // Same state and same handleLogin as the card below; only the chrome differs.
+  if (props.variant === "split") {
+    return (
+      <div className="auth-scope login-split" dir="rtl">
+        <a className="ls-back" href={MARKETING_SITE_URL}>
+          <span className="ls-back-a" aria-hidden="true">
+            →
+          </span>
+          חזרה לאתר
+        </a>
+
+        <div className="ls-split">
+          <section className="ls-half ls-form-side">
+            <div className="ls-form-col">
+              <div className="ls-logo">
+                <Image src="/brand/uxellent.svg" alt="Uxellent" width={165} height={44} priority />
+              </div>
+
+              <h1 className="ls-fh">{titleText}</h1>
+              <p className="ls-fsub">{descriptionText}</p>
+
+              <form onSubmit={handleLogin} className="ls-form">
+                <div className="auth-field">
+                  <FloatingInput
+                    label="אימייל"
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    dir="ltr"
+                    className="auth-input text-left"
+                    labelClassName="auth-label"
+                    labelPlacement="above"
+                    placeholder="name@business.co.il"
+                    aria-required="true"
+                    aria-invalid={!!error}
+                    aria-describedby={error ? "login-error" : undefined}
+                  />
+                </div>
+
+                <div className="auth-field relative">
+                  <FloatingInput
+                    label="סיסמה"
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    dir="ltr"
+                    className="auth-input text-left pr-12"
+                    labelClassName="auth-label"
+                    labelPlacement="above"
+                    placeholder="••••••••"
+                    aria-required="true"
+                    aria-invalid={!!error}
+                    aria-describedby={error ? "login-error" : undefined}
+                  />
+                  {passwordToggle}
+                </div>
+
+                <div className="ls-row">
+                  <Link href={forgotHref} className="ls-forgot">
+                    שכחת סיסמה?
+                  </Link>
+                </div>
+
+                {error && (
+                  <div id="login-error" className="ls-error" role="alert">
+                    {error}
+                  </div>
+                )}
+
+                <Button type="submit" disabled={isLoading} className="ls-primary" variant="primary">
+                  {isLoading ? (
+                    <>
+                      <Loader2 size={19} className="h-[19px] w-[19px] shrink-0 animate-spin ml-2" />
+                      מתחבר...
+                    </>
+                  ) : (
+                    "התחברות"
+                  )}
+                </Button>
+              </form>
+
+              <p className="ls-alt">
+                אין לך עדיין חשבון?{" "}
+                <Link href={props.registerHref} className="ls-alt-link">
+                  הרשמה בחינם
+                </Link>
+              </p>
+            </div>
+          </section>
+
+          <section className="ls-half ls-visual-side">
+            <LoginVisualPanel />
+          </section>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="auth-scope">

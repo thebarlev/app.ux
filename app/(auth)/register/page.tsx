@@ -21,33 +21,28 @@ export default async function RegisterPage() {
     "registration"
   )
 
-  // Load checkbox requirement settings from global_settings
+  // Legal terms requirement is still driven by the admin setting.
   const { data: legalTermsSetting } = await supabase
     .from("global_settings")
     .select("setting_value")
     .eq("setting_key", "require_legal_terms_acceptance_on_signup")
     .maybeSingle()
 
-  const { data: marketingSetting } = await supabase
-    .from("global_settings")
-    .select("setting_value")
-    .eq("setting_key", "require_marketing_acceptance_on_signup")
-    .maybeSingle()
-
   const requireLegalTermsRequired = legalTermsSetting?.setting_value === "true"
-  const requireMarketingRequired = marketingSetting?.setting_value === "true"
 
   return (
-    <div className="auth-scope">
-      <RegistrationProvider>
-        <RegistrationFlowClient
-          legalTermsText={legalTermsText}
-          marketingText={marketingText}
-          requireLegalTermsRequired={requireLegalTermsRequired}
-          requireMarketingRequired={requireMarketingRequired}
-        />
-      </RegistrationProvider>
-    </div>
+    <RegistrationProvider>
+      <RegistrationFlowClient
+        legalTermsText={legalTermsText}
+        marketingText={marketingText}
+        requireLegalTermsRequired={requireLegalTermsRequired}
+        // Marketing consent is always optional on the product register: no red
+        // asterisk, no validation requirement, and it never blocks submit. Only
+        // the legal-terms checkbox keeps its asterisk.
+        requireMarketingRequired={false}
+        variant="split"
+      />
+    </RegistrationProvider>
   )
 }
 

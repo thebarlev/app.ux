@@ -3,12 +3,15 @@
 import type React from "react"
 import { useState, Suspense } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Loader2, ArrowRight } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { LoginVisualPanel } from "@/components/auth/LoginVisualPanel"
+
+/** Same marketing site as the login "back to site" link. */
+const MARKETING_SITE_URL = "https://uxellent.com"
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -20,6 +23,7 @@ function ForgotPasswordForm() {
   const [success, setSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
+  // Logic below is unchanged from the original page — only the layout differs.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -61,116 +65,94 @@ function ForgotPasswordForm() {
     }
   }
 
-  if (success) {
-    return (
-      <div className="auth-scope">
-        <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
-          <div className="w-full max-w-[420px]">
-            <div className="mb-[70px] -mt-[80px] flex justify-center">
-              <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
+  return (
+    <div className="auth-scope login-split" dir="rtl">
+      <a className="ls-back" href={MARKETING_SITE_URL}>
+        <span className="ls-back-a" aria-hidden="true">
+          →
+        </span>
+        חזרה לאתר
+      </a>
+
+      <div className="ls-split">
+        <section className="ls-half ls-form-side">
+          <div className="ls-form-col">
+            <div className="ls-logo">
+              <Image src="/brand/uxellent.svg" alt="Uxellent" width={165} height={44} priority />
             </div>
 
-            <Card className="shadow-ui-lg auth-card">
-              <CardHeader className="pb-4 mb-[15px]">
-                <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
-                  קישור איפוס נשלח
-                </CardTitle>
-                <CardDescription className="mr-6 text-right">בדוק את תיבת הדואר הנכנס שלך</CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-5">
-                <div
-                  className="bg-success/10 border border-success/20 text-success px-4 py-3 rounded-ui text-sm font-medium text-right"
-                  role="alert"
-                >
-                  אם כתובת האימייל קיימת במערכת, נשלח אליך קישור לאיפוס סיסמה. נא לבדוק את תיבת הדואר הנכנס.
+            {success ? (
+              <>
+                <h1 className="ls-fh">קישור איפוס נשלח</h1>
+                <p className="ls-fsub">בדקו את תיבת הדואר הנכנס שלכם</p>
+                <div className="ls-success" role="alert">
+                  אם כתובת האימייל קיימת במערכת, נשלח אליה קישור לבחירת סיסמה חדשה. כדאי לבדוק גם
+                  את תיקיית הספאם.
                 </div>
-
-                <div className="pt-4">
-                  <Link href="/login">
-                    <Button variant="primary" className="w-full auth-primary-button" type="button">
-                      חזרה להתחברות
-                      <ArrowRight className="h-4 w-4 mr-2" />
-                    </Button>
+                <p className="ls-alt" style={{ marginTop: 22 }}>
+                  <Link href="/login" className="ls-alt-link">
+                    חזרה להתחברות
                   </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
-      </div>
-    )
-  }
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="ls-fh">איפוס סיסמה</h1>
+                <p className="ls-fsub">הזינו את האימייל ונשלח לכם קישור לבחירת סיסמה חדשה</p>
 
-  return (
-    <div className="auth-scope">
-      <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
-        <div className="w-full max-w-[420px]">
-          <div className="mb-[70px] -mt-[80px] flex justify-center">
-            <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
-          </div>
-
-          <Card className="shadow-ui-lg auth-card">
-            <CardHeader className="pb-4 mb-[15px]">
-              <CardTitle className="mr-6 pt-5 text-right text-[length:var(--auth-title-size)] font-[var(--auth-title-weight)] tracking-[var(--auth-title-tracking)]">
-                שכחתי סיסמה
-              </CardTitle>
-              <CardDescription className="mr-6 text-right">הזן אימייל לאיפוס סיסמה</CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <form onSubmit={handleSubmit} className="auth-form">
-                <div className="auth-field">
-                  <label htmlFor="email" className="auth-label">
-                    כתובת אימייל
-                  </label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="name@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    dir="ltr"
-                    className="auth-input text-left"
-                    aria-required="true"
-                    aria-invalid={!!error}
-                    aria-describedby={error ? "email-error" : undefined}
-                  />
-                </div>
-
-                {error && (
-                  <div
-                    id="email-error"
-                    className="bg-danger/10 border border-danger/20 text-danger px-4 py-3 rounded-ui text-sm font-medium text-right"
-                    role="alert"
-                  >
-                    {error}
+                <form onSubmit={handleSubmit} className="ls-form">
+                  <div className="auth-field">
+                    <label htmlFor="email" className="auth-label">
+                      אימייל
+                    </label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="name@business.co.il"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      dir="ltr"
+                      className="auth-input text-left"
+                      aria-required="true"
+                      aria-invalid={!!error}
+                      aria-describedby={error ? "email-error" : undefined}
+                    />
                   </div>
-                )}
 
-                <Button type="submit" disabled={isLoading} className="w-full auth-primary-button" variant="primary">
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={19} className="shrink-0 animate-spin ml-2" />
-                      שולח...
-                    </>
-                  ) : (
-                    "שלח קישור איפוס"
+                  {error && (
+                    <div id="email-error" className="ls-error" role="alert">
+                      {error}
+                    </div>
                   )}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
 
-          <p className="mt-6 text-center">
-            זכרת את הסיסמה?{" "}
-            <Link href="/login" className="auth-link">
-              חזרה להתחברות
-            </Link>
-          </p>
-        </div>
-      </main>
+                  <Button type="submit" disabled={isLoading} className="ls-primary" variant="primary">
+                    {isLoading ? (
+                      <>
+                        <Loader2 size={19} className="h-[19px] w-[19px] shrink-0 animate-spin ml-2" />
+                        שולח...
+                      </>
+                    ) : (
+                      "שליחת קישור לאיפוס"
+                    )}
+                  </Button>
+                </form>
+
+                <p className="ls-alt">
+                  נזכרתם בסיסמה?{" "}
+                  <Link href="/login" className="ls-alt-link">
+                    חזרה להתחברות
+                  </Link>
+                </p>
+              </>
+            )}
+          </div>
+        </section>
+
+        <section className="ls-half ls-visual-side">
+          <LoginVisualPanel />
+        </section>
+      </div>
     </div>
   )
 }
@@ -182,4 +164,3 @@ export default function ForgotPasswordPage() {
     </Suspense>
   )
 }
-
