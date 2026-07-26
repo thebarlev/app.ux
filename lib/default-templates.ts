@@ -106,7 +106,7 @@ export function getDefaultReceiptTemplate(): { html: string; css: string } {
   {{#if allocation_number}}
   <div class="allocation-section">
     <span class="label">הקצאה מספר:</span>
-    <span class="value" dir="ltr">{{allocation_number_head}}<strong>{{allocation_number_tail}}</strong></span>
+    <span class="value" dir="ltr"><strong>{{allocation_number}}</strong></span>
   </div>
   {{/if}}
 
@@ -437,7 +437,7 @@ export function getDefaultGenericDocumentTemplate(): { html: string; css: string
   {{#if allocation_number}}
   <div class="allocation-section">
     <span class="label">הקצאה מספר:</span>
-    <span class="value" dir="ltr">{{allocation_number_head}}<strong>{{allocation_number_tail}}</strong></span>
+    <span class="value" dir="ltr"><strong>{{allocation_number}}</strong></span>
   </div>
   {{/if}}
 </div>

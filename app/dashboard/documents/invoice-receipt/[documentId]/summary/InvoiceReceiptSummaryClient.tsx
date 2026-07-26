@@ -7,6 +7,7 @@ import { getInvoiceReceiptPreviewUrlAction } from "@/app/dashboard/documents/inv
 import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { currencySymbol } from "@/lib/currency/symbol";
+import { formatAllocationNumber } from "@/lib/documents/allocation-number";
 
 type InvoiceReceiptRow = {
   id: string;
@@ -363,8 +364,8 @@ export default function InvoiceReceiptSummaryClient(props: {
               {props.invoiceReceipt.created_at ? (
                 <span> | הופק ב- {formatDateTime(props.invoiceReceipt.created_at)}</span>
               ) : null}
-              {props.invoiceReceipt.allocation_number ? (
-                <span> | מספר הקצאה: {props.invoiceReceipt.allocation_number}</span>
+              {formatAllocationNumber(props.invoiceReceipt.allocation_number) ? (
+                <span dir="ltr"> | מספר הקצאה: {formatAllocationNumber(props.invoiceReceipt.allocation_number)}</span>
               ) : null}
             </div>
           </div>
