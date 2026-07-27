@@ -63,6 +63,11 @@ export default function CustomerAutocomplete({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const justSelectedRef = useRef(false);
+  // True once the user has actually typed in this field. A value that arrived
+  // from a chained document's prefill must not behave like a search: it used to
+  // trigger the debounced lookup and open the dropdown on "לא נמצאו לקוחות
+  // תואמים / לקוח חדש", even though the customer was already filled in.
+  const userTypedRef = useRef(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -83,6 +88,12 @@ export default function CustomerAutocomplete({
 
     // Don't search if user just selected a customer
     if (justSelectedRef.current) {
+      return;
+    }
+
+    // Don't search — and above all don't open the dropdown — for a value the
+    // user never typed (prefill from a chained source document).
+    if (!userTypedRef.current) {
       return;
     }
 
@@ -121,6 +132,8 @@ export default function CustomerAutocomplete({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
+    // A real keystroke — from here on the field behaves as a live search.
+    userTypedRef.current = true;
     onChange(newValue);
     setLastValue(newValue);
     

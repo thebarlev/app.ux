@@ -1853,6 +1853,13 @@ export async function getDocumentForChainingAction(documentId: string) {
         // flag itself is a form setting that is never stored on the row.
         subtotal: typeof data.subtotal === "number" ? data.subtotal : Number(data.subtotal ?? 0),
         vatAmount: typeof data.vat_amount === "number" ? data.vat_amount : Number(data.vat_amount ?? 0),
+        // What is still owed after every receipt already issued against this
+        // document. This — not the total — is the ceiling for a new chained
+        // receipt, so two receipts cannot together exceed the invoice.
+        outstandingBalance:
+          data.outstanding_balance === null || data.outstanding_balance === undefined
+            ? null
+            : Number(data.outstanding_balance),
         items,
         payments,
         vatRate: typeof (data as any).vat_rate === "number" ? (data as any).vat_rate : null,

@@ -195,10 +195,10 @@ export default async function DashboardPage() {
         <div className="dcx-panel-head"><div><h3>מסמכים אחרונים</h3><div className="dcx-sub">כולל מספרי הקצאה מרשות המסים</div></div></div>
         <div className="dcx-table-wrap">
           <table className="dcx-tbl">
-            <thead><tr><th className="dcx-cust">לקוח</th><th>סוג ומספר מסמך</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th></tr></thead>
+            <thead><tr><th className="dcx-cust">לקוח</th><th>סוג ומספר מסמך</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th><th>פעולות</th></tr></thead>
             <tbody>
               {recentDocs.length === 0 && (
-                <tr><td colSpan={6} className="dcx-empty">עדיין אין מסמכים</td></tr>
+                <tr><td colSpan={7} className="dcx-empty">עדיין אין מסמכים</td></tr>
               )}
               {recentDocs.map((d) => (
                 <tr key={d.id}>
@@ -206,8 +206,13 @@ export default async function DashboardPage() {
                   <td><Link className="dcx-lnk dcx-doc-c" href={d.href || "/dashboard/documents/income"}>{d.typeLabel} {d.number}</Link></td>
                   <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber || ""}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
-                  <td><span className={`dcx-st ${d.status}`}>{d.status === "paid" ? "שולם" : "ממתין"}</span></td>
+                  <td><span className={`dcx-st ${d.status}`}>{d.status === "closed" ? "סגור" : "פתוח"}</span></td>
                   <td className="dcx-numc">{heDate(d.date)}</td>
+                  <td className="dcx-act">
+                    {d.href ? <Link className="dcx-lnk" href={d.href}>צפייה</Link> : null}
+                    <a className="dcx-lnk" href={d.pdfHref}>הורדה</a>
+                    {d.chainHref ? <Link className="dcx-lnk" href={d.chainHref}>שרשור</Link> : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -279,7 +284,9 @@ const DASH_CSS = `
 .dcx-alloc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right;font-weight:700;color:var(--dcx-ink)}
 .dcx-alloc.none{color:var(--dcx-muted);font-weight:600}
 .dcx-st{font-size:16px;font-weight:700;padding:3px 12px;border-radius:20px}
-.dcx-st.paid{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.wait{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
+.dcx-st.closed{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.open{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
+.dcx-act{display:flex;gap:10px;white-space:nowrap}
+.dcx-act .dcx-lnk{font-size:13px}
 @media(max-width:900px){
   .dcx-dash{padding:16px 16px 24px}
   .dcx-hello h1{font-size:23px}
