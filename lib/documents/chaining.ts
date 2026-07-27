@@ -223,12 +223,22 @@ export function chainSupersedesSource(params: {
 
 /**
  * Link for a chained document that REPLACES its source rather than paying it.
+ *
+ * `amount` carries the chained document's total, and it matters: the conversion
+ * branch of recompute_document_accounting sums these to decide whether the
+ * source is fully accounted for. Issuing a ₪100 invoice against a ₪700 חשבון
+ * עסקה must leave ₪600 still to invoice — closing the demand on the mere
+ * existence of an invoice, regardless of amount, is the same class of error as
+ * capping receipts against the total instead of the remaining balance.
+ *
  * Direction follows the trigger: the conversion branch looks for links where the
- * source document is `source_document_id`.
+ * superseded document is `source_document_id`.
  */
 export function buildChainedConversionLink(params: {
   sourceDocumentId: string
   chainedDocumentId: string
+  /** Total of the chained document — how much of the source it accounts for. */
+  amount: number
   note?: string | null
 }): {
   sourceDocumentId: string
@@ -241,7 +251,7 @@ export function buildChainedConversionLink(params: {
     sourceDocumentId: params.sourceDocumentId,
     targetDocumentId: params.chainedDocumentId,
     linkType: "conversion",
-    amount: 0,
+    amount: Number(params.amount) || 0,
     note: params.note ?? null,
   }
 }
