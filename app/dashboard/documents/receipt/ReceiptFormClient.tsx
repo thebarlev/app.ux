@@ -40,12 +40,10 @@ import {
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
 import {
-  buildChainAssociationNote,
   buildChainedPaymentLink,
   chainedTotalFromSource,
   isPaymentBearingDocumentType,
   validateChainedAmount,
-  withAssociationNote,
 } from "@/lib/documents/chaining";
 import {
   createDocumentLinkAction,
@@ -250,13 +248,8 @@ export default function ReceiptFormClient({
           if (doc.customerName) setCustomerName(String(doc.customerName));
           if (doc.customerId) setCustomerId(String(doc.customerId));
           if (doc.documentDescription) setDescription(String(doc.documentDescription));
-
-          const association = buildChainAssociationNote({
-            targetDocumentType: "receipt",
-            sourceDocumentType: doc.documentType,
-            sourceDocumentNumber: doc.documentNumber,
-          });
-          setNotes((prev) => withAssociationNote(prev || String(doc.internalNotes || ""), association));
+          // The association line is NOT written here — the documents list already
+          // passes it as ?notes=. Writing it again produced a duplicate note.
 
           const sourcePayments = (res.document as any).payments as PaymentRow[] | undefined;
           // Only a receipt-like source has real payment rows to carry. For an

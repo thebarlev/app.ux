@@ -1839,6 +1839,10 @@ export async function getDocumentForChainingAction(documentId: string) {
         documentNumber: data.document_number ?? null,
         customerId: data.customer_id,
         customerName: data.customer_name ?? "",
+        // The customer's ח.פ/ת.ז. Carried for every source type, not just
+        // invoices: a tax invoice chained from a חשבון עסקה needs it too, and
+        // above the statutory threshold it is required for the allocation call.
+        customerTaxId: data.customer_tax_id ?? null,
         documentDescription: data.document_description ?? "",
         internalNotes: data.internal_notes ?? "",
         documentDate: data.issue_date ?? null,

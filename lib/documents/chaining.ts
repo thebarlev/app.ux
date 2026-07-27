@@ -7,8 +7,6 @@
  * cannot drift apart the way they had.
  */
 
-import { DOCUMENT_TYPE_LABELS_HE } from "@/lib/documents/document-type-labels"
-
 /** Tolerance for money comparisons, in the document currency. */
 const MONEY_EPSILON = 0.01
 
@@ -70,36 +68,6 @@ export function validateChainedAmount(params: {
   }
 
   return { ok: true }
-}
-
-/**
- * The association line written into the chained document's own notes.
- *
- * This is distinct from the note stored on the document_links row: that one is
- * internal bookkeeping, while this one is what a reader of the document sees.
- * Only the link note existed before, so nothing appeared on the document itself.
- */
-export function buildChainAssociationNote(params: {
-  targetDocumentType: string | null | undefined
-  sourceDocumentType: string | null | undefined
-  sourceDocumentNumber: string | null | undefined
-}): string | null {
-  const number = String(params.sourceDocumentNumber || "").trim()
-  if (!number) return null
-
-  const sourceLabel = DOCUMENT_TYPE_LABELS_HE[String(params.sourceDocumentType || "")] || "מסמך"
-
-  // A receipt reads naturally as "issued for X"; everything else as "linked to X".
-  const isReceipt = String(params.targetDocumentType || "") === "receipt"
-  return isReceipt ? `קבלה עבור ${sourceLabel} ${number}` : `משויך ל${sourceLabel} ${number}`
-}
-
-/** Appends the association line to existing notes without duplicating it. */
-export function withAssociationNote(existingNotes: string, association: string | null): string {
-  if (!association) return existingNotes
-  const current = String(existingNotes || "")
-  if (current.includes(association)) return current
-  return current.trim() ? `${current.trim()}\n${association}` : association
 }
 
 /**

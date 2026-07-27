@@ -27,11 +27,9 @@ import {
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
 import { requiresCustomerTaxIdForAllocation } from "@/lib/documents/allocation-rules";
 import {
-  buildChainAssociationNote,
   buildChainedPaymentLink,
   chainedTotalFromSource,
   validateChainedAmount,
-  withAssociationNote,
 } from "@/lib/documents/chaining";
 
 /** Form document types use camelCase; chaining labels are keyed by the DB spelling. */
@@ -338,14 +336,15 @@ export default function TaxInvoiceFormClient({
           setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
           if (doc.customerName) setCustomerName(String(doc.customerName));
           if (doc.customerId) setCustomerId(String(doc.customerId));
+          // The ח.פ/ת.ז was not carried at all, so a chained invoice opened with
+          // an empty customer ID — and above the statutory threshold that blocks
+          // the allocation call outright.
+          if (doc.customerTaxId) setCustomerTaxId(String(doc.customerTaxId).replace(/\D/g, ""));
           if (doc.documentDescription) setDescription(String(doc.documentDescription));
-
-          const association = buildChainAssociationNote({
-            targetDocumentType: toDbDocumentTypeForChain(documentType),
-            sourceDocumentType: doc.documentType,
-            sourceDocumentNumber: doc.documentNumber,
-          });
-          setNotes((prev) => withAssociationNote(prev || String(doc.internalNotes || ""), association));
+          // The association line is NOT written here. The chain is started from
+          // the documents list, which already passes it as ?notes= in the format
+          // "<target type> עבור <source type> <number>" — adding a second line
+          // here produced two near-identical notes on the same document.
         }
         if (res.ok && res.document.items && res.document.items.length > 0) {
           const loadedItems = res.document.items.map(item => ({
