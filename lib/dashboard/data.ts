@@ -88,6 +88,8 @@ export type DashboardData = {
     state: ShaamChipState
     refreshExpiresAt: string | null
     daysToRefreshExpiry: number | null
+    /** False for an osek patur, who can never need an allocation number. */
+    applies: boolean
   }
 }
 
@@ -258,6 +260,17 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     .eq("company_id", companyId)
     .maybeSingle()
 
+  // An osek patur may not issue a tax invoice or an invoice-receipt, which are
+  // the only documents that ever need an allocation number. The SHAAM connection
+  // is therefore irrelevant to them — surfacing a red "not connected" chip only
+  // pushes them toward a connection they will never use.
+  const { data: chipCompany } = await supabase
+    .from("companies")
+    .select("business_type")
+    .eq("id", companyId)
+    .maybeSingle()
+  const shaamApplies = String((chipCompany as any)?.business_type || "") !== "osek_patur"
+
   let state: ShaamChipState = "none"
   let refreshExpiresAt: string | null = null
   let daysToRefreshExpiry: number | null = null
@@ -287,6 +300,6 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     revenueByMonth,
     docsByMonth,
     recentDocs,
-    shaam: { state, refreshExpiresAt, daysToRefreshExpiry },
+    shaam: { state, refreshExpiresAt, daysToRefreshExpiry, applies: shaamApplies },
   }
 }

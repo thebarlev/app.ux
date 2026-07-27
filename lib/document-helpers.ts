@@ -1360,6 +1360,18 @@ export async function finalizeDocument(
     return s.includes("signing_failed") || s.includes("Signing failed (http_error)")
   }
 
+  /**
+   * Separates "the signing service does not know this business" from a generic
+   * signing outage. The first is a setup problem the user can act on (or report),
+   * and it is permanent until fixed — retrying forever will not help. DSIGN
+   * returns it as HTTP 403 `business_not_in_source`.
+   */
+  const classifySigningFailure = (msg: unknown): string => {
+    const s = typeof msg === "string" ? msg : ""
+    if (s.includes("business_not_in_source")) return "signing_business_not_registered"
+    return "signing_failed"
+  }
+
   let originalFinal = original as any
   let copyFinal = copy as any
 
@@ -1381,8 +1393,11 @@ export async function finalizeDocument(
     })
   }
 
-  if (!originalFinal.ok) return { ok: false, message: originalFinal.message }
-  if (!copyFinal.ok) return { ok: false, message: copyFinal.message }
+  // Carry a reason so the failure modal can explain a signing outage in Hebrew
+  // instead of showing the provider's raw string ("Signing failed (http_error):
+  // business_not_in_source"), which tells the user nothing actionable.
+  if (!originalFinal.ok) return { ok: false, message: originalFinal.message, reason: classifySigningFailure(originalFinal.message) }
+  if (!copyFinal.ok) return { ok: false, message: copyFinal.message, reason: classifySigningFailure(copyFinal.message) }
 
   let enSignedBase64: string | null = null
   let enSignedSha256: string | null = null

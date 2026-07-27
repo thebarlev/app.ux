@@ -108,20 +108,24 @@ export default async function DashboardPage() {
           </h1>
           <p>{dateLine}</p>
         </div>
-        <div className="dcx-shaam" data-state={shaam.state}>
-          <span className="dcx-dot" aria-hidden="true" />
-          <span className="dcx-shaam-msg">
-            {shaam.state === "ok" && SHAAM_MSG.ok(refreshDateHe)}
-            {shaam.state === "warn" && SHAAM_MSG.warn(shaam.daysToRefreshExpiry ?? 0)}
-            {shaam.state === "expired" && SHAAM_MSG.expired()}
-            {shaam.state === "none" && SHAAM_MSG.none()}
-          </span>
-          {(shaam.state === "expired" || shaam.state === "none") && (
-            <a className="dcx-btn-conn" href="/api/shaam/oauth/start">
-              התחברות מחדש
-            </a>
-          )}
-        </div>
+        {/* Hidden for an osek patur: they cannot issue the documents that need an
+            allocation number, so a SHAAM connection has nothing to do with them. */}
+        {shaam.applies ? (
+          <div className="dcx-shaam" data-state={shaam.state}>
+            <span className="dcx-dot" aria-hidden="true" />
+            <span className="dcx-shaam-msg">
+              {shaam.state === "ok" && SHAAM_MSG.ok(refreshDateHe)}
+              {shaam.state === "warn" && SHAAM_MSG.warn(shaam.daysToRefreshExpiry ?? 0)}
+              {shaam.state === "expired" && SHAAM_MSG.expired()}
+              {shaam.state === "none" && SHAAM_MSG.none()}
+            </span>
+            {(shaam.state === "expired" || shaam.state === "none") && (
+              <a className="dcx-btn-conn" href="/api/shaam/oauth/start">
+                התחברות מחדש
+              </a>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* KPIs */}
