@@ -63,6 +63,36 @@ export function sha256Hex(buf: Buffer): string {
   return crypto.createHash("sha256").update(new Uint8Array(buf)).digest("hex")
 }
 
+export type BusinessEnsureResult =
+  | { ok: true; status: number; alreadyExisted: boolean }
+  | { ok: false; status: number | null; body: string; error: string | null }
+
+/**
+ * Registers the business with the signing service, idempotently.
+ *
+ * This used to DELETE the business ("to remove old certificate") and then POST
+ * it back, with both calls unchecked inside `try { } catch { /* ignore *\/ }`.
+ * Three things were wrong with that, and all three are fixed here:
+ *
+ *  - The DELETE opened a window in which the business did not exist. Signing of
+ *    "מקור" and "העתק" runs concurrently, with retries, and the dedupe cache is
+ *    per-process — so on a multi-instance deployment one instance's DELETE could
+ *    land after another's POST and leave the business deleted. Every subsequent
+ *    signing call then returns 403 `business_not_in_source`. A registration step
+ *    must never be able to unregister a working business, so the DELETE is gone.
+ *    (If certificate rotation is still wanted it needs a dedicated
+ *    non-destructive endpoint on the signing service — deleting the business to
+ *    refresh its certificate is not a safe way to get one.)
+ *
+ *  - Nothing was checked. Any status, any body, any network error was discarded,
+ *    so a failed registration was indistinguishable from a successful one and
+ *    left no trace anywhere. Now the status is checked, the body is read on
+ *    failure, and the outcome is returned to the caller.
+ *
+ *  - Concurrent POSTs for the same business are harmless: the call is treated as
+ *    idempotent, with "already exists" (409, or 2xx from an upsert) counted as
+ *    success. This works whether the service upserts or rejects duplicates.
+ */
 async function ensureBusinessRegistered(
   baseUrl: string,
   apiKey: string,
@@ -71,7 +101,7 @@ async function ensureBusinessRegistered(
   taxId?: string | null,
   email?: string | null,
   contactName?: string | null
-): Promise<void> {
+): Promise<BusinessEnsureResult> {
   const requestBody = {
     business_id: businessId,
     name,
@@ -79,34 +109,50 @@ async function ensureBusinessRegistered(
     email,
     contact_name: contactName,
   }
-  
+
   try {
-    // Try DELETE first to remove old certificate
-    await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses/${businessId}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-    })
-    
-    // Now POST to create/update
-    await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses`, {
+    const res = await fetch(`${baseUrl.replace(/\/+$/, "")}/v1/businesses`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
+      cache: "no-store",
     })
+
+    if (res.ok) {
+      return { ok: true, status: res.status, alreadyExisted: res.status === 200 }
+    }
+
+    // A duplicate is the expected answer for a business that is already there,
+    // which is the normal case on every issuance after the first.
+    if (res.status === 409) {
+      return { ok: true, status: res.status, alreadyExisted: true }
+    }
+
+    const body = await res.text().catch(() => "")
+    return { ok: false, status: res.status, body: body.slice(0, 500), error: null }
   } catch (e: any) {
-    // ignore
+    return { ok: false, status: null, body: "", error: String(e?.cause?.code || e?.code || e?.message || e).slice(0, 200) }
   }
 }
 
 const BUSINESS_ENSURE_TTL_MS = 5 * 60 * 1000
-const businessEnsureCache = new Map<string, { expiresAt: number; promise: Promise<void> }>()
+const businessEnsureCache = new Map<string, { expiresAt: number; promise: Promise<BusinessEnsureResult> }>()
 
+/**
+ * Deduplicates concurrent registrations of the same business and remembers the
+ * result for a while.
+ *
+ * Only successes are remembered. The previous version cached the promise
+ * unconditionally, and because the underlying call swallowed every error it
+ * always resolved — so a failed registration was cached as "done" and not
+ * retried for five minutes, exactly when retrying was what was needed.
+ *
+ * Concurrent callers still share one in-flight request (the promise is stored
+ * before it settles), so "מקור" and "העתק" cannot race each other.
+ */
 async function ensureBusinessRegisteredOnce(
   baseUrl: string,
   apiKey: string,
@@ -115,7 +161,7 @@ async function ensureBusinessRegisteredOnce(
   taxId?: string | null,
   email?: string | null,
   contactName?: string | null
-): Promise<void> {
+): Promise<BusinessEnsureResult> {
   const now = Date.now()
   const hit = businessEnsureCache.get(businessId)
   if (hit && hit.expiresAt > now) {
@@ -125,12 +171,18 @@ async function ensureBusinessRegisteredOnce(
   const p = ensureBusinessRegistered(baseUrl, apiKey, businessId, name, taxId, email, contactName)
   businessEnsureCache.set(businessId, { expiresAt: now + BUSINESS_ENSURE_TTL_MS, promise: p })
 
+  let result: BusinessEnsureResult
   try {
-    await p
+    result = await p
   } catch (e) {
     businessEnsureCache.delete(businessId)
     throw e
   }
+
+  // Never let a failure stick: the next issuance must try again.
+  if (!result.ok) businessEnsureCache.delete(businessId)
+
+  return result
 }
 
 function pickRequestId(json: any): string | null {
@@ -221,8 +273,10 @@ export async function createSigningRequest(params: {
     }
   }
 
-  // Register business first
-  await ensureBusinessRegisteredOnce(
+  // Register the business first. This is idempotent and never destructive, so a
+  // concurrent or repeated call cannot unregister a business that already works.
+  const ensureT0 = Date.now()
+  const ensured = await ensureBusinessRegisteredOnce(
     baseUrl,
     apiKey,
     params.businessId,
@@ -231,6 +285,45 @@ export async function createSigningRequest(params: {
     params.businessEmail || params.metadata?.email,
     params.businessContactName || params.metadata?.business_contact_name
   )
+
+  // Make the registration step visible. Previously it produced no output at all,
+  // so a failure here surfaced only as an unexplained 403 from the signing call.
+  if (attemptId) {
+    console.log("[DOC_ISSUE]", {
+      attempt_id: attemptId,
+      step: ensured.ok ? "sign_business_ensure_ok" : "sign_business_ensure_failed",
+      ...(ensured.ok ? {} : { level: "error" }),
+      duration_ms: Date.now() - ensureT0,
+      business_id8: String(params.businessId || "").slice(0, 8),
+      secure_signature_host: hostFromUrl(baseUrl),
+      http_status: ensured.status,
+      ...(ensured.ok
+        ? { already_existed: ensured.alreadyExisted }
+        : { response_body: ensured.body || null, fetch_error: ensured.error }),
+    })
+  }
+
+  if (!ensured.ok) {
+    // Deliberately not fatal. If the business is in fact already registered, an
+    // unexpected answer here should not block a signature that would succeed;
+    // and if it is genuinely missing, the signing call below returns
+    // 403 business_not_in_source, which finalizeDocument already classifies and
+    // explains to the user. The failure is now logged and, crucially, not cached.
+    logSecurityEvent({
+      event: "signing_failed",
+      outcome: "failed",
+      userId: null,
+      companyId: params.businessId || null,
+      requestId: null,
+      ip: null,
+      path: null,
+      meta: {
+        code: "business_ensure_failed",
+        message: `status=${ensured.status ?? "none"} ${ensured.error || ensured.body || ""}`.trim().slice(0, 300),
+        externalDocId: params.externalDocId,
+      },
+    })
+  }
 
   const url = `${baseUrl.replace(/\/+$/, "")}/v1/signing/requests`
   const agentSigningT0 = Date.now()
