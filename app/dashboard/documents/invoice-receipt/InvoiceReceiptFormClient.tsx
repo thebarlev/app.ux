@@ -20,7 +20,14 @@ import {
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
-import { buildChainedPaymentLink } from "@/lib/documents/chaining";
+import {
+  buildChainedConversionLink,
+  buildChainedPaymentLink,
+  chainSupersedesSource,
+  chainedTotalFromSource,
+  sourceAppliedRounding,
+  validateChainedAmount,
+} from "@/lib/documents/chaining";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import PaymentDetailsSection from "../receipt/PaymentDetailsSection";
 import { FloatingInput } from "@/components/ui/floating-input";
@@ -153,6 +160,7 @@ export default function InvoiceReceiptFormClient({
 
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerTaxId, setCustomerTaxId] = useState("");
   const [showQuickAddModal, setShowQuickAddModal] = useState(false);
   const [documentDate, setDocumentDate] = useState(todayYmd());
   const [dueDate, setDueDate] = useState(todayYmd());
@@ -160,6 +168,11 @@ export default function InvoiceReceiptFormClient({
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
+  /** Source total, its remaining balance, and its type — for the cap and for
+   *  deciding whether this document supersedes the source. */
+  const [chainSourceTotal, setChainSourceTotal] = useState<number | null>(null);
+  const [chainSourceRemaining, setChainSourceRemaining] = useState<number | null>(null);
+  const [chainSourceType, setChainSourceType] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
@@ -319,6 +332,30 @@ export default function InvoiceReceiptFormClient({
       setChainSourceDocumentId(prefillSourceDocumentId);
       // Load items from source document
       getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok) {
+          const doc = res.document as any;
+
+          // This form was left out of the chaining work, so an invoice-receipt
+          // chained from a חשבון עסקה opened with only its item rows: no
+          // customer, no ח.פ/ת.ז, no description, and a total recomputed from
+          // the net base that lost the source's rounding.
+          setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
+          setChainSourceType(doc.documentType ?? null);
+          setChainSourceRemaining(
+            doc.outstandingBalance === null || doc.outstandingBalance === undefined
+              ? null
+              : Number(doc.outstandingBalance)
+          );
+          if (doc.customerName) setCustomerName(String(doc.customerName));
+          if (doc.customerId) setCustomerId(String(doc.customerId));
+          if (doc.customerTaxId) setCustomerTaxId(String(doc.customerTaxId).replace(/\D/g, ""));
+          if (doc.documentDescription) setDescription(String(doc.documentDescription));
+          // Carry the source's rounding so the chained total matches the amount
+          // actually issued, to the agora.
+          if (sourceAppliedRounding(doc)) setRoundTotals(true);
+          // The association line is NOT written here — the documents list already
+          // passes it as ?notes=.
+        }
         if (res.ok && res.document.items && res.document.items.length > 0) {
           const loadedItems = res.document.items.map(item => ({
             label: item.label,
@@ -437,6 +474,7 @@ export default function InvoiceReceiptFormClient({
       documentType: "invoiceReceipt",
       customerName,
       customerId,
+      customerTaxId: customerTaxId.replace(/\D/g, "") || null,
       documentDate,
       paymentDueDate: "",
       description,
@@ -458,6 +496,7 @@ export default function InvoiceReceiptFormClient({
   }, [
     customerName,
     customerId,
+    customerTaxId,
     documentDate,
     description,
     items,
@@ -833,6 +872,20 @@ export default function InvoiceReceiptFormClient({
       focusFieldWithError(!allItemsConfirmed ? itemsTableRef : paymentsTableRef);
       return;
     }
+    // A chained document may settle its source in full or in part, never for
+    // more — and the ceiling is the source's REMAINING balance, so receipts
+    // cannot together exceed it.
+    if (chainSourceDocumentId && chainSourceTotal !== null) {
+      const cap = validateChainedAmount({
+        chainedTotal: total,
+        sourceTotal: chainSourceTotal,
+        sourceRemaining: chainSourceRemaining,
+      });
+      if (!cap.ok) {
+        setIssueFailure({ message: cap.message, reason: "chained_amount_above_source" });
+        return;
+      }
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -985,13 +1038,25 @@ export default function InvoiceReceiptFormClient({
         // target so recompute_document_accounting accumulates onto it. The old
         // exact-match rule dropped partial payments to a "related" link with
         // amount 0 and left the source open.
+        // A חשבון עסקה is replaced by the document issued for it; anything else
+        // is settled by the money this document collects.
+        const supersedes = chainSupersedesSource({
+          sourceDocumentType: chainSourceType,
+          targetDocumentType: "invoice_receipt",
+        });
         const linkRes = await createDocumentLinkAction(
-          buildChainedPaymentLink({
-            sourceDocumentId: chainSourceDocumentId,
-            chainedDocumentId: result.documentId || "",
-            amount: total,
-            note,
-          })
+          supersedes
+            ? buildChainedConversionLink({
+                sourceDocumentId: chainSourceDocumentId,
+                chainedDocumentId: result.documentId || "",
+                note,
+              })
+            : buildChainedPaymentLink({
+                sourceDocumentId: chainSourceDocumentId,
+                chainedDocumentId: result.documentId || "",
+                amount: total,
+                note,
+              })
         );
         if (!linkRes.ok) {
           toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
@@ -1200,10 +1265,25 @@ export default function InvoiceReceiptFormClient({
                         if (customer) {
                           setCustomerId(customer.id);
                           setCustomerNameError(null);
+                          // Prefill from the saved customer, but leave it editable —
+                          // the document may need a different number than the record.
+                          if (customer.tax_id) setCustomerTaxId(String(customer.tax_id));
                         }
                       }}
                       onAddNewCustomer={() => setShowQuickAddModal(true)}
                       placeholder="התחל להקליד שם לקוח..."
+                      containerClassName="w-full min-w-0"
+                    />
+                  </div>
+
+                  <div>
+                    <FloatingInput
+                      id="customerTaxId"
+                      label="מספר עוסק / ח.פ של הלקוח"
+                      value={customerTaxId}
+                      onChange={(e) => setCustomerTaxId(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                      inputMode="numeric"
+                      placeholder="9 ספרות"
                       containerClassName="w-full min-w-0"
                     />
                   </div>

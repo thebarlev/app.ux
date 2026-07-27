@@ -637,6 +637,27 @@
   line-height: 1.5;
 }
 
+/*
+ * Links inside the consent text (תנאי שימוש / מדיניות פרטיות / נספח שימוש).
+ *
+ * The text is injected as HTML from system_texts, so the anchors inside it were
+ * picking up the generic auth link treatment — darker and bold — and stood out
+ * against the 14px/400 sentence they sit in. They are brand blue, underlined,
+ * and match the surrounding text's size and weight.
+ */
+.auth-scope.login-split .auth-checkbox-label a {
+  color: #5389BB !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+  font-size: inherit !important;
+  font-weight: 400 !important;
+}
+.auth-scope.login-split .auth-checkbox-label a:hover,
+.auth-scope.login-split .auth-checkbox-label a:focus-visible {
+  color: #5389BB !important;
+  text-decoration: underline !important;
+}
+
 /* register step-2 select, styled like the inputs */
 .auth-scope.login-split select.auth-input,
 .auth-scope.login-split [data-slot="select-trigger"] {

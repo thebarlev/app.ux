@@ -61,7 +61,9 @@ const initialData: RegistrationData = {
   city: "",
   postalCode: "",
   acceptedLegalTerms: false,
-  acceptedMarketing: true,
+  // No consent checkbox is pre-ticked: the user opts in deliberately. Marketing
+  // consent in particular must not default to accepted.
+  acceptedMarketing: false,
 }
 
 const RegistrationContext = createContext<RegistrationContextType | null>(null)
