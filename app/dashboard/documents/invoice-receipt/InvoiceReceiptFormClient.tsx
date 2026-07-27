@@ -319,7 +319,14 @@ export default function InvoiceReceiptFormClient({
 
   // Optional prefill from URL params (UI only; no DB logic changes)
   useEffect(() => {
-    if (editData || draftId) return;
+    // Guard on the draft that was navigated to (prop / edit), NOT on `draftId`.
+    // `draftId` above is merged with initial.draftId, which
+    // getInitialDocumentCreateData creates or reuses for any locked sequence —
+    // so it is truthy on a plain "new document" visit and this effect returned
+    // before doing anything. That is why a chained invoice-receipt carried
+    // nothing while the tax-invoice form, whose guard reads only its prop,
+    // prefilled correctly from the very same link.
+    if (editData || draftIdProp) return;
     const prefillCustomerId = searchParams.get("customerId");
     const prefillCustomerName = searchParams.get("customerName");
     const prefillNotes = searchParams.get("notes");
