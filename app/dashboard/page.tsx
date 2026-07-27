@@ -3,6 +3,7 @@ import { getDashboardData } from "@/lib/dashboard/data"
 import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import PurchaseTracker from "./PurchaseTracker"
+import DashboardChainAction from "@/components/dashboard/DashboardChainAction"
 
 export const dynamic = "force-dynamic"
 
@@ -211,7 +212,13 @@ export default async function DashboardPage() {
                   <td className="dcx-act">
                     {d.href ? <Link className="dcx-lnk" href={d.href}>צפייה</Link> : null}
                     <a className="dcx-lnk" href={d.pdfHref}>הורדה</a>
-                    {d.chainHref ? <Link className="dcx-lnk" href={d.chainHref}>שרשור</Link> : null}
+                    {d.chainSource ? (
+                      <DashboardChainAction
+                        source={d.chainSource}
+                        sourceTypeLabel={d.typeLabel}
+                        className="dcx-lnk dcx-act-btn"
+                      />
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -286,6 +293,7 @@ const DASH_CSS = `
 .dcx-st{font-size:16px;font-weight:700;padding:3px 12px;border-radius:20px}
 .dcx-st.closed{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.open{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
 .dcx-act{display:flex;gap:10px;white-space:nowrap}
+.dcx-act-btn{background:none;border:0;padding:0;cursor:pointer;font:inherit}
 .dcx-act .dcx-lnk{font-size:13px}
 @media(max-width:900px){
   .dcx-dash{padding:16px 16px 24px}

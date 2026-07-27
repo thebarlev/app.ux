@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import { closeDocumentAction } from "@/lib/documents/actions";
 import ChainNewDocumentDialog, { type ChainNewDocumentKind } from "@/components/documents/ChainNewDocumentDialog";
+import { buildChainTargetHref } from "@/lib/documents/chain-navigation";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
   getAllDocumentConfigs().map((config) => [config.dbValue, config])
@@ -425,10 +426,6 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
     };
   }
 
-  function stripParenSuffix(label: string) {
-    // e.g. "חשבון עסקה (דרישת תשלום)" -> "חשבון עסקה"
-    return String(label || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
-  }
 
   function chainToNewDocument(kind: ChainNewDocumentKind, source: any) {
     if (!source?.id) return;
@@ -438,38 +435,10 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
       return;
     }
 
-    const targetLabel =
-      kind === "deliveryNote"
-        ? "תעודת משלוח"
-        : kind === "tax_invoice"
-          ? "חשבונית מס"
-          : kind === "invoiceReceipt"
-            ? "חשבונית מס / קבלה"
-            : "קבלה";
-
-    const sourceLabel = stripParenSuffix(getDocumentTypeLabel(source.document_type));
-    const sourceNumber = source.document_number || "";
-    const autoNotes = `${targetLabel} עבור ${sourceLabel} ${sourceNumber}`.trim();
-
-    const params = new URLSearchParams();
-    params.set("sourceDocumentId", source.id);
-    if (source.customer_id) params.set("customerId", String(source.customer_id));
-    if (source.customer_name) params.set("customerName", String(source.customer_name));
-    if (autoNotes) params.set("notes", autoNotes);
-
-    if (kind === "receipt") {
-      router.push(`/dashboard/incomes/documents/new/receipt?${params.toString()}`);
-      return;
-    }
-    if (kind === "invoiceReceipt") {
-      router.push(`/dashboard/incomes/documents/new/invoiceReceipt?${params.toString()}`);
-      return;
-    }
-    if (kind === "tax_invoice") {
-      router.push(`/dashboard/incomes/documents/new/invoice?${params.toString()}`);
-      return;
-    }
-    router.push(`/business/documents/new/deliveryNote?${params.toString()}`);
+    // Shared with the dashboard's actions column so both entry points build the
+    // same URL and the same prefill params from one mapping.
+    const href = buildChainTargetHref(kind, source, getDocumentTypeLabel(source.document_type));
+    if (href) router.push(href);
   }
 
   function shouldShowCancelFlowButton(doc: any): boolean {

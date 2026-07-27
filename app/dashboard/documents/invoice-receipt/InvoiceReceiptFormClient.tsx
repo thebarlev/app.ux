@@ -319,7 +319,14 @@ export default function InvoiceReceiptFormClient({
 
   // Optional prefill from URL params (UI only; no DB logic changes)
   useEffect(() => {
-    if (editData || draftId) return;
+    // Guard on the draft that was navigated to (prop / edit), NOT on `draftId`.
+    // `draftId` above is merged with initial.draftId, which
+    // getInitialDocumentCreateData creates or reuses for any locked sequence —
+    // so it is truthy on a plain "new document" visit and this effect returned
+    // before doing anything. That is why a chained invoice-receipt carried
+    // nothing while the tax-invoice form, whose guard reads only its prop,
+    // prefilled correctly from the very same link.
+    if (editData || draftIdProp) return;
     const prefillCustomerId = searchParams.get("customerId");
     const prefillCustomerName = searchParams.get("customerName");
     const prefillNotes = searchParams.get("notes");
@@ -429,6 +436,33 @@ export default function InvoiceReceiptFormClient({
     if (!roundTotals) return sum;
     return Math.round(sum);
   }, [subtotal, vatAmount, vatRate, roundTotals]);
+
+  /**
+   * Chained invoice-receipt: the amount being invoiced now drives the receipt side.
+   *
+   * This document both charges and acknowledges payment, so its two halves must
+   * agree — that is what validateTotalsMismatch enforces, and that rule is
+   * correct for the type and is untouched. What was missing is that a chained
+   * document arrived with the source's item lines on one side and an empty
+   * payment row on the other, so it could never be issued without the user
+   * re-typing the figure.
+   *
+   * While the document is chained AND there is a single payment row, that row
+   * mirrors the invoiced total. Invoicing part of a חשבון עסקה is then a matter
+   * of editing the item down to the amount being collected — the receipt side
+   * follows, and the two stay equal by construction.
+   *
+   * The mirror stops the moment a second payment row exists: splitting a
+   * collection across payment methods is the user's arithmetic, not ours.
+   */
+  useEffect(() => {
+    if (!chainSourceDocumentId) return;
+    if (payments.length !== 1) return;
+    const target = Number(total.toFixed(2));
+    const current = Number(payments[0]?.amount ?? 0);
+    if (Math.abs(current - target) < 0.005) return;
+    setPayments((prev) => (prev.length === 1 ? [{ ...prev[0], amount: target }] : prev));
+  }, [chainSourceDocumentId, total, payments]);
 
   const paymentsTotal = useMemo(() => {
     return payments.reduce((acc, p, idx) => {
