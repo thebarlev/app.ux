@@ -8,6 +8,7 @@ import { Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { currencySymbol } from "@/lib/currency/symbol";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
+import { formatAllocationNumber } from "@/lib/documents/allocation-number";
 
 const DOC_LABEL_BY_DB_VALUE = new Map(getAllDocumentConfigs().map((c) => [c.dbValue, c.label]));
 
@@ -415,8 +416,8 @@ export default function TaxInvoiceSummaryClient(props: {
             <div className="mt-2 text-right text-muted-foreground" style={{ fontSize: "16px" }}>
               <span>תאריך מסמך: {formatDate(props.taxInvoice.issue_date)}</span>
               {props.taxInvoice.created_at ? <span> | הופק ב- {formatDateTime(props.taxInvoice.created_at)}</span> : null}
-              {props.taxInvoice.allocation_number ? (
-                <span> | מספר הקצאה: {props.taxInvoice.allocation_number}</span>
+              {formatAllocationNumber(props.taxInvoice.allocation_number) ? (
+                <span dir="ltr"> | מספר הקצאה: {formatAllocationNumber(props.taxInvoice.allocation_number)}</span>
               ) : null}
             </div>
           </div>

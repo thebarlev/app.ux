@@ -17,6 +17,7 @@ import { signPdfWithEnvP12 } from "@/lib/documents/signing/p12-signer"
 import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flags"
 import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from "@/lib/documents/signing/secure-signature-client"
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
+import { parseAllocationNumber } from "@/lib/documents/allocation-number"
 import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { countHandlebarsBlocks, redactDigits, safeExcerptNoDigits, stripHtmlToText } from "@/lib/template-engine"
 import type { 
@@ -1700,13 +1701,17 @@ export async function prepareDocumentData(
     return sku && String(sku).trim().length > 0
   })
 
-  const allocationNumberRaw = (doc as any)?.allocation_number
-  const allocation_number =
-    allocationNumberRaw === null || allocationNumberRaw === undefined ? null : String(allocationNumberRaw).trim() || null
-  // Split for display: the rightmost 9 digits are emphasised in the template;
-  // the head is everything before them. (Full string still available as allocation_number.)
-  const allocation_number_tail = allocation_number ? allocation_number.slice(-9) : null
-  const allocation_number_head = allocation_number ? allocation_number.slice(0, -9) : null
+  // ITA's confirmation_number is "<17-char timestamp><9-digit allocation number>".
+  // Only the 9-digit part is the allocation number; printing both made the field
+  // read as two numbers. The stored value is untouched — this is display only.
+  const allocationParts = parseAllocationNumber((doc as any)?.allocation_number)
+  const allocation_number = allocationParts ? allocationParts.display : null
+  const allocation_number_full = allocationParts ? allocationParts.full : null
+  // Templates render `{{allocation_number_head}}<strong>{{allocation_number_tail}}</strong>`.
+  // Keeping the tail as the (bold) allocation number and emptying the head drops
+  // the timestamp from every existing template without touching the DB.
+  const allocation_number_tail = allocationParts ? allocationParts.display : null
+  const allocation_number_head = ""
 
   const templateData: ReceiptTemplateData & Record<string, any> = {
     t,
@@ -1715,6 +1720,8 @@ export async function prepareDocumentData(
     allocation_number,
     allocation_number_head,
     allocation_number_tail,
+    // Full stored value, kept available for audit/support templates.
+    allocation_number_full,
     HAS_ALLOCATION_NUMBER: !!allocation_number,
     company: {
       name: companyNameLocalized, // Required by template validation {{company.name}}

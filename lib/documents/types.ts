@@ -84,6 +84,11 @@ export type InitialDocumentCreateData =
       settings: import("@/lib/types/receipt").ReceiptSettings;
       minAllowedDate: string | null;
       vatRate?: number;
+      /**
+       * Issuer is not registered for VAT (osek patur). The form must render at
+       * 0% and must not offer a VAT toggle — the server zeroes VAT regardless.
+       */
+      vatExempt?: boolean;
     }
   | { ok: false; message: string };
 

@@ -185,7 +185,12 @@ export default function CustomerAutocomplete({
   const describedBy = errorId ?? helperId;
 
   return (
-    <div ref={wrapperRef} className={cn("relative w-full min-w-0", containerClassName)}>
+    // `ui-field-block` carries the shared field nudge (translateY(-14px)) that
+    // FloatingInput / FloatingDateInput / FloatingTextarea all apply. This
+    // component was the only field missing it, so wherever it sat beside one of
+    // them — e.g. "שם לקוח" next to "מספר עוסק / ח.פ של הלקוח" in the document
+    // form — it rendered 14px lower than everything around it.
+    <div ref={wrapperRef} className={cn("relative w-full min-w-0 ui-field-block", containerClassName)}>
       <input
         ref={inputRef}
         type="text"

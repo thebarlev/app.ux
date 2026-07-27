@@ -6,13 +6,28 @@ import { createClient } from "@/lib/supabase/server"
 import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
+import { SHAAM_SETTINGS_PATH, withShaamOutcome } from "@/lib/shaam/return-to"
 import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
 function redirectToSettings(url: URL, params: Record<string, string>) {
   // Always prefer the callback origin to avoid cross-domain session/cookie issues.
-  const target = new URL("/dashboard/settings/integrations/shaam", url.origin)
+  const target = new URL(SHAAM_SETTINGS_PATH, url.origin)
   for (const [k, v] of Object.entries(params)) target.searchParams.set(k, v)
   return NextResponse.redirect(target)
+}
+
+/**
+ * Sends the user back to wherever the connect was initiated from — the document
+ * they were issuing, when the prompt came from there — falling back to the
+ * settings screen. `returnTo` has already been sanitized to a same-origin path
+ * by verifyShaamOauthState; it is still resolved against the callback origin so
+ * the redirect can never leave this deployment.
+ */
+function redirectAfterOauth(url: URL, returnTo: string | undefined, outcome: { connected: boolean; error?: string }) {
+  if (!returnTo) {
+    return redirectToSettings(url, outcome.connected ? { connected: "1" } : { error: outcome.error || "1" })
+  }
+  return NextResponse.redirect(new URL(withShaamOutcome(returnTo, outcome), url.origin))
 }
 
 function loginRedirectForRequest(req: Request): NextResponse {
@@ -68,6 +83,8 @@ export async function GET(req: Request) {
   }
 
   const companyId = ver.payload.company_id
+  // Present only when the connect was initiated from a document mid-issuance.
+  const returnTo = ver.payload.return_to
 
   // ITA token endpoint expects client credentials via HTTP Basic auth, not in the body.
   const body = new URLSearchParams()
@@ -107,7 +124,7 @@ export async function GET(req: Request) {
       errorCode: "token_fetch_failed",
       errorMessage: e?.cause?.code || e?.code || e?.message || "fetch_failed",
     })
-    return redirectToSettings(url, { error: "token_fetch_failed" })
+    return redirectAfterOauth(url, returnTo, { connected: false, error: "token_fetch_failed" })
   }
 
   if (!res.ok) {
@@ -126,7 +143,7 @@ export async function GET(req: Request) {
       errorMessage,
     })
 
-    return redirectToSettings(url, { error: "1" })
+    return redirectAfterOauth(url, returnTo, { connected: false, error: errorCode })
   }
 
   // Non-secret visibility: log only the response KEYS (never values/tokens) so
@@ -149,7 +166,7 @@ export async function GET(req: Request) {
       errorCode: "bad_response",
       errorMessage: "missing_access_token_refresh_token_or_expires_in",
     })
-    return redirectToSettings(url, { error: "1" })
+    return redirectAfterOauth(url, returnTo, { connected: false, error: "bad_response" })
   }
 
   await upsertConnectionFromTokenResponse({
@@ -164,5 +181,5 @@ export async function GET(req: Request) {
     },
   })
 
-  return redirectToSettings(url, { connected: "1" })
+  return redirectAfterOauth(url, returnTo, { connected: true })
 }

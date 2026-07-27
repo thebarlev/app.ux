@@ -14,6 +14,7 @@ import { callShaamInvoiceApprovalV2, type ShaamApprovalV2Payload } from "@/lib/s
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 import { DocIssueTracker } from "@/lib/diagnostics/external-services-check"
+import { isAllocationSupervisedDocumentType } from "@/lib/documents/allocation-rules"
 
 const toSequenceDocumentType = (documentType: string) => {
   if (documentType === "invoiceReceipt") return "invoice_receipt"
@@ -350,7 +351,9 @@ export async function finalizeDocument(
   // - Require when subtotal (before VAT) > global threshold (invoice_allocation_threshold_ils); exactly the threshold is exempt
   // - Exempt issuer business_type == 'osek_patur'
   // ====================================================
-  if (documentType === "tax_invoice" || documentType === "invoiceReceipt") {
+  // Same predicate the document form uses for its pre-flight customer-ID check,
+  // so the two can no longer disagree about which documents are in the regime.
+  if (isAllocationSupervisedDocumentType(documentType)) {
     const redirectTo = "/dashboard/settings/integrations/shaam"
     const nowIso = new Date().toISOString()
 
@@ -414,7 +417,8 @@ export async function finalizeDocument(
 
     {
       const dbDocType = String((docRow as any).document_type || "")
-      const isInvoiceLike = dbDocType === "tax_invoice" || dbDocType === "invoice_receipt"
+      // Same predicate again, against the DB spelling ("invoice_receipt").
+      const isInvoiceLike = isAllocationSupervisedDocumentType(dbDocType)
 
       const issueDateYmd = (docRow as any).issue_date ? String((docRow as any).issue_date).slice(0, 10) : ""
       const isInEffect = issueDateYmd >= "2026-01-01"
@@ -560,6 +564,34 @@ export async function finalizeDocument(
               : 'חסר מספר עוסק/ח.פ של הלקוח. מלא את השדה "מספר עוסק / ח.פ של הלקוח" בטופס החשבונית ונסה שוב.'
 
             return { ok: false, message, reason: "shaam_allocation_missing_vat" }
+          }
+
+          // ITA refuses a request whose customer_vat_number equals the issuer's
+          // vat_number — an invoice billed to oneself — with
+          // 400 [432] "Customer vat number is incorrect".
+          //
+          // That message names the wrong thing: the customer number is not
+          // malformed, it is simply the issuer's own. Verified against the
+          // sandbox on 26/07 on a single document: refused twice with the two
+          // numbers equal, approved on the next attempt with only the customer
+          // number changed. Catch it here so the user is told what to change
+          // instead of chasing a validity error on a valid number.
+          if (issuerVat === customerVat) {
+            await recordShaamEvent({
+              companyId,
+              eventType: "allocation_failed",
+              payload: {
+                document_id: draftId,
+                reason: "customer_vat_equals_issuer_vat",
+              },
+            })
+
+            return {
+              ok: false,
+              message:
+                "מספר הלקוח זהה למספר העסק המנפיק. לא ניתן להפיק חשבונית לעצמך — בדוק את המספר בשדה \"מספר עוסק / ח.פ של הלקוח\".",
+              reason: "shaam_allocation_customer_equals_issuer",
+            }
           }
 
           // Build full Approval v2 payload (spec-compliant, snake_case, no undefined).
@@ -1328,6 +1360,18 @@ export async function finalizeDocument(
     return s.includes("signing_failed") || s.includes("Signing failed (http_error)")
   }
 
+  /**
+   * Separates "the signing service does not know this business" from a generic
+   * signing outage. The first is a setup problem the user can act on (or report),
+   * and it is permanent until fixed — retrying forever will not help. DSIGN
+   * returns it as HTTP 403 `business_not_in_source`.
+   */
+  const classifySigningFailure = (msg: unknown): string => {
+    const s = typeof msg === "string" ? msg : ""
+    if (s.includes("business_not_in_source")) return "signing_business_not_registered"
+    return "signing_failed"
+  }
+
   let originalFinal = original as any
   let copyFinal = copy as any
 
@@ -1349,8 +1393,11 @@ export async function finalizeDocument(
     })
   }
 
-  if (!originalFinal.ok) return { ok: false, message: originalFinal.message }
-  if (!copyFinal.ok) return { ok: false, message: copyFinal.message }
+  // Carry a reason so the failure modal can explain a signing outage in Hebrew
+  // instead of showing the provider's raw string ("Signing failed (http_error):
+  // business_not_in_source"), which tells the user nothing actionable.
+  if (!originalFinal.ok) return { ok: false, message: originalFinal.message, reason: classifySigningFailure(originalFinal.message) }
+  if (!copyFinal.ok) return { ok: false, message: copyFinal.message, reason: classifySigningFailure(copyFinal.message) }
 
   let enSignedBase64: string | null = null
   let enSignedSha256: string | null = null

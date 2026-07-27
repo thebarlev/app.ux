@@ -31,6 +31,11 @@ import {
   DocIssueTracker,
   logDocIssueBootOnce,
 } from "@/lib/diagnostics/external-services-check";
+import {
+  buildTaxFields,
+  getCompanyVatProfile,
+  isCompanyVatExemptSafe,
+} from "@/lib/documents/vat-profile";
 
 const DOCUMENT_ROUTE_SEGMENTS: Record<DocumentIssueType, string> = {
   receipt: "receipt",
@@ -541,6 +546,7 @@ export async function getInitialDocumentCreateData(
 
     const { locked } = await isSequenceLocked({ companyId, documentType });
     const minAllowedDate = await getMinAllowedDate(companyId, documentType);
+    const vatExempt = await isCompanyVatExemptSafe(companyId);
 
     let companyName: string | null = null;
     const { data: company } = await supabase
@@ -631,6 +637,12 @@ export async function getInitialDocumentCreateData(
           baseDraftInsert.subtotal = 0;
           baseDraftInsert.vat_rate = 0;
           baseDraftInsert.vat_amount = 0;
+        } else if (vatExempt) {
+          // Non-item drafts (receipt) are otherwise never written with a
+          // vat_rate, so they inherit the column default of 18 and trip the
+          // osek-patur guard at issuance. Pin them to 0 on creation.
+          baseDraftInsert.vat_rate = 0;
+          baseDraftInsert.vat_amount = 0;
         }
 
         const { data: createdDraft, error: createDraftError } = await supabase
@@ -693,7 +705,11 @@ export async function getInitialDocumentCreateData(
     };
 
     let vatRate: number | undefined = undefined;
-    if (isItemDocumentType(documentType)) {
+    if (vatExempt) {
+      // An osek patur charges no VAT on anything it issues, so the form must
+      // open at 0 rather than the global default.
+      vatRate = 0;
+    } else if (isItemDocumentType(documentType)) {
       const { data: vatSetting } = await supabase
         .from("global_settings")
         .select("setting_value")
@@ -714,6 +730,7 @@ export async function getInitialDocumentCreateData(
       settings,
       minAllowedDate,
       vatRate,
+      vatExempt,
     };
   } catch (e: any) {
     return { ok: false, message: e?.message ?? "unknown_error" };
@@ -801,13 +818,15 @@ export async function saveDocumentDraftAction(
   const err = validatePayload(payload, minAllowedDate);
   if (err) return { ok: false as const, message: err };
 
-  const taxFields = isItemDocumentType(documentType)
-    ? {
-        subtotal: payload.subtotal ?? payload.total,
-        vat_rate: payload.vatRate ?? 0,
-        vat_amount: payload.vatAmount ?? 0,
-      }
-    : {};
+  const { isVatExempt } = await getCompanyVatProfile(companyId);
+  const taxFields = buildTaxFields({
+    isItemDocument: isItemDocumentType(documentType),
+    isVatExempt,
+    subtotal: payload.subtotal,
+    total: payload.total,
+    vatRate: payload.vatRate,
+    vatAmount: payload.vatAmount,
+  });
 
   // If the sequence is locked (regulatory numbering), we must NOT create new drafts on "Save Draft".
   // There should be at most one open draft per (company, document_type). Reuse it to preserve reserved numbers.
@@ -1087,13 +1106,19 @@ export async function issueDocumentAction(
         );
       }
 
-      const taxFields = isItemDocumentType(documentType)
-        ? {
-            subtotal: payload.subtotal ?? payload.total,
-            vat_rate: payload.vatRate ?? 0,
-            vat_amount: payload.vatAmount ?? 0,
-          }
-        : {};
+      // Authoritative VAT decision for the row the osek-patur guard is about to
+      // read in finalizeDocument. Applied for every document type, so a draft
+      // that inherited the column default of 18 is corrected here rather than
+      // being rejected a few lines later.
+      const { isVatExempt } = await getCompanyVatProfile(companyId);
+      const taxFields = buildTaxFields({
+        isItemDocument: isItemDocumentType(documentType),
+        isVatExempt,
+        subtotal: payload.subtotal,
+        total: payload.total,
+        vatRate: payload.vatRate,
+        vatAmount: payload.vatAmount,
+      });
 
       const baseUpdate = {
         customer_id: payload.customerId || null,
@@ -1283,13 +1308,15 @@ export async function issueDocumentAction(
       total: payload.total,
     });
 
-    const taxFields = isItemDocumentType(documentType)
-      ? {
-          subtotal: payload.subtotal ?? payload.total,
-          vat_rate: payload.vatRate ?? 0,
-          vat_amount: payload.vatAmount ?? 0,
-        }
-      : {};
+    const { isVatExempt: isVatExemptForNewDraft } = await getCompanyVatProfile(companyId);
+    const taxFields = buildTaxFields({
+      isItemDocument: isItemDocumentType(documentType),
+      isVatExempt: isVatExemptForNewDraft,
+      subtotal: payload.subtotal,
+      total: payload.total,
+      vatRate: payload.vatRate,
+      vatAmount: payload.vatAmount,
+    });
 
     // Best-effort: snapshot the canonical template id at draft creation time.
     let templateVersionId: string | null = null
@@ -1560,13 +1587,15 @@ export async function updateDocumentDraftAction(
     };
   }
 
-  const taxFields = isItemDocumentType(documentType)
-    ? {
-        subtotal: payload.subtotal ?? payload.total,
-        vat_rate: payload.vatRate ?? 0,
-        vat_amount: payload.vatAmount ?? 0,
-      }
-    : {};
+  const { isVatExempt } = await getCompanyVatProfile(companyId);
+  const taxFields = buildTaxFields({
+    isItemDocument: isItemDocumentType(documentType),
+    isVatExempt,
+    subtotal: payload.subtotal,
+    total: payload.total,
+    vatRate: payload.vatRate,
+    vatAmount: payload.vatAmount,
+  });
 
   const baseUpdate = {
     customer_id: payload.customerId || null,
