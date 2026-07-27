@@ -20,6 +20,7 @@ import {
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
+import { buildChainedPaymentLink } from "@/lib/documents/chaining";
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import PaymentDetailsSection from "../receipt/PaymentDetailsSection";
 import { FloatingInput } from "@/components/ui/floating-input";
@@ -977,27 +978,21 @@ export default function InvoiceReceiptFormClient({
         // Fetch source document to check if we should create payment link
         const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
         
-        let linkType: "related" | "payment" = "related";
-        let linkAmount = 0;
-        
-        // If amounts match, treat as payment to close source
-        if (
-          sourceDoc.ok &&
-          sourceDoc.document.totalAmount &&
-          Math.abs(total - sourceDoc.document.totalAmount) < 0.01
-        ) {
-          linkType = "payment";
-          linkAmount = total;
-        }
-        
         const note = notes ? `שרשור: ${notes}` : null;
-        const linkRes = await createDocumentLinkAction({
-          sourceDocumentId: chainSourceDocumentId,
-          targetDocumentId: result.documentId || "",
-          linkType,
-          amount: linkAmount,
-          note,
-        });
+
+        // An invoice-receipt collects money, so it settles its source — always a
+        // payment link, for whatever it actually collects, with the source as the
+        // target so recompute_document_accounting accumulates onto it. The old
+        // exact-match rule dropped partial payments to a "related" link with
+        // amount 0 and left the source open.
+        const linkRes = await createDocumentLinkAction(
+          buildChainedPaymentLink({
+            sourceDocumentId: chainSourceDocumentId,
+            chainedDocumentId: result.documentId || "",
+            amount: total,
+            note,
+          })
+        );
         if (!linkRes.ok) {
           toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
         }

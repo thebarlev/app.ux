@@ -1834,9 +1834,13 @@ export async function getDocumentForChainingAction(documentId: string) {
       document: {
         id: data.id,
         documentType: data.document_type,
+        // Needed to write the association line ("קבלה עבור חשבונית מס 3001")
+        // into the chained document's own notes.
+        documentNumber: data.document_number ?? null,
         customerId: data.customer_id,
         customerName: data.customer_name ?? "",
         documentDescription: data.document_description ?? "",
+        internalNotes: data.internal_notes ?? "",
         documentDate: data.issue_date ?? null,
         currency: data.currency ?? "₪",
         totalAmount: typeof data.total_amount === "number" ? data.total_amount : 0,
