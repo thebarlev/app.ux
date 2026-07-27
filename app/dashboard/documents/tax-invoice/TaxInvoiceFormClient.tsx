@@ -29,6 +29,7 @@ import { requiresCustomerTaxIdForAllocation } from "@/lib/documents/allocation-r
 import {
   buildChainedPaymentLink,
   chainedTotalFromSource,
+  sourceAppliedRounding,
   validateChainedAmount,
 } from "@/lib/documents/chaining";
 
@@ -341,6 +342,11 @@ export default function TaxInvoiceFormClient({
           // the allocation call outright.
           if (doc.customerTaxId) setCustomerTaxId(String(doc.customerTaxId).replace(/\D/g, ""));
           if (doc.documentDescription) setDescription(String(doc.documentDescription));
+          // Carry the source's rounding. Without this the chained document
+          // recomputes from the net base and lands on a different final amount
+          // than the one actually issued (₪5,901 -> ₪5,901.18), which for a
+          // regulated document must match to the agora.
+          if (sourceAppliedRounding(doc)) setRoundTotals(true);
           // The association line is NOT written here. The chain is started from
           // the documents list, which already passes it as ?notes= in the format
           // "<target type> עבור <source type> <number>" — adding a second line
