@@ -905,6 +905,7 @@ export default function TaxInvoiceFormClient({
           ? buildChainedConversionLink({
               sourceDocumentId: chainSourceDocumentId,
               chainedDocumentId: result.documentId,
+              amount: total,
               note,
             })
           : settlesSource

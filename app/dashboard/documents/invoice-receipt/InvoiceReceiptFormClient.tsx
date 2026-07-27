@@ -1049,6 +1049,7 @@ export default function InvoiceReceiptFormClient({
             ? buildChainedConversionLink({
                 sourceDocumentId: chainSourceDocumentId,
                 chainedDocumentId: result.documentId || "",
+                amount: total,
                 note,
               })
             : buildChainedPaymentLink({
