@@ -1848,6 +1848,11 @@ export async function getDocumentForChainingAction(documentId: string) {
         documentDate: data.issue_date ?? null,
         currency: data.currency ?? "₪",
         totalAmount: typeof data.total_amount === "number" ? data.total_amount : 0,
+        // Needed to tell whether the source's total was rounded: rounding is the
+        // only reason total_amount differs from subtotal + vat_amount, and the
+        // flag itself is a form setting that is never stored on the row.
+        subtotal: typeof data.subtotal === "number" ? data.subtotal : Number(data.subtotal ?? 0),
+        vatAmount: typeof data.vat_amount === "number" ? data.vat_amount : Number(data.vat_amount ?? 0),
         items,
         payments,
         vatRate: typeof (data as any).vat_rate === "number" ? (data as any).vat_rate : null,

@@ -41,6 +41,33 @@ export function chainedTotalFromSource(sourceTotalAmount: unknown): number {
 }
 
 /**
+ * Whether the source document was issued with its total rounded.
+ *
+ * "עיגול לסכום סופי" is a form setting (ReceiptSettings.roundTotals), not a
+ * column on the document — so a chained document opened with the company
+ * default and recomputed the total from the net base, losing the adjustment. A
+ * ₪5,901 invoice became ₪5,901.18, which is a different amount from the one
+ * actually issued.
+ *
+ * It is recoverable from the stored figures: rounding is the only reason
+ * total_amount differs from subtotal + vat_amount. Detecting it here means the
+ * chained document reproduces the source's total exactly, using the same
+ * Math.round the source used, with no schema change.
+ */
+export function sourceAppliedRounding(source: {
+  subtotal?: unknown
+  vatAmount?: unknown
+  totalAmount?: unknown
+}): boolean {
+  const subtotal = Number(source.subtotal)
+  const vatAmount = Number(source.vatAmount)
+  const total = Number(source.totalAmount)
+  if (!Number.isFinite(subtotal) || !Number.isFinite(vatAmount) || !Number.isFinite(total)) return false
+  // Half an agora of slack, so ordinary float noise is not mistaken for rounding.
+  return Math.abs(total - (subtotal + vatAmount)) > MONEY_EPSILON / 2
+}
+
+/**
  * A chained document may settle the source in full or in part, but it may never
  * charge more than the source: that would be a new obligation, which needs its
  * own document rather than an amendment of this one.
