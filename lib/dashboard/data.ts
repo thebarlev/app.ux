@@ -1,5 +1,7 @@
 import "server-only"
 
+import { formatAllocationNumber } from "@/lib/documents/allocation-number"
+
 import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs"
@@ -81,7 +83,12 @@ export type DashboardData = {
     customerId: string | null
     allocationNumber: string | null
     total: number
-    status: "paid" | "wait"
+    /** Same vocabulary as the income/documents list: closed vs open. */
+    status: "closed" | "open"
+    /** Direct PDF download for this document. */
+    pdfHref: string
+    /** Start a chained receipt from this document; null when not chainable. */
+    chainHref: string | null
     date: string
   }[]
   shaam: {
@@ -103,6 +110,31 @@ function num(v: any): number {
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
+
+/**
+ * Builds the "issue a receipt for this" link, matching the parameters the
+ * documents list already passes when starting a chain, so the receipt form
+ * prefills identically from either entry point.
+ */
+function chainReceiptHref(doc: {
+  id: string
+  documentType: string
+  documentNumber: string
+  customerId: string | null
+  customerName: string
+}): string | null {
+  // Only documents that represent an obligation can have a receipt issued.
+  if (!CHAINABLE_TO_RECEIPT.has(doc.documentType)) return null
+  const params = new URLSearchParams()
+  params.set("sourceDocumentId", doc.id)
+  if (doc.customerId) params.set("customerId", doc.customerId)
+  if (doc.customerName) params.set("customerName", doc.customerName)
+  const sourceLabel = TYPE_LABELS[doc.documentType] || doc.documentType
+  if (doc.documentNumber) params.set("notes", `קבלה עבור ${sourceLabel} ${doc.documentNumber}`)
+  return `/dashboard/incomes/documents/new/receipt?${params.toString()}`
+}
+
+const CHAINABLE_TO_RECEIPT = new Set(["tax_invoice", "proforma"])
 
 export async function getDashboardData(now: Date = new Date()): Promise<DashboardData> {
   const companyId = await resolveCurrentCompanyId()
@@ -245,9 +277,20 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
       href: documentSummaryHref(t, String(d.id)),
       customerName: (cid && customerNameById.get(cid)) || String(d.customer_name || ""),
       customerId: cid,
-      allocationNumber: d.allocation_number ? String(d.allocation_number) : null,
+      // The stored value is ITA's "<17-char timestamp><9-digit allocation>".
+      // The PDF already prints only the 9 digits; the dashboard was showing the
+      // whole concatenation.
+      allocationNumber: formatAllocationNumber(d.allocation_number),
       total,
-      status: (outstanding > 0.005 ? "wait" : "paid") as "paid" | "wait",
+      status: (outstanding > 0.005 ? "open" : "closed") as "closed" | "open",
+      pdfHref: `/api/documents/${String(d.id)}/pdf`,
+      chainHref: chainReceiptHref({
+        id: String(d.id),
+        documentType: t,
+        documentNumber: String(d.document_number || ""),
+        customerId: cid,
+        customerName: (cid && customerNameById.get(cid)) || String(d.customer_name || ""),
+      }),
       date: d.issue_date ? String(d.issue_date).slice(0, 10) : "",
       requiresAlloc,
     }

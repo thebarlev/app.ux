@@ -30,6 +30,8 @@ import {
   buildChainedPaymentLink,
   chainedTotalFromSource,
   sourceAppliedRounding,
+  chainSupersedesSource,
+  buildChainedConversionLink,
   validateChainedAmount,
 } from "@/lib/documents/chaining";
 
@@ -187,6 +189,10 @@ export default function TaxInvoiceFormClient({
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   /** Source total — the ceiling a chained document may not charge above. */
   const [chainSourceTotal, setChainSourceTotal] = useState<number | null>(null);
+  /** Still owed on the source — the real ceiling for a chained document. */
+  const [chainSourceRemaining, setChainSourceRemaining] = useState<number | null>(null);
+  /** Source type, to decide whether this document supersedes it (חשבון עסקה). */
+  const [chainSourceType, setChainSourceType] = useState<string | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
@@ -335,6 +341,12 @@ export default function TaxInvoiceFormClient({
           // were being applied, so a chained invoice opened with no customer and
           // no description even though the payload already contained both.
           setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
+          setChainSourceType(doc.documentType ?? null);
+          setChainSourceRemaining(
+            doc.outstandingBalance === null || doc.outstandingBalance === undefined
+              ? null
+              : Number(doc.outstandingBalance)
+          );
           if (doc.customerName) setCustomerName(String(doc.customerName));
           if (doc.customerId) setCustomerId(String(doc.customerId));
           // The ח.פ/ת.ז was not carried at all, so a chained invoice opened with
@@ -728,7 +740,11 @@ export default function TaxInvoiceFormClient({
     // more: charging above the original is a new obligation and needs its own
     // document. Checked before the confirmation modal so nothing is issued.
     if (chainSourceDocumentId && chainSourceTotal !== null) {
-      const cap = validateChainedAmount({ chainedTotal: total, sourceTotal: chainSourceTotal });
+      const cap = validateChainedAmount({
+        chainedTotal: total,
+        sourceTotal: chainSourceTotal,
+        sourceRemaining: chainSourceRemaining,
+      });
       if (!cap.ok) {
         setIssueFailure({ message: cap.message, reason: "chained_amount_above_source" });
         return;
@@ -874,22 +890,37 @@ export default function TaxInvoiceFormClient({
         // invoice-receipt does; a plain tax invoice chained from a חשבון עסקה
         // does not — it restates the obligation rather than paying it, so it
         // stays a "related" link and leaves the source open.
+        // A חשבון עסקה is a payment demand: issuing a tax invoice for it replaces
+        // it, so it is handled regardless of payment. A 'conversion' link makes
+        // recompute_document_accounting mark it 'converted' (or 'paid' when the
+        // target is an invoice-receipt) instead of leaving it open forever
+        // waiting for a payment that will be recorded against the invoice.
+        const supersedes = chainSupersedesSource({
+          sourceDocumentType: chainSourceType,
+          targetDocumentType: toDbDocumentTypeForChain(documentType),
+        });
         const settlesSource = documentType === "invoiceReceipt";
 
-        const linkArgs = settlesSource
-          ? buildChainedPaymentLink({
+        const linkArgs = supersedes
+          ? buildChainedConversionLink({
               sourceDocumentId: chainSourceDocumentId,
               chainedDocumentId: result.documentId,
-              amount: total,
               note,
             })
-          : {
-              sourceDocumentId: chainSourceDocumentId,
-              targetDocumentId: result.documentId,
-              linkType: "related" as const,
-              amount: 0,
-              note,
-            };
+          : settlesSource
+            ? buildChainedPaymentLink({
+                sourceDocumentId: chainSourceDocumentId,
+                chainedDocumentId: result.documentId,
+                amount: total,
+                note,
+              })
+            : {
+                sourceDocumentId: chainSourceDocumentId,
+                targetDocumentId: result.documentId,
+                linkType: "related" as const,
+                amount: 0,
+                note,
+              };
 
         const linkRes = await createDocumentLinkAction(linkArgs);
         if (!linkRes.ok) {

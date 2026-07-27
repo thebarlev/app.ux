@@ -42,6 +42,7 @@ import {
 import {
   buildChainedPaymentLink,
   chainedTotalFromSource,
+  chainedRemainingFromSource,
   isPaymentBearingDocumentType,
   validateChainedAmount,
 } from "@/lib/documents/chaining";
@@ -140,6 +141,8 @@ export default function ReceiptFormClient({
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
   // Ceiling and labelling data for the source this document is chained from.
   const [chainSourceTotal, setChainSourceTotal] = useState<number | null>(null);
+  /** Still owed on the source after receipts already issued — the real ceiling. */
+  const [chainSourceRemaining, setChainSourceRemaining] = useState<number | null>(null);
   const [chainSourceMeta, setChainSourceMeta] = useState<{ type: string | null; number: string | null }>({
     type: null,
     number: null,
@@ -244,6 +247,11 @@ export default function ReceiptFormClient({
           // Carry the customer and the description across. These were dropped
           // entirely, so a chained receipt opened with an empty customer name.
           setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
+          setChainSourceRemaining(
+            doc.outstandingBalance === null || doc.outstandingBalance === undefined
+              ? null
+              : Number(doc.outstandingBalance)
+          );
           setChainSourceMeta({ type: doc.documentType ?? null, number: doc.documentNumber ?? null });
           if (doc.customerName) setCustomerName(String(doc.customerName));
           if (doc.customerId) setCustomerId(String(doc.customerId));
@@ -262,7 +270,9 @@ export default function ReceiptFormClient({
                 {
                   method: prefillCancellation === "1" ? "מזומן" : "",
                   date: todayYmd(),
-                  amount: chainedTotalFromSource(doc.totalAmount),
+                  // Opens for what is still owed, so the common case (settle the
+                  // remainder) needs no edit and cannot overshoot.
+                  amount: chainedRemainingFromSource(doc),
                   currency: doc.currency || currency,
                 } as PaymentRow,
               ];
@@ -615,7 +625,11 @@ export default function ReceiptFormClient({
     // more: charging above the original is a new obligation and needs its own
     // document. Checked before the confirmation modal so nothing is issued.
     if (chainSourceDocumentId && chainSourceTotal !== null && !isCancellationReceipt) {
-      const cap = validateChainedAmount({ chainedTotal: total, sourceTotal: chainSourceTotal });
+      const cap = validateChainedAmount({
+        chainedTotal: total,
+        sourceTotal: chainSourceTotal,
+        sourceRemaining: chainSourceRemaining,
+      });
       if (!cap.ok) {
         setIssueFailure({ message: cap.message, reason: "chained_amount_above_source" });
         return;

@@ -41,6 +41,25 @@ export function chainedTotalFromSource(sourceTotalAmount: unknown): number {
 }
 
 /**
+ * What a chained receipt should open for: the source's remaining balance when it
+ * is known, otherwise its gross total. Opening for the remainder means the
+ * common case — settle what is left — needs no edit and cannot overshoot.
+ */
+export function chainedRemainingFromSource(source: {
+  totalAmount?: unknown
+  outstandingBalance?: unknown
+}): number {
+  const total = chainedTotalFromSource(source.totalAmount)
+  const raw = source.outstandingBalance
+  if (raw === null || raw === undefined) return total
+  const remaining = Number(raw)
+  if (!Number.isFinite(remaining)) return total
+  // Never open for a negative or zero remainder; the cap will refuse it anyway
+  // and a 0 receipt is not useful.
+  return remaining > 0 ? remaining : total
+}
+
+/**
  * Whether the source document was issued with its total rounded.
  *
  * "עיגול לסכום סופי" is a form setting (ReceiptSettings.roundTotals), not a
@@ -74,27 +93,62 @@ export function sourceAppliedRounding(source: {
  */
 export function validateChainedAmount(params: {
   chainedTotal: number
+  /** Source's total. Used only as a fallback when the balance is unknown. */
   sourceTotal: number
+  /**
+   * What is still owed on the source: documents.outstanding_balance, kept up to
+   * date by recompute_document_accounting. When present this is the real
+   * ceiling, because it already accounts for every receipt issued so far.
+   */
+  sourceRemaining?: number | null
 }): { ok: true } | { ok: false; message: string } {
   const chained = Number(params.chainedTotal)
-  const source = Number(params.sourceTotal)
+  const total = Number(params.sourceTotal)
 
-  if (!Number.isFinite(chained) || !Number.isFinite(source)) return { ok: true }
-  // A source with no total (0) carries no ceiling to enforce.
-  if (source <= 0) return { ok: true }
+  if (!Number.isFinite(chained)) return { ok: true }
   // Credit/cancellation flows send negative amounts; the ceiling is about
   // over-charging, so only positive amounts are constrained.
   if (chained <= 0) return { ok: true }
 
-  if (chained - source > MONEY_EPSILON) {
+  // The ceiling is the REMAINING balance, not the source total. Checking against
+  // the total let a second receipt pass on its own merits while the running sum
+  // exceeded the invoice — production has tax_invoice#1002 at total 472 with
+  // 474 collected across two receipts, i.e. income with no invoice behind it.
+  const remainingRaw = params.sourceRemaining
+  const remaining =
+    remainingRaw === null || remainingRaw === undefined || !Number.isFinite(Number(remainingRaw))
+      ? total
+      : Number(remainingRaw)
+
+  // A source with nothing outstanding carries no ceiling to enforce here
+  // (0 total), but one already settled must not take more.
+  if (!Number.isFinite(remaining)) return { ok: true }
+  if (total <= 0 && remaining <= 0) return { ok: true }
+
+  if (remaining <= 0) {
     return {
       ok: false,
-      message:
-        "לא ניתן לחייב מעל סכום המסמך המקורי; לתשלום נוסף הפק מסמך חדש.",
+      message: "המסמך המקורי כבר שולם במלואו. לתשלום נוסף הפק מסמך חדש.",
+    }
+  }
+
+  if (chained - remaining > MONEY_EPSILON) {
+    return {
+      ok: false,
+      message: `הסכום חורג מיתרת המסמך המקורי — נותרו ${formatMoneyIls(remaining)}. לתשלום נוסף הפק מסמך חדש.`,
     }
   }
 
   return { ok: true }
+}
+
+/** ₪ with thousands separators, two decimals only when they carry information. */
+function formatMoneyIls(n: number): string {
+  const rounded = Math.round(n * 100) / 100
+  const s = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(2)
+  return `₪${s.replace(/\B(?=(\d{3})+(?!\d))/, ",")}`
 }
 
 /**
@@ -133,6 +187,61 @@ export function buildChainedPaymentLink(params: {
     targetDocumentId: params.sourceDocumentId,
     linkType: "payment",
     amount: Number(params.amount) || 0,
+    note: params.note ?? null,
+  }
+}
+
+/**
+ * Document types that are a payment demand: they are superseded the moment a
+ * real accounting document is issued for them, whether or not anyone has paid.
+ */
+const SUPERSEDED_BY_INVOICE_TYPES = new Set(["proforma"])
+
+/** Document types that supersede a payment demand when issued for it. */
+const SUPERSEDING_TYPES = new Set(["tax_invoice", "invoice_receipt"])
+
+/**
+ * True when issuing `targetType` for `sourceType` replaces the source outright.
+ *
+ * A חשבון עסקה is a request for payment; once a tax invoice is issued against
+ * it, the invoice is the document of record and the חשבון עסקה is handled — it
+ * should not sit "open" waiting for a payment that will be recorded against the
+ * invoice instead. recompute_document_accounting already implements this via the
+ * 'conversion' link branch (scripts/043), which marks the SOURCE 'converted'
+ * (or 'paid' when the target is an invoice_receipt). That branch existed but no
+ * code ever created a conversion link, so it never ran.
+ */
+export function chainSupersedesSource(params: {
+  sourceDocumentType: string | null | undefined
+  targetDocumentType: string | null | undefined
+}): boolean {
+  return (
+    SUPERSEDED_BY_INVOICE_TYPES.has(String(params.sourceDocumentType || "")) &&
+    SUPERSEDING_TYPES.has(String(params.targetDocumentType || ""))
+  )
+}
+
+/**
+ * Link for a chained document that REPLACES its source rather than paying it.
+ * Direction follows the trigger: the conversion branch looks for links where the
+ * source document is `source_document_id`.
+ */
+export function buildChainedConversionLink(params: {
+  sourceDocumentId: string
+  chainedDocumentId: string
+  note?: string | null
+}): {
+  sourceDocumentId: string
+  targetDocumentId: string
+  linkType: "conversion"
+  amount: number
+  note: string | null
+} {
+  return {
+    sourceDocumentId: params.sourceDocumentId,
+    targetDocumentId: params.chainedDocumentId,
+    linkType: "conversion",
+    amount: 0,
     note: params.note ?? null,
   }
 }
