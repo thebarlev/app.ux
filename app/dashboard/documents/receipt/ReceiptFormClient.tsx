@@ -40,6 +40,14 @@ import {
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
 import {
+  buildChainAssociationNote,
+  buildChainedPaymentLink,
+  chainedTotalFromSource,
+  isPaymentBearingDocumentType,
+  validateChainedAmount,
+  withAssociationNote,
+} from "@/lib/documents/chaining";
+import {
   createDocumentLinkAction,
   getDocumentForChainingAction,
   markDocumentCancelledAction,
@@ -132,6 +140,12 @@ export default function ReceiptFormClient({
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
+  // Ceiling and labelling data for the source this document is chained from.
+  const [chainSourceTotal, setChainSourceTotal] = useState<number | null>(null);
+  const [chainSourceMeta, setChainSourceMeta] = useState<{ type: string | null; number: string | null }>({
+    type: null,
+    number: null,
+  });
   const [isCancellationReceipt, setIsCancellationReceipt] = useState(false);
   const [paymentErrors, setPaymentErrors] = useState<{ [key: number]: { method?: string; amount?: string } }>({});
   const [fxLoading, setFxLoading] = useState<Record<number, boolean>>({});
@@ -227,15 +241,38 @@ export default function ReceiptFormClient({
       // For receipts, load payments from source document items
       getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
         if (res.ok) {
+          const doc = res.document as any;
+
+          // Carry the customer and the description across. These were dropped
+          // entirely, so a chained receipt opened with an empty customer name.
+          setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
+          setChainSourceMeta({ type: doc.documentType ?? null, number: doc.documentNumber ?? null });
+          if (doc.customerName) setCustomerName(String(doc.customerName));
+          if (doc.customerId) setCustomerId(String(doc.customerId));
+          if (doc.documentDescription) setDescription(String(doc.documentDescription));
+
+          const association = buildChainAssociationNote({
+            targetDocumentType: "receipt",
+            sourceDocumentType: doc.documentType,
+            sourceDocumentNumber: doc.documentNumber,
+          });
+          setNotes((prev) => withAssociationNote(prev || String(doc.internalNotes || ""), association));
+
           const sourcePayments = (res.document as any).payments as PaymentRow[] | undefined;
-          const basePayments = sourcePayments && sourcePayments.length > 0
+          // Only a receipt-like source has real payment rows to carry. For an
+          // invoice or a חשבון עסקה the "payments" are its product lines, which
+          // are net of VAT — taking them produced a ₪500 receipt for a ₪590
+          // invoice. Open for the source's gross total instead.
+          const basePayments = isPaymentBearingDocumentType(doc.documentType) && sourcePayments && sourcePayments.length > 0
             ? sourcePayments
-            : (res.document.items || []).map((item) => ({
-                method: prefillCancellation === "1" ? "מזומן" : "",
-                date: todayYmd(),
-                amount: item.lineTotal || (item.quantity * item.unitPrice),
-                currency: item.currency || currency,
-              }));
+            : [
+                {
+                  method: prefillCancellation === "1" ? "מזומן" : "",
+                  date: todayYmd(),
+                  amount: chainedTotalFromSource(doc.totalAmount),
+                  currency: doc.currency || currency,
+                } as PaymentRow,
+              ];
 
           if (basePayments.length > 0) {
             const normalizedPayments = basePayments.map((p) => ({
@@ -581,6 +618,16 @@ export default function ReceiptFormClient({
       focusFieldWithError(paymentsTableRef);
       return;
     }
+    // A chained document may settle its source in part or in full, never for
+    // more: charging above the original is a new obligation and needs its own
+    // document. Checked before the confirmation modal so nothing is issued.
+    if (chainSourceDocumentId && chainSourceTotal !== null && !isCancellationReceipt) {
+      const cap = validateChainedAmount({ chainedTotal: total, sourceTotal: chainSourceTotal });
+      if (!cap.ok) {
+        setIssueFailure({ message: cap.message, reason: "chained_amount_above_source" });
+        return;
+      }
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -686,32 +733,34 @@ export default function ReceiptFormClient({
         // Fetch source document to check if we should create payment link
         const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
         
-        let linkType: "related" | "payment" | "cancellation" = "related";
-        let linkAmount = 0;
-        
-        if (isCancellationReceipt) {
-          linkType = "cancellation";
-          linkAmount = Math.abs(total);
-        } else {
-          // If amounts match, treat as payment to close source
-          if (
-            sourceDoc.ok &&
-            sourceDoc.document.totalAmount &&
-            Math.abs(total - sourceDoc.document.totalAmount) < 0.01
-          ) {
-            linkType = "payment";
-            linkAmount = total;
-          }
-        }
-        
         const note = notes ? `שרשור: ${notes}` : null;
-        const linkRes = await createDocumentLinkAction({
-          sourceDocumentId: isCancellationReceipt ? result.receiptId : chainSourceDocumentId,
-          targetDocumentId: isCancellationReceipt ? chainSourceDocumentId : result.receiptId,
-          linkType,
-          amount: linkAmount,
-          note,
-        });
+
+        // A chained receipt is always a payment against its source, for whatever
+        // it actually collects. The old rule only created a payment link when the
+        // totals matched to the agora and otherwise fell back to a "related" link
+        // with amount 0 — so any partial payment, and (because the carried amount
+        // was net of VAT) most full ones too, left the source untouched at 'open'.
+        //
+        // Direction: the payment settles the SOURCE, so the source is the target.
+        // recompute_document_accounting sums payment links by target_document_id,
+        // and it accumulates — partial receipts move the source to
+        // 'partially_paid', and the one that closes the balance moves it to 'paid'.
+        const linkArgs = isCancellationReceipt
+          ? {
+              sourceDocumentId: result.receiptId,
+              targetDocumentId: chainSourceDocumentId,
+              linkType: "cancellation" as const,
+              amount: Math.abs(total),
+              note,
+            }
+          : buildChainedPaymentLink({
+              sourceDocumentId: chainSourceDocumentId,
+              chainedDocumentId: result.receiptId,
+              amount: total,
+              note,
+            });
+
+        const linkRes = await createDocumentLinkAction(linkArgs);
         if (!linkRes.ok) {
           toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
         } else if (isCancellationReceipt) {

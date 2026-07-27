@@ -26,6 +26,26 @@ import {
 } from "@/components/documents/DocumentIssueFailureModal";
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
 import { requiresCustomerTaxIdForAllocation } from "@/lib/documents/allocation-rules";
+import {
+  buildChainAssociationNote,
+  buildChainedPaymentLink,
+  chainedTotalFromSource,
+  validateChainedAmount,
+  withAssociationNote,
+} from "@/lib/documents/chaining";
+
+/** Form document types use camelCase; chaining labels are keyed by the DB spelling. */
+function toDbDocumentTypeForChain(t: string): string {
+  if (t === "invoiceReceipt") return "invoice_receipt";
+  if (t === "creditNote") return "credit_note";
+  if (t === "workOrder") return "work_order";
+  if (t === "deliveryNote") return "delivery_note";
+  if (t === "returnNote") return "return_note";
+  if (t === "purchaseOrder") return "purchase_order";
+  if (t === "selfInvoice") return "self_invoice";
+  if (t === "selfCreditNote") return "self_credit_note";
+  return t;
+}
 import ReceiptSettingsSummary from "@/components/documents/receipt/ReceiptSettingsSummary";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { FloatingTextarea } from "@/components/ui/floating-textarea";
@@ -166,6 +186,8 @@ export default function TaxInvoiceFormClient({
   const [customerNameError, setCustomerNameError] = useState<string | null>(null);
   const [customerTaxIdError, setCustomerTaxIdError] = useState<string | null>(null);
   const [chainSourceDocumentId, setChainSourceDocumentId] = useState<string | null>(null);
+  /** Source total — the ceiling a chained document may not charge above. */
+  const [chainSourceTotal, setChainSourceTotal] = useState<number | null>(null);
   const [itemErrors, setItemErrors] = useState<{
     [key: number]: { description?: string; quantity?: string; unitPrice?: string; currency?: string };
   }>({});
@@ -307,6 +329,24 @@ export default function TaxInvoiceFormClient({
       setChainSourceDocumentId(prefillSourceDocumentId);
       // Load items from source document
       getDocumentForChainingAction(prefillSourceDocumentId).then((res) => {
+        if (res.ok) {
+          const doc = res.document as any;
+
+          // Carry the customer and the description across. Only the item rows
+          // were being applied, so a chained invoice opened with no customer and
+          // no description even though the payload already contained both.
+          setChainSourceTotal(chainedTotalFromSource(doc.totalAmount));
+          if (doc.customerName) setCustomerName(String(doc.customerName));
+          if (doc.customerId) setCustomerId(String(doc.customerId));
+          if (doc.documentDescription) setDescription(String(doc.documentDescription));
+
+          const association = buildChainAssociationNote({
+            targetDocumentType: toDbDocumentTypeForChain(documentType),
+            sourceDocumentType: doc.documentType,
+            sourceDocumentNumber: doc.documentNumber,
+          });
+          setNotes((prev) => withAssociationNote(prev || String(doc.internalNotes || ""), association));
+        }
         if (res.ok && res.document.items && res.document.items.length > 0) {
           const loadedItems = res.document.items.map(item => ({
             label: item.label,
@@ -317,9 +357,9 @@ export default function TaxInvoiceFormClient({
             currency: item.currency,
             vatMode: item.vatMode,
           }));
-          
+
           setItems(loadedItems);
-          
+
           // Mark all loaded items as confirmed
           setConfirmedRows(new Set(loadedItems.map((_, idx) => idx)));
         }
@@ -679,6 +719,16 @@ export default function TaxInvoiceFormClient({
       focusFieldWithError(customerTaxIdRef);
       return;
     }
+    // A chained document may settle its source in part or in full, never for
+    // more: charging above the original is a new obligation and needs its own
+    // document. Checked before the confirmation modal so nothing is issued.
+    if (chainSourceDocumentId && chainSourceTotal !== null) {
+      const cap = validateChainedAmount({ chainedTotal: total, sourceTotal: chainSourceTotal });
+      if (!cap.ok) {
+        setIssueFailure({ message: cap.message, reason: "chained_amount_above_source" });
+        return;
+      }
+    }
     setConfirmationModalOpen(true);
   }
 
@@ -813,28 +863,30 @@ export default function TaxInvoiceFormClient({
         // Fetch source document to check if we should create payment link
         const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
         
-        let linkType: "related" | "payment" = "related";
-        let linkAmount = 0;
-        
-        // If this is invoice-receipt and amounts match, treat as payment to close source
-        if (
-          documentType === "invoiceReceipt" &&
-          sourceDoc.ok &&
-          sourceDoc.document.totalAmount &&
-          Math.abs(total - sourceDoc.document.totalAmount) < 0.01
-        ) {
-          linkType = "payment";
-          linkAmount = total;
-        }
-        
         const note = notes ? `שרשור: ${notes}` : null;
-        const linkRes = await createDocumentLinkAction({
-          sourceDocumentId: chainSourceDocumentId,
-          targetDocumentId: result.documentId,
-          linkType,
-          amount: linkAmount,
-          note,
-        });
+
+        // Only a document that actually collects money settles its source. An
+        // invoice-receipt does; a plain tax invoice chained from a חשבון עסקה
+        // does not — it restates the obligation rather than paying it, so it
+        // stays a "related" link and leaves the source open.
+        const settlesSource = documentType === "invoiceReceipt";
+
+        const linkArgs = settlesSource
+          ? buildChainedPaymentLink({
+              sourceDocumentId: chainSourceDocumentId,
+              chainedDocumentId: result.documentId,
+              amount: total,
+              note,
+            })
+          : {
+              sourceDocumentId: chainSourceDocumentId,
+              targetDocumentId: result.documentId,
+              linkType: "related" as const,
+              amount: 0,
+              note,
+            };
+
+        const linkRes = await createDocumentLinkAction(linkArgs);
         if (!linkRes.ok) {
           toast.error(linkRes.message || "השרשור נכשל: לא ניתן ליצור קשר בין המסמכים");
         }
