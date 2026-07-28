@@ -540,20 +540,23 @@ export default function DashboardChrome({ children }: { children: React.ReactNod
 // ── Scoped CSS (mockup values; namespaced dcx-) ──────────────────────────
 const DCX_CSS = `
 .dcx-root{--dcx-side:#5389BB;--dcx-green:#8BD44F;--dcx-line:#E9ECF2;--dcx-ink:#22283A;--dcx-muted:#8A90A0;--dcx-accent:#5389BB;--dcx-accent-soft:#EAF1F8;}
+/* Navy matches the marketing site (uxellent.com) rather than the old mid-blue
+   gradient, so the two properties read as one brand. The drop shadow loses its
+   blue tint with it — a blue glow around a navy panel read as a halo. */
 .dcx-sidebar{position:fixed;right:15px;top:15px;height:calc(100% - 30px);width:224px;border-radius:14px;
-  background:linear-gradient(180deg,#5f97c6,#4d81b0);color:#fff;padding:20px 15px;display:flex;flex-direction:column;
-  box-shadow:0 10px 30px rgba(60,110,160,.25);z-index:50}
+  background:#0f1830;color:#fff;padding:20px 15px;display:flex;flex-direction:column;
+  box-shadow:0 10px 30px rgba(15,24,48,.28);z-index:50}
 .dcx-sidebar{transition:width .22s cubic-bezier(.2,.8,.2,1)}
 .dcx-brand{display:flex;align-items:center;margin:2px 6px 22px;min-height:36px}
 /* brand/white.svg has a white wordmark but keeps the brand-blue star
-   (rgb(25,144,216)), so the star reads low-contrast against this sidebar's own
-   blue gradient. The logo it replaced, /email/white-logo.svg, was fully white
-   for exactly that reason. Whitening the star is a one-liner —
-   filter:brightness(0) invert(1), as .dcx-logo-mark below already does — but it
-   is left off pending a brand call, since it would drop the blue entirely. */
-.dcx-logo{height:36px;width:auto;display:block}
-/* The collapsed-state mark keeps its whitening: brand/icon.svg still contains a
-   fill="black" path, which would read as a black blob on the blue sidebar. */
+   (rgb(25,144,216)), which disappeared against the navy. Whitened here so the
+   whole logo is white — the same treatment .dcx-logo-mark already used, and
+   what /email/white-logo.svg (fully white in the file) used to provide.
+   brightness(0) flattens every colour to black, invert(1) then takes it to
+   white, so this works whatever colours the asset ships with. */
+.dcx-logo{height:36px;width:auto;display:block;filter:brightness(0) invert(1)}
+/* The collapsed-state mark needs the same: brand/icon.svg contains a
+   fill="black" path, which would read as a black blob on the navy. */
 .dcx-logo-mark{display:none;filter:brightness(0) invert(1)}
 /* overflow must stay visible: the sub-menu flyouts escape the nav box. */
 .dcx-nav{display:flex;flex-direction:column;gap:3px;overflow:visible}
@@ -573,9 +576,14 @@ const DCX_CSS = `
    These selectors are class-based (higher specificity) and !important, so the
    brand blue wins for the label AND the icon. */
 .dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active{background:#fff;font-weight:600;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+/* Darker than --dcx-accent (#5389BB) on purpose: the white pill now sits on
+   navy, which makes it the loudest thing in the sidebar, and the accent only
+   managed 3.71:1 against white — under AA for 20px regular text. #4576A6 is the
+   same hue a few steps down and measures 4.78:1. Scoped to the sidebar, so the
+   accent stays as-is everywhere else. */
 .dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active,
 .dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active *,
-.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active svg{color:#5389BB !important;font-weight:600}
+.dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.active svg{color:#4576A6 !important;font-weight:600}
 .dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.has-active,
 .dcx-root .dcx-sidebar .dcx-nav .dcx-nav-link.has-active *{color:#fff !important}
 
