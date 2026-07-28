@@ -264,7 +264,10 @@ export async function continueAuditorScan(params: {
   const scanKind = String(lockedScan.scan_kind || "")
   const isVerification = scanKind === "verification"
 
-  const GLOBAL_SCAN_TIMEOUT_MS = isVerification ? 30_000 : 90_000
+  // Verification scans are single-page and quick. Regular scans crawl up to
+  // page_limit pages across many batches; 90s was far too short and caused
+  // multi-page scans to be force-finalized empty mid-crawl. Allow up to 10min.
+  const GLOBAL_SCAN_TIMEOUT_MS = isVerification ? 30_000 : 600_000
   const scanStartedAt = lockedScan.started_at ? new Date(lockedScan.started_at).getTime() : 0
   if (scanStartedAt > 0 && Date.now() - scanStartedAt > GLOBAL_SCAN_TIMEOUT_MS) {
     console.warn("[auditor] global scan timeout, force-finalizing", { scanId, ageMs: Date.now() - scanStartedAt })
