@@ -983,11 +983,18 @@ label.ui-date-label,
   .doc-totals-grand > *:nth-child(4) { grid-area: 1 / 8 / 2 / 9; }
 
   /* Label column through the end of the row, which also covers the amount's
-     50px bleed out of its own column. */
+     50px bleed out of its own column. align-self overrides the grid's
+     align-items:center — the pseudo-element has no content, so centring it
+     would collapse it to nothing instead of filling the row. */
   .doc-totals-grand::before {
     grid-area: 1 / 5 / 2 / -1;
+    align-self: stretch;
     margin-top: calc(-1 * var(--doc-totals-grand-pad-y));
     margin-bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
+    /* The label is right-aligned hard against column 5's edge, so without this
+       it would sit flush on the pill's border. Inline-start is the right side
+       under RTL. */
+    margin-inline-start: calc(-1 * var(--doc-totals-grand-pad-x));
   }
 }
 
