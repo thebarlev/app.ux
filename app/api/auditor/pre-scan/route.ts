@@ -55,7 +55,10 @@ export async function POST(req: Request) {
       normalized_url: origin,
       hostname: finalUrl.hostname,
       normalized_host: normalizedHost,
-      page_limit: 10,
+      // A verification scan is one page — the pipeline hard-forces pageLimit to 1
+      // for this scan_kind and ignores the column, so 10 was only ever a
+      // misleading number in the row (and in the dashboard's "Pages" readout).
+      page_limit: 1,
       artifacts: {},
       coverage: {},
       confidence: {},

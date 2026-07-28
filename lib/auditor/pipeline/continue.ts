@@ -121,12 +121,13 @@ const STEP_TIMEOUT_NEXT: Record<string, string> = {
   persist: "done",
 }
 
-const VERIFICATION_STEP_TIMEOUT_NEXT: Record<string, string> = {
-  normalize: "sample",
-  sample: "fetch_pages",
-  fetch_pages: "extract",
-  extract: "done",
-}
+/*
+ * There was a VERIFICATION_STEP_TIMEOUT_NEXT map here. Nothing ever read it —
+ * the step_timeout handler only consults STEP_TIMEOUT_NEXT, and its verification
+ * branch returns before reaching that. It is gone rather than wired up, because
+ * a verification scan that times out mid-step now finalizes through
+ * finalizeScan, which scores it; advancing it to another step would not.
+ */
 
 function computeVerificationScore(page: {
   title: string | null
@@ -162,6 +163,178 @@ function computeVerificationScore(page: {
   const scoreTotal = Math.round((scoreSearch + scoreAi) / 2)
 
   return { scoreTotal, scoreSearch, scoreAi, failedRuleKeys }
+}
+
+/**
+ * The only path allowed to write status:"done".
+ *
+ * Scoring happens inside one step — `extract` for a verification scan, `rules`
+ * for a full one — but three other places used to stamp a scan done: the global
+ * force-finalize, the verification step_timeout, and persist. Any of them firing
+ * before the scoring step left status:"done" with score_total null, which the
+ * dashboard reads as a finished scan that found nothing. That is what an
+ * interrupted scan looked like: done, no score, zero findings.
+ *
+ * Everything finalizing now comes through here. It scores where it still can,
+ * and where it cannot it fails the scan loudly instead of pretending it
+ * finished — the same call the extract step already makes when nothing could be
+ * extracted.
+ */
+async function finalizeScan(params: {
+  supabase: SupabaseClient
+  scanId: string
+  companyId: string | null
+  isVerification: boolean
+  /** Which caller is finalizing, for the log and last_error. */
+  reason: string
+}): Promise<ContinueOk> {
+  const { supabase, scanId, companyId, isVerification, reason } = params
+
+  /**
+   * The invariant, enforced rather than assumed: a patch that sets
+   * status:"done" must carry a finite score_total, or leave one already in the
+   * row. Anything else is refused and downgraded to failed, so a future edit
+   * that adds another done-writer here cannot quietly reintroduce the empty
+   * finished scan this function was written to stop.
+   */
+  const assertScoredDone = (patch: Record<string, any>, scoreInRow: number | null) => {
+    if (patch.status !== "done") return true
+    const scoreInPatch = Number(patch.score_total)
+    if (Number.isFinite(scoreInPatch)) return true
+    if (scoreInRow !== null && Number.isFinite(scoreInRow)) return true
+    console.error("[auditor] BLOCKED done without score_total", { scanId, reason })
+    return false
+  }
+
+  const { data: current } = await supabase
+    .from("auditor_scans")
+    .select("score_total")
+    .eq("id", scanId)
+    .maybeSingle()
+
+  const existingScore = Number((current as any)?.score_total)
+  const alreadyScored = Number.isFinite(existingScore)
+
+  // The scoring step already ran — nothing to recompute, just close it out.
+  if (alreadyScored) {
+    const patch = {
+      status: "done",
+      step: "done",
+      finished_at: nowIso(),
+      updated_at: nowIso(),
+      locked_at: null,
+      locked_by: null,
+    }
+    if (!assertScoredDone(patch, existingScore)) {
+      return { ok: false, kind: "invalid_state", message: "done_without_score_blocked" }
+    }
+    await applyScanWhere(supabase.from("auditor_scans").update(patch), scanId, companyId)
+    await auditorLog({ supabase, scanId, companyId, message: "finalize:done_already_scored", data: { reason } })
+    const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+    return { ok: true, kind: "progressed", scan }
+  }
+
+  // A verification scan is one page, and its score is pure heuristics over the
+  // extracted row — so if that row exists we can still score it here, however
+  // the scan got cut short.
+  if (isVerification) {
+    let extQ = supabase
+      .from("auditor_scan_pages")
+      .select("title,meta_description,canonical,has_og,jsonld_types,tracking,extracted")
+      .eq("scan_id", scanId)
+      .eq("state", "extracted")
+      .limit(1)
+    extQ = applyCompanyWhere(extQ, companyId)
+    const { data: extractedForScore } = await extQ
+
+    const pg = (Array.isArray(extractedForScore) ? extractedForScore[0] : null) as any
+    if (pg) {
+      const ext = toRecord(pg.extracted)
+      const vScore = computeVerificationScore({
+        title: pg.title || null,
+        metaDescription: pg.meta_description || null,
+        canonical: pg.canonical || null,
+        h1Count: Number(ext.h1Count) || 0,
+        wordCount: Number(ext.wordCount) || 0,
+        viewportPresent: Boolean(ext.viewportPresent),
+        hasOg: Boolean(pg.has_og),
+        jsonldTypes: Array.isArray(pg.jsonld_types) ? pg.jsonld_types : [],
+        imagesMissingAltCount: Number(ext.imagesMissingAltCount) || 0,
+        internalLinksCount: Number(ext.internalLinksCount) || 0,
+        tracking: { hasGtm: Boolean(pg.tracking?.hasGtm), hasGa4: Boolean(pg.tracking?.hasGa4) },
+      })
+
+      const publicReport = buildPublicReport({
+        score_total: vScore.scoreTotal,
+        score_search: vScore.scoreSearch,
+        score_ai: vScore.scoreAi,
+        category_scores: { search_readiness: vScore.scoreSearch, ai_readiness: vScore.scoreAi },
+        findings: vScore.failedRuleKeys.map((k) => ({ rule_key: k, severity: "medium", status: "warn" })),
+        confidence_level: "low" as ConfidenceLevel,
+      })
+
+      const patch = {
+        score_total: vScore.scoreTotal,
+        score_breakdown: { technical: vScore.scoreSearch, schema: vScore.scoreSearch, ai_readiness: vScore.scoreAi },
+        coverage: { total_pages: 1, extracted_pages: 1 },
+        confidence: { level: "low" },
+        report_public: publicReport,
+        report_admin: {
+          score_total: vScore.scoreTotal,
+          score_search: vScore.scoreSearch,
+          score_ai: vScore.scoreAi,
+          issues_overview: publicReport.issues_overview,
+        },
+        status: "done",
+        step: "done",
+        finished_at: nowIso(),
+        updated_at: nowIso(),
+        locked_at: null,
+        locked_by: null,
+      }
+      if (!assertScoredDone(patch, null)) {
+        return { ok: false, kind: "invalid_state", message: "done_without_score_blocked" }
+      }
+      await applyScanWhere(supabase.from("auditor_scans").update(patch), scanId, companyId)
+      await auditorLog({
+        supabase,
+        scanId,
+        companyId,
+        message: "finalize:scored_on_finalize",
+        data: { reason, scoreTotal: vScore.scoreTotal, issues: vScore.failedRuleKeys.length },
+      })
+      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+      return { ok: true, kind: "progressed", scan }
+    }
+  }
+
+  // Nothing to score: a verification scan with no extracted page, or a full scan
+  // cut before `rules`. A full scan's score needs the whole findings pass, which
+  // cannot be reconstructed here. Fail it rather than write a done with no score
+  // — that is exactly the state this function exists to prevent.
+  const lastError = `finalize_without_score:${reason}`
+  await applyScanWhere(
+    supabase.from("auditor_scans").update({
+      status: "failed",
+      last_error: lastError,
+      finished_at: nowIso(),
+      updated_at: nowIso(),
+      locked_at: null,
+      locked_by: null,
+    }),
+    scanId,
+    companyId
+  )
+  await auditorLog({
+    supabase,
+    scanId,
+    companyId,
+    level: "warn",
+    message: "finalize:failed_unscored",
+    data: { reason, isVerification },
+  })
+  const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+  return { ok: true, kind: "progressed", scan }
 }
 
 async function withStepTimeout<T>(fn: () => Promise<T>, limitMs = 4000): Promise<T> {
@@ -264,28 +437,25 @@ export async function continueAuditorScan(params: {
   const scanKind = String(lockedScan.scan_kind || "")
   const isVerification = scanKind === "verification"
 
-  // Verification scans are single-page and quick. Regular scans crawl up to
-  // page_limit pages across many batches; 90s was far too short and caused
-  // multi-page scans to be force-finalized empty mid-crawl. Allow up to 10min.
-  const GLOBAL_SCAN_TIMEOUT_MS = isVerification ? 30_000 : 600_000
+  /*
+   * Regular scans crawl up to page_limit pages across many batches; 90s was far
+   * too short and force-finalized multi-page scans mid-crawl.
+   *
+   * Verification is one page and finishes in seconds when someone is watching,
+   * so 30s looked generous. It is not, once the browser stops driving: the scan
+   * is then only touched by the cron, which runs every 2 minutes, so by the time
+   * anything picks an abandoned scan up it is already older than 30s and gets
+   * force-finalized before a single step runs. 300s clears several cron passes
+   * (2min tick + a 60s function budget, with room for one to be missed
+   * entirely), so the force-finalize goes back to meaning "genuinely stuck"
+   * rather than "nobody looked at it in time".
+   */
+  const GLOBAL_SCAN_TIMEOUT_MS = isVerification ? 300_000 : 600_000
   const scanStartedAt = lockedScan.started_at ? new Date(lockedScan.started_at).getTime() : 0
   if (scanStartedAt > 0 && Date.now() - scanStartedAt > GLOBAL_SCAN_TIMEOUT_MS) {
     console.warn("[auditor] global scan timeout, force-finalizing", { scanId, ageMs: Date.now() - scanStartedAt })
     await auditorLog({ supabase, scanId, companyId, level: "warn", message: "scan:force_finalized_timeout", data: { ageMs: Date.now() - scanStartedAt, step: lockedScan.step } })
-    await applyScanWhere(
-      supabase.from("auditor_scans").update({
-        status: "done",
-        step: "done",
-        finished_at: nowIso(),
-        updated_at: nowIso(),
-        locked_at: null,
-        locked_by: null,
-      }),
-      scanId,
-      companyId
-    )
-    const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
-    return { ok: true, kind: "progressed", scan }
+    return await finalizeScan({ supabase, scanId, companyId, isVerification, reason: "global_timeout" })
   }
 
   const releaseLock = async (patch: Record<string, any> = {}) => {
@@ -736,25 +906,22 @@ export async function continueAuditorScan(params: {
         console.log("[auditor][fetch_pages] failed:", 0)
 
         if (!hasFetched) {
+          // Not a single page came back. This used to write done with
+          // score_total null and a minimal report, which reads downstream as a
+          // finished scan that found nothing — indistinguishable from a real
+          // zero. Nothing here is scoreable, so finalizeScan fails it instead.
           const sampleUrls = Array.isArray(artifacts?.sample?.urls) ? artifacts.sample.urls : []
-          const minimalReport = buildMinimalReport()
           await applyScanWhere(
             supabase.from("auditor_scans").update({
-              status: "done",
-              step: "done",
-              score_total: null,
-              report_public: minimalReport,
+              report_public: buildMinimalReport(),
               artifacts: { ...artifacts, sample: { urls: sampleUrls, count: sampleUrls.length } },
-              finished_at: nowIso(),
               updated_at: nowIso(),
             }),
             scanId,
             companyId
           )
           await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:fail_safe_no_pages" })
-          await releaseLock()
-          const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
-          return { ok: true, kind: "progressed", scan }
+          return await finalizeScan({ supabase, scanId, companyId, isVerification, reason: "no_pages_fetched" })
         }
 
         await applyScanWhere(supabase.from("auditor_scans").update({ step: "extract", updated_at: nowIso() }), scanId, companyId)
@@ -2057,23 +2224,14 @@ export async function continueAuditorScan(params: {
     // Step: persist (finalize scan)
     if (step === "persist") {
       await auditorLog({ supabase, scanId, companyId, message: "persist:start" })
-      await applyScanWhere(
-        supabase.from("auditor_scans").update({
-          status: "done",
-          step: "done",
-          finished_at: nowIso(),
-          updated_at: nowIso(),
-        }),
-        scanId,
-        companyId
-      )
 
+      // Normally `rules` has already written the score by now. It has not if the
+      // scan skipped ahead on a step timeout (STEP_TIMEOUT_NEXT falls through to
+      // persist), so this goes through the same guard as every other finalize
+      // rather than stamping done on its own.
+      const result = await finalizeScan({ supabase, scanId, companyId, isVerification, reason: "persist" })
       await auditorLog({ supabase, scanId, companyId, message: "persist:done" })
-      await auditorLog({ supabase, scanId, companyId, message: "scan:done" })
-
-      await releaseLock()
-      const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
-      return { ok: true, kind: "progressed", scan }
+      return result
     }
 
     // done/unknown state: no-op
@@ -2091,9 +2249,13 @@ export async function continueAuditorScan(params: {
       if (lIsVerification) {
         console.warn("[auditor] verification step_timeout, finalizing", { scanId: params.scanId, step: currentStep })
         await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "warn", message: "verification:timeout_finalize", data: { step: currentStep } })
-        await supabase.from("auditor_scans").update({ status: "done", step: "done", finished_at: nowIso(), locked_at: null, locked_by: null, updated_at: nowIso() }).eq("id", params.scanId)
-        const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
-        return { ok: true, kind: "progressed", scan }
+        return await finalizeScan({
+          supabase,
+          scanId: params.scanId,
+          companyId: params.companyId ?? null,
+          isVerification: true,
+          reason: `step_timeout:${currentStep}`,
+        })
       }
 
       const nextStep = STEP_TIMEOUT_NEXT[currentStep] || "persist"
