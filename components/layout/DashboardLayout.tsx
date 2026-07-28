@@ -282,7 +282,7 @@ function SidebarContent({
         >
           {expanded ? (
             <Image
-              src="/brand/vow_black.svg"
+              src="/brand/black.svg"
               alt="Vow"
               width={120}
               height={42}
@@ -560,7 +560,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 {/* לוגו VOW - מימין */}
                 <Link href="/dashboard" className="flex items-center">
                   <Image
-                    src="/brand/vow_black.svg"
+                    src="/brand/black.svg"
                     alt="VOW"
                     width={80}
                     height={32}

@@ -58,7 +58,7 @@ export function AuditorStepThree(props: Props) {
       {hasActiveSubscription && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <Link href={basePath} className="shrink-0">
-            <Image src="/brand/vow.svg" alt="VOW" width={100} height={36} />
+            <Image src="/brand/black.svg" alt="VOW" width={100} height={36} />
           </Link>
           <div className="flex flex-wrap items-center gap-3">
             <DropdownMenu>

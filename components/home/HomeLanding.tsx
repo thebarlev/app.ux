@@ -88,7 +88,7 @@ export function HomeLanding() {
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-10 flex justify-center">
         <Link href="https://uxellent.com">
-    <Image src="/brand/vow_black.svg" alt="VOW" width={140} height={56} priority />
+    <Image src="/brand/black.svg" alt="VOW" width={140} height={56} priority />
   </Link>
         </div>
 

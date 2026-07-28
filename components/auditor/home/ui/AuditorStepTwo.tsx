@@ -23,7 +23,7 @@ export function AuditorStepTwo(props: Props) {
   const progress = status && status.ok === true && typeof status.progress === "number" ? Math.max(0, Math.min(100, Math.round(status.progress))) : null
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
-      <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority={false} />
+      <Image src="/brand/black.svg" alt="VOW" width={140} height={48} priority={false} />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold md:text-4xl">{locale === "en" ? "Get your site score" : "קבלו ציון לאתר"}</h1>
         <p className="text-sm font-medium text-muted-foreground md:text-base">

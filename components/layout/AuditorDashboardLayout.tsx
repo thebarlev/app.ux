@@ -67,7 +67,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
                 </div>
               </button>
               <Link href={basePath} className="flex items-center">
-                <Image src="/brand/vow_black.svg" alt="VOW" width={80} height={32} priority />
+                <Image src="/brand/black.svg" alt="VOW" width={80} height={32} priority />
               </Link>
             </div>
           </div>
@@ -79,7 +79,7 @@ export function AuditorDashboardLayout({ children, basePath = "/auditor" }: { ch
         <aside className={getDesktopAsideClassName(isEn)}>
           <div className="flex h-full flex-col p-4 ui-sidebar">
             <Link href={basePath} className="mb-6 block">
-              <Image src="/brand/vow_black.svg" alt="VOW" width={100} height={36} priority />
+              <Image src="/brand/black.svg" alt="VOW" width={100} height={36} priority />
             </Link>
             <nav className="flex-1 space-y-1 overflow-y-auto">
               <Link

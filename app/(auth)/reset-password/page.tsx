@@ -86,7 +86,7 @@ function ResetPasswordForm() {
         <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
           <div className="w-full max-w-[420px]">
             <div className="mb-[70px] -mt-[80px] flex justify-center">
-              <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
+              <Image src="/brand/black.svg" alt="Vow" width={210} height={94} priority />
             </div>
             <Card className="shadow-ui-lg auth-card">
               <CardContent className="py-10">
@@ -107,7 +107,7 @@ function ResetPasswordForm() {
       <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8" dir="rtl">
         <div className="w-full max-w-[420px]">
           <div className="mb-[70px] -mt-[80px] flex justify-center">
-            <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
+            <Image src="/brand/black.svg" alt="Vow" width={210} height={94} priority />
           </div>
 
           <Card className="shadow-ui-lg auth-card">
