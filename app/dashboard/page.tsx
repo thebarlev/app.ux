@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import PurchaseTracker from "./PurchaseTracker"
 import DashboardChainAction from "@/components/dashboard/DashboardChainAction"
+import DocumentRowActions from "@/components/documents/DocumentRowActions"
+import DocumentStatusBadge from "@/components/documents/DocumentStatusBadge"
 
 export const dynamic = "force-dynamic"
 
@@ -207,18 +209,23 @@ export default async function DashboardPage() {
                   <td><Link className="dcx-lnk dcx-doc-c" href={d.href || "/dashboard/documents/income"}>{d.typeLabel} {d.number}</Link></td>
                   <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber || ""}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
-                  <td><span className={`dcx-st ${d.status}`}>{d.status === "closed" ? "סגור" : "פתוח"}</span></td>
+                  <td><DocumentStatusBadge documentType={d.type} status={d.status} /></td>
                   <td className="dcx-numc">{heDate(d.date)}</td>
                   <td className="dcx-act">
-                    {d.href ? <Link className="dcx-lnk" href={d.href}>צפייה</Link> : null}
-                    <a className="dcx-lnk" href={d.pdfHref}>הורדה</a>
-                    {d.chainSource ? (
-                      <DashboardChainAction
-                        source={d.chainSource}
-                        sourceTypeLabel={d.typeLabel}
-                        className="dcx-lnk dcx-act-btn"
-                      />
-                    ) : null}
+                    <DocumentRowActions
+                      className="dcx-act-icons"
+                      viewHref={d.href}
+                      downloadHref={d.pdfHref}
+                      chainSlot={
+                        d.chainSource ? (
+                          <DashboardChainAction
+                            source={d.chainSource}
+                            sourceTypeLabel={d.typeLabel}
+                            variant="icon"
+                          />
+                        ) : null
+                      }
+                    />
                   </td>
                 </tr>
               ))}
@@ -290,11 +297,13 @@ const DASH_CSS = `
 .dcx-numc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 .dcx-alloc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right;font-weight:700;color:var(--dcx-ink)}
 .dcx-alloc.none{color:var(--dcx-muted);font-weight:600}
-.dcx-st{font-size:16px;font-weight:700;padding:3px 12px;border-radius:20px}
-.dcx-st.closed{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.open{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
-.dcx-act{display:flex;gap:10px;white-space:nowrap}
+/* The status pill comes from DocumentStatusBadge, the same element the
+   ניהול שוטף list renders, so .dcx-st is gone rather than kept in parallel. */
+.dcx-act{white-space:nowrap}
 .dcx-act-btn{background:none;border:0;padding:0;cursor:pointer;font:inherit}
-.dcx-act .dcx-lnk{font-size:13px}
+/* Icon actions, matching the documents list. Unlike that list the icons are
+   always visible here: dashboard rows are not hover-revealed. */
+.dcx-act-icons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 @media(max-width:900px){
   .dcx-dash{padding:16px 16px 24px}
   .dcx-hello h1{font-size:23px}

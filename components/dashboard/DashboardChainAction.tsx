@@ -1,7 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { GitBranchPlus } from "lucide-react";
 import ChainNewDocumentDialog, { type ChainNewDocumentKind } from "@/components/documents/ChainNewDocumentDialog";
+import { Button } from "@/components/ui/button";
 import { buildChainTargetHref, type ChainSourceDocument } from "@/lib/documents/chain-navigation";
 
 /**
@@ -21,6 +23,8 @@ export default function DashboardChainAction(props: {
   sourceTypeLabel: string;
   label?: string;
   className?: string;
+  /** "icon" matches the documents list; "text" keeps the original link style. */
+  variant?: "text" | "icon";
 }) {
   const router = useRouter();
 
@@ -31,9 +35,15 @@ export default function DashboardChainAction(props: {
 
   return (
     <ChainNewDocumentDialog onSelect={onSelect} sourceDocumentType={props.source.document_type}>
-      <button type="button" className={props.className}>
-        {props.label || "שרשור"}
-      </button>
+      {props.variant === "icon" ? (
+        <Button type="button" variant="ghost" size="icon" aria-label="שרשור מסמך חדש">
+          <GitBranchPlus className="h-5 w-5" />
+        </Button>
+      ) : (
+        <button type="button" className={props.className}>
+          {props.label || "שרשור"}
+        </button>
+      )}
     </ChainNewDocumentDialog>
   );
 }
