@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { isSystemAdmin } from "@/lib/security/system-admin"
@@ -43,6 +44,13 @@ export default async function AuditorDashboardPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // System admins (e.g. support@uxellent.com) land on the internal admin
+  // auditor area with the full extended insights instead of the customer view.
+  if (await isSystemAdmin()) {
+    redirect("/admin/auditor/scans")
+  }
+
   const { data: companyRows } = await supabase.rpc("user_company_ids")
   const first = Array.isArray(companyRows) && companyRows.length > 0 ? companyRows[0] : null
   const companyId =

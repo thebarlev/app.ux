@@ -84,23 +84,43 @@ export async function POST(req: Request) {
     })
   }
 
-  const res = await continueAuditorScan({ scanId: parsed.data.scanId, supabase: admin })
-  if (!res.ok && res.kind === "busy") {
-    return NextResponse.json({ ok: false, error: "scan is busy" }, { status: 409 })
+  // Regular ("initial") scans advance one step/batch per continueAuditorScan call.
+  // Previously this route ran exactly one batch and relied on the browser to keep
+  // re-polling /continue for every remaining batch — so when the browser stopped
+  // (tab closed / navigated away), scans stalled and were force-finalized empty.
+  // We now loop internally for most of the function budget (vercel maxDuration is
+  // 60s) so a single request drives many batches, mirroring the verification branch.
+  const BUDGET_MS = 50_000
+  const deadline = Date.now() + BUDGET_MS
+  let lastScan: any = { status: scan.status, step: scan.step }
+  let lastErr: { kind: string; message?: string } | null = null
+
+  while (Date.now() < deadline) {
+    const res = await continueAuditorScan({ scanId: parsed.data.scanId, supabase: admin })
+    if (!res.ok && res.kind === "busy") {
+      await new Promise((r) => setTimeout(r, 200))
+      continue
+    }
+    if (!res.ok) {
+      lastErr = { kind: res.kind, message: "message" in res ? String((res as any).message) : undefined }
+      break
+    }
+    lastScan = res.scan || lastScan
+    if (lastScan.status === "done" || lastScan.status === "failed") break
   }
-  if (!res.ok) {
-    const message = "message" in res ? String((res as any).message) : res.kind
-    const status = res.kind === "not_found" ? 404 : res.kind === "forbidden" ? 403 : 500
+
+  if (lastErr) {
+    const message = lastErr.message || lastErr.kind
+    const status = lastErr.kind === "not_found" ? 404 : lastErr.kind === "forbidden" ? 403 : 500
     return NextResponse.json({ ok: false, error: message }, { status })
   }
 
-  const s = res.scan || {}
-  const done = s.status === "done" || s.status === "failed"
+  const done = lastScan.status === "done" || lastScan.status === "failed"
   return NextResponse.json({
     ok: true,
-    status: s.status,
-    step: s.step,
-    progress: computeProgress(s.step),
+    status: lastScan.status,
+    step: lastScan.step,
+    progress: computeProgress(lastScan.step),
     done,
   })
 }
