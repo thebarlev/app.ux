@@ -18,7 +18,7 @@ export function AuditorStepOne(props: Props) {
   const { locale, siteUrl, setSiteUrl, canGoToDetails, isSubmitting, onStart } = props
   return (
     <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col items-center justify-center gap-10 text-center">
-      <Image src="/brand/black.svg" alt="VOW" width={140} height={48} priority />
+      <Image src="/brand/black.svg" alt="Uxellent" width={140} height={48} priority />
       <h1 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">
         {locale === "en" ? (
           <>How visible is your site in Google & AI search?</>
@@ -66,6 +66,19 @@ export function AuditorStepOne(props: Props) {
               >
                 {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
               </button>
+              {/*
+                dir="auto" lets the field follow what is actually in it. While
+                it is empty there is no strong character, so it inherits the
+                RTL wrapper and the Hebrew placeholder reads right-aligned;
+                typing a latin URL makes the first strong character LTR and the
+                domain flips left on its own. text-start follows dir instead of
+                pinning a side (the important modifier beats FIELD_BASE_CLASS's
+                text-right, same as the text-left it replaces).
+
+                The paddings stay physical on purpose: the arrow button is
+                absolutely positioned at right-3 in both directions, and pr-12
+                is the gap that keeps text from running under it.
+              */}
               <Input
                 value={siteUrl}
                 onChange={(e) => setSiteUrl(e.target.value)}
@@ -73,9 +86,8 @@ export function AuditorStepOne(props: Props) {
                   if (e.key === "Enter") onStart()
                 }}
                 placeholder="כתובת אתר / עמוד נחיתה"
-                dir="ltr"
-                style={{ direction: "ltr" }}
-                className="h-12 rounded-full bg-white pr-12 pl-5 !text-left placeholder:!text-left shadow-sm"
+                dir="auto"
+                className="h-12 rounded-full bg-white pr-12 pl-5 !text-start placeholder:!text-start shadow-sm"
               />
             </>
           )}
