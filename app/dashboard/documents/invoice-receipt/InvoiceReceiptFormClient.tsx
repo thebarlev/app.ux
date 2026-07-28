@@ -1637,7 +1637,7 @@ export default function InvoiceReceiptFormClient({
                   ))}
                 </div>
 
-                <div className="flex items-start justify-between gap-6">
+                <div className="flex items-start justify-between gap-6 doc-summary-row">
                   <div className="shrink-0 pr-[25px]" ref={addItemButtonRef}>
                     <Button type="button" onClick={addItemRow} variant="secondary">
                       הוספת פריט

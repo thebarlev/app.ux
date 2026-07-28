@@ -47,12 +47,14 @@ function netRevenueOf(doc: any): number {
   return 0
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  tax_invoice: "חשבונית מס",
-  invoice_receipt: "חשבונית/קבלה",
-  receipt: "קבלה",
-  credit_note: "חשבונית זיכוי",
-  creditNote: "חשבונית זיכוי",
+/**
+ * Labels come from DOC_CONFIG_BY_DB above — the same document-configs the
+ * documents list reads. This file used to carry its own five-entry map, so
+ * anything outside those five (proforma, quote, delivery notes, …) fell through
+ * to the raw DB value and the dashboard showed "proforma 100".
+ */
+function documentTypeLabel(documentType: string): string {
+  return DOC_CONFIG_BY_DB.get(documentType)?.label || documentType
 }
 
 export type ShaamChipState = "ok" | "warn" | "expired" | "none"
@@ -251,7 +253,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
       id: String(d.id),
       number: String(d.document_number || ""),
       type: t,
-      typeLabel: TYPE_LABELS[t] || t,
+      typeLabel: documentTypeLabel(t),
       href: documentSummaryHref(t, String(d.id)),
       customerName: (cid && customerNameById.get(cid)) || String(d.customer_name || ""),
       customerId: cid,

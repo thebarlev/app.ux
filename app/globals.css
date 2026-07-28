@@ -1014,13 +1014,24 @@ label.ui-date-label,
  * untouched — this whole block is inside the mobile query.
  */
 @media (max-width: 768px) {
+  /* On desktop the "הוספת פריט" button and the summary sit side by side. A
+     phone cannot afford that split — the summary was left with a sliver of the
+     width — so it drops below the button and takes the full measure. */
+  .doc-summary-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
   /* ml-[110px] pushes the summary clear of the items grid on desktop. On a
      390px screen it left the block only ~225px, narrower than the label and
      amount together, so the row overflowed its own box and the highlight —
      sized to that box — could not reach the content. */
   .doc-totals-block {
     margin-left: 0 !important;
-    padding-top: 24px !important;
+    padding-top: 8px !important;
+    margin-top: 0 !important;
+    width: 100%;
   }
 
   .doc-totals-row {
@@ -1028,6 +1039,8 @@ label.ui-date-label,
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
+    /* Two points up from the 24px it inherits, now the summary has the room. */
+    font-size: 26px;
   }
 
   /* The two spacer divs only existed to position things across the 8 tracks. */
