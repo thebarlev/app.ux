@@ -17,8 +17,10 @@ export default async function AuditorHomePage({
     if (!isAdmin) redirect("/auditor/dashboard")
   }
 
+  // White, not the old cream (#F7F3EE). Scoped to this page rather than the
+  // /auditor layout, so the account dashboard underneath keeps its own.
   return (
-    <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">
+    <main className="min-h-svh bg-white px-6 py-16">
       <div className="mx-auto max-w-5xl">
         <Suspense fallback={null}>
           <AuditorHomeClient />
