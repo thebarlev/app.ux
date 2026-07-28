@@ -14,8 +14,37 @@ type Props = {
   onStart: () => void
 }
 
+/**
+ * Direction from the first strong character — the rule dir="auto" implements.
+ *
+ * It is done in JS rather than left to the attribute because globals.css pins
+ * `direction: rtl` on every input (the "כל שדות הקלט" block), at a specificity
+ * the dir attribute cannot reach: dir="auto" only sets unicode-bidi, so the
+ * field kept resolving RTL with a latin URL in it. The value below goes on the
+ * inline style, which that rule has no !important to beat.
+ *
+ * Empty falls back to the page direction, so the Hebrew placeholder stays right.
+ */
+const STRONG_LTR = /[A-Za-z]/
+/* Hebrew, Arabic, Syriac and their presentation forms. */
+const STRONG_RTL = /[֐-׿؀-ۿ܀-޿יִ-﷿ﹰ-﻿]/
+
+function resolveFieldDir(value: string, fallback: "rtl" | "ltr"): "rtl" | "ltr" {
+  for (const ch of value) {
+    if (STRONG_LTR.test(ch)) return "ltr"
+    if (STRONG_RTL.test(ch)) return "rtl"
+  }
+  return fallback
+}
+
 export function AuditorStepOne(props: Props) {
   const { locale, siteUrl, setSiteUrl, canGoToDetails, isSubmitting, onStart } = props
+
+  // The arrow sits at right-3, exactly where the Hebrew placeholder starts, so
+  // it only appears once there is something to submit.
+  const hasValue = siteUrl.trim().length > 0
+  const fieldDir = resolveFieldDir(siteUrl, locale === "en" ? "ltr" : "rtl")
+
   return (
     <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col items-center justify-center gap-10 text-center">
       <Image src="/brand/black.svg" alt="Uxellent" width={140} height={48} priority />
@@ -45,39 +74,35 @@ export function AuditorStepOne(props: Props) {
                 style={{ direction: "ltr" }}
                 className="h-12 rounded-full bg-white pr-12 pl-5 !text-left placeholder:!text-left shadow-sm"
               />
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={!canGoToDetails}
-                aria-label="Continue"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
-              </button>
+              {hasValue ? (
+                <button
+                  type="button"
+                  onClick={onStart}
+                  disabled={!canGoToDetails}
+                  aria-label="Continue"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                </button>
+              ) : null}
             </>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={onStart}
-                disabled={!canGoToDetails}
-                aria-label="המשך"
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
-              >
-                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
-              </button>
+              {hasValue ? (
+                <button
+                  type="button"
+                  onClick={onStart}
+                  disabled={!canGoToDetails}
+                  aria-label="המשך"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-muted-foreground transition hover:text-fg disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                </button>
+              ) : null}
               {/*
-                dir="auto" lets the field follow what is actually in it. While
-                it is empty there is no strong character, so it inherits the
-                RTL wrapper and the Hebrew placeholder reads right-aligned;
-                typing a latin URL makes the first strong character LTR and the
-                domain flips left on its own. text-start follows dir instead of
-                pinning a side (the important modifier beats FIELD_BASE_CLASS's
-                text-right, same as the text-left it replaces).
-
-                The paddings stay physical on purpose: the arrow button is
-                absolutely positioned at right-3 in both directions, and pr-12
-                is the gap that keeps text from running under it.
+                Paddings stay physical: the arrow is absolutely positioned at
+                right-3 in both directions, and pr-12 is the gap that keeps the
+                text from running under it once the arrow appears.
               */}
               <Input
                 value={siteUrl}
@@ -86,8 +111,9 @@ export function AuditorStepOne(props: Props) {
                   if (e.key === "Enter") onStart()
                 }}
                 placeholder="כתובת אתר / עמוד נחיתה"
-                dir="auto"
-                className="h-12 rounded-full bg-white pr-12 pl-5 !text-start placeholder:!text-start shadow-sm"
+                dir={fieldDir}
+                style={{ direction: fieldDir, textAlign: fieldDir === "rtl" ? "right" : "left" }}
+                className="h-12 rounded-full bg-white pr-12 pl-5 shadow-sm"
               />
             </>
           )}
