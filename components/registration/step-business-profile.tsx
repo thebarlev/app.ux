@@ -5,6 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useRegistration } from "./registration-context"
 import { createClient } from "@/lib/supabase/client"
+import { trackCompleteRegistration } from "@/lib/analytics/meta-pixel"
 import { isValidIsraeliId, normalizeIsraeliIdInput } from "@/lib/validation/israeli-id"
 import { FloatingInput } from "@/components/ui/floating-input"
 import { Button } from "@/components/ui/button"
@@ -202,6 +203,11 @@ export function StepBusinessProfile(props?: { afterCompleteRedirectTo?: string; 
         setIsLoading(false)
         return
       }
+
+      // Registration is complete here: the company row and the membership link
+      // both exist. Fire before the sign-out and redirect below, because after
+      // those the session is gone and we are already on another page.
+      trackCompleteRegistration({ method: "business_profile" })
 
       // 3) Requirement: after Step 2 approval go to login.
       const redirectTo = String(props?.afterCompleteRedirectTo || "/login")

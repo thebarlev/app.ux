@@ -10,6 +10,7 @@ import {
   issueNegativeReceiptForInvoiceReceiptAction,
 } from "./actions";
 import { createDocumentLinkAction, getDocumentForChainingAction } from "@/lib/documents/actions";
+import { trackDocumentIssued } from "@/lib/analytics/meta-pixel";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
@@ -674,6 +675,8 @@ export default function CreditNoteFormClient({
         setIsFinalizing(false);
         return;
       }
+
+      trackDocumentIssued({ documentType: "creditNote" });
 
       // Keep confirmation modal open during auto-cancellation flow
 

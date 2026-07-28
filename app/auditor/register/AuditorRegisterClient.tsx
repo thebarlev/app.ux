@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Loader2 } from "lucide-react"
 import { planFromLinkId, pushEvent } from "@/lib/tracking/events"
 import { captureLeadCreated, resolvePageLocale } from "@/lib/analytics/posthog-events"
+import { trackLead } from "@/lib/analytics/meta-pixel"
 
 export default function AuditorRegisterClient(props: {
   linkId: string
@@ -154,6 +155,9 @@ export default function AuditorRegisterClient(props: {
         scan_id: scanId || null,
         user_id: null,
       })
+
+      // captureLeadCreated above only reaches PostHog.
+      trackLead({ source: "auditor_register" })
 
       router.replace(afterCheckout)
       router.refresh()

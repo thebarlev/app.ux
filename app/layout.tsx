@@ -4,7 +4,9 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import MetaPixelRouteTracker from "@/components/MetaPixelRouteTracker";
 import PosthogProvider from "@/components/PosthogProvider";
+import { getPixelId, metaPixelBootstrapScript } from "@/lib/analytics/meta-pixel";
 
 const APP_SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://app.uxellent.com").replace(/\/+$/, "");
 
@@ -42,6 +44,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const metaPixelId = getPixelId();
+
   return (
     <html lang="he" dir="rtl">
       <head>
@@ -76,6 +80,18 @@ export default function RootLayout({
           `}
         </Script>
 
+        {/*
+          Meta Pixel — same Pixel ID as uxellent.com, so a visitor who arrives
+          from a campaign on the marketing site and converts here is stitched
+          into one journey via the _fbp cookie on the shared domain.
+          See lib/analytics/meta-pixel.ts.
+        */}
+        {metaPixelId ? (
+          <Script id="meta-pixel" strategy="afterInteractive">
+            {metaPixelBootstrapScript(metaPixelId)}
+          </Script>
+        ) : null}
+
         {/* Fonts */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -102,6 +118,10 @@ export default function RootLayout({
         {/* Analytics page tracking - wrapped in Suspense for useSearchParams during static generation */}
         <Suspense fallback={null}>
           <GoogleAnalytics />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <MetaPixelRouteTracker />
         </Suspense>
 
         {/* Skip link */}
