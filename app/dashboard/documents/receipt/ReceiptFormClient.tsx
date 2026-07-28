@@ -9,6 +9,7 @@ import {
   saveReceiptDraftAction,
   updateReceiptDraftAction,
 } from "./actions";
+import { trackDocumentIssued } from "@/lib/analytics/meta-pixel";
 import CustomerAutocomplete from "@/components/CustomerAutocomplete";
 import QuickAddCustomerModal from "@/components/QuickAddCustomerModal";
 import StartingNumberModal from "@/components/documents/StartingNumberModal";
@@ -735,6 +736,8 @@ export default function ReceiptFormClient({
         setConfirmationModalOpen(false);
         return;
       }
+
+      trackDocumentIssued({ documentType: "receipt" });
 
       if (chainSourceDocumentId) {
         // Fetch source document to check if we should create payment link

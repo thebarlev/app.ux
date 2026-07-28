@@ -24,6 +24,7 @@ import {
   DocumentIssueFailureModal,
   type DocumentIssueFailure,
 } from "@/components/documents/DocumentIssueFailureModal";
+import { trackDocumentIssued } from "@/lib/analytics/meta-pixel";
 import { buildDocumentReturnPath, buildShaamConnectUrl } from "@/lib/shaam/connect-url";
 import { requiresCustomerTaxIdForAllocation } from "@/lib/documents/allocation-rules";
 import {
@@ -880,6 +881,8 @@ export default function TaxInvoiceFormClient({
       setBusy(null);
       setShaamReconnectRequired(false);
 
+      trackDocumentIssued({ documentType });
+
       if (chainSourceDocumentId) {
         // Fetch source document to check if we should create payment link
         const sourceDoc = await getDocumentForChainingAction(chainSourceDocumentId);
@@ -984,6 +987,10 @@ export default function TaxInvoiceFormClient({
                 toast.error(retry?.message || "הפקת המסמך נכשלה לאחר המשך ללא מספר הקצאה");
                 return;
               }
+
+              // Issuing after a SHAAM decision is still an issued document.
+              trackDocumentIssued({ documentType });
+
               setSuccessModalData({
                 documentId: retry.documentId,
                 documentNumber: retry.documentNumber || "",
