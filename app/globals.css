@@ -955,45 +955,122 @@ label.ui-date-label,
   position: relative;
 }
 /*
- * The grand-total highlight used a fixed 528px offset and a fixed 370px width,
- * while the row it sits on is a fluid fr-based grid (--ti-items-grid-template).
- * At any width where those constants stopped matching the columns the green
- * block drifted sideways off the amount, and the clamp() then pinned it
- * somewhere arbitrary.
+ * The grand-total highlight was positioned by arithmetic: it reconstructed
+ * where column 5 starts from the fr values in --ti-items-grid-template, then
+ * added a --doc-totals-grand-nudge-x fudge because the amount container's own
+ * inline offsets (mr-[55px] / -ml-[50px]) are invisible to that maths. Any
+ * change to the track list, the gap or those offsets moved the block off the
+ * content, so it drifted past the row or sat short of the amount.
  *
- * It is now derived from the same track list the row is laid out with:
- *   columns  1  2  3   4  5   6  7    8      = 1 + 3 + .8 + 1 + .9 + 1 + 1.1 + .8
- *                                            = 9.6fr, separated by 7 gaps
- * and the row places: cols 1-4 spacer, 5-6 label, 7 value, 8 trailing spacer.
- * So the highlight starts where column 5 starts — past 5.8fr of track and 4
- * gaps — and runs to the end of the row, which also covers the amount's own
- * 50px bleed into column 8.
+ * It is now a grid item placed on the real tracks — from the label's column to
+ * the end of the row — so the browser resolves the geometry and the block
+ * bounds the label and amount exactly at every width. The row's own children
+ * are placed explicitly too, because an auto-placed pseudo-element would
+ * otherwise take the first cell and push them out of the row.
  */
 .doc-totals-grand::before {
   content: "";
-  position: absolute;
-  --dtg-gap: var(--ti-items-field-gap);
-  --dtg-tracks: calc(100% - (7 * var(--dtg-gap)));
-  /* --doc-totals-grand-nudge-x moves the block toward the amount. The computed
-     track start lands ~40px left of where the label+amount actually begin,
-     because the amount container carries its own inline offsets
-     (mr-[55px] / -ml-[50px]) that the track maths cannot see. */
-  right: calc((5.8 / 9.6) * var(--dtg-tracks) + (4 * var(--dtg-gap)) + var(--doc-totals-grand-nudge-x));
-  left: 0;
-  top: calc(-1 * var(--doc-totals-grand-pad-y));
-  bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
   background: var(--doc-totals-grand-bg);
   border-radius: var(--doc-totals-grand-radius);
   pointer-events: none;
   z-index: 0;
 }
 
-/* Mobile stacks .ui-item-grid into a single column, so the track maths above
-   no longer describes the row — span the full width instead. */
-@media (max-width: 768px) {
+@media (min-width: 769px) {
+  .doc-totals-grand > *:nth-child(1) { grid-area: 1 / 1 / 2 / 5; }
+  .doc-totals-grand > *:nth-child(2) { grid-area: 1 / 5 / 2 / 7; }
+  .doc-totals-grand > *:nth-child(3) { grid-area: 1 / 7 / 2 / 8; }
+  .doc-totals-grand > *:nth-child(4) { grid-area: 1 / 8 / 2 / 9; }
+
+  /* Label column through the end of the row, which also covers the amount's
+     50px bleed out of its own column. align-self overrides the grid's
+     align-items:center — the pseudo-element has no content, so centring it
+     would collapse it to nothing instead of filling the row. */
   .doc-totals-grand::before {
-    right: 0;
-    left: 0;
+    grid-area: 1 / 5 / 2 / -1;
+    align-self: stretch;
+    margin-top: calc(-1 * var(--doc-totals-grand-pad-y));
+    margin-bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
+    /* The label is right-aligned hard against column 5's edge, so without this
+       it would sit flush on the pill's border. Inline-start is the right side
+       under RTL. */
+    margin-inline-start: calc(-1 * var(--doc-totals-grand-pad-x));
+  }
+}
+
+/*
+ * Mobile summary rows.
+ *
+ * .ui-item-grid drops to a single column here, but the rows' children still
+ * carry col-span-4 / col-span-2, and a span in a one-column grid generates
+ * implicit columns instead of collapsing. At 390px that resolved to tracks of
+ * 58px / 0 / 130px / 0, so the label got a ~70px box while its
+ * whitespace-nowrap text needs ~110px — the label spilled straight over the
+ * amount. Longest content lost worst, which is why the grand total looked the
+ * most broken.
+ *
+ * The rows are a label and an amount, so on mobile they become exactly that:
+ * one flex line, label at the start, amount at the end. The desktop grid is
+ * untouched — this whole block is inside the mobile query.
+ */
+@media (max-width: 768px) {
+  /* On desktop the "הוספת פריט" button and the summary sit side by side. A
+     phone cannot afford that split — the summary was left with a sliver of the
+     width — so it drops below the button and takes the full measure. */
+  .doc-summary-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  /* ml-[110px] pushes the summary clear of the items grid on desktop. On a
+     390px screen it left the block only ~225px, narrower than the label and
+     amount together, so the row overflowed its own box and the highlight —
+     sized to that box — could not reach the content. */
+  .doc-totals-block {
+    margin-left: 0 !important;
+    padding-top: 8px !important;
+    margin-top: 0 !important;
+    width: 100%;
+  }
+
+  .doc-totals-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    /* Two points up from the 24px it inherits, now the summary has the room. */
+    font-size: 26px;
+  }
+
+  /* The two spacer divs only existed to position things across the 8 tracks. */
+  .doc-totals-row > *:empty {
+    display: none;
+  }
+
+  /* The amount container bleeds out of its column by design on desktop
+     (mr-[55px] / w-[calc(100%+50px)] / -ml-[50px]); in a flex line that bleed
+     is what pushed it under the label. nowrap and no shrinking keep the amount
+     on one line — without them the currency symbol breaks onto its own row. */
+  .doc-totals-row > * {
+    margin-inline: 0 !important;
+    width: auto !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .doc-totals-row .inline-block {
+    width: auto !important;
+    white-space: nowrap;
+  }
+
+  /* Nothing to span on mobile: the row is just the label and the amount, so
+     covering it is the same as bounding them. */
+  .doc-totals-grand::before {
+    position: absolute;
+    inset-inline: calc(-1 * var(--doc-totals-grand-pad-x));
+    top: calc(-1 * var(--doc-totals-grand-pad-y));
+    bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
   }
 }
 .doc-totals-grand > * {

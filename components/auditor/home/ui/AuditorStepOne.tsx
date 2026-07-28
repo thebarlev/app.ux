@@ -18,7 +18,7 @@ export function AuditorStepOne(props: Props) {
   const { locale, siteUrl, setSiteUrl, canGoToDetails, isSubmitting, onStart } = props
   return (
     <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col items-center justify-center gap-10 text-center">
-      <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority />
+      <Image src="/brand/black.svg" alt="VOW" width={140} height={48} priority />
       <h1 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">
         {locale === "en" ? (
           <>How visible is your site in Google & AI search?</>

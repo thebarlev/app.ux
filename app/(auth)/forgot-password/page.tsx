@@ -78,7 +78,7 @@ function ForgotPasswordForm() {
         <section className="ls-half ls-form-side">
           <div className="ls-form-col">
             <div className="ls-logo">
-              <Image src="/brand/uxellent.svg" alt="Uxellent" width={165} height={44} priority />
+              <Image src="/brand/black.svg" alt="Uxellent" width={165} height={44} priority />
             </div>
 
             {success ? (

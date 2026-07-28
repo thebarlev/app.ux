@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection } from "@/components/ui/form-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { getAllDocumentsListAction, type DocumentsListFilters, type DocumentsListResult } from "./actions";
-import { Eye, Download, GitBranchPlus, XCircle, X } from "lucide-react";
+import { Download, GitBranchPlus, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +32,9 @@ import { cn } from "@/lib/utils";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
 import { closeDocumentAction } from "@/lib/documents/actions";
 import ChainNewDocumentDialog, { type ChainNewDocumentKind } from "@/components/documents/ChainNewDocumentDialog";
+import DocumentStatusBadge from "@/components/documents/DocumentStatusBadge";
+import DocumentRowActions from "@/components/documents/DocumentRowActions";
+import { ACCOUNTING_DOC_TYPES, computeUiStatus, type UIStatus } from "@/lib/documents/status";
 import { buildChainTargetHref } from "@/lib/documents/chain-navigation";
 
 const DOCUMENT_CONFIGS_BY_DB = new Map(
@@ -90,63 +93,9 @@ function getDocumentTypeLabel(type: string): string {
   return config?.label || type;
 }
 
-type UIStatus = "open" | "closed" | "canceling" | "canceled";
-
-const ACCOUNTING_DOC_TYPES = new Set(["receipt", "tax_invoice", "invoice_receipt", "credit_note"]);
-
-function computeUiStatus(doc: any): UIStatus {
-  const ds = String(doc?.document_status || "").toLowerCase();
-  const isDocCanceled = ds === "canceled" || ds === "cancelled" || ds === "void";
-  const isCanceledByCredit = doc?.is_canceled_by_credit === true;
-  const isCanceling =
-    String(doc?.document_type || "").toLowerCase() === "credit_note" ||
-    doc?.has_outgoing_credit_link === true;
-
-  const total =
-    typeof doc?.total_amount === "number" ? doc.total_amount : doc?.total_amount ? Number(doc.total_amount) : null;
-  const outstanding =
-    typeof doc?.outstanding_balance === "number"
-      ? doc.outstanding_balance
-      : doc?.outstanding_balance
-        ? Number(doc.outstanding_balance)
-        : null;
-  const isFinal = ds === "final";
-
-  // Priority: מבוטל > מבטל > סגור > פתוח
-  if (isDocCanceled || isCanceledByCredit) return "canceled";
-  if (isCanceling) return "canceling";
-
-  if (typeof outstanding === "number" && Number.isFinite(outstanding)) {
-    return outstanding <= 0 ? "closed" : "open";
-  }
-
-  // Fallback for docs without accounting fields: final => closed else open
-  if (isFinal) return "closed";
-  if (typeof total === "number" && total === 0) return "closed";
-  return "open";
-}
-
-function getStatusBadgeFromUi(status: UIStatus): { label: string; style: CSSProperties } {
-  switch (status) {
-    case "open":
-      return { label: "פתוח", style: { backgroundColor: "#E8F2FF", color: "#1D4ED8" } };
-    case "closed":
-      return { label: "סגור", style: { backgroundColor: "#E9F8F0", color: "#167C4B" } };
-    case "canceling":
-      return { label: "מבטל", style: { backgroundColor: "#F3E8FF", color: "#6D28D9" } };
-    case "canceled":
-      return { label: "סגור", style: { backgroundColor: "#E9F8F0", color: "#167C4B" } };
-  }
-}
-
-function getStatusBadgeForDoc(docType: string, status: UIStatus): { label: string; style: CSSProperties } {
-  const t = String(docType || "").toLowerCase();
-  if (ACCOUNTING_DOC_TYPES.has(t)) {
-    if (status === "canceled") return { label: "מבוטל", style: { backgroundColor: "#FDE8E8", color: "#B91C1C" } };
-    if (status === "canceling") return { label: "מבטל", style: { backgroundColor: "#F3E8FF", color: "#6D28D9" } };
-  }
-  return getStatusBadgeFromUi(status);
-}
+// Status vocabulary, badge colours and the badge element itself now live in
+// lib/documents/status.ts and components/documents/DocumentStatusBadge.tsx, so
+// the dashboard renders the same pill from the same rules.
 
 function truncateDescription(description: string | null): string {
   if (!description || description.trim() === "") {
@@ -1536,28 +1485,12 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                           const uiStatus = getRowStatusRaw(doc);
                           const docType = String(doc?.document_type || "").toLowerCase();
                           const docStatus = String(doc?.document_status || "").toLowerCase();
-                          const badge = getStatusBadgeForDoc(docType, uiStatus);
                           if (ACCOUNTING_DOC_TYPES.has(docType) && (docStatus === "cancelled" || docStatus === "canceled" || docStatus === "void")) {
                             if (!statusLogOnceRef.current.has(doc.id)) {
                               statusLogOnceRef.current.add(doc.id);
                             }
                           }
-                          return (
-                            <span
-                              className="ui-badge"
-                              style={{
-                                display: "inline-block",
-                                padding: "2px 6px",
-                                borderRadius: "999px",
-                                fontSize: "13px",
-                                fontWeight: 400,
-                                ...badge.style,
-                              }}
-                              title="חיווי UI בלבד"
-                            >
-                              {badge.label}
-                            </span>
-                          );
+                          return <DocumentStatusBadge documentType={docType} status={uiStatus} />;
                         })()}
                       </td>
 
@@ -1654,76 +1587,44 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div
-                          className="docs-actions-shift docs-actions-icons flex items-center justify-end gap-2"
                           style={{
                             marginBottom: 3,
                             opacity: hoveredRowId === doc.id ? 1 : 0,
                             pointerEvents: hoveredRowId === doc.id ? "auto" : "none",
                           }}
                         >
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label="צפייה"
-                              onClick={() => {
-                                router.push(documentSummaryHref(doc.document_type, doc.id) || "/dashboard/documents/income");
-                              }}
-                            >
-                              <Eye className="h-5 w-5" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label="הורדה"
-                              onClick={async () => {
-                                try {
-                                  await downloadDocumentPdf(doc.id, `document-${doc.document_number || doc.id}.pdf`);
-                                } catch (e: any) {
-                                  alert(e?.message || "שגיאה בהורדת המסמך");
-                                }
-                              }}
-                            >
-                              <Download className="h-5 w-5" />
-                            </Button>
-                            <ChainNewDocumentDialog
-                              onSelect={(kind) => chainToNewDocument(kind, doc)}
-                              sourceDocumentType={doc.document_type}
-                            >
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="שרשור מסמך חדש"
+                          <DocumentRowActions
+                            className="docs-actions-shift docs-actions-icons flex items-center justify-end gap-2"
+                            onView={() => {
+                              router.push(documentSummaryHref(doc.document_type, doc.id) || "/dashboard/documents/income");
+                            }}
+                            onDownload={async () => {
+                              try {
+                                await downloadDocumentPdf(doc.id, `document-${doc.document_number || doc.id}.pdf`);
+                              } catch (e: any) {
+                                alert(e?.message || "שגיאה בהורדת המסמך");
+                              }
+                            }}
+                            chainSlot={
+                              <ChainNewDocumentDialog
+                                onSelect={(kind) => chainToNewDocument(kind, doc)}
+                                sourceDocumentType={doc.document_type}
                               >
-                                <GitBranchPlus className="h-5 w-5" />
-                              </Button>
-                            </ChainNewDocumentDialog>
-                            {shouldShowCancelFlowButton(doc) && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="ביטול מסמך"
-                                onClick={() => {
-                                  setCancelConfirmSource(doc);
-                                }}
-                              >
-                                <X className="h-5 w-5" />
-                              </Button>
-                            )}
-                            {shouldShowCloseButton(doc.document_type) && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label="סגירת מסמך"
-                                onClick={() => handleCloseDocument(doc.id)}
-                              >
-                                <XCircle className="h-5 w-5" />
-                              </Button>
-                            )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="שרשור מסמך חדש"
+                                >
+                                  <GitBranchPlus className="h-5 w-5" />
+                                </Button>
+                              </ChainNewDocumentDialog>
+                            }
+                            onCancel={shouldShowCancelFlowButton(doc) ? () => setCancelConfirmSource(doc) : undefined}
+                            onClose={
+                              shouldShowCloseButton(doc.document_type) ? () => handleCloseDocument(doc.id) : undefined
+                            }
+                          />
                         </div>
                       </td>
                           </tr>

@@ -154,7 +154,7 @@ export function LoginForm(props: {
           <section className="ls-half ls-form-side">
             <div className="ls-form-col">
               <div className="ls-logo">
-                <Image src="/brand/uxellent.svg" alt="Uxellent" width={165} height={44} priority />
+                <Image src="/brand/black.svg" alt="Uxellent" width={165} height={44} priority />
               </div>
 
               <h1 className="ls-fh">{titleText}</h1>
@@ -247,7 +247,7 @@ export function LoginForm(props: {
       <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
         <div className="w-full max-w-[420px]">
           <div className="mb-10 flex justify-center">
-            <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
+            <Image src="/brand/black.svg" alt="Vow" width={210} height={94} priority />
           </div>
 
           <Card className="shadow-ui-lg auth-card">

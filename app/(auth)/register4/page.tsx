@@ -306,7 +306,7 @@ export default function Register4Page() {
       <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
         <div className="w-full max-w-[420px]">
         <div className="mb-8 mt-6 flex justify-center">
-            <Image src="/brand/vow.svg" alt="Vow" width={210} height={94} priority />
+            <Image src="/brand/black.svg" alt="Vow" width={210} height={94} priority />
           </div>
 
           <Card className="shadow-ui-lg auth-card">

@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import PurchaseTracker from "./PurchaseTracker"
 import DashboardChainAction from "@/components/dashboard/DashboardChainAction"
+import DocumentRowActions from "@/components/documents/DocumentRowActions"
+import DocumentStatusBadge from "@/components/documents/DocumentStatusBadge"
 
 export const dynamic = "force-dynamic"
 
@@ -196,7 +198,7 @@ export default async function DashboardPage() {
         <div className="dcx-panel-head"><div><h3>מסמכים אחרונים</h3><div className="dcx-sub">כולל מספרי הקצאה מרשות המסים</div></div></div>
         <div className="dcx-table-wrap">
           <table className="dcx-tbl">
-            <thead><tr><th className="dcx-cust">לקוח</th><th>סוג ומספר מסמך</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th><th>פעולות</th></tr></thead>
+            <thead><tr><th className="dcx-cust">לקוח</th><th>סוג ומספר מסמך</th><th>מספר הקצאה</th><th>סכום</th><th>סטטוס</th><th>תאריך</th><th className="dcx-act-col">פעולות</th></tr></thead>
             <tbody>
               {recentDocs.length === 0 && (
                 <tr><td colSpan={7} className="dcx-empty">עדיין אין מסמכים</td></tr>
@@ -207,18 +209,23 @@ export default async function DashboardPage() {
                   <td><Link className="dcx-lnk dcx-doc-c" href={d.href || "/dashboard/documents/income"}>{d.typeLabel} {d.number}</Link></td>
                   <td className={`dcx-alloc${d.allocationNumber ? "" : " none"}`}>{d.allocationNumber || ""}</td>
                   <td className="dcx-numc">₪{money(d.total, 2)}</td>
-                  <td><span className={`dcx-st ${d.status}`}>{d.status === "closed" ? "סגור" : "פתוח"}</span></td>
+                  <td><DocumentStatusBadge documentType={d.type} status={d.status} /></td>
                   <td className="dcx-numc">{heDate(d.date)}</td>
                   <td className="dcx-act">
-                    {d.href ? <Link className="dcx-lnk" href={d.href}>צפייה</Link> : null}
-                    <a className="dcx-lnk" href={d.pdfHref}>הורדה</a>
-                    {d.chainSource ? (
-                      <DashboardChainAction
-                        source={d.chainSource}
-                        sourceTypeLabel={d.typeLabel}
-                        className="dcx-lnk dcx-act-btn"
-                      />
-                    ) : null}
+                    <DocumentRowActions
+                      className="dcx-act-icons"
+                      viewHref={d.href}
+                      downloadHref={d.pdfHref}
+                      chainSlot={
+                        d.chainSource ? (
+                          <DashboardChainAction
+                            source={d.chainSource}
+                            sourceTypeLabel={d.typeLabel}
+                            variant="icon"
+                          />
+                        ) : null
+                      }
+                    />
                   </td>
                 </tr>
               ))}
@@ -277,7 +284,10 @@ const DASH_CSS = `
 .dcx-empty{color:var(--dcx-muted);font-size:13.5px;padding:14px 4px;text-align:center}
 .dcx-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .dcx-tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
-.dcx-tbl th{text-align:right;color:var(--dcx-muted);font-weight:600;font-size:12.5px;padding:9px 12px;border-bottom:1px solid var(--dcx-line);white-space:nowrap}
+/* The header was already font-weight:600 — what made it read thin was the
+   muted grey at 12.5px, not the weight. Darkened to the body-cell ink so the
+   600 actually shows; revert this one colour to go back. */
+.dcx-tbl th{text-align:right;color:var(--dcx-ink-2);font-weight:600;font-size:12.5px;padding:9px 12px;border-bottom:1px solid var(--dcx-line);white-space:nowrap}
 /* Every cell's text is 16px. Sub-elements below that set their own size
    (the status pill) are bumped to match, so the whole row reads uniformly. */
 .dcx-tbl td{padding:13px 12px;border-bottom:1px solid var(--dcx-line);color:var(--dcx-ink-2);white-space:nowrap;font-size:16px}
@@ -290,11 +300,17 @@ const DASH_CSS = `
 .dcx-numc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
 .dcx-alloc{font-variant-numeric:tabular-nums;direction:ltr;text-align:right;font-weight:700;color:var(--dcx-ink)}
 .dcx-alloc.none{color:var(--dcx-muted);font-weight:600}
-.dcx-st{font-size:16px;font-weight:700;padding:3px 12px;border-radius:20px}
-.dcx-st.closed{background:var(--dcx-ok-soft);color:var(--dcx-ok)}.dcx-st.open{background:var(--dcx-amber-soft);color:var(--dcx-amber)}
-.dcx-act{display:flex;gap:10px;white-space:nowrap}
+/* The status pill comes from DocumentStatusBadge, the same element the
+   ניהול שוטף list renders, so .dcx-st is gone rather than kept in parallel. */
+.dcx-act{white-space:nowrap}
 .dcx-act-btn{background:none;border:0;padding:0;cursor:pointer;font:inherit}
-.dcx-act .dcx-lnk{font-size:13px}
+/* Icon actions, matching the documents list. Unlike that list the icons are
+   always visible here: dashboard rows are not hover-revealed. */
+.dcx-act-icons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+/* Hairline setting the actions cluster apart from the data columns. Same
+   --dcx-line as the row rules, so it reads as structure rather than emphasis.
+   inline-start is the right-hand edge under RTL — the side facing the row. */
+.dcx-tbl th.dcx-act-col,.dcx-tbl td.dcx-act{border-inline-start:1px solid var(--dcx-line)}
 @media(max-width:900px){
   .dcx-dash{padding:16px 16px 24px}
   .dcx-hello h1{font-size:23px}
