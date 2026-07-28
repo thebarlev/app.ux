@@ -1155,12 +1155,12 @@ export default function CreditNoteFormClient({
                   </div>
 
                   {hasConfirmedItems ? (
-                    <div className="pt-[50px] mt-[-16px] flex-1 ml-[110px]" ref={summaryOuterRef}>
+                    <div className="pt-[50px] mt-[-16px] flex-1 ml-[110px] doc-totals-block" ref={summaryOuterRef}>
                       <div className="px-[20px] sm:px-6 lg:px-8">
                         <div className="ui-item-grid" ref={summaryBlockRef}>
                           <div className="col-span-8 self-start text-right text-[24px]   text-fg">
                             <div
-                              className="ui-item-grid items-center"
+                              className="ui-item-grid items-center doc-totals-row"
                               ref={(el) => {
                                 summaryRowRefs.current[0] = el;
                               }}
@@ -1193,7 +1193,7 @@ export default function CreditNoteFormClient({
                             </div>
                             {vatRate > 0 ? (
                               <div
-                                className="ui-item-grid items-center mt-[12px]"
+                                className="ui-item-grid items-center mt-[12px] doc-totals-row"
                                 ref={(el) => {
                                   summaryRowRefs.current[1] = el;
                                 }}
@@ -1226,7 +1226,7 @@ export default function CreditNoteFormClient({
                               </div>
                             ) : null}
                             <div
-                              className="ui-item-grid items-center mt-[12px] doc-totals-grand"
+                              className="ui-item-grid items-center mt-[12px] doc-totals-row doc-totals-grand"
                               ref={(el) => {
                                 summaryRowRefs.current[2] = el;
                               }}

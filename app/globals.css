@@ -998,12 +998,64 @@ label.ui-date-label,
   }
 }
 
-/* Mobile stacks .ui-item-grid into a single column, so there are no tracks to
-   span — fall back to covering the stacked row. */
+/*
+ * Mobile summary rows.
+ *
+ * .ui-item-grid drops to a single column here, but the rows' children still
+ * carry col-span-4 / col-span-2, and a span in a one-column grid generates
+ * implicit columns instead of collapsing. At 390px that resolved to tracks of
+ * 58px / 0 / 130px / 0, so the label got a ~70px box while its
+ * whitespace-nowrap text needs ~110px — the label spilled straight over the
+ * amount. Longest content lost worst, which is why the grand total looked the
+ * most broken.
+ *
+ * The rows are a label and an amount, so on mobile they become exactly that:
+ * one flex line, label at the start, amount at the end. The desktop grid is
+ * untouched — this whole block is inside the mobile query.
+ */
 @media (max-width: 768px) {
+  /* ml-[110px] pushes the summary clear of the items grid on desktop. On a
+     390px screen it left the block only ~225px, narrower than the label and
+     amount together, so the row overflowed its own box and the highlight —
+     sized to that box — could not reach the content. */
+  .doc-totals-block {
+    margin-left: 0 !important;
+    padding-top: 24px !important;
+  }
+
+  .doc-totals-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* The two spacer divs only existed to position things across the 8 tracks. */
+  .doc-totals-row > *:empty {
+    display: none;
+  }
+
+  /* The amount container bleeds out of its column by design on desktop
+     (mr-[55px] / w-[calc(100%+50px)] / -ml-[50px]); in a flex line that bleed
+     is what pushed it under the label. nowrap and no shrinking keep the amount
+     on one line — without them the currency symbol breaks onto its own row. */
+  .doc-totals-row > * {
+    margin-inline: 0 !important;
+    width: auto !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .doc-totals-row .inline-block {
+    width: auto !important;
+    white-space: nowrap;
+  }
+
+  /* Nothing to span on mobile: the row is just the label and the amount, so
+     covering it is the same as bounding them. */
   .doc-totals-grand::before {
     position: absolute;
-    inset-inline: 0;
+    inset-inline: calc(-1 * var(--doc-totals-grand-pad-x));
     top: calc(-1 * var(--doc-totals-grand-pad-y));
     bottom: calc(-1 * var(--doc-totals-grand-pad-bottom));
   }

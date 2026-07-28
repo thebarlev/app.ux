@@ -662,10 +662,17 @@ const DCX_CSS = `
   .dcx-backdrop{display:block;position:fixed;inset:0;background:rgba(20,24,45,.4);opacity:0;pointer-events:none;transition:.22s;z-index:75}
   .dcx-backdrop.on{opacity:1;pointer-events:auto}
   /* Scrolls only if its own content overflows, and never chains to the page. */
+  /* The sheet stays in the layer while closed, parked below the fold with
+     translateY(100%) — but a transform does not stop it painting. Its upward
+     shadow therefore bled back into the viewport across the bottom nav, and at
+     z-index 80 it drew over the bar (z-index 70): a grey wash and a hard dark
+     edge along the sticky nav, on every page, with the sheet shut.
+     The shadow now belongs to the open state, which is the only time there is
+     anything to cast it. */
   .dcx-sheet{display:block;position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;z-index:80;
-    padding:10px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);box-shadow:0 -10px 40px rgba(20,24,45,.2);
+    padding:10px 16px calc(16px + env(safe-area-inset-bottom));transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);
     max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
-  .dcx-sheet.on{transform:none}
+  .dcx-sheet.on{transform:none;box-shadow:0 -10px 40px rgba(20,24,45,.2)}
   /* Grip: swipe down to dismiss (tap also closes). Overrides the generic
      ".dcx-sheet button" rule above, and touch-action:none keeps the browser
      from scrolling the page while the finger drags the sheet. */
