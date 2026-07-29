@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { continueAuditorScan } from "@/lib/auditor/pipeline/continue"
+import { runReportEmailPass } from "@/lib/auditor/report/email-worker"
 
 function unauthorized() {
   return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -42,6 +43,22 @@ async function handler(req: Request) {
   if (!checkSecret(req)) return unauthorized()
 
   const admin = createServiceRoleClient()
+
+  /*
+   * The report-email pass rides this tick rather than getting a cron of its own.
+   *
+   * A second cron would mean a new route and a new vercel.json entry; neither is
+   * on the table, and this tick already runs every two minutes with the right
+   * client and the right auth. It goes first and takes a small fixed slice: the
+   * scan loop below will happily consume all 50 seconds whenever there is work,
+   * so anything queued behind it would be starved on exactly the busy days it
+   * matters. Eight seconds is enough for a batch of ten and leaves the scan loop
+   * with 42 of its 50.
+   *
+   * Sending is still off — the pass renders and logs and stamps nothing while
+   * AUDITOR_REPORT_EMAIL_ENABLED is not "true".
+   */
+  const emailPass = await runReportEmailPass({ supabase: admin, budgetMs: 8_000, limit: 10 })
 
   /*
    * 50s of the 60s this route is given in vercel.json, matching the margin the
@@ -88,7 +105,7 @@ async function handler(req: Request) {
     break
   }
 
-  return NextResponse.json({ ok: true, progressed })
+  return NextResponse.json({ ok: true, progressed, reportEmail: emailPass })
 }
 
 // Vercel Cron uses GET. External callers can POST.
