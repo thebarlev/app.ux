@@ -41,8 +41,16 @@ const C = {
   line: "#ECEFF4",
   line2: "#E2E7F0",
   field: "#F7F9FC",
-  red: "#C0392B",
-  redBg: "#FBEAE7",
+  /**
+   * Findings share one amber tone, and it is deliberately not the mockup's red.
+   *
+   * issues_overview is a flat list of strings that mixes `fail` and `warn` with
+   * nothing to tell them apart, so severity is not derivable here. Red would
+   * announce "critical" over what may be a warning; green would do the reverse.
+   * Amber is the one tone that invents severity in neither direction.
+   */
+  amber: "#B7791F",
+  amberBg: "#FDF3E3",
 } as const
 
 /**
@@ -344,8 +352,8 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
                         style={{
                           width: 19, height: 19, borderRadius: 6, display: "grid", placeItems: "center",
                           fontSize: 11, fontWeight: 800, flex: "0 0 19px",
-                          background: isIssue ? C.redBg : C.brandTint,
-                          color: isIssue ? C.red : C.brandDk,
+                          background: isIssue ? C.amberBg : C.brandTint,
+                          color: isIssue ? C.amber : C.brandDk,
                         }}
                       >
                         {isIssue ? "!" : "i"}
