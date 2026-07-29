@@ -93,13 +93,26 @@ function SectionHead({ title, hint }: { title: string; hint?: string }) {
 /** The gold "and more — in premium" band from the mockup. */
 function LockBand({ title, body, cta, onUnlock }: { title: string; body: string; cta: string; onUnlock?: () => void }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 13, marginTop: 14, background: C.goldBg, border: `1px solid ${C.goldLine}`, borderRadius: 14, padding: "14px 16px" }}>
+    /*
+     * The row wraps, and the text column has a floor.
+     *
+     * It was a nowrap flex row with a 40px icon and a ~130px button both at
+     * flexShrink 0 and the text at flex:1 — which is flex-basis 0%, so the text
+     * absorbed every pixel the other two would not give up. Nested two cards
+     * deep at 360px that left it about 90px wide and it broke to one word per
+     * line, twelve lines tall, in the band that is supposed to sell premium.
+     *
+     * flex-basis 170 with a 150px floor means the text stops shrinking first;
+     * once icon + text + button no longer fit, the button wraps onto its own
+     * line instead. Wide screens still get the original single row.
+     */
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 13, marginTop: 14, background: C.goldBg, border: `1px solid ${C.goldLine}`, borderRadius: 14, padding: "14px 16px" }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#fff", color: C.gold, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0, border: `1px solid ${C.goldLine}` }}>🔒</div>
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}>
         <b style={{ fontSize: 14, color: C.ink }}>{title}</b>
         <p style={{ fontSize: 12.5, color: C.ink2, marginTop: 1 }}>{body}</p>
       </div>
-      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "9px 15px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", flexShrink: 0, fontFamily: "inherit" }}>
+      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "9px 15px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto" }}>
         {cta}
       </button>
     </div>
