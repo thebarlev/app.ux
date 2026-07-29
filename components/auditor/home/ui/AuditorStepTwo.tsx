@@ -204,6 +204,33 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   }, [elapsed])
 
+  /**
+   * What a long scan says for itself.
+   *
+   * The anti-stall drift keeps the number from freezing, but it cannot tell the
+   * visitor anything: second 50 and second 400 look identical, and since the
+   * gate now waits for a real score, a slow site can hold this screen for up to
+   * the pipeline's ten-minute ceiling in total silence.
+   *
+   * Both lines state a fact about elapsed time and stop there. Neither says
+   * "almost done" or implies the end is near — that would be a promise nothing
+   * on this screen can keep, and the scan may still fail.
+   */
+  const longRunNotice = useMemo(() => {
+    if (!step2IsWorking) return null
+    if (elapsed >= 180) {
+      return en
+        ? "This is a complex scan — it can take a few minutes."
+        : "זו סריקה מורכבת, זה יכול לקחת כמה דקות"
+    }
+    if (elapsed >= 45) {
+      return en
+        ? "The scan is taking longer than usual. We're still going."
+        : "הסריקה לוקחת יותר מהרגיל, אנחנו ממשיכים"
+    }
+    return null
+  }, [elapsed, step2IsWorking, en])
+
   // ── The log: real step transitions, then the real findings. ──────────────
   const [rows, setRows] = useState<LogRow[]>([])
   const rowIdRef = useRef(0)
@@ -306,6 +333,19 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
               >
                 {sub}
               </div>
+
+              {longRunNotice ? (
+                <div
+                  aria-live="polite"
+                  style={{
+                    marginTop: 10, fontSize: 13, fontWeight: 700, color: C.brandDk,
+                    background: C.brandTint, border: `1px solid #CBDDEE`,
+                    borderRadius: 10, padding: "8px 11px",
+                  }}
+                >
+                  {longRunNotice}
+                </div>
+              ) : null}
 
               <div style={{ marginTop: 18, height: 5, borderRadius: 99, background: C.line, overflow: "hidden" }}>
                 <div
