@@ -1,5 +1,20 @@
 import "server-only"
 
+/**
+ * Do not treat these as a readiness gate.
+ *
+ * Both calls below hit /invoice-information/v2/health and /v2/alive, and
+ * neither path appears anywhere in the ITA ICD ("מודל חשבוניות ישראל — תיאור
+ * ה-API's", 29/07/2026). The ICD documents invoice-information at v1, with
+ * `details` and `confirmationNumber`. Where these two came from is unknown, so
+ * a failure here may mean the service is down, or may only mean the endpoint
+ * was never real — and a success proves correspondingly little.
+ *
+ * The host is now correct (infoBaseUrl), so if these paths do exist they will
+ * at least be asked in the right place. Verify them against the ITA before
+ * relying on either as a health signal.
+ */
+
 import { getShaamConfig } from "@/lib/shaam/config"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 
@@ -31,7 +46,7 @@ export async function shaamHealthCheck(params: { companyId: string }): Promise<
     return { ok: false, status: 503, message: "transient_error" }
   }
 
-  const url = `${cfg.baseUrl}/invoice-information/v2/health`
+  const url = `${cfg.infoBaseUrl}/invoice-information/v2/health`
   const r = await callJson(url, accessToken)
   if (!r.ok) return { ok: false, status: r.status, message: "health_failed" }
   return { ok: true, status: r.status, json: r.json }
@@ -51,7 +66,7 @@ export async function shaamAliveCheck(params: { companyId: string }): Promise<
     return { ok: false, status: 503, message: "transient_error" }
   }
 
-  const url = `${cfg.baseUrl}/invoice-information/v2/alive`
+  const url = `${cfg.infoBaseUrl}/invoice-information/v2/alive`
   const r = await callJson(url, accessToken)
   if (!r.ok) return { ok: false, status: r.status, message: "alive_failed" }
   return { ok: true, status: r.status, json: r.json }

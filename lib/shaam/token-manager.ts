@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getShaamConfig } from "@/lib/shaam/config"
+import { getShaamConfig, getShaamEnvSafe } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { decryptSecret, encryptSecret } from "@/lib/shaam/crypto"
 import { createServiceRoleClient } from "@/lib/supabase/server"
@@ -159,6 +159,7 @@ export async function getValidShaamAccessToken(companyId: string, opts?: GetVali
     .from("company_shaam_connections")
     .select("access_token, refresh_token, expires_at, status")
     .eq("company_id", companyId)
+    .eq("env", getShaamEnvSafe())
     .maybeSingle()
 
   if (error) throw new ShaamTransientError("db_error", "db_error")
@@ -211,6 +212,7 @@ export async function getValidShaamAccessToken(companyId: string, opts?: GetVali
         last_error_message: null,
       } as any)
       .eq("company_id", companyId)
+      .eq("env", getShaamEnvSafe())
 
     await recordShaamEvent({ companyId, eventType: "oauth_refresh", payload: { status: "active", expires_at: newExpiresAt } })
 

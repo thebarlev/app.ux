@@ -9,15 +9,7 @@ import { callShaamInvoiceDecision, type ShaamInvoiceDecisionType } from "@/lib/s
 import { recordShaamEvent } from "@/lib/shaam/tokens"
 import { markDocumentCancelledAction } from "@/lib/documents/actions"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
-
-function reqEnvInt(name: string): number {
-  const raw = String(process.env[name] || "").trim()
-  const n = Number(raw)
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
-    throw new Error(`Missing or invalid ${name}`)
-  }
-  return n
-}
+import { resolveAccountingSoftwareNumber } from "@/lib/shaam/software-number"
 
 function parseDecision(input: any): ShaamInvoiceDecisionType | null {
   const s = typeof input === "string" ? input.trim().toUpperCase() : ""
@@ -82,8 +74,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, message: "missing_company_vat_number" }, { status: 400 })
   }
 
-  // accounting_software_number (required env fallback; no repo setting found)
-  const accountingSoftwareNumber = reqEnvInt("SHAAM_ACCOUNTING_SOFTWARE_NUMBER")
+  // Must resolve identically to the allocation request in document-helpers, or
+  // this decision refers to a document the ITA has recorded differently.
+  // vatNumber is already validated above (missing_company_vat_number).
+  const accountingSoftwareNumber = resolveAccountingSoftwareNumber(vatNumber)
 
   const docNumber = (doc as any).document_number ? String((doc as any).document_number).trim() : ""
   const invoiceId = docNumber && docNumber.length <= 50 ? docNumber : String(documentId)
