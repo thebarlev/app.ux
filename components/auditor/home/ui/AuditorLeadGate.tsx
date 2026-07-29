@@ -26,9 +26,7 @@ const T = {
     phone: "טלפון",
     email: "אימייל",
     terms: "אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות",
-    contact: "אני מסכים/ה לקבל עדכונים ותכנים שיווקיים",
-    contactRequired: "אני מסכים/ה לקבל את הדוח ועדכונים שיווקיים",
-    errContact: "יש לאשר קבלת הדוח ועדכונים",
+    contact: "שלחו לי עותק של הדוח למייל — וגם עדכונים ותכנים שיווקיים. בלי סימון, הדוח יוצג כאן על המסך בלבד.",
     cta: "קבלו את הדוח המלא",
     errName: "נא למלא שם מלא",
     errPhone: "נא למלא מספר טלפון",
@@ -42,9 +40,7 @@ const T = {
     phone: "Phone",
     email: "Email",
     terms: "I accept the terms of use and privacy policy",
-    contact: "I agree to receive updates and marketing content",
-    contactRequired: "I agree to receive the report and marketing updates",
-    errContact: "You must agree to receive the report and updates",
+    contact: "Email me a copy of the report — plus updates and marketing content. Without this, the report is shown here on screen only.",
     cta: "Get the full report",
     errName: "Please enter your full name",
     errPhone: "Please enter a phone number",
@@ -54,17 +50,16 @@ const T = {
 } as const
 
 /**
- * Whether the marketing checkbox is a condition of getting the report.
+ * Two consents, two different jobs.
  *
- * Off today: the report is an operational email the visitor explicitly asked
- * for, and tying it to marketing consent is an open legal question (bundling
- * consent into a service) sitting on the pre-launch checklist. Both states are
- * built so switching is one env change, not a refactor. The server enforces the
- * same flag — see lead-and-scan; this only decides what the form asks for.
+ * Terms are mandatory and gate the button. Marketing is optional and buys the
+ * emailed copy — nothing else. The report on screen opens for anyone who left
+ * details, always: it is what was promised, and tying it to marketing consent
+ * would be bundling consent into the service itself. Consent buys extra
+ * content, never the product.
+ *
+ * Left unticked by default. A pre-ticked box is not consent.
  */
-const REQUIRE_MARKETING_CONSENT =
-  String(process.env.NEXT_PUBLIC_AUDITOR_REQUIRE_MARKETING_CONSENT || "").trim() === "true"
-
 export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
   const t = T[locale === "en" ? "en" : "he"]
   const rtl = locale !== "en"
@@ -83,7 +78,6 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
     if (phone.trim().length < 6) return setLocalError(t.errPhone)
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setLocalError(t.errEmail)
     if (!consentTerms) return setLocalError(t.errTerms)
-    if (REQUIRE_MARKETING_CONSENT && !consentContact) return setLocalError(t.errContact)
 
     setLocalError(null)
     onSubmit({
@@ -167,7 +161,7 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
                 onChange={(e) => setConsentContact(e.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-fg"
               />
-              <span className="text-muted-foreground">{REQUIRE_MARKETING_CONSENT ? t.contactRequired : t.contact}</span>
+              <span className="text-muted-foreground">{t.contact}</span>
             </label>
           </div>
 
@@ -180,7 +174,8 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting || (REQUIRE_MARKETING_CONSENT && !consentContact)}
+            /* Terms gate the button; marketing never does. */
+            disabled={isSubmitting || !consentTerms}
             className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-fg text-base font-medium text-white transition hover:opacity-90 disabled:opacity-60"
           >
             {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}

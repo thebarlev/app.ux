@@ -35,6 +35,8 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
   const [leadCaptured, setLeadCaptured] = useState(false)
+  /** Ticked marketing consent — decides whether the report is also emailed. */
+  const [leadEmailCopy, setLeadEmailCopy] = useState(false)
 
   const continuingRef = useRef(false)
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -196,6 +198,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
       setScanId(sid)
       setToken(t)
       setLeadCaptured(true)
+      setLeadEmailCopy(Boolean(lead.consent_contact))
       setStep(3)
       void loadStatus(sid, t)
     } catch (e: any) {
@@ -362,6 +365,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     step2IsWorking,
     isSubmittingLead,
     leadCaptured,
+    leadEmailCopy,
     submitLead,
     setSiteUrl,
     setStep,

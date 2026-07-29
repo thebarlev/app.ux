@@ -16,7 +16,18 @@ type Props = {
   locale: AuditorLocale
   whatsappUrl?: string
   phone?: string
+  /** Whether they ticked marketing consent — the only thing that buys the email. */
+  emailCopy?: boolean
 }
+
+/**
+ * Kill switch for the emailed copy. While the sending pipeline does not exist,
+ * this stays false and the step is not shown at all — the bar must never promise
+ * an email nobody sends. Two locks, and neither of them lies: no consent, no
+ * step; no pipeline, no step.
+ */
+const REPORT_EMAIL_ENABLED =
+  String(process.env.NEXT_PUBLIC_AUDITOR_REPORT_EMAIL_ENABLED || "").trim() === "true"
 
 const C = {
   ink: "#19183B",
@@ -51,20 +62,30 @@ function Marker({ state }: { state: State }) {
   )
 }
 
-export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-5215193" }: Props) {
+export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-5215193", emailCopy = false }: Props) {
   const en = locale === "en"
+  const showEmailStep = REPORT_EMAIL_ENABLED && emailCopy
 
-  const steps: Array<{ state: State; title: string; body: string }> = en
-    ? [
-        { state: "done", title: "Your report is ready", body: "shown below" },
-        { state: "active", title: "A copy by email", body: "sent to the address you left · keep it" },
-        { state: "waiting", title: "A call from us", body: "someone will get back to you to go through the findings" },
-      ]
-    : [
-        { state: "done", title: "הדוח שלכם מוכן", body: "מוצג כאן למטה" },
-        { state: "active", title: "עותק במייל", body: "נשלח לכתובת שהשארתם · שמרו אותו" },
-        { state: "waiting", title: "שיחה מאיתנו", body: "נציג שלנו יחזור אליכם לעבור על הממצאים" },
-      ]
+  /**
+   * The last step invites rather than promises. Nobody committed to calling
+   * anyone, and this is the first thing read after handing over details — an
+   * unkept promise here costs more than a softer line.
+   */
+  const steps: Array<{ state: State; title: string; body: string }> = [
+    en
+      ? { state: "done", title: "Your report is ready", body: "shown below" }
+      : { state: "done", title: "הדוח שלכם מוכן", body: "מוצג כאן למטה" },
+    ...(showEmailStep
+      ? [
+          en
+            ? { state: "active" as State, title: "A copy by email", body: "sent to the address you left · keep it" }
+            : { state: "active" as State, title: "עותק במייל", body: "נשלח לכתובת שהשארתם · שמרו אותו" },
+        ]
+      : []),
+    en
+      ? { state: "waiting", title: "Let's go through it together", body: "want us to walk the findings with you? talk to us" }
+      : { state: "waiting", title: "נעבור על זה יחד", body: "רוצים שנעבור על הממצאים איתכם? דברו איתנו" },
+  ]
 
   return (
     <div
@@ -113,7 +134,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
         }}
       >
         <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink2 }}>
-          {en ? "Don't want to wait? Talk to us now" : "רוצים להקדים? דברו איתנו עכשיו"}
+          {en ? "We're here" : "אנחנו כאן"}
         </span>
         <span style={{ flex: 1 }} />
         {whatsappUrl ? (

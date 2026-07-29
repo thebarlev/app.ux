@@ -25,6 +25,7 @@ type Props = {
   onUnlock?: () => void
   whatsappUrl?: string
   phone?: string
+  emailCopy?: boolean
 }
 
 const C = {
@@ -105,7 +106,7 @@ function LockBand({ title, body, cta, onUnlock }: { title: string; body: string;
   )
 }
 
-export function AuditorReportV3({ locale, status, teaser = false, onUnlock, whatsappUrl, phone = "0545215193" }: Props) {
+export function AuditorReportV3({ locale, status, teaser = false, onUnlock, whatsappUrl, phone = "0545215193", emailCopy = false }: Props) {
   const en = locale === "en"
   const ok = status && status.ok === true ? status : null
   const cats = (ok?.category_scores || {}) as Record<string, number>
@@ -150,7 +151,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </div>
         </div>
 
-        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} /> : null}
+        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
 
         {/* hero */}
         <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: shadow, padding: "26px 30px", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>

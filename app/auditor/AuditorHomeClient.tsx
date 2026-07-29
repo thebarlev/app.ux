@@ -50,6 +50,7 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           locale={locale}
           status={controller.status}
           whatsappUrl={WHATSAPP_URL}
+          emailCopy={controller.leadEmailCopy}
           onUnlock={controller.startCheckout}
         />
       ) : null}
