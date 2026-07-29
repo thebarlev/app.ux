@@ -8,9 +8,6 @@ import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
 import type { StatusResponse, Step } from "@/components/auditor/home/logic/auditor-home-types"
 
-/** How long the scan animation holds before the lead form opens. */
-const SCAN_TEASER_MS = 5000
-
 export function useAuditorHomeController(params: { locale: AuditorLocale; basePath: string }) {
   const { locale, basePath } = params
   const router = useRouter()
@@ -44,12 +41,27 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
 
   const canGoToDetails = useMemo(() => siteUrl.trim().length > 0 && !isSubmitting, [siteUrl, isSubmitting])
 
-  const step2OkStatus = useMemo(() => (step === 2 && status && status.ok === true ? status : null), [step, status])
-  const step2HasScreenshot = Boolean(step2OkStatus?.screenshot_url)
-  const step2ScoreReady = step2OkStatus?.score_ready === true
-  const step2IsFailed = Boolean(step2OkStatus && step2OkStatus.status === "failed")
+  const okStatus = useMemo(() => (status && status.ok === true ? status : null), [status])
+  const step2OkStatus = useMemo(() => (step === 2 ? okStatus : null), [step, okStatus])
+
+  /** Rule 5: a score that exists. Nothing else opens the gate. */
+  const scoreReady = okStatus?.score_ready === true
+  const scanFailed = Boolean(okStatus && okStatus.status === "failed")
+
   const step2IsDone = Boolean(step2OkStatus && (step2OkStatus.done === true || step2OkStatus.status === "done" || step2OkStatus.status === "failed"))
-  const step2IsWorking = step === 2 && Boolean(scanId && token) && !step2IsFailed && !step2IsDone && (!step2HasScreenshot || !step2ScoreReady)
+  // The screenshot used to be half of this condition. It is always null in
+  // production — AUDITOR_SCREENSHOT_ENABLED is empty there — so the scan card
+  // now reports on the score alone.
+  const step2IsWorking = step === 2 && Boolean(scanId && token) && !scanFailed && !step2IsDone && !scoreReady
+
+  /** What the gate states out loud. Real counts or nothing. */
+  const pagesScanned = typeof okStatus?.pages_scanned === "number" ? okStatus.pages_scanned : 0
+  const issuesCount =
+    typeof okStatus?.issues_count === "number"
+      ? okStatus.issues_count
+      : Array.isArray(okStatus?.issues_overview)
+        ? okStatus.issues_overview.length
+        : 0
 
   const localeCtx = resolvePageLocale(pathname || basePath)
 
@@ -151,17 +163,25 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   }
 
   /**
-   * The lead form opens on a timer, not on scan completion.
+   * The lead form opens on the score, not on a timer.
    *
-   * A quick scan usually lands well inside this, but not always — and the form
-   * is what the visitor is here to be asked, so it must not wait on a slow site
-   * or a failed scan to appear. The scan keeps advancing underneath either way.
+   * This used to be a flat 5 second setTimeout, on the reasoning that the form
+   * is what the visitor is here to be asked and so should not wait on a slow
+   * site. Rule 5 of docs/auditor-scanflow-behavior-rules.md overrides that: the
+   * gate says "הדוח מוכן", states a page count and a findings count, and
+   * promises the report opens immediately. On a scan that has not finished,
+   * every one of those is false — and on a scan that failed, the visitor hands
+   * over their details for a report that is never coming.
+   *
+   * The cost is real and deliberate: on a slow site the form appears later than
+   * it used to, and some visitors will leave before it does. A form that lies
+   * to arrive sooner is not the trade this flow makes.
    */
   useEffect(() => {
     if (step !== 2 || leadCaptured) return
-    const t = setTimeout(() => setStep("gate"), SCAN_TEASER_MS)
-    return () => clearTimeout(t)
-  }, [step, leadCaptured])
+    if (!scoreReady) return
+    setStep("gate")
+  }, [step, leadCaptured, scoreReady])
 
   /**
    * Hand the details to the scan already running, rather than starting another.
@@ -363,6 +383,10 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     isSubmitting,
     canGoToDetails,
     step2IsWorking,
+    scoreReady,
+    scanFailed,
+    pagesScanned,
+    issuesCount,
     isSubmittingLead,
     leadCaptured,
     leadEmailCopy,

@@ -33,14 +33,46 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
         />
       ) : null}
 
-      {controller.step === 2 ? (
-        <AuditorStepTwo locale={locale} status={controller.status} step2IsWorking={controller.step2IsWorking} />
+      {/*
+        Rule 5: a failed scan gets an explicit failure. Not the gate — asking
+        for details in exchange for a report that is not coming — and not an
+        empty report.
+      */}
+      {controller.step === 2 && controller.scanFailed ? (
+        <div className="mx-auto max-w-md rounded-2xl border border-danger/40 bg-danger/5 p-6 text-center">
+          <h2 className="text-lg font-semibold">
+            {locale === "en" ? "The scan did not complete" : "הסריקה לא הושלמה"}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {locale === "en"
+              ? "We could not finish reading this site, so there is no score to show. Check the address and try again."
+              : "לא הצלחנו לסיים לקרוא את האתר, ולכן אין ציון להציג. בדקו את הכתובת ונסו שוב."}
+          </p>
+          <button
+            type="button"
+            onClick={controller.resetToNewScan}
+            className="mt-5 h-11 w-full rounded-full bg-fg text-sm font-medium text-white transition hover:opacity-90"
+          >
+            {locale === "en" ? "Scan again" : "לסרוק שוב"}
+          </button>
+        </div>
+      ) : null}
+
+      {controller.step === 2 && !controller.scanFailed ? (
+        <AuditorStepTwo
+          locale={locale}
+          status={controller.status}
+          step2IsWorking={controller.step2IsWorking}
+          siteUrl={controller.siteUrl}
+        />
       ) : null}
 
       {controller.step === "gate" ? (
         <AuditorLeadGate
           locale={locale}
           isSubmitting={controller.isSubmittingLead}
+          pagesScanned={controller.pagesScanned}
+          issuesCount={controller.issuesCount}
           onSubmit={controller.submitLead}
         />
       ) : null}

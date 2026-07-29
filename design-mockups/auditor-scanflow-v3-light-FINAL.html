@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditor · פלואו סריקה — גרסה בהירה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#19183B; --ink2:#3A4160; --muted:#8A90A0; --faint:#B9BFCC;
+  --brand:#5389BB; --brand-dk:#3F76AC; --brand-tint:#EAF1F8;
+  --line:#ECEFF4; --line2:#E2E7F0; --field:#F7F9FC;
+  --green:#167C4B; --green-bg:#E9F8F0;
+  --red:#C0392B; --red-bg:#FBEAE7;
+  --gold:#B7791F; --gold-bg:#FDF3E3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Assistant',system-ui,Arial,sans-serif;background:#EEF1F6;color:var(--ink);line-height:1.45}
+
+/* ===== מעטפת מוקאפ ===== */
+.mockbar{position:sticky;top:0;z-index:99;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);font-size:13px}
+.mockbar b{font-size:14px;font-weight:800}
+.mockbar .sp{flex:1}
+.note{color:var(--muted);font-size:12px}
+.btn-m{background:#fff;border:1px solid var(--line2);color:var(--ink);border-radius:9px;
+  padding:6px 13px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.btn-m:hover{background:var(--field)}
+.btn-m.on{background:var(--brand);border-color:var(--brand);color:#fff}
+
+/* ===== במה אחת ===== */
+.stagewrap{padding:22px 16px 70px}
+.stage{position:relative;max-width:1120px;margin:0 auto;border-radius:24px;overflow:hidden;background:#fff;
+  border:1px solid var(--line);box-shadow:0 18px 50px rgba(25,24,59,.08);min-height:640px}
+.stage.mobile{max-width:390px;min-height:780px;border-radius:26px}
+
+/* רקע: ה-HTML של האתר ב-6% */
+.codebg{position:absolute;inset:0;overflow:hidden;pointer-events:none;opacity:.06;z-index:0;
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 20%,#000 68%,transparent);
+          mask-image:linear-gradient(to bottom,transparent,#000 20%,#000 68%,transparent)}
+.codebg pre{direction:ltr;text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  font-size:11.5px;line-height:1.6;color:#1b3a63;white-space:pre;padding:22px;
+  animation:codescroll 46s linear infinite}
+@keyframes codescroll{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+/* הילה כחולה עדינה בפינה */
+.glow{position:absolute;top:-160px;left:-120px;width:520px;height:520px;z-index:0;pointer-events:none;
+  background:radial-gradient(circle,rgba(83,137,187,.16),rgba(83,137,187,0) 65%)}
+
+.inner{position:relative;z-index:2;padding:26px 30px 30px}
+.stage.mobile .inner{padding:20px 16px 24px}
+
+/* כותרת עליונה */
+.top{display:flex;align-items:center;gap:12px;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.logo{font-weight:800;font-size:17px;letter-spacing:.2px}
+.logo span{color:var(--brand)}
+.urlchip{display:flex;align-items:center;gap:8px;background:var(--field);border:1px solid var(--line2);
+  border-radius:999px;padding:5px 13px;font-size:13.5px;font-weight:600;direction:ltr;color:var(--ink2)}
+.dot{width:7px;height:7px;border-radius:50%;background:#2FBF71;box-shadow:0 0 0 0 rgba(47,191,113,.5);animation:pulse 1.6s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 9px rgba(47,191,113,0)}100%{box-shadow:0 0 0 0 rgba(47,191,113,0)}}
+.top .sp{flex:1}
+.elapsed{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
+
+/* פריסה */
+.cols{display:grid;grid-template-columns:1fr 1.05fr;gap:30px;align-items:start}
+.stage.mobile .cols{grid-template-columns:1fr;gap:18px}
+
+/* המספר */
+.bignum{font-size:136px;line-height:.85;font-weight:800;letter-spacing:-5px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bignum .pct{font-size:48px;letter-spacing:0;vertical-align:super;color:var(--brand);font-weight:700}
+.stage.mobile .bignum{font-size:98px}
+.stepline{margin-top:12px;font-size:20px;font-weight:700;min-height:28px;color:var(--ink)}
+.stage.mobile .stepline{font-size:17px}
+.substep{margin-top:4px;font-size:12.5px;color:var(--faint);min-height:19px;direction:ltr;text-align:right;
+  font-family:ui-monospace,Menlo,monospace}
+.bar{margin-top:18px;height:5px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;width:0%;border-radius:99px;background:var(--brand)}
+
+.counters{display:flex;gap:10px;margin-top:22px}
+.ctr{flex:1;border:1px solid var(--line);border-radius:13px;padding:11px 13px;background:#fff}
+.ctr b{display:block;font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;color:var(--ink)}
+.ctr span{font-size:11.5px;color:var(--muted);font-weight:600}
+
+/* הצילום */
+.shotcard{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line2);background:#fff;
+  box-shadow:0 12px 34px rgba(25,24,59,.10)}
+.chrome{display:flex;align-items:center;gap:6px;padding:9px 12px;background:var(--field);border-bottom:1px solid var(--line)}
+.chrome i{width:9px;height:9px;border-radius:50%;background:#DDE3EC}
+.chrome .addr{flex:1;margin-inline-start:8px;height:18px;border-radius:5px;background:#fff;border:1px solid var(--line);
+  font-size:10.5px;color:var(--faint);display:flex;align-items:center;padding:0 8px;direction:ltr}
+.shot{position:relative;aspect-ratio:4/3.15;overflow:hidden;background:#fff}
+.stage.mobile .shot{aspect-ratio:4/3.5}
+.shot iframe{position:absolute;inset:0;width:1280px;height:1000px;border:0;transform-origin:top left;background:#fff}
+/* קו סריקה עדין ובהיר */
+.laser{position:absolute;left:0;right:0;height:120px;z-index:3;pointer-events:none;
+  background:linear-gradient(180deg,rgba(83,137,187,0) 0%,rgba(83,137,187,.10) 60%,rgba(83,137,187,.34) 97%,rgba(83,137,187,.75) 100%);
+  top:-120px;animation:sweep 2.6s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes sweep{0%{top:-120px}100%{top:100%}}
+/* תגיות ממצא */
+.pin{position:absolute;z-index:4;display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:9px;
+  font-size:12px;font-weight:800;background:#fff;opacity:0;transform:translateY(6px) scale(.95);
+  transition:opacity .35s,transform .35s;white-space:nowrap;box-shadow:0 6px 20px rgba(25,24,59,.16)}
+.pin.show{opacity:1;transform:none}
+.pin.ok{color:var(--green);border:1px solid #BFE7D2}
+.pin.bad{color:var(--red);border:1px solid #F3C9C2}
+.pin.info{color:var(--brand-dk);border:1px solid #CBDDEE}
+
+/* לוג */
+.log{margin-top:14px;border:1px solid var(--line);border-radius:13px;background:#fff;padding:6px 13px;
+  height:136px;overflow:hidden}
+.stage.mobile .log{height:112px}
+.log .row{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:600;padding:7px 0;
+  border-bottom:1px solid var(--line);opacity:0;transform:translateX(9px);transition:opacity .3s,transform .3s}
+.log .row:last-child{border-bottom:none}
+.log .row.show{opacity:1;transform:none}
+.log .row em{font-style:normal;font-weight:800;font-size:12.5px;margin-inline-start:auto;
+  font-variant-numeric:tabular-nums;direction:ltr}
+.ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:11px;font-weight:800;flex:0 0 19px}
+.ic.ok{background:var(--green-bg);color:var(--green)} .row.ok em{color:var(--green)}
+.ic.bad{background:var(--red-bg);color:var(--red)}   .row.bad em{color:var(--red)}
+.ic.info{background:var(--brand-tint);color:var(--brand-dk)} .row.info em{color:var(--brand-dk)}
+
+/* ===== השער ===== */
+.gate{position:absolute;inset:0;z-index:6;display:none;align-items:center;justify-content:center;padding:24px}
+.gate.on{display:flex;animation:fin .45s both}
+@keyframes fin{from{opacity:0}to{opacity:1}}
+.veil{position:absolute;inset:0;background:rgba(255,255,255,.62);backdrop-filter:blur(2.5px)}
+.card{position:relative;z-index:2;width:100%;max-width:430px;border-radius:20px;padding:26px 26px 20px;background:#fff;
+  border:1px solid var(--line2);box-shadow:0 30px 70px rgba(25,24,59,.20);
+  animation:cin .55s .06s cubic-bezier(.2,.8,.3,1) both}
+@keyframes cin{from{opacity:0;transform:translateY(24px) scale(.975)}to{opacity:1;transform:none}}
+.readychip{display:inline-flex;align-items:center;gap:7px;background:var(--green-bg);color:var(--green);
+  border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:800}
+.card h3{font-size:22px;font-weight:800;margin:12px 0 6px;line-height:1.3}
+.card .lede{font-size:14px;color:var(--ink2);margin-bottom:16px}
+.card .lede b{color:var(--ink)}
+.peek{display:flex;gap:8px;margin-bottom:17px}
+.peek div{flex:1;background:var(--field);border:1px solid var(--line);border-radius:11px;padding:9px 6px;text-align:center}
+.peek b{display:block;font-size:19px;font-weight:800;filter:blur(5.5px);color:var(--ink);font-variant-numeric:tabular-nums}
+.peek span{font-size:10.5px;color:var(--muted);font-weight:700;display:block;margin-top:2px}
+.f{margin-bottom:9px}
+.f input{width:100%;height:45px;border-radius:11px;border:1px solid var(--line2);background:var(--field);
+  color:var(--ink);font-family:inherit;font-size:14.5px;padding:0 13px;font-weight:600}
+.f input::placeholder{color:var(--faint);font-weight:500}
+.f input:focus{outline:none;border-color:var(--brand);background:#fff;box-shadow:0 0 0 3px rgba(83,137,187,.14)}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink2);margin-top:9px;line-height:1.45}
+.chk input{width:15px;height:15px;margin-top:2px;accent-color:var(--brand);flex:0 0 15px}
+.chk a{color:var(--brand-dk)}
+.cta{width:100%;height:50px;margin-top:16px;border:0;border-radius:12px;cursor:pointer;background:var(--brand-dk);
+  color:#fff;font-family:inherit;font-size:16.5px;font-weight:800;box-shadow:0 8px 20px rgba(63,118,172,.28)}
+.cta:hover{background:#356495}
+.micro{text-align:center;font-size:11.5px;color:var(--muted);margin-top:10px}
+
+/* ===== מסך אישור ===== */
+.done{position:absolute;inset:0;z-index:7;display:none;place-items:center;background:rgba(255,255,255,.94)}
+.done.on{display:grid;animation:fin .35s both}
+.tick{width:70px;height:70px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;
+  background:var(--green-bg);color:var(--green);font-size:32px;font-weight:800}
+.done h3{font-size:23px;font-weight:800;text-align:center}
+.done p{color:var(--muted);margin-top:6px;font-size:14.5px;text-align:center}
+
+/* ===== מסך 3: ראש הדשבורד + פס הציפייה ===== */
+.report{position:absolute;inset:0;z-index:8;display:none;overflow:auto;background:#fff}
+.report.on{display:block;animation:fin .5s both}
+.rep-in{padding:24px 30px 34px}
+.stage.mobile .rep-in{padding:18px 16px 26px}
+
+/* פס הציפייה — הלב של המסך הזה */
+.expect{border:1px solid #CBDDEE;background:linear-gradient(180deg,#F4F9FD,#fff);border-radius:16px;padding:16px 18px;margin-bottom:20px}
+.expect .head{display:flex;align-items:center;gap:9px;font-size:16.5px;font-weight:800}
+.expect .head .v{width:22px;height:22px;border-radius:50%;background:var(--green-bg);color:var(--green);
+  display:grid;place-items:center;font-size:12px;flex:0 0 22px}
+.steps3{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:14px;position:relative}
+.steps3.two{grid-template-columns:repeat(2,1fr)}
+.steps3.two::before{right:24%;left:24%}
+.stage.mobile .steps3{grid-template-columns:1fr;gap:12px}
+.steps3::before{content:"";position:absolute;top:13px;right:14%;left:14%;height:2px;background:#D7E5F2}
+.stage.mobile .steps3::before{display:none}
+.st{position:relative;text-align:center;padding:0 6px}
+.st .n{width:27px;height:27px;border-radius:50%;margin:0 auto 7px;display:grid;place-items:center;
+  font-size:12.5px;font-weight:800;background:#fff;border:2px solid #CBDDEE;color:var(--brand-dk);position:relative;z-index:2}
+.st.done .n{background:var(--green);border-color:var(--green);color:#fff}
+.st.now .n{background:var(--brand-dk);border-color:var(--brand-dk);color:#fff;
+  box-shadow:0 0 0 4px rgba(83,137,187,.18)}
+.st b{display:block;font-size:13.5px;font-weight:800}
+.st span{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+.expect .foot{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:15px;padding-top:13px;border-top:1px solid var(--line)}
+.expect .foot .t{font-size:13px;color:var(--ink2);font-weight:600;margin-inline-end:auto}
+.bwa{display:inline-flex;align-items:center;gap:7px;background:#25D366;color:#fff;border-radius:10px;
+  padding:9px 15px;font-size:13.5px;font-weight:800;text-decoration:none}
+.bph{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line2);color:var(--ink);
+  border-radius:10px;padding:9px 15px;font-size:13.5px;font-weight:800;text-decoration:none;direction:ltr}
+
+/* דמה של ראש הדשבורד */
+.hero{display:flex;align-items:center;gap:24px;border:1px solid var(--line);border-radius:16px;padding:20px 22px}
+.stage.mobile .hero{flex-direction:column;text-align:center;gap:14px}
+.ring{position:relative;width:132px;height:132px;flex:0 0 132px}
+.ring svg{transform:rotate(-90deg)}
+.ring .v{position:absolute;inset:0;display:grid;place-items:center;font-size:40px;font-weight:800;
+  font-variant-numeric:tabular-nums}
+.hero h2{font-size:22px;font-weight:800}
+.hero p{color:var(--ink2);font-size:14.5px;margin-top:5px;max-width:430px}
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px}
+.stage.mobile .tiles{grid-template-columns:repeat(2,1fr)}
+.tile{border:1px solid var(--line);border-radius:13px;padding:12px}
+.tile b{display:block;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.tile span{font-size:12px;color:var(--muted);font-weight:700}
+.tile i{display:block;height:4px;border-radius:99px;background:var(--line);margin-top:8px;position:relative;font-style:normal}
+.tile i em{position:absolute;inset:0;border-radius:99px;background:var(--brand);font-style:normal}
+.repfoot{margin-top:16px;color:var(--faint);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <b>מוקאפ · פלואו סריקה — בהיר · v3-FINAL</b>
+  <span class="note">במה אחת: סריקה → שער → דוח. נסה גם בלי לסמן "שלחו לי עותק" — פס הציפייה משתנה ל-2 שלבים.</span>
+  <span class="sp"></span>
+  <button class="btn-m on" id="bDesk">דסקטופ</button>
+  <button class="btn-m" id="bMob">מובייל</button>
+  <button class="btn-m" id="bReplay">▶ הרץ שוב</button>
+</div>
+
+<div class="stagewrap">
+<div class="stage" id="stage">
+  <div class="codebg"><pre id="codebg"></pre></div>
+  <div class="glow"></div>
+
+  <div class="inner">
+    <div class="top">
+      <div class="logo">UX<span>ellent</span></div>
+      <div class="urlchip"><i class="dot"></i><span>mioshy.com</span></div>
+      <span class="sp"></span>
+      <div class="elapsed" id="elapsed">00:00</div>
+    </div>
+
+    <div class="cols">
+      <div>
+        <div class="bignum"><span id="pct">0</span><span class="pct">%</span></div>
+        <div class="stepline" id="stepTxt">מתחברים לאתר…</div>
+        <div class="substep" id="subTxt">resolving dns…</div>
+        <div class="bar"><i id="barFill"></i></div>
+        <div class="counters">
+          <div class="ctr"><b id="cPages">0</b><span>עמודים נסרקו</span></div>
+          <div class="ctr"><b id="cChecks">0</b><span>בדיקות בוצעו</span></div>
+          <div class="ctr"><b id="cFinds">0</b><span>ממצאים</span></div>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div>
+        <div class="shotcard">
+          <div class="chrome"><i></i><i></i><i></i><div class="addr">https://mioshy.com</div></div>
+          <div class="shot" id="shot">
+            <iframe id="siteFrame" sandbox=""></iframe>
+            <div class="laser"></div>
+            <div class="pin info" id="p1" style="top:9%;right:6%">‹h1› נמצא</div>
+            <div class="pin bad"  id="p2" style="top:34%;left:7%">Schema חסר</div>
+            <div class="pin ok"   id="p3" style="top:57%;right:9%">HTTPS תקין</div>
+            <div class="pin info" id="p4" style="top:76%;left:9%">2.9s טעינה</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- שער -->
+  <div class="gate" id="gate">
+    <div class="veil"></div>
+    <div class="card">
+      <span class="readychip">● הדוח מוכן</span>
+      <h3>סרקנו 8 עמודים ומצאנו 14 ממצאים.<br>לאן לשלוח את הדוח?</h3>
+      <div class="lede">הציון כבר חושב. השאירו פרטים ו<b>הדוח נפתח מיד כאן על המסך</b>.</div>
+      <div class="peek">
+        <div><b>87</b><span>ציון-על</span></div>
+        <div><b>14</b><span>ממצאים</span></div>
+        <div><b>#3</b><span>מול מתחרים</span></div>
+      </div>
+      <div class="f"><input placeholder="שם מלא"></div>
+      <div class="f"><input placeholder="טלפון" inputmode="tel"></div>
+      <div class="f"><input placeholder="אימייל" inputmode="email"></div>
+      <label class="chk"><input type="checkbox" checked><span>אני מאשר/ת את <a href="#">תנאי השימוש</a> ו<a href="#">מדיניות הפרטיות</a> <b style="color:#C0392B">*</b></span></label>
+      <label class="chk"><input type="checkbox" id="optMail" checked><span><b>שלחו לי עותק של הדוח למייל</b> — וגם עדכונים ותכנים שיווקיים. בלי סימון, הדוח יוצג כאן על המסך בלבד.</span></label>
+      <button class="cta" id="ctaBtn">הציגו לי את הדוח ←</button>
+      <div class="micro">ללא עלות · הדוח נפתח מיד על המסך</div>
+    </div>
+  </div>
+
+  <!-- אישור -->
+  <div class="done" id="doneScr">
+    <div>
+      <div class="tick">✓</div>
+      <h3>פותחים את הדוח שלכם…</h3>
+      <p id="doneSub">עותק יוצא אליכם למייל ברקע</p>
+    </div>
+  </div>
+
+  <!-- דוח + פס ציפייה -->
+  <div class="report" id="report">
+    <div class="rep-in">
+
+      <div class="expect">
+        <div class="head"><span class="v">✓</span> קיבלנו את הפרטים — הנה מה שקורה עכשיו</div>
+        <div class="steps3" id="steps3">
+          <div class="st done"><div class="n">✓</div><b>הדוח שלכם מוכן</b><span>מוצג כאן למטה</span></div>
+          <div class="st now" id="stMail"><div class="n">2</div><b>עותק במייל</b><span>נשלח לכתובת שהשארתם · שמרו אותו</span></div>
+          <div class="st"><div class="n">3</div><b>נעבור על זה יחד</b><span>רוצים שנעבור על הממצאים איתכם? דברו איתנו</span></div>
+        </div>
+        <div class="foot">
+          <span class="t">אנחנו כאן</span>
+          <a class="bwa" href="#">וואטסאפ</a>
+          <a class="bph" href="#">054-5215193</a>
+        </div>
+      </div>
+
+      <div class="hero">
+        <div class="ring">
+          <svg width="132" height="132">
+            <circle cx="66" cy="66" r="58" fill="none" stroke="#ECEFF4" stroke-width="9"></circle>
+            <circle cx="66" cy="66" r="58" fill="none" stroke="#B7791F" stroke-width="9" stroke-linecap="round"
+                    stroke-dasharray="364" stroke-dashoffset="47"></circle>
+          </svg>
+          <div class="v">87</div>
+        </div>
+        <div>
+          <h2>הציון של mioshy.com</h2>
+          <p>האתר במצב טוב, אבל שני דברים מונעים ממנו להופיע גבוה יותר: אין Schema בעמוד הבית, ומנועי AI לא מוצאים תשובות באתר.</p>
+        </div>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><b>92</b><span>טכני</span><i><em style="width:92%"></em></i></div>
+        <div class="tile"><b>41</b><span>Schema</span><i><em style="width:41%;background:#C0392B"></em></i></div>
+        <div class="tile"><b>68</b><span>מוכנות ל-AI</span><i><em style="width:68%;background:#B7791F"></em></i></div>
+        <div class="tile"><b>88</b><span>מעקב תנועה</span><i><em style="width:88%"></em></i></div>
+        <div class="tile"><b>#3</b><span>מול מתחרים</span><i><em style="width:60%"></em></i></div>
+      </div>
+
+      <div class="repfoot">— כאן ממשיך הדשבורד המלא לפי מוקאפ v3 —</div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+const FAKE_SITE = `<!doctype html><html dir="rtl"><head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Assistant,Arial,sans-serif}
+body{background:#fff;color:#1b2340}
+.nav{display:flex;align-items:center;gap:26px;padding:20px 44px;border-bottom:1px solid #eef1f6}
+.nav .b{font-weight:800;font-size:26px;color:#E8557A}
+.nav a{font-size:17px;color:#5a627a;text-decoration:none}
+.hero{padding:56px 44px;display:flex;gap:40px;align-items:center;background:linear-gradient(120deg,#FFF3F6,#FDF7FF)}
+.hero h1{font-size:52px;line-height:1.12;font-weight:800}
+.hero p{margin-top:16px;font-size:21px;color:#5a627a;max-width:520px}
+.hero .btn{display:inline-block;margin-top:24px;background:#E8557A;color:#fff;padding:15px 34px;border-radius:12px;font-size:20px;font-weight:700}
+.hero .img{width:420px;height:280px;border-radius:20px;background:linear-gradient(135deg,#FFD5E0,#E8557A);flex:0 0 420px}
+.row{display:flex;gap:22px;padding:46px 44px}
+.card{flex:1;border:1px solid #eef1f6;border-radius:16px;padding:24px}
+.card h3{font-size:22px;margin-bottom:9px}
+.card p{color:#6b7288;font-size:16px;line-height:1.5}
+.strip{background:#1b2340;color:#fff;padding:40px 44px;font-size:26px;font-weight:700;text-align:center}
+.ft{padding:34px 44px;color:#9aa1b4;font-size:15px;border-top:1px solid #eef1f6}
+</style></head><body>
+<div class="nav"><div class="b">mioshy</div><a>הבית</a><a>המשחקים</a><a>איך זה עובד</a><a>בלוג</a><a>צור קשר</a></div>
+<div class="hero"><div><h1>משחקי זוגיות<br>שמחזירים את הניצוץ</h1>
+<p>ערכות משחק לזוגות — ערב אחד, שאלות נכונות, והרבה צחוק. משלוח עד הבית.</p>
+<div class="btn">הזמינו עכשיו</div></div><div class="img"></div></div>
+<div class="row"><div class="card"><h3>ערב מושלם</h3><p>60 שאלות שנבנו עם מטפלים זוגיים, בשלוש רמות עומק.</p></div>
+<div class="card"><h3>משלוח מהיר</h3><p>עד 3 ימי עסקים לכל הארץ, אריזת מתנה כלולה.</p></div>
+<div class="card"><h3>12,000 זוגות</h3><p>דירוג ממוצע 4.8 מתוך 5 מלקוחות מאומתים.</p></div></div>
+<div class="strip">״הערב הכי טוב שהיה לנו בשנה האחרונה״</div>
+<div class="row"><div class="card"><h3>מהבלוג</h3><p>5 שאלות ששוות יותר מטיפול זוגי · איך לשמור על קשר אחרי ילדים</p></div>
+<div class="card"><h3>שאלות נפוצות</h3><p>איך בוחרים ערכה? מה ההבדל בין הרמות? מדיניות החזרות.</p></div></div>
+<div class="ft">© mioshy · תקנון · פרטיות · 054-0000000</div>
+</body></html>`;
+
+const HTML_SNIPPET = `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>mioshy · משחקי זוגיות</title>
+  <meta name="description" content="ערכות משחק לזוגות">
+  <link rel="canonical" href="https://mioshy.com/">
+  <!-- no application/ld+json found -->
+</head>
+<body>
+  <header class="site-header">
+    <a class="logo" href="/">mioshy</a>
+    <nav><a href="/games">המשחקים</a><a href="/blog">בלוג</a></nav>
+  </header>
+  <main>
+    <h1>משחקי זוגיות שמחזירים את הניצוץ</h1>
+    <p class="lede">ערב אחד, שאלות נכונות, והרבה צחוק.</p>
+    <a class="cta" href="/checkout">הזמינו עכשיו</a>
+  </main>
+</body>
+</html>
+`;
+document.getElementById('codebg').textContent = (HTML_SNIPPET+"\n").repeat(9);
+
+const frame=document.getElementById('siteFrame');
+frame.srcdoc=FAKE_SITE;
+function fitFrame(){const s=document.getElementById('shot');frame.style.transform='scale('+(s.clientWidth/1280)+')';}
+window.addEventListener('resize',fitFrame);setTimeout(fitFrame,60);
+
+const BEATS=[
+ {to:8, t:"מתחברים ל-mioshy.com",        s:"resolving dns · 200 OK",          ms:600},
+ {to:20,t:"טוענים את עמוד הבית",          s:"GET / · 214KB · 2.9s",            ms:650, log:{k:'info',x:'זמן טעינה: 2.9 שניות',v:'איטי'},pin:'p4'},
+ {to:33,t:"קוראים את קוד המקור",          s:"parsing head · 41 tags",          ms:650, log:{k:'ok', x:'כותרת ראשית ‹h1› תקינה',v:'+8'},pin:'p1'},
+ {to:47,t:"מחפשים סימוני Schema לגוגל",   s:"application/ld+json · not found", ms:700, log:{k:'bad',x:'אין Schema — גוגל לא מבין מי אתם',v:'−21'},pin:'p2'},
+ {to:60,t:"בודקים אבטחה ומבנה",           s:"https · robots.txt · sitemap",    ms:600, log:{k:'ok', x:'HTTPS ו-sitemap תקינים',v:'+6'},pin:'p3'},
+ {to:74,t:"בודקים אם AI יכול לקרוא אתכם", s:"llms.txt · missing",              ms:700, log:{k:'bad',x:'מנועי AI לא מוצאים תשובות באתר',v:'−12'}},
+ {to:88,t:"משווים ל-4 מתחרים בתחום",      s:"comparing 4 domains…",            ms:750, log:{k:'info',x:'2 מתחרים לפניכם בדף הראשון',v:'#3'}},
+ {to:100,t:"מחשבים את הציון הסופי",       s:"scoring · 22 rules",              ms:700, log:{k:'ok', x:'הדוח מוכן',v:'87'}}
+];
+
+const $=id=>document.getElementById(id);
+let timer=null,t0=0;
+
+function reset(){
+  clearInterval(timer);
+  $('pct').textContent='0';$('barFill').style.width='0%';
+  $('stepTxt').textContent='מתחברים לאתר…';$('subTxt').textContent='resolving dns…';
+  $('cPages').textContent='0';$('cChecks').textContent='0';$('cFinds').textContent='0';
+  $('log').innerHTML='';$('gate').classList.remove('on');$('doneScr').classList.remove('on');$('report').classList.remove('on');
+  ['p1','p2','p3','p4'].forEach(p=>$(p).classList.remove('show'));
+  $('elapsed').textContent='00:00';
+}
+function ramp(from,to,ms,done){
+  const st=performance.now();
+  const step=now=>{
+    const k=Math.min(1,(now-st)/ms),e=1-Math.pow(1-k,2),v=Math.round(from+(to-from)*e);
+    $('pct').textContent=v;$('barFill').style.width=v+'%';
+    $('cChecks').textContent=Math.round(v*0.22);$('cPages').textContent=Math.max(1,Math.round(v*0.08));
+    if(k<1)requestAnimationFrame(step);else done&&done();
+  };requestAnimationFrame(step);
+}
+function addLog(k,x,v){
+  const r=document.createElement('div');r.className='row '+k;
+  r.innerHTML='<span class="ic '+k+'">'+(k==='ok'?'✓':k==='bad'?'!':'i')+'</span><span>'+x+'</span><em>'+v+'</em>';
+  const L=$('log');L.prepend(r);requestAnimationFrame(()=>r.classList.add('show'));
+  while(L.children.length>5)L.lastChild.remove();
+  $('cFinds').textContent=+$('cFinds').textContent+1;
+}
+function run(){
+  reset();t0=Date.now();
+  timer=setInterval(()=>{const s=Math.floor((Date.now()-t0)/1000);
+    $('elapsed').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');},250);
+  let i=0,from=0;
+  const next=()=>{
+    if(i>=BEATS.length){clearInterval(timer);setTimeout(()=>$('gate').classList.add('on'),450);return;}
+    const b=BEATS[i++];
+    $('stepTxt').textContent=b.t;$('subTxt').textContent=b.s;
+    ramp(from,b.to,b.ms,()=>{from=b.to;if(b.log)addLog(b.log.k,b.log.x,b.log.v);if(b.pin)$(b.pin).classList.add('show');setTimeout(next,120);});
+  };next();
+}
+$('bReplay').onclick=run;
+$('ctaBtn').onclick=()=>{
+  const wantsMail = $('optMail').checked;
+  $('stMail').style.display = wantsMail ? '' : 'none';
+  $('steps3').classList.toggle('two', !wantsMail);
+  $('doneSub').textContent = wantsMail ? 'עותק יוצא אליכם למייל ברקע' : 'הדוח נפתח כאן על המסך';
+  $('doneScr').classList.add('on');
+  setTimeout(()=>{$('doneScr').classList.remove('on');$('gate').classList.remove('on');$('report').classList.add('on');},1100);
+};
+$('bDesk').onclick=()=>{$('stage').classList.remove('mobile');$('bDesk').classList.add('on');$('bMob').classList.remove('on');setTimeout(fitFrame,50);};
+$('bMob').onclick =()=>{$('stage').classList.add('mobile');$('bMob').classList.add('on');$('bDesk').classList.remove('on');setTimeout(fitFrame,50);};
+setTimeout(run,450);
+</script>
+</body>
+</html>

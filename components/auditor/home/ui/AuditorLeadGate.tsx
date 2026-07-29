@@ -9,6 +9,9 @@ import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
 type Props = {
   locale: AuditorLocale
   isSubmitting: boolean
+  /** Real counts from the finished scan — the headline states them out loud. */
+  pagesScanned: number
+  issuesCount: number
   onSubmit: (lead: {
     full_name: string
     phone: string
@@ -18,51 +21,90 @@ type Props = {
   }) => void
 }
 
+const C = {
+  ink: "#19183B",
+  ink2: "#3A4160",
+  muted: "#8A90A0",
+  line: "#ECEFF4",
+  line2: "#E2E7F0",
+  field: "#F7F9FC",
+  brand: "#5389BB",
+  brandDk: "#3F76AC",
+  green: "#167C4B",
+  greenBg: "#E9F8F0",
+  red: "#C0392B",
+} as const
+
 const T = {
   he: {
-    title: "השאירו פרטים לקבלת התוצאות המלאות",
-    subtitle: "הסריקה הסתיימה. הדוח המלא מחכה לכם.",
+    ready: "● הדוח מוכן",
+    where: "לאן לשלוח את הדוח?",
+    ledeA: "הציון כבר חושב. השאירו פרטים ו",
+    ledeB: "הדוח נפתח מיד כאן על המסך",
+    ledeC: ".",
+    peekScore: "ציון-על",
+    peekIssues: "ממצאים",
     name: "שם מלא",
     phone: "טלפון",
     email: "אימייל",
     terms: "אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות",
-    contact: "שלחו לי עותק של הדוח למייל — וגם עדכונים ותכנים שיווקיים. בלי סימון, הדוח יוצג כאן על המסך בלבד.",
-    cta: "קבלו את הדוח המלא",
+    contactBold: "שלחו לי עותק של הדוח למייל",
+    contactRest: " — וגם עדכונים ותכנים שיווקיים. בלי סימון, הדוח יוצג כאן על המסך בלבד.",
+    cta: "הציגו לי את הדוח ←",
+    micro: "ללא עלות · הדוח נפתח מיד על המסך",
     errName: "נא למלא שם מלא",
     errPhone: "נא למלא מספר טלפון",
     errEmail: "נא למלא כתובת אימייל תקינה",
     errTerms: "יש לאשר את תנאי השימוש",
+    headline: (p: number, i: number) => `סרקנו ${p} עמודים ומצאנו ${i} ממצאים.`,
   },
   en: {
-    title: "Leave your details to see the full results",
-    subtitle: "The scan is done. Your full report is waiting.",
+    ready: "● Your report is ready",
+    where: "Where should we send it?",
+    ledeA: "The score is already calculated. Leave your details and ",
+    ledeB: "the report opens right here on screen",
+    ledeC: ".",
+    peekScore: "Overall score",
+    peekIssues: "Findings",
     name: "Full name",
     phone: "Phone",
     email: "Email",
     terms: "I accept the terms of use and privacy policy",
-    contact: "Email me a copy of the report — plus updates and marketing content. Without this, the report is shown here on screen only.",
-    cta: "Get the full report",
+    contactBold: "Email me a copy of the report",
+    contactRest: " — plus updates and marketing content. Without this, the report is shown here on screen only.",
+    cta: "Show me the report →",
+    micro: "Free · the report opens immediately on screen",
     errName: "Please enter your full name",
     errPhone: "Please enter a phone number",
     errEmail: "Please enter a valid email address",
     errTerms: "You must accept the terms of use",
+    headline: (p: number, i: number) => `We scanned ${p} pages and found ${i} findings.`,
   },
 } as const
 
 /**
- * Two consents, two different jobs.
+ * The lead form, per design-mockups/auditor-scanflow-v3-light-FINAL.html.
  *
- * Terms are mandatory and gate the button. Marketing is optional and buys the
- * emailed copy — nothing else. The report on screen opens for anyone who left
- * details, always: it is what was promised, and tying it to marketing consent
- * would be bundling consent into the service itself. Consent buys extra
- * content, never the product.
+ * Two consents, two different jobs. Terms are mandatory and gate the button.
+ * Marketing is optional and buys the emailed copy — nothing else. The report on
+ * screen opens for anyone who left details, always: it is what was promised,
+ * and tying it to marketing consent would be bundling consent into the service
+ * itself. Consent buys extra content, never the product.
  *
- * Left unticked by default. A pre-ticked box is not consent.
+ * Both boxes arrive unticked, which is the one place this deviates from the
+ * mockup — the mockup ships them `checked`, and a pre-ticked box is not
+ * consent. The wording is the mockup's, word for word.
+ *
+ * The score tile in the peek is an empty block rather than the mockup's blurred
+ * figure. A blur is not a security boundary: `filter: blur()` over a real
+ * number leaves that number in the DOM for anyone who opens devtools, which
+ * makes the form it is meant to gate optional. The count of findings is not
+ * treated that way because the headline above already says it in words.
  */
-export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
-  const t = T[locale === "en" ? "en" : "he"]
-  const rtl = locale !== "en"
+export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCount, onSubmit }: Props) {
+  const en = locale === "en"
+  const t = T[en ? "en" : "he"]
+  const rtl = !en
 
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
@@ -104,21 +146,56 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
         <AuditorReportV3 locale={locale} status={null} teaser />
       </div>
 
-      {/* Fades the teaser out toward the form so the text never fights the shapes. */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/70 via-white/85 to-white" />
+      {/* The mockup's veil: white at 62% over a 2.5px blur. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
+      />
 
       <div className="relative flex min-h-[80svh] items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md rounded-2xl border border-black/10 bg-white/95 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-          <h2 className="text-balance text-xl font-semibold leading-snug sm:text-2xl">{t.title}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t.subtitle}</p>
+        <div
+          className="w-full max-w-[430px] rounded-[20px] bg-white p-[26px] pb-5"
+          style={{ border: `1px solid ${C.line2}`, boxShadow: "0 30px 70px rgba(25,24,59,.20)" }}
+        >
+          <span
+            className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 text-[12.5px] font-extrabold"
+            style={{ background: C.greenBg, color: C.green }}
+          >
+            {t.ready}
+          </span>
 
-          <div className="mt-6 space-y-3">
+          <h2 className="mb-1.5 mt-3 text-[22px] font-extrabold leading-[1.3]" style={{ color: C.ink }}>
+            {t.headline(pagesScanned, issuesCount)}
+            <br />
+            {t.where}
+          </h2>
+
+          <p className="mb-4 text-sm" style={{ color: C.ink2 }}>
+            {t.ledeA}
+            <b style={{ color: C.ink }}>{t.ledeB}</b>
+            {t.ledeC}
+          </p>
+
+          <div className="mb-[17px] flex gap-2">
+            <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
+              {/* Not rendered, not merely hidden — see the note above. */}
+              <div className="mx-auto h-[19px] w-11 rounded-md" style={{ background: "#0000001a" }} />
+              <span className="mt-0.5 block text-[10.5px] font-bold" style={{ color: C.muted }}>{t.peekScore}</span>
+            </div>
+            <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
+              <b className="block text-[19px] font-extrabold tabular-nums" style={{ color: C.ink }}>{issuesCount}</b>
+              <span className="mt-0.5 block text-[10.5px] font-bold" style={{ color: C.muted }}>{t.peekIssues}</span>
+            </div>
+          </div>
+
+          <div className="space-y-[9px]">
             <Input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder={t.name}
               autoComplete="name"
-              className="h-11 rounded-xl bg-white"
+              className="h-[45px] rounded-[11px]"
+              style={{ background: C.field, borderColor: C.line2 }}
             />
             <Input
               value={phone}
@@ -128,8 +205,8 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
               inputMode="tel"
               autoComplete="tel"
               dir="ltr"
-              style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
-              className="h-11 rounded-xl bg-white"
+              style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
+              className="h-[45px] rounded-[11px]"
             />
             <Input
               value={email}
@@ -139,34 +216,41 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
               inputMode="email"
               autoComplete="email"
               dir="ltr"
-              style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
-              className="h-11 rounded-xl bg-white"
+              style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
+              className="h-[45px] rounded-[11px]"
             />
           </div>
 
-          <div className="mt-4 space-y-2.5 text-sm">
-            <label className="flex cursor-pointer items-start gap-2.5">
+          <div className="mt-[9px] space-y-[9px] text-xs leading-[1.45]">
+            <label className="flex cursor-pointer items-start gap-2">
               <input
                 type="checkbox"
                 checked={consentTerms}
                 onChange={(e) => setConsentTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-fg"
+                className="mt-0.5 h-[15px] w-[15px] shrink-0"
+                style={{ accentColor: C.brand }}
               />
-              <span className="text-muted-foreground">{t.terms}</span>
+              <span style={{ color: C.ink2 }}>
+                {t.terms} <b style={{ color: C.red }}>*</b>
+              </span>
             </label>
-            <label className="flex cursor-pointer items-start gap-2.5">
+            <label className="flex cursor-pointer items-start gap-2">
               <input
                 type="checkbox"
                 checked={consentContact}
                 onChange={(e) => setConsentContact(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-fg"
+                className="mt-0.5 h-[15px] w-[15px] shrink-0"
+                style={{ accentColor: C.brand }}
               />
-              <span className="text-muted-foreground">{t.contact}</span>
+              <span style={{ color: C.ink2 }}>
+                <b style={{ color: C.ink }}>{t.contactBold}</b>
+                {t.contactRest}
+              </span>
             </label>
           </div>
 
           {localError ? (
-            <p role="alert" className="mt-3 text-sm text-danger">
+            <p role="alert" className="mt-3 text-sm" style={{ color: C.red }}>
               {localError}
             </p>
           ) : null}
@@ -176,11 +260,16 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
             onClick={handleSubmit}
             /* Terms gate the button; marketing never does. */
             disabled={isSubmitting || !consentTerms}
-            className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-fg text-base font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+            className="mt-4 flex h-[50px] w-full items-center justify-center gap-2 rounded-xl text-[16.5px] font-extrabold text-white transition hover:opacity-90 disabled:opacity-60"
+            style={{ background: C.brandDk, boxShadow: "0 8px 20px rgba(63,118,172,.28)" }}
           >
             {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
             {t.cta}
           </button>
+
+          <div className="mt-2.5 text-center text-[11.5px]" style={{ color: C.muted }}>
+            {t.micro}
+          </div>
         </div>
       </div>
     </div>
