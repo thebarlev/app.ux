@@ -22,6 +22,12 @@ export type StatusResponse =
       score_ai: number | null
       category_scores: Record<string, number>
       issues_overview: string[]
+      /**
+       * The full count, which issues_overview is a truncated view of — the
+       * status route caps that list at 12. The report needs the real number to
+       * say how many issues sit behind the premium lock.
+       */
+      issues_count?: number | null
       confidence_level: string | null
       warning: string | null
       done: boolean

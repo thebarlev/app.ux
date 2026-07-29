@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import type { AuditorLocale } from "@/lib/auditor/locale"
-import { AuditorReportTeaser } from "@/components/auditor/home/ui/AuditorReportTeaser"
+import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
 
 type Props = {
   locale: AuditorLocale
@@ -90,7 +90,7 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 select-none overflow-hidden blur-[6px] opacity-40 sm:blur-[8px] sm:opacity-50"
       >
-        <AuditorReportTeaser locale={locale} />
+        <AuditorReportV3 locale={locale} status={null} teaser />
       </div>
 
       {/* Fades the teaser out toward the form so the text never fights the shapes. */}

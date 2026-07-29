@@ -2,8 +2,8 @@
 
 import { AuditorStepOne } from "@/components/auditor/home/ui/AuditorStepOne"
 import { AuditorStepTwo } from "@/components/auditor/home/ui/AuditorStepTwo"
-import { AuditorStepThree } from "@/components/auditor/home/ui/AuditorStepThree"
 import { AuditorLeadGate } from "@/components/auditor/home/ui/AuditorLeadGate"
+import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
 import { PlanDialogs } from "@/components/auditor/home/ui/PlanDialogs"
 import { useAuditorHomeController } from "@/components/auditor/home/logic/useAuditorHomeController"
 import type { AuditorHomeProps } from "@/components/auditor/home/logic/auditor-home-types"
@@ -46,21 +46,11 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
       ) : null}
 
       {controller.step === 3 ? (
-        <AuditorStepThree
+        <AuditorReportV3
           locale={locale}
-          basePath={basePath}
-          scanId={controller.scanId}
-          token={controller.token}
           status={controller.status}
-          hasActiveSubscription={controller.hasActiveSubscription}
-          selectedPlanId={controller.selectedPlanId}
-          setSelectedPlanId={controller.setSelectedPlanId}
-          isStartingCheckout={controller.isStartingCheckout}
-          startCheckout={controller.startCheckout}
-          setShowChangePlanModal={controller.setShowChangePlanModal}
-          setShowCancelModal={controller.setShowCancelModal}
-          resetToNewScan={controller.resetToNewScan}
           whatsappUrl={WHATSAPP_URL}
+          onUnlock={controller.startCheckout}
         />
       ) : null}
 

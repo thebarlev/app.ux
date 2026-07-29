@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>דוח דירוג · Auditor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F7FB; --card:#FFFFFF; --ink:#1C2A46; --ink2:#3A465F; --muted:#8A93A6; --line:#EAEEF4;
+    --brand:#5389BB; --brand-ink:#3A6D9A; --brand-tint:#EEF4FB; --brand-tint2:#E3EDF8;
+    --green:#1E9E63; --green-bg:#E8F7EF; --amber:#C68A24; --amber-bg:#FBF3E0;
+    --red:#D65F55; --red-bg:#FCEDEB; --gold:#B0872F; --gold-bg:#FAF2DC; --gold-line:#EAD9A8;
+    --slate:#AEB8CC;
+    --shadow:0 1px 2px rgba(20,30,60,.04),0 4px 16px rgba(20,30,60,.05);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Assistant',system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;padding:22px 16px 40px}
+  .wrap{max-width:1040px;margin:0 auto}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .brandline{font-weight:800;font-size:18px}.brandline span{color:var(--brand-ink)}
+  .actions{display:flex;gap:9px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 15px;font-family:inherit;font-weight:700;font-size:13.5px;color:var(--ink2);cursor:pointer}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .hero{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:26px 30px;display:flex;align-items:center;gap:28px;margin-bottom:14px}
+  .hero .txt{flex:1}
+  .eyebrow{font-size:13px;font-weight:700;color:var(--brand-ink);margin-bottom:6px}
+  .hero h1{font-size:23px;font-weight:800;margin-bottom:8px}
+  .hero p{color:var(--ink2);font-size:14.5px;max-width:52ch}
+  .chip{display:inline-flex;align-items:center;gap:7px;margin-top:14px;background:var(--amber-bg);color:var(--amber);font-weight:700;font-size:13px;padding:6px 13px;border-radius:999px}
+  .gauge{flex-shrink:0;width:132px;height:132px;position:relative;display:grid;place-items:center}
+  .gauge svg{position:absolute;inset:0;transform:rotate(-90deg)}
+  .gauge .num{font-size:40px;font-weight:800;line-height:1}
+  .gauge .den{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+  .experts{background:linear-gradient(180deg,#F3F8FD,#EAF2FB);border:1px solid var(--brand-tint2);border-radius:18px;padding:18px 24px;display:flex;align-items:center;gap:18px;margin-bottom:12px}
+  .experts .ic{flex-shrink:0;width:46px;height:46px;border-radius:13px;background:var(--brand);display:grid;place-items:center;color:#fff;font-size:22px;box-shadow:0 4px 12px rgba(83,137,187,.35)}
+  .experts .b{flex:1}
+  .experts b{font-size:16px;font-weight:800}.experts p{font-size:13.5px;color:var(--ink2);margin-top:2px}
+  .experts .prog{margin-top:9px;display:flex;align-items:center;gap:10px}
+  .progtrack{flex:1;max-width:240px;height:7px;background:#D9E5F2;border-radius:99px;position:relative;overflow:hidden}
+  .progfill{position:absolute;right:0;top:0;bottom:0;width:34%;background:var(--brand);border-radius:99px}
+  .progtxt{font-size:12px;font-weight:700;color:var(--brand-ink)}
+  /* scanned/premium legitimacy strip */
+  .scanned{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:12px 18px;margin-bottom:22px;font-size:13px;color:var(--ink2)}
+  .scanned .k{font-weight:800;color:var(--ink)}
+  .scanned .sep{color:var(--muted)}
+  .scanned .pr{color:var(--gold);font-weight:700}
+  .sec-h{display:flex;align-items:baseline;justify-content:space-between;margin:0 4px 12px}
+  .sec-h h2{font-size:17px;font-weight:800}.sec-h .hint{font-size:12.5px;color:var(--muted);font-weight:600}
+  .tiles{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+  .tile{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);padding:15px 16px}
+  .tile .lab{font-size:13px;color:var(--ink2);font-weight:700}
+  .tile .val{font-size:30px;font-weight:800;line-height:1.1;margin:4px 0 9px}
+  .tile .meter{height:7px;background:#EEF1F6;border-radius:99px;position:relative;overflow:hidden}
+  .tile .meter i{position:absolute;right:0;top:0;bottom:0;border-radius:99px}
+  .v-red{color:var(--red)}.v-amber{color:var(--amber)}.v-green{color:var(--green)}
+  .f-red{background:var(--red)}.f-amber{background:var(--amber)}.f-green{background:var(--green)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 24px;margin-bottom:16px}
+  /* competitor bars — names flush right under title */
+  .cbar{display:flex;align-items:center;gap:14px;margin:13px 0}
+  .cbar .name{width:110px;font-size:13.5px;font-weight:700;color:var(--ink2);text-align:right;flex-shrink:0}
+  .cbar .name.you{color:var(--red)}.cbar .name.pot{color:var(--green)}
+  .cbar .track{flex:1;height:12px;background:#F1F4F9;border-radius:99px;position:relative}
+  .cbar .fill{position:absolute;right:0;top:0;bottom:0;border-radius:99px}
+  .fill.comp{background:var(--slate)}.fill.you{background:var(--red)}.fill.pot{background:var(--green)}
+  .cbar .n{width:30px;font-size:14px;font-weight:800;flex-shrink:0;text-align:left}
+  .foot{font-size:13px;color:var(--ink2);margin-top:12px;padding-top:13px;border-top:1px solid var(--line)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  /* visible rows */
+  .irow{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+  .irow:first-of-type{border-top:none}
+  .irow .dot{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:800;flex-shrink:0;font-size:13px}
+  .dot.hi{background:var(--red-bg);color:var(--red)}.dot.mid{background:var(--amber-bg);color:var(--amber)}
+  .irow .t b{font-size:14px}.irow .t p{font-size:12.5px;color:var(--muted);margin-top:1px}
+  .gap{display:flex;align-items:center;gap:11px;margin:11px 0}
+  .gap .gl{width:92px;font-size:13px;font-weight:700;color:var(--ink2);flex-shrink:0;text-align:right}
+  .gap .gt{flex:1;height:9px;background:#F1F4F9;border-radius:99px;position:relative}
+  .gap .gf{position:absolute;right:0;top:0;bottom:0;border-radius:99px}
+  .gap .gn{width:20px;font-weight:800;font-size:13px;text-align:left}
+  /* locked "and more" band — in flow, never clipped */
+  .lockband{display:flex;align-items:center;gap:13px;margin-top:14px;background:var(--gold-bg);border:1px solid var(--gold-line);border-radius:14px;padding:14px 16px}
+  .lockband .pl{width:40px;height:40px;border-radius:50%;background:#fff;color:var(--gold);display:grid;place-items:center;font-size:18px;flex-shrink:0;border:1px solid var(--gold-line)}
+  .lockband .lt{flex:1}
+  .lockband .lt b{font-size:14px;color:var(--ink)}
+  .lockband .lt p{font-size:12.5px;color:var(--ink2);margin-top:1px}
+  .lockband .pill{background:var(--gold);color:#fff;border:none;border-radius:10px;padding:9px 15px;font-family:inherit;font-weight:800;font-size:12.5px;cursor:pointer;flex-shrink:0}
+  /* CTA — no fields, already registered */
+  .cta{background:linear-gradient(135deg,#2E4B72,#3A6D9A);border-radius:20px;padding:26px 30px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  .cta .l{flex:1;min-width:240px}
+  .cta h3{font-size:20px;font-weight:800;margin-bottom:6px}
+  .cta p{font-size:14.5px;color:#DCE7F4;max-width:48ch}
+  .cta .btns{display:flex;gap:10px;flex-wrap:wrap}
+  .cta .wa{background:#25D366;color:#fff;border:none;border-radius:12px;padding:13px 20px;font-family:inherit;font-weight:800;font-size:14.5px;cursor:pointer}
+  .cta .call{background:#fff;color:var(--brand-ink);border-radius:12px;padding:13px 20px;font-weight:800;font-size:14.5px;text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brandline">דוח דירוג · <span>www.my-business.co.il</span></div>
+    <div class="actions">
+      <button class="btn">⭳ ייצוא PDF</button>
+      <button class="btn primary">➤ שליחה ללקוח</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="txt">
+      <div class="eyebrow">נראות בגוגל ובחיפוש AI</div>
+      <h1>הציון הנוכחי של האתר שלך</h1>
+      <p>בסיס טוב — אבל חסרים רכיבים מרכזיים שמונעים ממך להופיע גבוה בגוגל ובמנועי חיפוש מבוססי-AI. זיהינו 9 הזדמנויות לשיפור.</p>
+      <span class="chip">● ציון בינוני · פוטנציאל שיפור גבוה</span>
+    </div>
+    <div class="gauge">
+      <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" fill="none" stroke="#EEF1F6" stroke-width="11"/>
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#C68A24" stroke-width="11" stroke-linecap="round"
+          stroke-dasharray="326.7" stroke-dashoffset="124.1"/></svg>
+      <div style="text-align:center"><div class="num">62</div><div class="den">מתוך 100</div></div>
+    </div>
+  </div>
+
+  <div class="experts">
+    <div class="ic">✦</div>
+    <div class="b">
+      <b>המומחים שלנו כבר עובדים על האתר שלך</b>
+      <p>אנחנו סורקים, מזהים ומתקנים — אתה רואה את הקסם קורה בלי לעשות כלום. הדירוג שלך מטפס, ואתה עוקב אחרי הקצב.</p>
+      <div class="prog"><div class="progtrack"><div class="progfill"></div></div><span class="progtxt">העבודה בתהליך · 3 שיפורים זוהו השבוע</span></div>
+    </div>
+  </div>
+
+  <!-- legitimacy + premium depth -->
+  <div class="scanned">
+    <span>🔍</span>
+    <span><span class="k">הסריקה בדקה 8 עמודים</span> באתר שלך — ניתוח מדויק מבוסס-נתונים, לא הערכות.</span>
+    <span class="sep">·</span>
+    <span class="pr">לקוחות פרימיום מקבלים סריקה עמוקה בעשרות עמודים + כלים מתקדמים ↗</span>
+  </div>
+
+  <div class="sec-h"><h2>ציון לפי קטגוריה</h2><span class="hint">0–100 · ככל שגבוה יותר, טוב יותר</span></div>
+  <div class="tiles">
+    <div class="tile"><div class="lab">גוגל SEO</div><div class="val v-amber">71</div><div class="meter"><i class="f-amber" style="width:71%"></i></div></div>
+    <div class="tile"><div class="lab">נראות ב-AI</div><div class="val v-red">48</div><div class="meter"><i class="f-red" style="width:48%"></i></div></div>
+    <div class="tile"><div class="lab">טכני</div><div class="val v-green">80</div><div class="meter"><i class="f-green" style="width:80%"></i></div></div>
+    <div class="tile"><div class="lab">תוכן</div><div class="val v-amber">55</div><div class="meter"><i class="f-amber" style="width:55%"></i></div></div>
+    <div class="tile"><div class="lab">מעקב תנועה</div><div class="val v-amber">62</div><div class="meter"><i class="f-amber" style="width:62%"></i></div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-h" style="margin:0 0 6px"><h2>אתה מול המתחרים</h2><span class="hint">נראות משוערת 0–100</span></div>
+    <div class="cbar"><span class="name">מתחרה מוביל</span><div class="track"><div class="fill comp" style="width:88%"></div></div><span class="n" style="color:var(--slate)">88</span></div>
+    <div class="cbar"><span class="name">מתחרה ב׳</span><div class="track"><div class="fill comp" style="width:79%"></div></div><span class="n" style="color:var(--slate)">79</span></div>
+    <div class="cbar"><span class="name you">אתה — עכשיו</span><div class="track"><div class="fill you" style="width:31%"></div></div><span class="n v-red">31</span></div>
+    <div class="cbar"><span class="name pot">הפוטנציאל שלך</span><div class="track"><div class="fill pot" style="width:76%"></div></div><span class="n v-green">76</span></div>
+    <div class="foot">כרגע אתה מתחת למתחרים — אבל הפער סגיר. הצוות שלנו מוביל אותך אל הפוטנציאל שלך, ראשון בקטגוריה.</div>
+  </div>
+
+  <div class="grid2">
+    <!-- ISSUES: 2 visible + locked "and more" -->
+    <div class="card">
+      <div class="sec-h" style="margin:0 0 10px"><h2>בעיות שנמצאו</h2><span class="hint">9 · לפי חומרה</span></div>
+      <div class="irow"><div class="dot hi">!</div><div class="t"><b>חסרים תיאורי Meta ל-12 עמודים</b><p>גוגל ו-AI לא מבינים על מה העמודים.</p></div></div>
+      <div class="irow"><div class="dot hi">!</div><div class="t"><b>הטקסט לא מותאם ל-AI</b><p>אין ישויות וסימני הקשר.</p></div></div>
+      <div class="lockband">
+        <div class="pl">🔒</div>
+        <div class="lt"><b>ועוד 7 בעיות — בפרימיום</b><p>המומחים שלנו יזהו ויטפלו בכל 9 הבעיות עבורך.</p></div>
+        <button class="pill">פתחו גישה</button>
+      </div>
+    </div>
+
+    <!-- GAPS: 2 visible + locked "and more" -->
+    <div class="card">
+      <div class="sec-h" style="margin:0 0 10px"><h2>איפה הפערים</h2><span class="hint">לפי קטגוריה</span></div>
+      <div class="gap"><span class="gl">מילות מפתח</span><div class="gt"><div class="gf f-red" style="width:80%"></div></div><span class="gn v-red">4</span></div>
+      <div class="gap"><span class="gl">נראות AI</span><div class="gt"><div class="gf f-red" style="width:60%"></div></div><span class="gn v-red">3</span></div>
+      <div class="lockband">
+        <div class="pl">🔒</div>
+        <div class="lt"><b>ועוד 3 קטגוריות — בפרימיום</b><p>בדיוק איפה אתה מפסיד תנועה, ומה נסגור קודם.</p></div>
+        <button class="pill">פתחו גישה</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA: already registered, no fields -->
+  <div class="cta">
+    <div class="l">
+      <h3>קיבלנו את הפרטים שלך ✓</h3>
+      <p>נציג שלנו יחזור אליך בהקדם. רוצה להתקדם כבר עכשיו? דברו איתנו ישירות.</p>
+    </div>
+    <div class="btns">
+      <button class="wa">שלחו וואטסאפ</button>
+      <a class="call" href="tel:0545215193">חייגו 054-5215193</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
