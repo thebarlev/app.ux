@@ -2,6 +2,7 @@
 
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
+import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
 
 /**
  * The report, per design-mockups/auditor-dashboard-v3.html.
@@ -148,6 +149,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             {en ? "Ranking report" : "דוח דירוג"} · <span style={{ color: C.brandInk }}>{teaser ? "" : host}</span>
           </div>
         </div>
+
+        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} /> : null}
 
         {/* hero */}
         <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: shadow, padding: "26px 30px", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>

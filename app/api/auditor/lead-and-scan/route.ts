@@ -37,6 +37,11 @@ export async function POST(req: Request) {
   if (!parsed.data.consent_terms) {
     return NextResponse.json({ ok: false, error: "Missing required consents" }, { status: 400 })
   }
+  // The server half of AUDITOR_REQUIRE_MARKETING_CONSENT. Enforced here too, so
+  // flipping the flag cannot be bypassed by posting straight to the endpoint.
+  if (String(process.env.AUDITOR_REQUIRE_MARKETING_CONSENT || "").trim() === "true" && !parsed.data.consent_contact) {
+    return NextResponse.json({ ok: false, error: "Missing required consents" }, { status: 400 })
+  }
 
   const emailNorm = normalizeEmail(parsed.data.email)
   const startUrl = normalizeInputUrl(parsed.data.url)

@@ -27,6 +27,8 @@ const T = {
     email: "אימייל",
     terms: "אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות",
     contact: "אני מסכים/ה לקבל עדכונים ותכנים שיווקיים",
+    contactRequired: "אני מסכים/ה לקבל את הדוח ועדכונים שיווקיים",
+    errContact: "יש לאשר קבלת הדוח ועדכונים",
     cta: "קבלו את הדוח המלא",
     errName: "נא למלא שם מלא",
     errPhone: "נא למלא מספר טלפון",
@@ -41,6 +43,8 @@ const T = {
     email: "Email",
     terms: "I accept the terms of use and privacy policy",
     contact: "I agree to receive updates and marketing content",
+    contactRequired: "I agree to receive the report and marketing updates",
+    errContact: "You must agree to receive the report and updates",
     cta: "Get the full report",
     errName: "Please enter your full name",
     errPhone: "Please enter a phone number",
@@ -48,6 +52,18 @@ const T = {
     errTerms: "You must accept the terms of use",
   },
 } as const
+
+/**
+ * Whether the marketing checkbox is a condition of getting the report.
+ *
+ * Off today: the report is an operational email the visitor explicitly asked
+ * for, and tying it to marketing consent is an open legal question (bundling
+ * consent into a service) sitting on the pre-launch checklist. Both states are
+ * built so switching is one env change, not a refactor. The server enforces the
+ * same flag — see lead-and-scan; this only decides what the form asks for.
+ */
+const REQUIRE_MARKETING_CONSENT =
+  String(process.env.NEXT_PUBLIC_AUDITOR_REQUIRE_MARKETING_CONSENT || "").trim() === "true"
 
 export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
   const t = T[locale === "en" ? "en" : "he"]
@@ -67,6 +83,7 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
     if (phone.trim().length < 6) return setLocalError(t.errPhone)
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setLocalError(t.errEmail)
     if (!consentTerms) return setLocalError(t.errTerms)
+    if (REQUIRE_MARKETING_CONSENT && !consentContact) return setLocalError(t.errContact)
 
     setLocalError(null)
     onSubmit({
@@ -150,7 +167,7 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
                 onChange={(e) => setConsentContact(e.target.checked)}
                 className="mt-0.5 h-4 w-4 shrink-0 accent-fg"
               />
-              <span className="text-muted-foreground">{t.contact}</span>
+              <span className="text-muted-foreground">{REQUIRE_MARKETING_CONSENT ? t.contactRequired : t.contact}</span>
             </label>
           </div>
 
@@ -163,7 +180,7 @@ export function AuditorLeadGate({ locale, isSubmitting, onSubmit }: Props) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || (REQUIRE_MARKETING_CONSENT && !consentContact)}
             className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-fg text-base font-medium text-white transition hover:opacity-90 disabled:opacity-60"
           >
             {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
