@@ -169,8 +169,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                   : "איפה אתה עומד בגוגל ובחיפוש AI, ומה מעכב אותך."
                 : issuesCount > 0
                   ? en
-                    ? `A solid base — but key pieces are missing. We found ${issuesCount} opportunities to improve.`
-                    : `בסיס טוב — אבל חסרים רכיבים מרכזיים. זיהינו ${issuesCount} הזדמנויות לשיפור.`
+                    ? `A solid base — but key pieces are missing. We found ${issuesCount} ${issuesCount === 1 ? "opportunity" : "opportunities"} to improve.`
+                    : `בסיס טוב — אבל חסרים רכיבים מרכזיים. ${issuesCount === 1 ? "זיהינו הזדמנות אחת לשיפור." : `זיהינו ${issuesCount} הזדמנויות לשיפור.`}`
                   : en
                     ? "No major findings in the initial scan."
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
@@ -225,9 +225,18 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           <span>🔍</span>
           <span>
             <span style={{ fontWeight: 800, color: C.ink }}>
+              {/*
+                Same treatment as the lead gate: the public flow is a
+                verification scan pinned to one page, so "1 pages" is the
+                permanent shape of this line rather than a small result.
+                Naming the homepage says the same true thing. The plural branch
+                stays for the multi-page scan kinds.
+              */}
               {teaser || pages === null
                 ? en ? "Pages scanned" : "עמודים שנסרקו"
-                : en ? `The scan checked ${pages} pages` : `הסריקה בדקה ${pages} עמודים`}
+                : pages === 1
+                  ? en ? "The scan checked your homepage" : "הסריקה בדקה את עמוד הבית"
+                  : en ? `The scan checked ${pages} pages` : `הסריקה בדקה ${pages} עמודים`}
             </span>{" "}
             {en ? "— data-based analysis, not estimates." : "באתר שלך — ניתוח מדויק מבוסס-נתונים, לא הערכות."}
           </span>
