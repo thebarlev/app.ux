@@ -270,7 +270,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           <Card>
             <SectionHead
               title={en ? "Findings" : "ממצאים"}
-              hint={teaser ? undefined : en ? `${issuesCount} · by severity` : `${issuesCount} · לפי חומרה`}
+              hint={teaser ? undefined : String(issuesCount)}
             />
             {teaser ? (
               [0, 1].map((i) => (
