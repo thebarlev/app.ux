@@ -1808,12 +1808,20 @@ export async function continueAuditorScan(params: {
 
       const scoreSearch = Math.round(((scoreBreakdown.technical ?? 0) + (scoreBreakdown.schema ?? 0)) / 2)
       const scoreAi = Math.round(scoreBreakdown.ai_readiness ?? 0)
+      /**
+       * tracking carries 10% of score_total but fed neither category, so fixing
+       * GTM/GA4 moved the headline number while every category sat still — which
+       * reads as the score changing for no reason. It is reported as its own
+       * category rather than folded into search or AI, because it measures
+       * neither: it is whether the site can see its own traffic.
+       */
+      const scoreTracking = Math.round(scoreBreakdown.tracking ?? 0)
 
       const publicReport = buildPublicReport({
         score_total: scoreTotal,
         score_search: scoreSearch,
         score_ai: scoreAi,
-        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi, tracking: scoreTracking },
         findings: rules.map((r) => ({ rule_key: r.rule_key, severity: "medium", status: r.status })),
         confidence_level: confidenceLevel,
         warning,
@@ -1854,7 +1862,7 @@ export async function continueAuditorScan(params: {
         score_search: scoreSearch,
         score_ai: scoreAi,
         score_breakdown: scoreBreakdown,
-        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi, tracking: scoreTracking },
         rules: rulesForReport,
         total_pages: totalCount,
         extracted_pages: extractedCount,

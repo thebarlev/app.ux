@@ -9,6 +9,7 @@ import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution
 import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
 import { attachScanToCompany } from "@/lib/auditor/leads/attachScanToCompany"
 import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
+import { sendAuditorLead } from "@/lib/email/sendAuditorLead"
 
 const bodySchema = z.object({
   full_name: z.string().min(1).max(200),
@@ -71,6 +72,35 @@ export async function POST(req: Request) {
     }
   }
 
+  /**
+   * One lead per signup, on every path that returns a company — including the
+   * two that reuse one. Those return early, which is why the older support-inbox
+   * notification below only ever saw brand-new companies.
+   *
+   * Swallowed like the notification: a mail failure must not fail a signup.
+   */
+  const emitLead = async (
+    companyId: string,
+    reused: boolean,
+    scan: Awaited<ReturnType<typeof attachScans>>
+  ) => {
+    try {
+      const result = await sendAuditorLead({
+        email,
+        contactName: parsed.data.contact_name || parsed.data.full_name || null,
+        companyName: parsed.data.company_name || null,
+        website: parsed.data.website || null,
+        phone: parsed.data.phone || null,
+        companyId,
+        reused,
+        scan,
+      })
+      console.log("[AUDITOR_BOOTSTRAP] lead email", { companyId, reused, ...result })
+    } catch (err) {
+      console.error("[AUDITOR_BOOTSTRAP] lead email failed", err)
+    }
+  }
+
   const canonical = await resolveCanonicalAuditorCompany(admin, { userId: user.id, email })
   if (canonical) {
     const companyId = canonical.companyId
@@ -98,7 +128,8 @@ export async function POST(req: Request) {
     } catch {
       /* ignore */
     }
-    await attachScans(companyId)
+    const scan = await attachScans(companyId)
+    await emitLead(companyId, true, scan)
     return NextResponse.json({ ok: true, company_id: companyId, reused: true })
   }
 
@@ -134,7 +165,8 @@ export async function POST(req: Request) {
     // Race: someone else created it by email (companies.email unique in this repo)
     const { data: again } = await admin.from("companies").select("id").eq("email", email).maybeSingle()
     if (!again?.id) return NextResponse.json({ ok: false, error: "Failed to create company" }, { status: 500 })
-    await attachScans(String(again.id))
+    const scan = await attachScans(String(again.id))
+    await emitLead(String(again.id), true, scan)
     return NextResponse.json({ ok: true, company_id: String(again.id), reused: true })
   }
 
@@ -181,7 +213,8 @@ export async function POST(req: Request) {
     // ignore
   }
 
-  await attachScans(companyId)
+  const scan = await attachScans(companyId)
+  await emitLead(companyId, false, scan)
   return NextResponse.json({ ok: true, company_id: companyId })
 }
 
