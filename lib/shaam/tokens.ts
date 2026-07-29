@@ -1,6 +1,6 @@
 import "server-only"
 
-import { getShaamConfig } from "@/lib/shaam/config"
+import { getShaamConfig, getShaamEnv, getShaamEnvSafe } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { decryptSecret, encryptSecret } from "@/lib/shaam/crypto"
 import { createServiceRoleClient } from "@/lib/supabase/server"
@@ -65,7 +65,10 @@ export async function recordShaamEvent(params: {
 }) {
   const admin = createServiceRoleClient()
   // payload MUST be token-free by convention; keep it small.
-  const payload = params.payload ? JSON.parse(JSON.stringify(params.payload)) : null
+  const base = params.payload ? JSON.parse(JSON.stringify(params.payload)) : {}
+  // Tag every event with the tier it happened on, so sandbox and production
+  // history stay tellable apart in the same table.
+  const payload = { ...base, shaam_env: getShaamEnvSafe() }
   await admin.from("shaam_events").insert({
     company_id: params.companyId,
     event_type: params.eventType,
@@ -90,6 +93,7 @@ export async function upsertConnectionFromTokenResponse(params: {
   await admin.from("company_shaam_connections").upsert(
     {
       company_id: params.companyId,
+      env: getShaamEnv(),
       provider: "shaam",
       access_token: encryptSecret(params.token.access_token),
       refresh_token: encryptSecret(params.token.refresh_token),
@@ -106,7 +110,7 @@ export async function upsertConnectionFromTokenResponse(params: {
       last_error_code: null,
       last_error_message: null,
     },
-    { onConflict: "company_id" }
+    { onConflict: "company_id,env" }
   )
 
   await recordShaamEvent({
@@ -130,6 +134,7 @@ export async function markConnectionError(params: {
   await admin.from("company_shaam_connections").upsert(
     {
       company_id: params.companyId,
+      env: getShaamEnvSafe(),
       provider: "shaam",
       expires_at: shellExpiresAt,
       issued_at: shellExpiresAt,
@@ -138,7 +143,7 @@ export async function markConnectionError(params: {
       last_error_code: String(params.errorCode || "").slice(0, 120) || null,
       last_error_message: String(params.errorMessage || "").slice(0, 500) || null,
     },
-    { onConflict: "company_id" }
+    { onConflict: "company_id,env" }
   )
 
   await recordShaamEvent({
@@ -166,6 +171,7 @@ export async function disconnectShaam(params: { companyId: string }) {
       last_error_message: null,
     })
     .eq("company_id", params.companyId)
+    .eq("env", getShaamEnvSafe())
 
   await recordShaamEvent({ companyId: params.companyId, eventType: "oauth_revoked", payload: { status: "revoked" } })
 }
@@ -179,6 +185,7 @@ export async function getDecryptedTokensForCompany(params: { companyId: string }
     .from("company_shaam_connections")
     .select("access_token, refresh_token, expires_at, status")
     .eq("company_id", params.companyId)
+    .eq("env", getShaamEnvSafe())
     .maybeSingle()
 
   if (error) return { ok: false, status: "error", message: "db_error" }
@@ -211,6 +218,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
     .from("company_shaam_connections")
     .select("refresh_token, access_token, token_type, issued_at, expires_at, last_refresh_at, status")
     .eq("company_id", params.companyId)
+    .eq("env", getShaamEnvSafe())
     .maybeSingle()
 
   if (error) return { ok: false, connected: false, status: "error", expires_at: null, message: "db_error" }
@@ -264,6 +272,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
     .from("company_shaam_connections")
     .update({ last_refresh_at: attemptedAt.toISOString() })
     .eq("company_id", params.companyId)
+    .eq("env", getShaamEnvSafe())
 
   const dispatcher = getShaamDispatcher()
 
@@ -292,6 +301,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
         last_error_message: safe.message,
       })
       .eq("company_id", params.companyId)
+      .eq("env", getShaamEnvSafe())
 
     await recordShaamEvent({
       companyId: params.companyId,
@@ -337,6 +347,7 @@ export async function refreshShaamTokenManual(params: { companyId: string; ignor
       last_error_message: null,
     })
     .eq("company_id", params.companyId)
+    .eq("env", getShaamEnvSafe())
 
   await recordShaamEvent({
     companyId: params.companyId,

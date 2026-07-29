@@ -5,8 +5,9 @@ import { z } from "zod"
 import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 
-// Path only — the host comes from getShaamConfig().baseUrl so that token and
-// API calls can never diverge onto different hosts.
+// Path only. The host is getShaamConfig().apiBaseUrl — the ITA serves the
+// Approval API from ita-api.taxes.gov.il, which is a different host from the
+// one that issues the token. Sending this to the OAuth host 404s.
 const SHAAM_APPROVAL_V2_PATH = "/Invoices/v2/Approval" as const
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -111,7 +112,7 @@ export async function callShaamInvoiceApprovalV2(params: {
   const wirePayload = omitNullish(payload)
 
   const dispatcher = getShaamDispatcher()
-  const url = `${getShaamConfig().baseUrl}${SHAAM_APPROVAL_V2_PATH}`
+  const url = `${getShaamConfig().apiBaseUrl}${SHAAM_APPROVAL_V2_PATH}`
 
   const res = await fetch(url, {
     method: "POST",

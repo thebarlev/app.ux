@@ -5,6 +5,7 @@ import { formatAllocationNumber } from "@/lib/documents/allocation-number"
 import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs"
+import { getShaamEnvSafe } from "@/lib/shaam/config"
 
 const DOC_CONFIG_BY_DB = new Map(getAllDocumentConfigs().map((c) => [c.dbValue, c]))
 
@@ -281,6 +282,7 @@ export async function getDashboardData(now: Date = new Date()): Promise<Dashboar
     .from("company_shaam_connections_safe")
     .select("status, refresh_expires_at, revoked_at")
     .eq("company_id", companyId)
+    .eq("env", getShaamEnvSafe())
     .maybeSingle()
 
   // An osek patur may not issue a tax invoice or an invoice-receipt, which are

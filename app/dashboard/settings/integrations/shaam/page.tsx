@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { resolveCurrentCompanyId } from "@/lib/shaam/company"
+import { getShaamEnvSafe } from "@/lib/shaam/config"
 import ShaamIntegrationClient from "./ShaamIntegrationClient"
 
 type SafeConnection = {
@@ -32,9 +33,10 @@ export default async function ShaamIntegrationPage() {
       "company_id, provider, issued_at, expires_at, connected_at, last_refresh_at, revoked_at, scopes, status, last_error_code, last_error_message"
     )
     .eq("company_id", companyId)
+    .eq("env", getShaamEnvSafe())
     .maybeSingle()
 
-  const shaamEnv = process.env.SHAAM_ENV ? String(process.env.SHAAM_ENV) : null
+  const shaamEnv = getShaamEnvSafe()
 
   return <ShaamIntegrationClient connection={(data as SafeConnection) || null} shaamEnv={shaamEnv} />
 }

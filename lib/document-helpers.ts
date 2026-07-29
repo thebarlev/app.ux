@@ -11,6 +11,7 @@ import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from ".
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { callShaamInvoiceApprovalV2, type ShaamApprovalV2Payload } from "@/lib/shaam/invoice-allocation"
+import { resolveAccountingSoftwareNumber } from "@/lib/shaam/software-number"
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 import { DocIssueTracker } from "@/lib/diagnostics/external-services-check"
@@ -602,7 +603,10 @@ export async function finalizeDocument(
 
           const toStrOrEmpty = (v: any): string => (v === null || v === undefined ? "" : String(v))
 
-          const accountingSoftwareNumber = reqEnvInt("SHAAM_ACCOUNTING_SOFTWARE_NUMBER")
+          // Per the ITA spec this is the issuer's own VAT number when we have no
+          // software registration number — not one global value for every
+          // customer. issuerVat is already validated above (issuerVatMissing).
+          const accountingSoftwareNumber = resolveAccountingSoftwareNumber(issuerVat)
           // Optional per ITA. Undefined when unset, so omitNullish drops the key
           // from the wire rather than sending "" or null (both rejected).
           const clientSoftwareKeyRaw = String(process.env.SHAAM_CLIENT_SOFTWARE_KEY || "").trim()
