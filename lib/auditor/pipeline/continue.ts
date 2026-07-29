@@ -2012,6 +2012,30 @@ export async function continueAuditorScan(params: {
 
     // Step: competitor_discovery (discover competitor domains from SERP or heuristic signals)
     if (step === "competitor_discovery") {
+      // Competitor discovery is the only thing that needs Serper, and it is paid
+      // per query, so it stays off for the free tier. Without the key
+      // discoverCompetitors returns [] immediately and the three steps that feed
+      // on it — crawl, keywords, content gaps — each run a full round trip to
+      // find nothing. Skip straight to recommendations instead: same result,
+      // four fewer steps on every scan a registered user triggers.
+      if (!String(process.env.AUDITOR_SERPER_API_KEY || "").trim()) {
+        await applyScanWhere(
+          supabase.from("auditor_scans").update({ step: "recommendations", updated_at: nowIso() }),
+          scanId,
+          companyId
+        )
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          message: "competitor_discovery:skipped_no_serper_key",
+          data: { skipped: ["competitor_discovery", "competitor_crawl", "competitor_keywords", "content_gap_analysis"] },
+        })
+        await releaseLock()
+        const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+        return { ok: true, kind: "progressed", scan }
+      }
+
       await auditorLog({ supabase, scanId, companyId, message: "competitor_discovery:start" })
       const competitors = await discoverCompetitors({
         supabase,
