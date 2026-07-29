@@ -43,7 +43,21 @@ async function handler(req: Request) {
 
   const admin = createServiceRoleClient()
 
-  const budgetMs = 9_000
+  /*
+   * 50s of the 60s this route is given in vercel.json, matching the margin the
+   * /continue route keeps.
+   *
+   * A full scan is 18 steps and roughly 36-72s of actual work. At the previous
+   * 9s the limit was not load, it was waiting: the tick spent 9 seconds working
+   * and then handed the scan back to a 2-minute cron gap, stretching a
+   * one-minute scan across 8-16 minutes with 85% of the function budget unused.
+   * Cost is unchanged — the same work either way, and the loop takes one scan
+   * per pass, so nothing runs concurrently. Full scans now land in ~2-4 min.
+   *
+   * Worth revisiting only if many scans queue at once: one long pass is less
+   * fair to the others than several short ones. Not a concern at current volume.
+   */
+  const budgetMs = 50_000
   const started = Date.now()
   let progressed = 0
 
