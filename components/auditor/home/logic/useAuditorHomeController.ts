@@ -93,8 +93,19 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     }
   }, [sp])
 
+  /*
+   * The locale has to travel with the request, not just with the page.
+   *
+   * The pipeline stores both issues_overview and issues_overview_en, and the
+   * status route already picks between them — but only when asked, and this
+   * call never asked. The English page therefore rendered an English shell
+   * around Hebrew findings. One parameter, no new endpoint, no engine change.
+   */
   const loadStatus = async (sid: string, t: string): Promise<StatusResponse> => {
-    const r = await fetch(`/api/auditor/status?scanId=${encodeURIComponent(sid)}&token=${encodeURIComponent(t)}`, { method: "GET" })
+    const r = await fetch(
+      `/api/auditor/status?scanId=${encodeURIComponent(sid)}&token=${encodeURIComponent(t)}&locale=${encodeURIComponent(locale)}`,
+      { method: "GET" }
+    )
     const j = (await r.json().catch(() => null)) as any
     if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
     const next = j as StatusResponse
