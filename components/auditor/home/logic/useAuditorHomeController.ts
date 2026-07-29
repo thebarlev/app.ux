@@ -8,6 +8,9 @@ import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
 import type { StatusResponse, Step } from "@/components/auditor/home/logic/auditor-home-types"
 
+/** How long the scan animation holds before the lead form opens. */
+const SCAN_TEASER_MS = 5000
+
 export function useAuditorHomeController(params: { locale: AuditorLocale; basePath: string }) {
   const { locale, basePath } = params
   const router = useRouter()
@@ -30,6 +33,8 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   const [isCanceling, setIsCanceling] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false)
+  const [leadCaptured, setLeadCaptured] = useState(false)
 
   const continuingRef = useRef(false)
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -143,6 +148,63 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     }
   }
 
+  /**
+   * The lead form opens on a timer, not on scan completion.
+   *
+   * A quick scan usually lands well inside this, but not always — and the form
+   * is what the visitor is here to be asked, so it must not wait on a slow site
+   * or a failed scan to appear. The scan keeps advancing underneath either way.
+   */
+  useEffect(() => {
+    if (step !== 2 || leadCaptured) return
+    const t = setTimeout(() => setStep("gate"), SCAN_TEASER_MS)
+    return () => clearTimeout(t)
+  }, [step, leadCaptured])
+
+  /**
+   * Hand the details to the scan already running, rather than starting another.
+   * lead-and-scan adopts a pre-scan when given its id and token — it verifies the
+   * token and refuses a scan that some company already owns.
+   */
+  const submitLead = async (lead: {
+    full_name: string
+    phone: string
+    email: string
+    consent_terms: boolean
+    consent_contact: boolean
+  }) => {
+    setError(null)
+    if (!scanId || !token) {
+      setError(locale === "en" ? "Missing scan. Please scan again." : "חסר מזהה סריקה. נסו לסרוק מחדש.")
+      return
+    }
+
+    setIsSubmittingLead(true)
+    try {
+      const r = await fetch("/api/auditor/lead-and-scan", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...lead, url: siteUrl.trim(), scanId, scanAccessToken: token }),
+      })
+      const j = await r.json().catch(() => null)
+      if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)
+
+      // The endpoint may hand back an earlier scan for this host and email —
+      // one initial scan per pair — so follow whatever it returns.
+      const sid = String(j?.scanId || "").trim() || scanId
+      const t = String(j?.scanAccessToken || "").trim() || token
+      setScanId(sid)
+      setToken(t)
+      setLeadCaptured(true)
+      setStep(3)
+      void loadStatus(sid, t)
+    } catch (e: any) {
+      setError(String(e?.message || e))
+    } finally {
+      setIsSubmittingLead(false)
+    }
+  }
+
   const startCheckout = async () => {
     setError(null)
     if (!scanId || !token) {
@@ -168,41 +230,19 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     }
   }
 
+  /**
+   * Drive the scan for as long as a scan is on screen — the animation, the lead
+   * form, and the report.
+   *
+   * This was two byte-identical effects differing only in the step they checked,
+   * which is why "gate" had to be added here rather than as a third copy: while
+   * the visitor fills in the form the pipeline has to keep advancing, otherwise
+   * the scan stalls for exactly as long as they take to type and the report they
+   * were promised is not ready when they arrive.
+   */
   useEffect(() => {
-    if (step !== 3 || !scanId || !token) return
-    let cancelled = false
-    const stopPolling = () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-        pollingIntervalRef.current = null
-      }
-    }
-    const tick = async () => {
-      let next: StatusResponse
-      try {
-        next = await loadStatus(scanId, token)
-      } catch (e: any) {
-        if (!cancelled) setError(String(e?.message || e))
-        return
-      }
-      if (cancelled) return
-      if (isScanFinished(next)) {
-        trackCompletedOnce(scanId, next)
-        stopPolling()
-        return
-      }
-      if (isScanRunning(next)) await triggerContinue(scanId, token)
-    }
-    tick()
-    pollingIntervalRef.current = setInterval(tick, 1200)
-    return () => {
-      cancelled = true
-      stopPolling()
-    }
-  }, [step, scanId, token])
-
-  useEffect(() => {
-    if (step !== 2 || !scanId || !token) return
+    const scanOnScreen = step === 2 || step === "gate" || step === 3
+    if (!scanOnScreen || !scanId || !token) return
     let cancelled = false
     const stopPolling = () => {
       if (pollingIntervalRef.current) {
@@ -320,6 +360,9 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     isSubmitting,
     canGoToDetails,
     step2IsWorking,
+    isSubmittingLead,
+    leadCaptured,
+    submitLead,
     setSiteUrl,
     setStep,
     setSelectedPlanId,

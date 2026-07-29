@@ -1,6 +1,13 @@
 import type { AuditorLocale } from "@/lib/auditor/locale"
 
-export type Step = 1 | 2 | 3
+/**
+ * 1 domain field · 2 the scan animation · "gate" the lead form · 3 the report.
+ *
+ * "gate" sits between the animation and the report rather than replacing a step,
+ * so a visitor arriving with ?scanId&token — who already has a link to their
+ * report — still goes straight to 3.
+ */
+export type Step = 1 | 2 | "gate" | 3
 
 export type StatusResponse =
   | {

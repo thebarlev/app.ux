@@ -3,6 +3,7 @@
 import { AuditorStepOne } from "@/components/auditor/home/ui/AuditorStepOne"
 import { AuditorStepTwo } from "@/components/auditor/home/ui/AuditorStepTwo"
 import { AuditorStepThree } from "@/components/auditor/home/ui/AuditorStepThree"
+import { AuditorLeadGate } from "@/components/auditor/home/ui/AuditorLeadGate"
 import { PlanDialogs } from "@/components/auditor/home/ui/PlanDialogs"
 import { useAuditorHomeController } from "@/components/auditor/home/logic/useAuditorHomeController"
 import type { AuditorHomeProps } from "@/components/auditor/home/logic/auditor-home-types"
@@ -33,14 +34,14 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
       ) : null}
 
       {controller.step === 2 ? (
-        <AuditorStepTwo
+        <AuditorStepTwo locale={locale} status={controller.status} step2IsWorking={controller.step2IsWorking} />
+      ) : null}
+
+      {controller.step === "gate" ? (
+        <AuditorLeadGate
           locale={locale}
-          basePath={basePath}
-          linkId={controller.linkId}
-          scanId={controller.scanId}
-          token={controller.token}
-          status={controller.status}
-          step2IsWorking={controller.step2IsWorking}
+          isSubmitting={controller.isSubmittingLead}
+          onSubmit={controller.submitLead}
         />
       ) : null}
 
