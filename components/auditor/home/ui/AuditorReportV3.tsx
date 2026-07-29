@@ -172,8 +172,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                     ? `A solid base — but key pieces are missing. We found ${issuesCount} opportunities to improve.`
                     : `בסיס טוב — אבל חסרים רכיבים מרכזיים. זיהינו ${issuesCount} הזדמנויות לשיפור.`
                   : en
-                    ? "No major issues found in the initial scan."
-                    : "לא נמצאו בעיות מהותיות בסריקה הראשונית."}
+                    ? "No major findings in the initial scan."
+                    : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
             </p>
             {!teaser && total !== null ? (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 14, background: C.amberBg, color: C.amber, fontWeight: 700, fontSize: 13, padding: "6px 13px", borderRadius: 999 }}>
@@ -269,7 +269,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
           <Card>
             <SectionHead
-              title={en ? "Issues found" : "בעיות שנמצאו"}
+              title={en ? "Findings" : "ממצאים"}
               hint={teaser ? undefined : en ? `${issuesCount} · by severity` : `${issuesCount} · לפי חומרה`}
             />
             {teaser ? (
@@ -288,13 +288,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               ))
             ) : (
               <p style={{ fontSize: 13.5, color: C.muted, padding: "8px 0" }}>
-                {en ? "No major issues found." : "לא נמצאו בעיות מהותיות."}
+                {en ? "No major findings." : "לא נמצאו ממצאים מהותיים."}
               </p>
             )}
             {!teaser && issuesCount > 2 ? (
               <LockBand
-                title={en ? `${issuesCount - 2} more issues — in premium` : `ועוד ${issuesCount - 2} בעיות — בפרימיום`}
-                body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הבעיות עבורך."}
+                title={en ? `${issuesCount - 2} more findings — in premium` : `ועוד ${issuesCount - 2} ממצאים — בפרימיום`}
+                body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הממצאים עבורך."}
                 cta={en ? "Unlock access" : "פתחו גישה"}
                 onUnlock={onUnlock}
               />
