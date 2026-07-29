@@ -211,7 +211,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         </div>
 
         {/* experts banner */}
-        <div style={{ background: "linear-gradient(180deg,#F3F8FD,#EAF2FB)", border: "1px solid #E3EDF8", borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
+        {/*
+          White, like the score card above it and the strip below.
+          The blue wash made this the loudest thing on a page whose job is the
+          score — it read as the headline rather than the aside it is. The blue
+          it needs is already carried by the badge and the progress bar.
+        */}
+        <div style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: shadow, borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
           <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
           <div style={{ flex: 1 }}>
             <b style={{ fontSize: 16, fontWeight: 800 }}>
