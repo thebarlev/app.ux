@@ -56,7 +56,22 @@ const T = {
     errPhone: "נא למלא מספר טלפון",
     errEmail: "נא למלא כתובת אימייל תקינה",
     errTerms: "יש לאשר את תנאי השימוש",
-    headline: (p: number, i: number) => `סרקנו ${p} עמודים ומצאנו ${i} ממצאים.`,
+    /**
+     * "סרקנו 1 עמודים" was accurate and still read like a defect: the public
+     * flow is a verification scan, which the pipeline pins to a single page
+     * regardless of the page_limit column, so that "1" is the permanent shape
+     * of this sentence rather than a small result. Naming the homepage says the
+     * same true thing without dangling a number that looks capped.
+     *
+     * The plural branch is kept live for the multi-page kinds — nothing about
+     * "סרקנו 8 עמודים" needs fixing, and hard-coding the singular would break
+     * the day one of them reaches this screen.
+     */
+    headline: (p: number, i: number) => {
+      const scanned = p === 1 ? "בדקנו את עמוד הבית" : p > 1 ? `סרקנו ${p} עמודים` : "בדקנו את האתר"
+      const found = i === 0 ? "ולא מצאנו ממצאים מהותיים" : i === 1 ? "ומצאנו ממצא אחד" : `ומצאנו ${i} ממצאים`
+      return `${scanned} ${found}.`
+    },
   },
   en: {
     ready: "● Your report is ready",
@@ -78,7 +93,11 @@ const T = {
     errPhone: "Please enter a phone number",
     errEmail: "Please enter a valid email address",
     errTerms: "You must accept the terms of use",
-    headline: (p: number, i: number) => `We scanned ${p} pages and found ${i} findings.`,
+    headline: (p: number, i: number) => {
+      const scanned = p === 1 ? "We checked your homepage" : p > 1 ? `We scanned ${p} pages` : "We checked your site"
+      const found = i === 0 ? "and found no major findings" : i === 1 ? "and found 1 finding" : `and found ${i} findings`
+      return `${scanned} ${found}.`
+    },
   },
 } as const
 
