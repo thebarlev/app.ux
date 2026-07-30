@@ -3,6 +3,8 @@
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
 import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
+import { WhatsAppMark } from "@/components/auditor/home/ui/WhatsAppMark"
+import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
 
 /**
  * The report, per design-mockups/auditor-dashboard-v3.html.
@@ -32,7 +34,15 @@ const C = {
   ink: "#1C2A46",
   ink2: "#3A465F",
   muted: "#8A93A6",
-  line: "#EAEEF4",
+  /**
+   * Row separators inside a list, and the only rules left on the page. Deepened
+   * from #EAEEF4 once the panels stopped being white: a hairline tuned against
+   * white is nearly invisible on the surface fill, and these rules are what keep
+   * a findings list readable as a list.
+   */
+  line: "#E1E7F1",
+  /** Meter and gauge tracks, on the surface fill rather than on white. */
+  track: "#E4E9F3",
   brand: "#5389BB",
   brandInk: "#3A6D9A",
   green: "#1E9E63",
@@ -41,11 +51,22 @@ const C = {
   red: "#D65F55",
   gold: "#B0872F",
   goldBg: "#FAF2DC",
-  goldLine: "#EAD9A8",
   slate: "#AEB8CC",
+  /**
+   * The fill every panel on this page uses, on a page that is itself white.
+   *
+   * It replaces a system of white panel + hairline border + shadow sitting on a
+   * #F5F7FB canvas. That gave every block three separate edges, and blocks
+   * nested inside blocks inherited all three again: a gold lock band, bordered,
+   * inside a bordered card, inside a bordered canvas. Three frames deep to say
+   * one thing.
+   *
+   * Grouping now comes from fill alone. Nothing on this page draws a border
+   * except the hairlines that separate rows inside a list, which are content
+   * rules rather than frames, and hierarchy comes from scale and space.
+   */
+  surface: "#F6F8FC",
 } as const
-
-const shadow = "0 1px 2px rgba(20,30,60,.04),0 4px 16px rgba(20,30,60,.05)"
 
 function toneFor(v: number | null): { text: string; fill: string } {
   if (v === null) return { text: C.muted, fill: C.slate }
@@ -67,7 +88,7 @@ function Meter({ v, teaser }: { v: number | null; teaser: boolean }) {
   const pct = teaser ? 60 : v === null ? 0 : Math.max(0, Math.min(100, v))
   const tone = toneFor(teaser ? null : v)
   return (
-    <div style={{ height: 7, background: "#EEF1F6", borderRadius: 99, position: "relative", overflow: "hidden" }}>
+    <div style={{ height: 7, background: C.track, borderRadius: 99, position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", insetInlineEnd: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 99, background: teaser ? "#00000022" : tone.fill }} />
     </div>
   )
@@ -75,7 +96,7 @@ function Meter({ v, teaser }: { v: number | null; teaser: boolean }) {
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 18, boxShadow: shadow, padding: "22px 24px", ...style }}>
+    <div style={{ background: C.surface, borderRadius: 18, padding: "22px 24px", ...style }}>
       {children}
     </div>
   )
@@ -106,8 +127,8 @@ function LockBand({ title, body, cta, onUnlock }: { title: string; body: string;
      * once icon + text + button no longer fit, the button wraps onto its own
      * line instead. Wide screens still get the original single row.
      */
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 13, marginTop: 14, background: C.goldBg, border: `1px solid ${C.goldLine}`, borderRadius: 14, padding: "14px 16px" }}>
-      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#fff", color: C.gold, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0, border: `1px solid ${C.goldLine}` }}>🔒</div>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 13, marginTop: 14, background: C.goldBg, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#fff", color: C.gold, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>🔒</div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}>
         <b style={{ fontSize: 14, color: C.ink }}>{title}</b>
         <p style={{ fontSize: 12.5, color: C.ink2, marginTop: 1 }}>{body}</p>
@@ -155,7 +176,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
   const gaugeTone = toneFor(total)
 
   return (
-    <div dir={en ? "ltr" : "rtl"} style={{ background: "#F5F7FB", color: C.ink, padding: "22px 16px 40px", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
+    <div dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "22px 16px 40px", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         {/* header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
@@ -167,7 +188,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
 
         {/* hero */}
-        <div style={{ background: "#fff", border: `1px solid ${C.line}`, borderRadius: 20, boxShadow: shadow, padding: "26px 30px", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ background: C.surface, borderRadius: 20, padding: "26px 30px", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
               {en ? "Search & AI readiness" : "מוכנות לחיפוש ול-AI"}
@@ -196,7 +217,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </div>
           <div style={{ flexShrink: 0, width: 132, height: 132, position: "relative", display: "grid", placeItems: "center" }}>
             <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#EEF1F6" strokeWidth="11" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke={C.track} strokeWidth="11" />
               <circle cx="60" cy="60" r="52" fill="none" stroke={teaser ? "#00000018" : gaugeTone.fill} strokeWidth="11" strokeLinecap="round" strokeDasharray={dash} strokeDashoffset={teaser ? dash * 0.45 : offset} />
             </svg>
             <div style={{ textAlign: "center" }}>
@@ -212,12 +233,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
 
         {/* experts banner */}
         {/*
-          White, like the score card above it and the strip below.
-          The blue wash made this the loudest thing on a page whose job is the
-          score — it read as the headline rather than the aside it is. The blue
-          it needs is already carried by the badge and the progress bar.
+          The same surface fill as the score panel above it, which is what it
+          should have been all along. It once carried a blue wash that made it
+          the loudest thing on a page whose subject is the score, so it read as
+          the headline rather than the aside it is. The blue it needs is in the
+          badge.
         */}
-        <div style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: shadow, borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
+        <div style={{ background: C.surface, borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
           <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
           <div style={{ flex: 1 }}>
             {/*
@@ -243,8 +265,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </div>
         </div>
 
-        {/* legitimacy strip */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, background: "#fff", border: `1px solid ${C.line}`, borderRadius: 13, boxShadow: shadow, padding: "12px 18px", marginBottom: 22, fontSize: 13, color: C.ink2, flexWrap: "wrap" }}>
+        {/*
+          Legitimacy strip. One line of prose, so it is set as one line of prose
+          rather than as a third panel: no fill, no edge, just space around it.
+          Panelling a single sentence was most of what made this page feel closed
+          in.
+        */}
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: 13, color: C.ink2, flexWrap: "wrap" }}>
           <span>🔍</span>
           <span>
             <span style={{ fontWeight: 800, color: C.ink }}>
@@ -273,7 +300,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         <SectionHead title={en ? "Score by category" : "ציון לפי קטגוריה"} hint={en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
           {TILES.map((t) => (
-            <div key={t.label} style={{ background: "#fff", border: `1px solid ${t.locked && !teaser ? C.goldLine : C.line}`, borderRadius: 15, boxShadow: shadow, padding: "15px 16px" }}>
+            <div key={t.label} style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "15px 16px" }}>
               <div style={{ fontSize: 13, color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
                 {t.label}
                 {t.locked && !teaser ? <span style={{ fontSize: 11 }}>🔒</span> : null}
@@ -354,20 +381,37 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </Card>
         </div>
 
-        {/* CTA — the visitor has already left their details by the time this shows */}
+        {/*
+          Social proof, between the findings and the ask. Not in the teaser: the
+          teaser is a shape to glimpse behind a form, and two paragraphs of real
+          customer prose blurred out is noise there.
+        */}
+        {!teaser ? <AuditorTestimonials locale={locale} /> : null}
+
+        {/*
+          CTA. The visitor has already left their details by the time this shows.
+
+          It is the one dark block on the page and the only place colour is used
+          to close something rather than to group it, so it is set deeper than
+          the mid-blue it used to carry and the body copy is full white rather
+          than the pale blue tint. On a page that is now white throughout, a
+          washed-out paragraph inside the single dark band read as the weakest
+          text on the screen while sitting in the loudest place on it.
+        */}
         {!teaser ? (
-          <div style={{ background: "linear-gradient(135deg,#2E4B72,#3A6D9A)", borderRadius: 20, padding: "26px 30px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
+          <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "26px 30px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
             <div style={{ flex: 1, minWidth: 240 }}>
               <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>
                 {en ? "We got your details ✓" : "קיבלנו את הפרטים שלך ✓"}
               </h3>
-              <p style={{ fontSize: 14.5, color: "#DCE7F4", maxWidth: "48ch" }}>
+              <p style={{ fontSize: 14.5, color: "#fff", maxWidth: "48ch" }}>
                 {en ? "We'll be in touch shortly. Want to move faster? Talk to us directly." : "נציג שלנו יחזור אליך בהקדם. רוצה להתקדם כבר עכשיו? דברו איתנו ישירות."}
               </p>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {whatsappUrl ? (
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ background: "#25D366", color: "#fff", borderRadius: 12, padding: "13px 20px", fontWeight: 800, fontSize: 14.5, textDecoration: "none" }}>
+                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ background: "#25D366", color: "#fff", borderRadius: 12, padding: "13px 20px", fontWeight: 800, fontSize: 14.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  <WhatsAppMark size={18} />
                   {en ? "Send WhatsApp" : "שלחו וואטסאפ"}
                 </a>
               ) : null}

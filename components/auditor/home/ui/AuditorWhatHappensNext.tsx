@@ -1,6 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import type { AuditorLocale } from "@/lib/auditor/locale"
+import { WhatsAppMark } from "@/components/auditor/home/ui/WhatsAppMark"
 
 /**
  * What happens next, at the top of the report — above the score, before any
@@ -33,11 +35,13 @@ const C = {
   ink: "#19183B",
   ink2: "#3A4160",
   dim: "#8A90A0",
-  line: "#CBDDEE",
+  line: "#DCE4EF",
   brand: "#5389BB",
   brandInk: "#3A6D9A",
   green: "#167C4B",
   greenBg: "#E8F7EF",
+  /** The report's panel fill. This strip is one of its panels, not a frame. */
+  surface: "#F6F8FC",
 } as const
 
 type State = "done" | "active" | "waiting"
@@ -67,11 +71,25 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
   const showEmailStep = REPORT_EMAIL_ENABLED && emailCopy
 
   /**
+   * Whether the visitor has asked to talk. WhatsApp and the phone number are
+   * behind this rather than beside it.
+   *
+   * The strip's job is to say what happens next, and the last step offers to go
+   * through the findings together. Two live contact buttons sitting permanently
+   * at the foot of that answered the offer before it was made: the choice was
+   * already taken, so the step read as an ad for the buttons under it. Asking
+   * first and showing the channels second makes the step a question again, and
+   * the visitor who does not want a phone call never has one put in front of
+   * them.
+   */
+  const [showContact, setShowContact] = useState(false)
+
+  /**
    * The last step invites rather than promises. Nobody committed to calling
    * anyone, and this is the first thing read after handing over details — an
    * unkept promise here costs more than a softer line.
    */
-  const steps: Array<{ state: State; title: string; body: string }> = [
+  const steps: Array<{ state: State; title: string; body: string; reveals?: boolean }> = [
     en
       ? { state: "done", title: "Your report is ready", body: "shown below" }
       : { state: "done", title: "הדוח שלכם מוכן", body: "מוצג כאן למטה" },
@@ -83,16 +101,15 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
         ]
       : []),
     en
-      ? { state: "waiting", title: "Let's go through it together", body: "want us to walk the findings with you? talk to us" }
-      : { state: "waiting", title: "נעבור על זה יחד", body: "רוצים שנעבור על הממצאים איתכם? דברו איתנו" },
+      ? { state: "waiting", title: "Let's go through it together", body: "Talk to us", reveals: true }
+      : { state: "waiting", title: "נעבור על זה יחד", body: "דברו איתנו", reveals: true },
   ]
 
   return (
     <div
       dir={en ? "ltr" : "rtl"}
       style={{
-        border: `1px solid ${C.line}`,
-        background: "linear-gradient(180deg,#F4F9FD,#ffffff)",
+        background: C.surface,
         borderRadius: 16,
         padding: "18px 20px",
         marginBottom: 14,
@@ -111,49 +128,82 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
         the mockup shows and what a 360px phone needs.
       */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 14 }}>
-        {steps.map((s) => (
-          <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <Marker state={s.state} />
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: s.state === "waiting" ? C.ink2 : C.ink }}>{s.title}</div>
-              <div style={{ fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 1.45 }}>{s.body}</div>
+        {steps.map((s) =>
+          s.reveals ? (
+            <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Marker state={s.state} />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: C.ink2 }}>{s.title}</div>
+                <button
+                  type="button"
+                  onClick={() => setShowContact(true)}
+                  aria-expanded={showContact}
+                  style={{
+                    marginTop: 3,
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    font: "inherit",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    color: C.brandInk,
+                    textDecoration: "underline",
+                    textUnderlineOffset: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  {s.body}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <Marker state={s.state} />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: s.state === "waiting" ? C.ink2 : C.ink }}>{s.title}</div>
+                <div style={{ fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 1.45 }}>{s.body}</div>
+              </div>
+            </div>
+          )
+        )}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-          marginTop: 16,
-          paddingTop: 14,
-          borderTop: `1px solid ${C.line}`,
-        }}
-      >
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink2 }}>
-          {en ? "We're here" : "אנחנו כאן"}
-        </span>
-        <span style={{ flex: 1 }} />
-        {whatsappUrl ? (
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ background: "#25D366", color: "#fff", borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none" }}
-          >
-            {en ? "WhatsApp" : "שלחו וואטסאפ"}
-          </a>
-        ) : null}
-        <a
-          href={`tel:${phone.replace(/-/g, "")}`}
-          style={{ background: "#fff", color: C.brandInk, border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none" }}
+      {/* Only after the visitor asks. See the note on showContact. */}
+      {showContact ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: `1px solid ${C.line}`,
+          }}
         >
-          {phone}
-        </a>
-      </div>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink2 }}>
+            {en ? "We're here" : "אנחנו כאן"}
+          </span>
+          <span style={{ flex: 1 }} />
+          {whatsappUrl ? (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ background: "#25D366", color: "#fff", borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 7 }}
+            >
+              <WhatsAppMark size={16} />
+              {en ? "WhatsApp" : "שלחו וואטסאפ"}
+            </a>
+          ) : null}
+          <a
+            href={`tel:${phone.replace(/-/g, "")}`}
+            style={{ background: "#fff", color: C.brandInk, borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none" }}
+          >
+            {phone}
+          </a>
+        </div>
+      ) : null}
     </div>
   )
 }
