@@ -295,8 +295,19 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             </div>
           </div>
 
-          <div className="mt-[9px] space-y-[9px] leading-[1.45]" style={{ fontSize: "var(--ar-prose)" }}>
-            <label className="flex cursor-pointer items-start gap-2">
+          {/*
+            The size sits on each label, not on this wrapper.
+
+            app/globals.css carries an unlayered `label { font-size: 13px }`, and
+            a declaration on the element always beats an inherited value — so a
+            font-size on the wrapper never reached these two lines. They were
+            measured at 13px on a 390px viewport while the rest of the flow had
+            moved to 20px, which is the opposite of what the phone scale was for.
+            Same shape of bug as the heading colour in the report: a global
+            element rule quietly outranking inheritance.
+          */}
+          <div className="mt-[9px] space-y-[9px] leading-[1.45]">
+            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentTerms}
@@ -308,7 +319,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 {t.terms} <b style={{ color: C.red }}>*</b>
               </span>
             </label>
-            <label className="flex cursor-pointer items-start gap-2">
+            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentContact}
