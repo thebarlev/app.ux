@@ -49,7 +49,7 @@ const T = {
     email: "אימייל",
     terms: "אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות",
     contactBold: "שלחו לי עותק של הדוח למייל",
-    contactRest: " — וגם עדכונים ותכנים שיווקיים. בלי סימון, הדוח יוצג כאן על המסך בלבד.",
+    contactRest: ", וגם עדכונים ותכנים שיווקיים. בלי אישור הדוח יוצג כאן על המסך בלבד.",
     cta: "הציגו לי את הדוח ←",
     micro: "ללא עלות · הדוח נפתח מיד על המסך",
     errName: "נא למלא שם מלא",
@@ -86,7 +86,7 @@ const T = {
     email: "Email",
     terms: "I accept the terms of use and privacy policy",
     contactBold: "Email me a copy of the report",
-    contactRest: " — plus updates and marketing content. Without this, the report is shown here on screen only.",
+    contactRest: ", plus updates and marketing content. Without this approval the report is shown here on screen only.",
     cta: "Show me the report →",
     micro: "Free · the report opens immediately on screen",
     errName: "Please enter your full name",
@@ -114,7 +114,7 @@ const T = {
  * mockup — the mockup ships them `checked`, and a pre-ticked box is not
  * consent. The wording is the mockup's, word for word.
  *
- * The score tile in the peek is an empty block rather than the mockup's blurred
+ * The score tile in the peek carries a padlock rather than the mockup's blurred
  * figure. A blur is not a security boundary: `filter: blur()` over a real
  * number leaves that number in the DOM for anyone who opens devtools, which
  * makes the form it is meant to gate optional. The count of findings is not
@@ -197,8 +197,24 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
 
           <div className="mb-[17px] flex gap-2">
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
-              {/* Not rendered, not merely hidden — see the note above. */}
-              <div className="mx-auto h-[19px] w-11 rounded-md" style={{ background: "#0000001a" }} />
+              {/*
+                A padlock on the score's own type scale rather than a grey
+                placeholder bar. It sits in the same 19px line box as the
+                findings figure beside it and carries the brand colour, so the
+                two tiles read as one matched pair whose left half is
+                deliberately still shut. The bar it replaces read as a component
+                that had failed to load, which is why the tile looked like it
+                belonged to a different screen.
+
+                Still not rendered, not merely hidden: the score itself never
+                reaches the DOM, which is the whole point of the tile.
+              */}
+              <span className="flex h-[19px] items-center justify-center" style={{ color: C.brand }} aria-hidden="true">
+                <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
+                  <path d="M4 7.2V4.9a3.5 3.5 0 0 1 7 0v2.3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+                  <rect x="1.7" y="7.2" width="11.6" height="8.2" rx="2.3" fill="currentColor" />
+                </svg>
+              </span>
               <span className="mt-0.5 block text-[10.5px] font-bold" style={{ color: C.muted }}>{t.peekScore}</span>
             </div>
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
