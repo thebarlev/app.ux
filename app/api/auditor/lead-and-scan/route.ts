@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { auditorLeadSchema, normalizeEmail } from "@/lib/auditor/lead"
 import { followRedirectsWithValidation, normalizeInputUrl } from "@/lib/auditor/ssrf"
+import { sendAuditorLead } from "@/lib/email/sendAuditorLead"
 import { z } from "zod"
 
 function notFoundIfDisabled() {
@@ -48,6 +49,41 @@ export async function POST(req: Request) {
   const normalizedHost = finalUrl.hostname.trim().toLowerCase()
 
   const admin = createServiceRoleClient()
+
+  /**
+   * Tell somebody a lead just came in.
+   *
+   * This route writes to auditor_leads and, until now, told nobody: the lead
+   * email only ever fired from bootstrap-company, which is account creation. A
+   * visitor who filled the gate and never opened an account produced a row and
+   * no notification — and that is the lead with the shortest shelf life, since
+   * their site was scanned a minute ago and they are still looking at the report.
+   *
+   * Awaited rather than fired and forgotten. sendBrevoEmail catches everything
+   * and answers { sent, reason }, so it cannot throw and cannot fail this
+   * request, and there is no waitUntil in this project to hand a loose promise
+   * to — on a serverless invocation that promise would be racing the response.
+   * The try/catch is belt and braces around the shape of the return value.
+   *
+   * Only where a lead row was actually created. The early return above, where an
+   * initial scan already exists for this host and email, inserts nothing and is
+   * a resubmission rather than a lead.
+   */
+  const notifyLead = async () => {
+    try {
+      const result = await sendAuditorLead({
+        email: parsed.data.email.trim(),
+        contactName: parsed.data.full_name.trim(),
+        phone: parsed.data.phone.trim(),
+        website: parsed.data.url.trim(),
+        companyId: null,
+        stage: "gate",
+      })
+      console.log("[AUDITOR_LEAD_GATE] lead email", { host: normalizedHost, ...result })
+    } catch (err) {
+      console.error("[AUDITOR_LEAD_GATE] lead email failed", err)
+    }
+  }
 
   // One-time initial scan per (normalized_host, lead_email_normalized)
   const { data: existing } = await admin
@@ -102,6 +138,8 @@ export async function POST(req: Request) {
     if (leadErr || !lead?.id) {
       return NextResponse.json({ ok: false, error: "Failed to create lead" }, { status: 500 })
     }
+
+    await notifyLead()
 
     const { data: updated, error: updErr } = await admin
       .from("auditor_scans")
@@ -159,6 +197,8 @@ export async function POST(req: Request) {
   if (leadErr || !lead?.id) {
     return NextResponse.json({ ok: false, error: "Failed to create lead" }, { status: 500 })
   }
+
+  await notifyLead()
 
   const scanAccessToken = token()
 

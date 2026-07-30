@@ -1,7 +1,7 @@
 import { sendBrevoEmail } from "@/lib/email/brevo"
 
 /**
- * A lead email for every Auditor signup.
+ * A lead email for every Auditor lead, at either of the two points one exists.
  *
  * Distinct from sendAdminNotification in two ways that matter. It fires on every
  * signup rather than only the ones that create a new company — a returning
@@ -9,6 +9,12 @@ import { sendBrevoEmail } from "@/lib/email/brevo"
  * notification never saw them because those paths return early. And its
  * recipient comes from AUDITOR_LEAD_EMAIL_TO, so who receives leads is a config
  * change rather than a deploy.
+ *
+ * It now also covers the gate: the form between the scan and the report writes a
+ * row to auditor_leads and, until this, told nobody. Those are the leads with
+ * the shortest shelf life — a name, a phone number and a site that was just
+ * scanned, from somebody who has not opened an account and might not — and they
+ * were the ones going unseen. See the stage field.
  */
 
 const DEFAULT_TO = "itzikbab@gmail.com"
@@ -38,15 +44,27 @@ export type AuditorLead = {
   companyName?: string | null
   website?: string | null
   phone?: string | null
-  companyId: string
+  /**
+   * Null for a gate lead. Somebody who fills the form in front of the report has
+   * no company yet, and may never make one — which is exactly the lead worth
+   * hearing about soonest.
+   */
+  companyId: string | null
   /** False when the signup created the company, true when it adopted one. */
-  reused: boolean
+  reused?: boolean
   /** What attachScanToCompany reported, when it ran. */
   scan?: { linkedScanId: string | null; fullScanId: string | null; normalizedHost: string | null; reason: string } | null
+  /**
+   * Which step produced the lead. "gate" is the form between the scan and the
+   * report; "signup" is account creation, and stays the default so the existing
+   * caller reads unchanged.
+   */
+  stage?: "gate" | "signup"
 }
 
 export async function sendAuditorLead(lead: AuditorLead): Promise<{ sent: boolean; reason?: string }> {
-  const kind = lead.reused ? "חברה קיימת" : "חברה חדשה"
+  const kind =
+    lead.stage === "gate" ? "השאיר פרטים בשער הדוח · טרם נרשם" : lead.reused ? "חברה קיימת" : "חברה חדשה"
   const site = String(lead.website || "").trim()
   const siteCell = site
     ? `<a href="${esc(site.startsWith("http") ? site : `https://${site}`)}">${esc(site)}</a>`
@@ -63,9 +81,9 @@ export async function sendAuditorLead(lead: AuditorLead): Promise<{ sent: boolea
     ${row("שם", esc(lead.contactName))}
     ${row("אימייל", `<a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>`)}
     ${row("טלפון", esc(lead.phone))}
-    ${row("חברה", esc(lead.companyName))}
+    ${lead.companyName ? row("חברה", esc(lead.companyName)) : ""}
     ${row("אתר", siteCell)}
-    ${row("מזהה חברה", esc(lead.companyId))}
+    ${lead.companyId ? row("מזהה חברה", esc(lead.companyId)) : ""}
     ${row("נרשם בשעה", esc(new Date().toISOString()))}
   </table>
   ${
