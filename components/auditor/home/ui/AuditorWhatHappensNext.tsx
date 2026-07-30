@@ -111,13 +111,13 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
       style={{
         background: C.surface,
         borderRadius: 16,
-        padding: "18px 20px",
+        padding: "var(--ar-panel)",
         marginBottom: 14,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <span style={{ color: C.green, fontSize: 16, fontWeight: 800 }}>✓</span>
-        <b style={{ fontSize: 16, fontWeight: 800, color: C.ink }}>
+        <span style={{ color: C.green, fontSize: "var(--ar-h3)", fontWeight: 800 }}>✓</span>
+        <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800, color: C.ink }}>
           {en ? "We got your details, here's what happens now" : "קיבלנו את הפרטים, הנה מה שקורה עכשיו"}
         </b>
       </div>
@@ -133,7 +133,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
             <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <Marker state={s.state} />
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: C.ink2 }}>{s.title}</div>
+                <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink2 }}>{s.title}</div>
                 <button
                   type="button"
                   onClick={() => setShowContact(true)}
@@ -144,7 +144,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
                     border: "none",
                     padding: 0,
                     font: "inherit",
-                    fontSize: 12.5,
+                    fontSize: "var(--ar-meta)",
                     fontWeight: 800,
                     color: C.brandInk,
                     textDecoration: "underline",
@@ -160,8 +160,8 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
             <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <Marker state={s.state} />
               <div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: s.state === "waiting" ? C.ink2 : C.ink }}>{s.title}</div>
-                <div style={{ fontSize: 12.5, color: C.dim, marginTop: 2, lineHeight: 1.45 }}>{s.body}</div>
+                <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: s.state === "waiting" ? C.ink2 : C.ink }}>{s.title}</div>
+                <div style={{ fontSize: "var(--ar-meta)", color: C.dim, marginTop: 2, lineHeight: 1.45 }}>{s.body}</div>
               </div>
             </div>
           )
@@ -181,7 +181,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
             borderTop: `1px solid ${C.line}`,
           }}
         >
-          <span style={{ fontSize: 13.5, fontWeight: 700, color: C.ink2 }}>
+          <span style={{ fontSize: "var(--ar-prose)", fontWeight: 700, color: C.ink2 }}>
             {en ? "We're here" : "אנחנו כאן"}
           </span>
           <span style={{ flex: 1 }} />
@@ -190,7 +190,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ background: "#25D366", color: "#fff", borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 7 }}
+              style={{ background: "#25D366", color: "#fff", borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: "var(--ar-prose)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 7 }}
             >
               <WhatsAppMark size={16} />
               {en ? "WhatsApp" : "שלחו וואטסאפ"}
@@ -198,7 +198,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
           ) : null}
           <a
             href={`tel:${phone.replace(/-/g, "")}`}
-            style={{ background: "#fff", color: C.brandInk, borderRadius: 10, padding: "9px 16px", fontWeight: 800, fontSize: 13.5, textDecoration: "none" }}
+            style={{ background: "#fff", color: C.brandInk, borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-prose)", textDecoration: "none" }}
           >
             {phone}
           </a>

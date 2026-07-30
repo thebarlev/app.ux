@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
+import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 import { Input } from "@/components/ui/input"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
@@ -151,7 +152,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
   }
 
   return (
-    <div className="relative min-h-[80svh] w-full" dir={rtl ? "rtl" : "ltr"}>
+    <div className={`${AUDITOR_SCOPE} relative min-h-[80svh] w-full`} dir={rtl ? "rtl" : "ltr"}>
+      <AuditorScaleStyles />
       {/*
         The report the visitor is about to get, blurred out behind the form.
         Decorative and inert: aria-hidden keeps it out of the accessibility tree
@@ -177,19 +179,19 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           style={{ border: `1px solid ${C.line2}`, boxShadow: "0 30px 70px rgba(25,24,59,.20)" }}
         >
           <span
-            className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 text-[12.5px] font-extrabold"
-            style={{ background: C.greenBg, color: C.green }}
+            className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
+            style={{ background: C.greenBg, color: C.green, fontSize: "var(--ar-meta)" }}
           >
             {t.ready}
           </span>
 
-          <h2 className="mb-1.5 mt-3 text-[22px] font-extrabold leading-[1.3]" style={{ color: C.ink }}>
+          <h2 className="mb-1.5 mt-3 font-extrabold leading-[1.3]" style={{ color: C.ink, fontSize: "var(--ar-h1)" }}>
             {t.headline(pagesScanned, issuesCount)}
             <br />
             {t.where}
           </h2>
 
-          <p className="mb-4 text-sm" style={{ color: C.ink2 }}>
+          <p className="mb-4" style={{ color: C.ink2, fontSize: "var(--ar-lede)" }}>
             {t.ledeA}
             <b style={{ color: C.ink }}>{t.ledeB}</b>
             {t.ledeC}
@@ -209,17 +211,18 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 Still not rendered, not merely hidden: the score itself never
                 reaches the DOM, which is the whole point of the tile.
               */}
-              <span className="flex h-[19px] items-center justify-center" style={{ color: C.brand }} aria-hidden="true">
-                <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
+              {/* Height and glyph both ride --ar-peek so the pair stays matched at either scale. */}
+              <span className="flex items-center justify-center" style={{ color: C.brand, height: "var(--ar-peek)" }} aria-hidden="true">
+                <svg width="0.79em" height="0.9em" viewBox="0 0 15 17" fill="none" style={{ fontSize: "var(--ar-peek)" }}>
                   <path d="M4 7.2V4.9a3.5 3.5 0 0 1 7 0v2.3" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
                   <rect x="1.7" y="7.2" width="11.6" height="8.2" rx="2.3" fill="currentColor" />
                 </svg>
               </span>
-              <span className="mt-0.5 block text-[10.5px] font-bold" style={{ color: C.muted }}>{t.peekScore}</span>
+              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekScore}</span>
             </div>
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
-              <b className="block text-[19px] font-extrabold tabular-nums" style={{ color: C.ink }}>{issuesCount}</b>
-              <span className="mt-0.5 block text-[10.5px] font-bold" style={{ color: C.muted }}>{t.peekIssues}</span>
+              <b className="block font-extrabold tabular-nums" style={{ color: C.ink, fontSize: "var(--ar-peek)", lineHeight: "var(--ar-peek)" }}>{issuesCount}</b>
+              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekIssues}</span>
             </div>
           </div>
 
@@ -256,7 +259,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             />
           </div>
 
-          <div className="mt-[9px] space-y-[9px] text-xs leading-[1.45]">
+          <div className="mt-[9px] space-y-[9px] leading-[1.45]" style={{ fontSize: "var(--ar-prose)" }}>
             <label className="flex cursor-pointer items-start gap-2">
               <input
                 type="checkbox"
@@ -285,7 +288,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           </div>
 
           {localError ? (
-            <p role="alert" className="mt-3 text-sm" style={{ color: C.red }}>
+            <p role="alert" className="mt-3" style={{ color: C.red, fontSize: "var(--ar-lede)" }}>
               {localError}
             </p>
           ) : null}
@@ -295,14 +298,14 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             onClick={handleSubmit}
             /* Terms gate the button; marketing never does. */
             disabled={isSubmitting || !consentTerms}
-            className="mt-4 flex h-[50px] w-full items-center justify-center gap-2 rounded-xl text-[16.5px] font-extrabold text-white transition hover:opacity-90 disabled:opacity-60"
-            style={{ background: C.brandDk, boxShadow: "0 8px 20px rgba(63,118,172,.28)" }}
+            className="mt-4 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl py-3 font-extrabold text-white transition hover:opacity-90 disabled:opacity-60"
+            style={{ background: C.brandDk, boxShadow: "0 8px 20px rgba(63,118,172,.28)", fontSize: "var(--ar-lede)" }}
           >
             {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
             {t.cta}
           </button>
 
-          <div className="mt-2.5 text-center text-[11.5px]" style={{ color: C.muted }}>
+          <div className="mt-2.5 text-center" style={{ color: C.muted, fontSize: "var(--ar-meta)" }}>
             {t.micro}
           </div>
         </div>

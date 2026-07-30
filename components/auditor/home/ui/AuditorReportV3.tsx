@@ -5,6 +5,7 @@ import type { StatusResponse } from "@/components/auditor/home/logic/auditor-hom
 import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
 import { WhatsAppMark } from "@/components/auditor/home/ui/WhatsAppMark"
 import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
+import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 
 /**
  * The report, per design-mockups/auditor-dashboard-v3.html.
@@ -75,12 +76,19 @@ function toneFor(v: number | null): { text: string; fill: string } {
   return { text: C.red, fill: C.red }
 }
 
-/** A number in the report, or an anonymous block in the teaser. */
+/**
+ * A number in the report, or an anonymous block in the teaser.
+ *
+ * `size` stays a number because the teaser block is a rectangle sized off it.
+ * The rendered figure takes --ar-val instead, so it grows with the rest of the
+ * scale on a phone; the teaser only has to hold the same slot, not the same
+ * pixels.
+ */
 function Val({ v, teaser, size = 30 }: { v: number | null; teaser: boolean; size?: number }) {
   if (teaser) return <div style={{ height: size * 0.9, width: size * 1.7, borderRadius: 8, background: "#0000001a" }} />
   const tone = toneFor(v)
   return (
-    <div style={{ fontSize: size, fontWeight: 800, lineHeight: 1.1, color: tone.text }}>{v === null ? "—" : v}</div>
+    <div style={{ fontSize: "var(--ar-val)", fontWeight: 800, lineHeight: 1.1, color: tone.text }}>{v === null ? "—" : v}</div>
   )
 }
 
@@ -96,7 +104,7 @@ function Meter({ v, teaser }: { v: number | null; teaser: boolean }) {
 
 function Card({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ background: C.surface, borderRadius: 18, padding: "22px 24px", ...style }}>
+    <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", ...style }}>
       {children}
     </div>
   )
@@ -105,8 +113,8 @@ function Card({ children, style }: { children: React.ReactNode; style?: React.CS
 function SectionHead({ title, hint }: { title: string; hint?: string }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 4px 12px" }}>
-      <h2 style={{ fontSize: 17, fontWeight: 800, color: C.ink }}>{title}</h2>
-      {hint ? <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>{hint}</span> : null}
+      <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink }}>{title}</h2>
+      {hint ? <span style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600 }}>{hint}</span> : null}
     </div>
   )
 }
@@ -130,10 +138,10 @@ function LockBand({ title, body, cta, onUnlock }: { title: string; body: string;
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 13, marginTop: 14, background: C.goldBg, borderRadius: 14, padding: "14px 16px" }}>
       <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#fff", color: C.gold, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>🔒</div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}>
-        <b style={{ fontSize: 14, color: C.ink }}>{title}</b>
-        <p style={{ fontSize: 12.5, color: C.ink2, marginTop: 1 }}>{body}</p>
+        <b style={{ fontSize: "var(--ar-prose)", color: C.ink }}>{title}</b>
+        <p style={{ fontSize: "var(--ar-meta)", color: C.ink2, marginTop: 1 }}>{body}</p>
       </div>
-      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "9px 15px", fontWeight: 800, fontSize: 12.5, cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto" }}>
+      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-meta)", cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto" }}>
         {cta}
       </button>
     </div>
@@ -176,11 +184,12 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
   const gaugeTone = toneFor(total)
 
   return (
-    <div dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "22px 16px 40px", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
+    <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "var(--ar-page)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
+      <AuditorScaleStyles />
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         {/* header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 800, fontSize: 18 }}>
+          <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)" }}>
             {en ? "Ranking report" : "דוח דירוג"} · <span style={{ color: C.brandInk }}>{teaser ? "" : host}</span>
           </div>
         </div>
@@ -188,15 +197,15 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
 
         {/* hero */}
-        <div style={{ background: C.surface, borderRadius: 20, padding: "26px 30px", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
+            <div style={{ fontSize: "var(--ar-label)", fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
               {en ? "Search & AI readiness" : "מוכנות לחיפוש ול-AI"}
             </div>
-            <h1 style={{ fontSize: 23, fontWeight: 800, marginBottom: 8 }}>
+            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 8 }}>
               {en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"}
             </h1>
-            <p style={{ color: C.ink2, fontSize: 14.5, maxWidth: "52ch" }}>
+            <p style={{ color: C.ink2, fontSize: "var(--ar-lede)", maxWidth: "52ch" }}>
               {teaser
                 ? en
                   ? "Where you stand in Google and AI search, and what is holding you back."
@@ -210,7 +219,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
             </p>
             {!teaser && total !== null ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 14, background: C.amberBg, color: C.amber, fontWeight: 700, fontSize: 13, padding: "6px 13px", borderRadius: 999 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 14, background: C.amberBg, color: C.amber, fontWeight: 700, fontSize: "var(--ar-label)", padding: "6px 13px", borderRadius: 999 }}>
                 ● {en ? "Room to improve" : "פוטנציאל שיפור גבוה"}
               </span>
             ) : null}
@@ -224,9 +233,9 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               {teaser ? (
                 <div style={{ height: 38, width: 62, borderRadius: 8, background: "#0000001a" }} />
               ) : (
-                <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1 }}>{total === null ? "—" : total}</div>
+                <div style={{ fontSize: "var(--ar-score)", fontWeight: 800, lineHeight: 1 }}>{total === null ? "—" : total}</div>
               )}
-              <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
+              <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
             </div>
           </div>
         </div>
@@ -239,7 +248,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           the headline rather than the aside it is. The blue it needs is in the
           badge.
         */}
-        <div style={{ background: C.surface, borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
+        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
           <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
           <div style={{ flex: 1 }}>
             {/*
@@ -254,10 +263,10 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               rewording the heading above a fake 34% would have fixed only the
               half a reader takes least seriously.
             */}
-            <b style={{ fontSize: 16, fontWeight: 800 }}>
+            <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800 }}>
               {en ? "We're ready to start on your site" : "אנחנו מוכנים להתחיל לעבוד על האתר שלך"}
             </b>
-            <p style={{ fontSize: 13.5, color: C.ink2, marginTop: 2 }}>
+            <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2 }}>
               {en
                 ? "We scan, spot and fix, and you watch the ranking climb without doing any of it yourself. It starts the moment you give us the go-ahead."
                 : "אנחנו סורקים, מזהים ומתקנים, ואתם רואים את הדירוג מטפס בלי לעשות כלום. מתחילים ברגע שתאשרו."}
@@ -271,7 +280,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Panelling a single sentence was most of what made this page feel closed
           in.
         */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: 13, color: C.ink2, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: "var(--ar-label)", color: C.ink2, flexWrap: "wrap" }}>
           <span>🔍</span>
           <span>
             <span style={{ fontWeight: 800, color: C.ink }}>
@@ -298,26 +307,30 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
 
         {/* category tiles */}
         <SectionHead title={en ? "Score by category" : "ציון לפי קטגוריה"} hint={en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"} />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
+        <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
           {TILES.map((t) => (
-            <div key={t.label} style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "15px 16px" }}>
-              <div style={{ fontSize: 13, color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+            <div key={t.label} className="ar-tile" style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "var(--ar-panel-sm)" }}>
+              <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
                 {t.label}
-                {t.locked && !teaser ? <span style={{ fontSize: 11 }}>🔒</span> : null}
+                {t.locked && !teaser ? <span style={{ fontSize: "var(--ar-caption)" }}>🔒</span> : null}
               </div>
               {t.locked && !teaser ? (
                 <>
-                  <div style={{ fontSize: 13, fontWeight: 800, lineHeight: 1.1, margin: "10px 0 11px", color: C.gold }}>
+                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: 1.1, margin: "10px 0 11px", color: C.gold }}>
                     {en ? "Premium" : "בפרימיום"}
                   </div>
-                  <Meter v={null} teaser={false} />
+                  <div className="ar-tile-meter">
+                    <Meter v={null} teaser={false} />
+                  </div>
                 </>
               ) : (
                 <>
-                  <div style={{ margin: "4px 0 9px" }}>
+                  <div className="ar-tile-val" style={{ margin: "4px 0 9px" }}>
                     <Val v={t.value} teaser={teaser} />
                   </div>
-                  <Meter v={t.value} teaser={teaser} />
+                  <div className="ar-tile-meter">
+                    <Meter v={t.value} teaser={teaser} />
+                  </div>
                 </>
               )}
             </div>
@@ -341,12 +354,12 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             ) : issues.length > 0 ? (
               issues.slice(0, 2).map((text, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderTop: i ? `1px solid ${C.line}` : "none" }}>
-                  <div style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, flexShrink: 0, fontSize: 13, background: "#FCEDEB", color: C.red }}>!</div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{text}</div>
+                  <div style={{ width: 26, height: 26, borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, flexShrink: 0, fontSize: "var(--ar-label)", background: "#FCEDEB", color: C.red }}>!</div>
+                  <div style={{ fontSize: "var(--ar-prose)", fontWeight: 600 }}>{text}</div>
                 </div>
               ))
             ) : (
-              <p style={{ fontSize: 13.5, color: C.muted, padding: "8px 0" }}>
+              <p style={{ fontSize: "var(--ar-prose)", color: C.muted, padding: "8px 0" }}>
                 {en ? "No major findings." : "לא נמצאו ממצאים מהותיים."}
               </p>
             )}
@@ -364,7 +377,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             <SectionHead title={en ? "Where the gaps are" : "איפה הפערים"} hint={en ? "by category" : "לפי קטגוריה"} />
             {TILES.filter((t) => !t.locked).map((t) => (
               <div key={t.label} style={{ display: "flex", alignItems: "center", gap: 11, margin: "11px 0" }}>
-                <span style={{ width: 92, fontSize: 13, fontWeight: 700, color: C.ink2, flexShrink: 0 }}>{t.label}</span>
+                <span style={{ width: 92, fontSize: "var(--ar-label)", fontWeight: 700, color: C.ink2, flexShrink: 0 }}>{t.label}</span>
                 <div style={{ flex: 1 }}>
                   <Meter v={t.value === null ? null : 100 - t.value} teaser={teaser} />
                 </div>
@@ -399,23 +412,23 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           text on the screen while sitting in the loudest place on it.
         */}
         {!teaser ? (
-          <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "26px 30px", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
+          <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
             <div style={{ flex: 1, minWidth: 240 }}>
-              <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>
+              <h3 style={{ fontSize: "var(--ar-cta)", fontWeight: 800, marginBottom: 6 }}>
                 {en ? "We got your details ✓" : "קיבלנו את הפרטים שלך ✓"}
               </h3>
-              <p style={{ fontSize: 14.5, color: "#fff", maxWidth: "48ch" }}>
+              <p style={{ fontSize: "var(--ar-lede)", color: "#fff", maxWidth: "48ch" }}>
                 {en ? "We'll be in touch shortly. Want to move faster? Talk to us directly." : "נציג שלנו יחזור אליך בהקדם. רוצה להתקדם כבר עכשיו? דברו איתנו ישירות."}
               </p>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div className="ar-actions" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               {whatsappUrl ? (
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ background: "#25D366", color: "#fff", borderRadius: 12, padding: "13px 20px", fontWeight: 800, fontSize: 14.5, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" style={{ background: "#25D366", color: "#fff", borderRadius: 12, padding: "var(--ar-btn)", fontWeight: 800, fontSize: "var(--ar-lede)", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>
                   <WhatsAppMark size={18} />
                   {en ? "Send WhatsApp" : "שלחו וואטסאפ"}
                 </a>
               ) : null}
-              <a href={`tel:${phone}`} style={{ background: "#fff", color: C.brandInk, borderRadius: 12, padding: "13px 20px", fontWeight: 800, fontSize: 14.5, textDecoration: "none" }}>
+              <a href={`tel:${phone}`} style={{ background: "#fff", color: C.brandInk, borderRadius: 12, padding: "var(--ar-btn)", fontWeight: 800, fontSize: "var(--ar-lede)", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                 {en ? `Call ${phone}` : `חייגו ${phone}`}
               </a>
             </div>

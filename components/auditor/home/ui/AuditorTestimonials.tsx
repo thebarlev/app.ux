@@ -75,7 +75,7 @@ const HULDA_EN: Testimonial = {
 
 function Stars({ n }: { n: number }) {
   return (
-    <span style={{ color: C.gold, fontSize: 13, letterSpacing: 1 }} aria-label={`${n}/5`}>
+    <span style={{ color: C.gold, fontSize: "var(--ar-label)", letterSpacing: 1 }} aria-label={`${n}/5`}>
       {"★".repeat(n)}
     </span>
   )
@@ -83,7 +83,7 @@ function Stars({ n }: { n: number }) {
 
 function Quote({ t }: { t: Testimonial }) {
   return (
-    <figure style={{ background: C.surface, borderRadius: 18, padding: "22px 24px", margin: 0 }}>
+    <figure style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", margin: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         {/*
           A plain <img>. next/image wants width and height or a fill parent, and
@@ -101,14 +101,14 @@ function Quote({ t }: { t: Testimonial }) {
           style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         />
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: C.ink }}>{t.name}</div>
+          <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink }}>{t.name}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 1 }}>
-            <span style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>{t.source}</span>
+            <span style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600 }}>{t.source}</span>
             {t.stars ? <Stars n={t.stars} /> : null}
           </div>
         </div>
       </div>
-      <blockquote style={{ margin: 0, fontSize: 13.5, lineHeight: 1.6, color: C.ink2 }}>{t.quote}</blockquote>
+      <blockquote style={{ margin: 0, fontSize: "var(--ar-prose)", lineHeight: 1.6, color: C.ink2 }}>{t.quote}</blockquote>
     </figure>
   )
 }
@@ -120,7 +120,7 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 4px 12px" }}>
-        <h2 style={{ fontSize: 17, fontWeight: 800, color: C.ink }}>
+        <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink }}>
           {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
         </h2>
       </div>
