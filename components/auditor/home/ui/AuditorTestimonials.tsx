@@ -103,12 +103,18 @@ function Stars({ n }: { n: number }) {
  */
 function Quote({ t, first }: { t: Testimonial; first: boolean }) {
   return (
-    <figure style={{
-      margin: 0,
-      padding: "var(--ar-panel)",
-      textAlign: "center",
-      borderTop: first ? "none" : `1px solid ${C.navyRule}`,
-    }}>
+    <figure style={{ margin: 0, padding: "var(--ar-panel)", textAlign: "center", position: "relative" }}>
+      {/*
+        A short centred rule, not a full-width border. A rule that runs edge to
+        edge cuts the block in two; this one separates two quotes inside one
+        block, which is a smaller job and wants a smaller mark.
+      */}
+      {first ? null : (
+        <span aria-hidden="true" style={{
+          position: "absolute", insetInlineStart: "50%", transform: "translateX(50%)",
+          top: 0, width: 64, height: 1, background: C.navyRule,
+        }} />
+      )}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 12 }}>
         {/*
           A plain <img>. next/image wants width and height or a fill parent, and
@@ -134,7 +140,7 @@ function Quote({ t, first }: { t: Testimonial; first: boolean }) {
         />
         <div>
           <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.onNavy }}>{t.name}</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 3 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 8, marginTop: 4, textAlign: "center" }}>
             <span style={{ fontSize: "var(--ar-meta)", color: C.onNavyDim, fontWeight: 600 }}>{t.source}</span>
             {t.stars ? <Stars n={t.stars} /> : null}
           </div>
@@ -155,10 +161,15 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
         // No background, no margin, no radius. This is the top of the closing
         // block in AuditorReportV3, which now carries one navy across the whole
         // thing and clips it with a single radius — see the note there.
-        paddingTop: "var(--ar-panel-lg)",
+        // --ar-panel-lg is a two-value shorthand, so it cannot be fed to calc()
+        // or used as one side of a three-value padding. Shorthand first for both
+        // axes, then the two longhands that need to differ.
+        padding: "var(--ar-panel-lg)",
+        paddingTop: "var(--ar-testi-top)",
+        paddingBottom: 0,
       }}
     >
-      <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.onNavy, textAlign: "center", margin: "0 0 6px" }}>
+      <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.onNavy, textAlign: "center", margin: "0 0 14px" }}>
         {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
       </h2>
       <div>

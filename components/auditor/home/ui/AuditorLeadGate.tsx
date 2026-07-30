@@ -185,11 +185,22 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
       />
 
-      <div className="relative flex min-h-[80svh] items-center justify-center px-2 py-10 sm:px-4">
-        <div
-          className="w-full max-w-[430px] rounded-[20px] bg-white p-[26px] pb-5"
-          style={{ border: `1px solid ${C.line2}`, boxShadow: "0 30px 70px rgba(25,24,59,.20)" }}
-        >
+      {/*
+        No card around the form.
+
+        The last round flattened the three fields but left the thing they sat in:
+        a white panel with a border and a 70px drop shadow, holding a 26px inset
+        of its own. On a 390px screen that was another 52px gone plus an edge, and
+        it is the reason the form still read as cramped after the fields were
+        already flat.
+
+        The veil behind it already separates the form from the blurred report —
+        that is what a veil is for — so the panel was drawing a second boundary
+        for the same job. The form is now the content of the page at this step,
+        with a width cap so it does not sprawl on a desktop.
+      */}
+      <div className="relative flex min-h-[80svh] items-center justify-center px-3 py-10 sm:px-4">
+        <div className="w-full max-w-[460px]">
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
             style={{ background: C.greenBg, color: C.green, fontSize: "var(--ar-meta)" }}

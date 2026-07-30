@@ -92,12 +92,47 @@ function Val({ v, teaser, size = 30 }: { v: number | null; teaser: boolean; size
   )
 }
 
+/**
+ * Where this category stands, as a climb rather than a stripe.
+ *
+ * A flat filled bar says "some of a thing" and nothing else — it has no low end
+ * and no high end, so 40 and 80 look like different amounts of the same
+ * indifferent colour. Twelve rungs that rise left to right give the axis back:
+ * the lit ones are how far up this site has got, the unlit ones are the room
+ * above it, and the height of each rung says which direction is better.
+ *
+ * Twelve because the tile is narrow on a phone and fewer, fatter rungs read at a
+ * glance; the value is still exact in the figure above.
+ */
+const RUNGS = 12
+
 function Meter({ v, teaser }: { v: number | null; teaser: boolean }) {
   const pct = teaser ? 60 : v === null ? 0 : Math.max(0, Math.min(100, v))
   const tone = toneFor(teaser ? null : v)
+  const lit = Math.round((pct / 100) * RUNGS)
   return (
-    <div style={{ height: 7, background: C.track, borderRadius: 99, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", insetInlineEnd: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 99, background: teaser ? "#00000022" : tone.fill }} />
+    <div
+      style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 26 }}
+      role="img"
+      aria-label={v === null ? undefined : `${pct} / 100`}
+    >
+      {Array.from({ length: RUNGS }, (_, i) => {
+        const on = i < lit
+        return (
+          <span
+            key={i}
+            style={{
+              flex: 1,
+              // 34% at the low end rising to full height at the high end, so the
+              // shape itself reads as a scale before any colour is noticed.
+              height: `${34 + (i / (RUNGS - 1)) * 66}%`,
+              borderRadius: 2,
+              background: on ? (teaser ? "#00000022" : tone.fill) : C.track,
+              transition: "background .2s ease",
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -187,11 +222,26 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
     <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "var(--ar-page)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
       <AuditorScaleStyles />
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
-        {/* header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -4, marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)" }}>
-            {en ? "Ranking report" : "דוח דירוג"} · <span style={{ color: C.brandInk }}>{teaser ? "" : host}</span>
+        {/*
+          The masthead. It used to be one unstyled line of bold text with a dot
+          and a hostname, sitting under a block of empty page — the only part of
+          the report that looked like it had been forgotten.
+
+          Now a labelled strip: a small brand-coloured eyebrow saying what this
+          document is, and the hostname under it at heading weight, which is the
+          thing the visitor actually wants confirmed. Hairline under it so the
+          head of the page has an edge to sit on.
+        */}
+        <div style={{ marginTop: 0, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
+            {en ? "Ranking report" : "דוח דירוג"}
           </div>
+          {!teaser && host ? (
+            <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)", color: C.ink, marginTop: 3, wordBreak: "break-word" }} dir="ltr">
+              {host}
+            </div>
+          ) : null}
         </div>
 
         {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
@@ -331,7 +381,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             {en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"}
           </div>
         </div>
-        <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
+        <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 24 }}>
           {TILES.map((t) => (
             <div key={t.label} className="ar-tile" style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "var(--ar-panel-sm)" }}>
               {/*
@@ -346,11 +396,20 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               </div>
               {t.locked && !teaser ? (
                 <>
-                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: "var(--ar-val)", height: "var(--ar-val)", display: "flex", alignItems: "center", margin: "4px 0 9px", color: C.gold }}>
-                    {en ? "Premium" : "בפרימיום"}
+                  {/*
+                    A locked tile shows a lock and the word, not a grey bar that
+                    looks like a score of zero. The row underneath says what is
+                    behind it rather than drawing an empty scale, because an
+                    unlit scale on a locked card reads as "measured, and bad".
+                  */}
+                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: "var(--ar-val)", height: "var(--ar-val)", display: "flex", alignItems: "center", gap: 7, margin: "4px 0 9px", color: C.gold }}>
+                    <span style={{ fontSize: "var(--ar-caption)", lineHeight: 1 }}>🔒</span>
+                    {en ? "Locked" : "נעול"}
                   </div>
-                  <div className="ar-tile-meter">
-                    <Meter v={null} teaser={false} />
+                  <div className="ar-tile-meter" style={{ display: "flex", alignItems: "center", height: 26 }}>
+                    <span style={{ fontSize: "var(--ar-meta)", color: C.gold, fontWeight: 700 }}>
+                      {en ? "Opens with premium" : "נפתח בפרימיום"}
+                    </span>
                   </div>
                 </>
               ) : (
