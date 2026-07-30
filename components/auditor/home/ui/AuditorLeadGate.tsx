@@ -254,7 +254,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
 
             ids come from useId so two gates on one page cannot collide.
           */}
-          <div className="space-y-[11px]">
+          <div className="space-y-[15px]">
             <div>
               <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.name}
@@ -264,8 +264,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
-                className="h-[45px] rounded-[11px]"
-                style={{ background: C.field, borderColor: C.line2 }}
+                className="h-[52px] rounded-[11px] shadow-none"
+                style={{ background: "transparent", borderColor: C.line2 }}
               />
             </div>
             <div>
@@ -280,8 +280,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-                className="h-[45px] rounded-[11px]"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: "transparent", borderColor: C.line2 }}
+                className="h-[52px] rounded-[11px] shadow-none"
               />
             </div>
             <div>
@@ -296,13 +296,23 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-                className="h-[45px] rounded-[11px]"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: "transparent", borderColor: C.line2 }}
+                className="h-[52px] rounded-[11px] shadow-none"
               />
             </div>
           </div>
 
           {/*
+            Alignment note, because this reverses a verified change on purpose.
+
+            A previous round moved these labels from items-start to items-center,
+            and that was measured and confirmed: the box sat dead-centre of the
+            two-line block. Centring on the block is the wrong target. A consent
+            box belongs on the line it introduces, so a two-line label does not
+            drift it into the gap between lines. Back to items-start, with an
+            explicit offset that lands it on the first line rather than above it.
+            This is deliberate, not a regression.
+
             The size sits on each label, not on this wrapper.
 
             app/globals.css carries an unlayered `label { font-size: 13px }`, and
@@ -314,25 +324,37 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             element rule quietly outranking inheritance.
           */}
           <div className="mt-[9px] space-y-[9px] leading-[1.45]">
-            <label className="flex cursor-pointer items-center gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-start gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentTerms}
                 onChange={(e) => setConsentTerms(e.target.checked)}
                 className="shrink-0"
-                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)" }}
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)",
+                  // Centred on the first line of the label rather than on the block.
+                  // items-start alone pins it to the top edge, which sits above the
+                  // cap height; half the difference between one line box and the box
+                  // itself puts it on the line. Derived from the two tokens, so it
+                  // stays true at both scales.
+                  marginTop: "calc((var(--ar-prose) * 1.45 - var(--ar-check)) / 2)" }}
               />
               <span style={{ color: C.ink2 }}>
                 {t.terms} <b style={{ color: C.red }}>*</b>
               </span>
             </label>
-            <label className="flex cursor-pointer items-center gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-start gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentContact}
                 onChange={(e) => setConsentContact(e.target.checked)}
                 className="shrink-0"
-                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)" }}
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)",
+                  // Centred on the first line of the label rather than on the block.
+                  // items-start alone pins it to the top edge, which sits above the
+                  // cap height; half the difference between one line box and the box
+                  // itself puts it on the line. Derived from the two tokens, so it
+                  // stays true at both scales.
+                  marginTop: "calc((var(--ar-prose) * 1.45 - var(--ar-check)) / 2)" }}
               />
               <span style={{ color: C.ink2 }}>
                 <b style={{ color: C.ink }}>{t.contactBold}</b>

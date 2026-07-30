@@ -188,7 +188,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
       <AuditorScaleStyles />
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
         {/* header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: -4, marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
           <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)" }}>
             {en ? "Ranking report" : "דוח דירוג"} · <span style={{ color: C.brandInk }}>{teaser ? "" : host}</span>
           </div>
@@ -249,7 +249,19 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           badge.
         */}
         <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
-          <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
+          {/*
+            A rising line instead of a 46px filled tile with a ✦ in it. The tile
+            was the widest thing in the banner and said nothing; the chart says
+            what the sentence beside it promises. The line draws itself once on
+            mount and then holds — motion that reports, rather than loops.
+          */}
+          <div style={{ flexShrink: 0, width: 34, height: 34, color: C.brand }} aria-hidden="true">
+            <svg viewBox="0 0 34 34" width="34" height="34" fill="none">
+              <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
+              <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
           <div style={{ flex: 1 }}>
             {/*
               Nobody is working on this site yet. The service starts after an
@@ -264,12 +276,12 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               half a reader takes least seriously.
             */}
             <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800 }}>
-              {en ? "We're ready to start on your site" : "אנחנו מוכנים להתחיל לעבוד על האתר שלך"}
+              {en ? "We'll bring your business new customers" : "נביא לעסק שלך לקוחות חדשים"}
             </b>
             <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2 }}>
               {en
-                ? "We scan, spot and fix, and you watch the ranking climb without doing any of it yourself. It starts the moment you give us the go-ahead."
-                : "אנחנו סורקים, מזהים ומתקנים, ואתם רואים את הדירוג מטפס בלי לעשות כלום. מתחילים ברגע שתאשרו."}
+                ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
+                : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
             </p>
           </div>
         </div>
@@ -280,7 +292,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Panelling a single sentence was most of what made this page feel closed
           in.
         */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: "var(--ar-label)", color: C.ink2, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: "var(--ar-label)", lineHeight: 1.35, color: C.ink2, flexWrap: "wrap" }}>
           <span>🔍</span>
           <span>
             <span style={{ fontWeight: 800, color: C.ink }}>
@@ -300,13 +312,25 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             {en ? "with data-based analysis, not estimates." : "באתר שלך, בניתוח מבוסס-נתונים ולא בהערכות."}
           </span>
           <span style={{ color: C.muted }}>·</span>
-          <span style={{ color: C.gold, fontWeight: 700 }}>
+          <span style={{ color: C.gold, fontWeight: 700, lineHeight: 1.25 }}>
             {en ? "Premium customers get a deep scan across dozens of pages ↗" : "לקוחות פרימיום מקבלים סריקה עמוקה בעשרות עמודים ↗"}
           </span>
         </div>
 
         {/* category tiles */}
-        <SectionHead title={en ? "Score by category" : "ציון לפי קטגוריה"} hint={en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"} />
+        {/*
+          Title on its own line, hint under it, cards below. The two used to sit
+          on one row with space-between, and on a phone the hint crowded the
+          title into a corner of its own heading.
+        */}
+        <div style={{ margin: "0 4px 12px" }}>
+          <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink, width: "100%" }}>
+            {en ? "Score by category" : "ציון לפי קטגוריה"}
+          </h2>
+          <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>
+            {en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"}
+          </div>
+        </div>
         <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
           {TILES.map((t) => (
             <div key={t.label} className="ar-tile" style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "var(--ar-panel-sm)" }}>
@@ -316,7 +340,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               </div>
               {t.locked && !teaser ? (
                 <>
-                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: 1.1, margin: "10px 0 11px", color: C.gold }}>
+                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: "var(--ar-val)", height: "var(--ar-val)", display: "flex", alignItems: "center", margin: "4px 0 9px", color: C.gold }}>
                     {en ? "Premium" : "בפרימיום"}
                   </div>
                   <div className="ar-tile-meter">
@@ -325,7 +349,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                 </>
               ) : (
                 <>
-                  <div className="ar-tile-val" style={{ margin: "4px 0 9px" }}>
+                  {/*
+                    A fixed --ar-val-tall slot, so the meter under every tile
+                    starts at the same y whatever the tile has to show: a real
+                    figure, the em dash for "not measured", or the word Premium.
+                    They used to be three different heights in one row.
+                  */}
+                  <div className="ar-tile-val" style={{ height: "var(--ar-val)", display: "flex", alignItems: "center", margin: "4px 0 9px" }}>
                     <Val v={t.value} teaser={teaser} />
                   </div>
                   <div className="ar-tile-meter">
@@ -411,7 +441,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           paragraphs of real customer prose blurred out is noise there.
         */}
         {!teaser ? (
-          <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden" }}>
+          <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden", background: "linear-gradient(135deg,#1B3453,#2C577F)" }}>
             <AuditorTestimonials locale={locale} />
             {/*
           CTA. The visitor has already left their details by the time this shows.
@@ -423,7 +453,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           washed-out paragraph inside the single dark band read as the weakest
           text on the screen while sitting in the loudest place on it.
         */}
-            <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", padding: "var(--ar-panel-lg)", color: "#fff" }}>
+            <div style={{ padding: "var(--ar-panel-lg)", color: "#fff" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 240 }}>
                 {/*

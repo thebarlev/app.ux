@@ -130,32 +130,39 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 14 }}>
         {steps.map((s) =>
           s.reveals ? (
-            <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            /*
+             * The whole step is the control, not a link buried under it.
+             *
+             * It was a title with a small underlined word beneath, and the
+             * underline was the only thing saying anything here could be
+             * clicked. The step now is a <button>: the marker, the title and a
+             * chevron that turns when it opens, with the whole row as the tap
+             * target. What it reveals — the number and the WhatsApp button — is
+             * genuinely not on screen until asked for, which is the point.
+             */
+            <button
+              key={s.title}
+              type="button"
+              onClick={() => setShowContact((v) => !v)}
+              aria-expanded={showContact}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, width: "100%",
+                background: "none", border: "none", padding: 0, font: "inherit",
+                textAlign: "start", cursor: "pointer", color: "inherit",
+              }}
+            >
               <Marker state={s.state} />
-              <div>
-                <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink2 }}>{s.title}</div>
-                <button
-                  type="button"
-                  onClick={() => setShowContact(true)}
-                  aria-expanded={showContact}
-                  style={{
-                    marginTop: 3,
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    fontSize: "var(--ar-meta)",
-                    fontWeight: 800,
-                    color: C.brandInk,
-                    textDecoration: "underline",
-                    textUnderlineOffset: 3,
-                    cursor: "pointer",
-                  }}
-                >
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink2 }}>{s.title}</span>
+                <span style={{ display: "block", fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, marginTop: 2 }}>
                   {s.body}
-                </button>
-              </div>
-            </div>
+                </span>
+              </span>
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+                   style={{ flexShrink: 0, color: C.brandInk, transform: showContact ? "rotate(180deg)" : "none", transition: "transform .18s ease" }}>
+                <path d="M2.5 4.5 L6 8 L9.5 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           ) : (
             <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <Marker state={s.state} />

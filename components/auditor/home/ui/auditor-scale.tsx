@@ -55,12 +55,14 @@ export function AuditorScaleStyles() {
   .${AUDITOR_SCOPE} .ar-tile{
     display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:12px;
   }
-  .${AUDITOR_SCOPE} .ar-tile-val{ margin:0; text-align:end; }
+  .${AUDITOR_SCOPE} .ar-tile-val{ margin:0; text-align:end; justify-content:flex-end; }
   .${AUDITOR_SCOPE} .ar-tile-meter{ grid-column:1 / -1; margin-top:12px; }
   /* Full-width taps, stacked, instead of two half-width buttons wrapping. */
   .${AUDITOR_SCOPE} .ar-actions{ width:100%; }
   .${AUDITOR_SCOPE} .ar-actions > a{ flex:1 1 100%; justify-content:center; }
 }
+@keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
+@media (prefers-reduced-motion:reduce){ .${AUDITOR_SCOPE} svg *{ animation:none !important } }
 `.trim(),
       }}
     />

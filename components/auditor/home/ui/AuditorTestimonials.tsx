@@ -34,19 +34,18 @@ const C = {
   muted: "#8A93A6",
   gold: "#E0A32B",
   /**
-   * This section inverts the page's figure and ground on purpose.
+   * One continuous navy, the same one the CTA below carries, so the closing
+   * block is a single colour from the first quote to the mark at the foot.
    *
-   * Everywhere above, panels are #F6F8FC on a white page. Here the band is
-   * deeper than a panel and the quotes sit on white inside it, so the block
-   * reads as a different kind of content rather than as two more report cards
-   * that happen to contain sentences. It was landing as an unbroken continuation
-   * of the findings above it.
-   *
-   * The separation is fill and space, not an edge. No border is added: the point
-   * of the previous round was that this page had too many.
+   * The quotes used to sit on white cards inside a pale band. That drew a card
+   * per person inside a section inside a block, which is the nesting this page
+   * spent two rounds removing, and it broke the run of colour at exactly the
+   * point where the argument should carry through: what they say about us, then
+   * us. A hairline between quotes does the separating a card was doing.
    */
-  band: "#EDF1F8",
-  card: "#fff",
+  onNavy: "#FFFFFF",
+  onNavyDim: "#C4D3E6",
+  navyRule: "rgba(255,255,255,.16)",
 } as const
 
 type Testimonial = {
@@ -88,16 +87,29 @@ const HULDA_EN: Testimonial = {
 
 function Stars({ n }: { n: number }) {
   return (
-    <span style={{ color: C.gold, fontSize: "var(--ar-label)", letterSpacing: 1 }} aria-label={`${n}/5`}>
+    <span style={{ color: C.gold, fontSize: "var(--ar-label)", letterSpacing: 2 }} aria-label={`${n}/5`}>
       {"★".repeat(n)}
     </span>
   )
 }
 
-function Quote({ t }: { t: Testimonial }) {
+/**
+ * One quote, as a centred column: face, then name, then the words.
+ *
+ * The face used to sit beside the name with the quote ranged under both. Centred
+ * puts the person at the top of their own testimonial and lets the quote read as
+ * theirs rather than as a paragraph with an avatar attached, which is what the
+ * side-by-side row had become once the cards came off.
+ */
+function Quote({ t, first }: { t: Testimonial; first: boolean }) {
   return (
-    <figure style={{ background: C.card, borderRadius: 18, padding: "var(--ar-panel)", margin: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+    <figure style={{
+      margin: 0,
+      padding: "var(--ar-panel)",
+      textAlign: "center",
+      borderTop: first ? "none" : `1px solid ${C.navyRule}`,
+    }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 12 }}>
         {/*
           A plain <img>. next/image wants width and height or a fill parent, and
           these are two fixed 44px avatars — the optimiser buys nothing here.
@@ -118,17 +130,17 @@ function Quote({ t }: { t: Testimonial }) {
           width={44}
           height={44}
           decoding="async"
-          style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+          style={{ width: 62, height: 62, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: `2px solid ${C.navyRule}` }}
         />
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink }}>{t.name}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 1 }}>
-            <span style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600 }}>{t.source}</span>
+        <div>
+          <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.onNavy }}>{t.name}</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 3 }}>
+            <span style={{ fontSize: "var(--ar-meta)", color: C.onNavyDim, fontWeight: 600 }}>{t.source}</span>
             {t.stars ? <Stars n={t.stars} /> : null}
           </div>
         </div>
       </div>
-      <blockquote style={{ margin: 0, fontSize: "var(--ar-prose)", lineHeight: 1.6, color: C.ink2 }}>{t.quote}</blockquote>
+      <blockquote style={{ margin: 0, fontSize: "var(--ar-prose)", lineHeight: 1.6, color: C.onNavyDim }}>{t.quote}</blockquote>
     </figure>
   )
 }
@@ -140,21 +152,18 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
   return (
     <div
       style={{
-        // No margin and no radius of its own. This is the top half of the
-        // closing block in AuditorReportV3, which owns the spacing above it and
-        // clips both halves with one radius — see the note there.
-        background: C.band,
-        padding: "var(--ar-panel-lg)",
+        // No background, no margin, no radius. This is the top of the closing
+        // block in AuditorReportV3, which now carries one navy across the whole
+        // thing and clips it with a single radius — see the note there.
+        paddingTop: "var(--ar-panel-lg)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 14px" }}>
-        <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink }}>
-          {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
-        </h2>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "var(--ar-gap)" }}>
-        {items.map((t) => (
-          <Quote key={t.name} t={t} />
+      <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.onNavy, textAlign: "center", margin: "0 0 6px" }}>
+        {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
+      </h2>
+      <div>
+        {items.map((t, i) => (
+          <Quote key={t.name} t={t} first={i === 0} />
         ))}
       </div>
     </div>
