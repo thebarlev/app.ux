@@ -182,8 +182,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                   : "איפה אתה עומד בגוגל ובחיפוש AI, ומה מעכב אותך."
                 : issuesCount > 0
                   ? en
-                    ? `A solid base — but key pieces are missing. We found ${issuesCount} ${issuesCount === 1 ? "opportunity" : "opportunities"} to improve.`
-                    : `בסיס טוב — אבל חסרים רכיבים מרכזיים. ${issuesCount === 1 ? "זיהינו הזדמנות אחת לשיפור." : `זיהינו ${issuesCount} הזדמנויות לשיפור.`}`
+                    ? `A solid base, but key pieces are missing. We found ${issuesCount} ${issuesCount === 1 ? "opportunity" : "opportunities"} to improve.`
+                    : `בסיס טוב, אבל חסרים רכיבים מרכזיים. ${issuesCount === 1 ? "זיהינו הזדמנות אחת לשיפור." : `זיהינו ${issuesCount} הזדמנויות לשיפור.`}`
                   : en
                     ? "No major findings in the initial scan."
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
@@ -220,22 +220,26 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         <div style={{ background: "#fff", border: `1px solid ${C.line}`, boxShadow: shadow, borderRadius: 18, padding: "18px 24px", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
           <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
           <div style={{ flex: 1 }}>
+            {/*
+              Nobody is working on this site yet. The service starts after an
+              approval, a connection and a payment, so "already working on your
+              site" was describing work that had not begun, to a visitor who had
+              done nothing but leave a phone number.
+
+              The progress bar went with it. It sat at a fixed 34% with the label
+              "work in progress", which is the same false claim drawn instead of
+              written — a bar that never moves cannot be reporting anything, and
+              rewording the heading above a fake 34% would have fixed only the
+              half a reader takes least seriously.
+            */}
             <b style={{ fontSize: 16, fontWeight: 800 }}>
-              {en ? "Our experts are already working on your site" : "המומחים שלנו כבר עובדים על האתר שלך"}
+              {en ? "We're ready to start on your site" : "אנחנו מוכנים להתחיל לעבוד על האתר שלך"}
             </b>
             <p style={{ fontSize: 13.5, color: C.ink2, marginTop: 2 }}>
               {en
-                ? "We scan, spot and fix — you watch it happen. Your ranking climbs while you follow the pace."
-                : "אנחנו סורקים, מזהים ומתקנים — אתה רואה את הקסם קורה בלי לעשות כלום. הדירוג שלך מטפס, ואתה עוקב אחרי הקצב."}
+                ? "We scan, spot and fix, and you watch the ranking climb without doing any of it yourself. It starts the moment you give us the go-ahead."
+                : "אנחנו סורקים, מזהים ומתקנים, ואתם רואים את הדירוג מטפס בלי לעשות כלום. מתחילים ברגע שתאשרו."}
             </p>
-            <div style={{ marginTop: 9, display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ flex: 1, maxWidth: 240, height: 7, background: "#D9E5F2", borderRadius: 99, position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", insetInlineEnd: 0, top: 0, bottom: 0, width: "34%", background: C.brand, borderRadius: 99 }} />
-              </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.brandInk }}>
-                {en ? "Work in progress" : "העבודה בתהליך"}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -257,7 +261,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                   ? en ? "The scan checked your homepage" : "הסריקה בדקה את עמוד הבית"
                   : en ? `The scan checked ${pages} pages` : `הסריקה בדקה ${pages} עמודים`}
             </span>{" "}
-            {en ? "— data-based analysis, not estimates." : "באתר שלך — ניתוח מדויק מבוסס-נתונים, לא הערכות."}
+            {en ? "with data-based analysis, not estimates." : "באתר שלך, בניתוח מבוסס-נתונים ולא בהערכות."}
           </span>
           <span style={{ color: C.muted }}>·</span>
           <span style={{ color: C.gold, fontWeight: 700 }}>
@@ -321,7 +325,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             )}
             {!teaser && issuesCount > 2 ? (
               <LockBand
-                title={en ? `${issuesCount - 2} more findings — in premium` : `ועוד ${issuesCount - 2} ממצאים — בפרימיום`}
+                title={en ? `${issuesCount - 2} more findings in premium` : `ועוד ${issuesCount - 2} ממצאים בפרימיום`}
                 body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הממצאים עבורך."}
                 cta={en ? "Unlock access" : "פתחו גישה"}
                 onUnlock={onUnlock}
@@ -341,7 +345,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             ))}
             {!teaser ? (
               <LockBand
-                title={en ? "More categories — in premium" : "ועוד קטגוריות — בפרימיום"}
+                title={en ? "More categories in premium" : "ועוד קטגוריות בפרימיום"}
                 body={en ? "Exactly where you lose traffic, and what we close first." : "בדיוק איפה אתה מפסיד תנועה, ומה נסגור קודם."}
                 cta={en ? "Unlock access" : "פתחו גישה"}
                 onUnlock={onUnlock}

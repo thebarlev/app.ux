@@ -101,7 +101,7 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <span style={{ color: C.green, fontSize: 16, fontWeight: 800 }}>✓</span>
         <b style={{ fontSize: 16, fontWeight: 800, color: C.ink }}>
-          {en ? "We got your details — here's what happens now" : "קיבלנו את הפרטים — הנה מה שקורה עכשיו"}
+          {en ? "We got your details, here's what happens now" : "קיבלנו את הפרטים, הנה מה שקורה עכשיו"}
         </b>
       </div>
 

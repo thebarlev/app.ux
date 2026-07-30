@@ -220,7 +220,7 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
     if (!step2IsWorking) return null
     if (elapsed >= 180) {
       return en
-        ? "This is a complex scan — it can take a few minutes."
+        ? "This is a complex scan, it can take a few minutes."
         : "זו סריקה מורכבת, זה יכול לקחת כמה דקות"
     }
     if (elapsed >= 45) {
