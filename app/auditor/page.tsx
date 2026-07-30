@@ -39,8 +39,13 @@ export default async function AuditorHomePage({
   // px-4 on a phone, px-6 from sm up. 24px a side cost 48px of a 390px screen
   // and was most of why the headline broke to three lines and the lead card sat
   // at 295px wide.
+  //
+  // py-6 on a phone too. py-16 put 64px of nothing above the report's masthead,
+  // which on a 390px screen is a fifth of the fold spent before the first word.
+  // Step one does not miss it: its own block is min-h-[70svh] and centred, so it
+  // sits in the same place either way.
   return (
-    <main className="min-h-svh bg-white px-4 py-16 sm:px-6">
+    <main className="min-h-svh bg-white px-4 py-6 sm:px-6 sm:py-16">
       <div className="mx-auto max-w-5xl">
         <Suspense fallback={null}>
           <AuditorHomeClient />
