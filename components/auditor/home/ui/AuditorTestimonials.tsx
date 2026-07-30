@@ -140,11 +140,10 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
   return (
     <div
       style={{
-        // 40px above, 24px below: the gap that separates it from the findings is
-        // wider than the gap to the CTA it introduces.
-        margin: "40px 0 24px",
+        // No margin and no radius of its own. This is the top half of the
+        // closing block in AuditorReportV3, which owns the spacing above it and
+        // clips both halves with one radius — see the note there.
         background: C.band,
-        borderRadius: 20,
         padding: "var(--ar-panel-lg)",
       }}
     >

@@ -185,7 +185,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
       />
 
-      <div className="relative flex min-h-[80svh] items-center justify-center px-4 py-10">
+      <div className="relative flex min-h-[80svh] items-center justify-center px-2 py-10 sm:px-4">
         <div
           className="w-full max-w-[430px] rounded-[20px] bg-white p-[26px] pb-5"
           style={{ border: `1px solid ${C.line2}`, boxShadow: "0 30px 70px rgba(25,24,59,.20)" }}
@@ -314,25 +314,25 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             element rule quietly outranking inheritance.
           */}
           <div className="mt-[9px] space-y-[9px] leading-[1.45]">
-            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-center gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentTerms}
                 onChange={(e) => setConsentTerms(e.target.checked)}
-                className="mt-0.5 h-[15px] w-[15px] shrink-0"
-                style={{ accentColor: C.brand }}
+                className="shrink-0"
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)" }}
               />
               <span style={{ color: C.ink2 }}>
                 {t.terms} <b style={{ color: C.red }}>*</b>
               </span>
             </label>
-            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-center gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentContact}
                 onChange={(e) => setConsentContact(e.target.checked)}
-                className="mt-0.5 h-[15px] w-[15px] shrink-0"
-                style={{ accentColor: C.brand }}
+                className="shrink-0"
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)" }}
               />
               <span style={{ color: C.ink2 }}>
                 <b style={{ color: C.ink }}>{t.contactBold}</b>

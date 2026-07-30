@@ -395,13 +395,25 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         </div>
 
         {/*
-          Social proof, between the findings and the ask. Not in the teaser: the
-          teaser is a shape to glimpse behind a form, and two paragraphs of real
-          customer prose blurred out is noise there.
-        */}
-        {!teaser ? <AuditorTestimonials locale={locale} /> : null}
+          The closing block: what other customers say, and then us saying we have
+          their details. One container, not two.
 
-        {/*
+          They were two blocks with a gap between them, and the gap made the
+          quotes read as one more report section that happened to be followed by
+          a CTA. Joined, the sequence is an argument: here is what they say about
+          us, and here is us. Clipped by a single overflow:hidden radius so the
+          tinted half and the navy half are one shape.
+
+          The separation this had from the findings above it is untouched — that
+          seam is the one that should stay open.
+
+          Not in the teaser: it is a shape to glimpse behind a form, and two
+          paragraphs of real customer prose blurred out is noise there.
+        */}
+        {!teaser ? (
+          <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden" }}>
+            <AuditorTestimonials locale={locale} />
+            {/*
           CTA. The visitor has already left their details by the time this shows.
 
           It is the one dark block on the page and the only place colour is used
@@ -411,8 +423,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           washed-out paragraph inside the single dark band read as the weakest
           text on the screen while sitting in the loudest place on it.
         */}
-        {!teaser ? (
-          <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
+            <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 240 }}>
                 {/*
                 Explicit white, not inherited white.
@@ -446,7 +457,19 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                 {en ? `Call ${phone}` : `חייגו ${phone}`}
               </a>
             </div>
+            {/*
+              The mark closes the block. It is the one place on this page where
+              our name belongs: directly under two customers vouching for it, so
+              the quotes land on somebody rather than trailing off. White on the
+              navy, and decorative — the page has already said who we are.
+            */}
+            <div style={{ display: "flex", justifyContent: "center", paddingBottom: 22, marginTop: -4 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/white.svg" alt="" aria-hidden="true" width={116} height={40}
+                   style={{ width: 116, height: "auto", opacity: 0.92 }} />
+            </div>
           </div>
+        </div>
         ) : null}
       </div>
     </div>

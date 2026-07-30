@@ -35,8 +35,12 @@ export default async function AuditorHomePage({
 
   // White, not the old cream (#F7F3EE). Scoped to this page rather than the
   // /auditor layout, so the account dashboard underneath keeps its own.
+  //
+  // px-4 on a phone, px-6 from sm up. 24px a side cost 48px of a 390px screen
+  // and was most of why the headline broke to three lines and the lead card sat
+  // at 295px wide.
   return (
-    <main className="min-h-svh bg-white px-6 py-16">
+    <main className="min-h-svh bg-white px-4 py-16 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <Suspense fallback={null}>
           <AuditorHomeClient />
