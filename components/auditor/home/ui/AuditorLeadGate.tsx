@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useId, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 import { Input } from "@/components/ui/input"
@@ -133,6 +133,11 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
   const [consentContact, setConsentContact] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
 
+  /** Label-to-input wiring. Generated so two gates on a page cannot collide. */
+  const nameId = useId()
+  const phoneId = useId()
+  const emailId = useId()
+
   const handleSubmit = () => {
     // Mirrors auditorLeadSchema so a rejected submit is caught before the round
     // trip: name >= 2, phone >= 6, a real email, and terms are mandatory.
@@ -226,37 +231,68 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             </div>
           </div>
 
-          <div className="space-y-[9px]">
-            <Input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder={t.name}
-              autoComplete="name"
-              className="h-[45px] rounded-[11px]"
-              style={{ background: C.field, borderColor: C.line2 }}
-            />
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={t.phone}
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              dir="ltr"
-              style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-              className="h-[45px] rounded-[11px]"
-            />
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={t.email}
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              dir="ltr"
-              style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-              className="h-[45px] rounded-[11px]"
-            />
+          {/*
+            Standing labels above the fields, not placeholders inside them.
+
+            A placeholder is the wrong element for a field's name: it disappears
+            the moment somebody types, so a half-filled form stops saying what
+            its own fields are, and it is announced inconsistently across screen
+            readers because it is a hint rather than a name. Each label is a real
+            <label htmlFor> pointing at the input's id, which also makes the
+            label text a tap target for the field.
+
+            The placeholders are gone rather than kept alongside: repeating the
+            label inside the box is noise, and a placeholder that duplicates the
+            label is the pattern that made the label look optional.
+
+            ids come from useId so two gates on one page cannot collide.
+          */}
+          <div className="space-y-[11px]">
+            <div>
+              <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
+                {t.name}
+              </label>
+              <Input
+                id={nameId}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                autoComplete="name"
+                className="h-[45px] rounded-[11px]"
+                style={{ background: C.field, borderColor: C.line2 }}
+              />
+            </div>
+            <div>
+              <label htmlFor={phoneId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
+                {t.phone}
+              </label>
+              <Input
+                id={phoneId}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                dir="ltr"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
+                className="h-[45px] rounded-[11px]"
+              />
+            </div>
+            <div>
+              <label htmlFor={emailId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
+                {t.email}
+              </label>
+              <Input
+                id={emailId}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                dir="ltr"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
+                className="h-[45px] rounded-[11px]"
+              />
+            </div>
           </div>
 
           <div className="mt-[9px] space-y-[9px] leading-[1.45]" style={{ fontSize: "var(--ar-prose)" }}>

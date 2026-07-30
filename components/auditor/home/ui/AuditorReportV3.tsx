@@ -202,7 +202,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             <div style={{ fontSize: "var(--ar-label)", fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
               {en ? "Search & AI readiness" : "מוכנות לחיפוש ול-AI"}
             </div>
-            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 8 }}>
+            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 8, color: C.ink }}>
               {en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"}
             </h1>
             <p style={{ color: C.ink2, fontSize: "var(--ar-lede)", maxWidth: "52ch" }}>
@@ -414,7 +414,21 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         {!teaser ? (
           <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
             <div style={{ flex: 1, minWidth: 240 }}>
-              <h3 style={{ fontSize: "var(--ar-cta)", fontWeight: 800, marginBottom: 6 }}>
+                {/*
+                Explicit white, not inherited white.
+
+                app/globals.css carries unlayered `h1..h4 { color: var(--fg) }`
+                rules. An unlayered element rule is still a declaration on the
+                element, and a declaration always beats an inherited value, so
+                the parent's color:#fff never reached this heading: it rendered
+                in the app's dark foreground on a dark navy band, which is the
+                one place on the page where that is unreadable.
+
+                The hero h1 below has the same gap and was invisible only because
+                --fg happens to be dark and it sits on a light panel. Both now
+                state their colour rather than depending on a global.
+              */}
+              <h3 style={{ fontSize: "var(--ar-cta)", fontWeight: 800, marginBottom: 6, color: "#fff" }}>
                 {en ? "We got your details ✓" : "קיבלנו את הפרטים שלך ✓"}
               </h3>
               <p style={{ fontSize: "var(--ar-lede)", color: "#fff", maxWidth: "48ch" }}>

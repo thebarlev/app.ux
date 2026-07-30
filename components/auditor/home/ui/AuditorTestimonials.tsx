@@ -33,7 +33,20 @@ const C = {
   ink2: "#3A465F",
   muted: "#8A93A6",
   gold: "#E0A32B",
-  surface: "#F6F8FC",
+  /**
+   * This section inverts the page's figure and ground on purpose.
+   *
+   * Everywhere above, panels are #F6F8FC on a white page. Here the band is
+   * deeper than a panel and the quotes sit on white inside it, so the block
+   * reads as a different kind of content rather than as two more report cards
+   * that happen to contain sentences. It was landing as an unbroken continuation
+   * of the findings above it.
+   *
+   * The separation is fill and space, not an edge. No border is added: the point
+   * of the previous round was that this page had too many.
+   */
+  band: "#EDF1F8",
+  card: "#fff",
 } as const
 
 type Testimonial = {
@@ -83,7 +96,7 @@ function Stars({ n }: { n: number }) {
 
 function Quote({ t }: { t: Testimonial }) {
   return (
-    <figure style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", margin: 0 }}>
+    <figure style={{ background: C.card, borderRadius: 18, padding: "var(--ar-panel)", margin: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         {/*
           A plain <img>. next/image wants width and height or a fill parent, and
@@ -118,13 +131,22 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
   const items = en ? [HULDA_EN] : [DAN, HULDA_HE]
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 4px 12px" }}>
+    <div
+      style={{
+        // 40px above, 24px below: the gap that separates it from the findings is
+        // wider than the gap to the CTA it introduces.
+        margin: "40px 0 24px",
+        background: C.band,
+        borderRadius: 20,
+        padding: "var(--ar-panel-lg)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", margin: "0 0 14px" }}>
         <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink }}>
           {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
         </h2>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: "var(--ar-gap)" }}>
         {items.map((t) => (
           <Quote key={t.name} t={t} />
         ))}
