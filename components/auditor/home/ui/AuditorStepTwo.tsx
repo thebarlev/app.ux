@@ -41,6 +41,8 @@ const C = {
   line: "#ECEFF4",
   line2: "#E2E7F0",
   field: "#F7F9FC",
+  /** The report's panel fill. Same system, same screen sequence. */
+  surface: "#F6F8FC",
   /**
    * Findings share one amber tone, and it is deliberately not the mockup's red.
    *
@@ -339,7 +341,7 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
                   aria-live="polite"
                   style={{
                     marginTop: 10, fontSize: 13, fontWeight: 700, color: C.brandDk,
-                    background: C.brandTint, border: `1px solid #CBDDEE`,
+                    background: C.brandTint,
                     borderRadius: 10, padding: "8px 11px",
                   }}
                 >
@@ -368,7 +370,7 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
                   { v: pages, label: en ? "Pages scanned" : "עמודים נסרקו" },
                   { v: finds, label: en ? "Findings" : "ממצאים" },
                 ].map((c) => (
-                  <div key={c.label} style={{ border: `1px solid ${C.line}`, borderRadius: 13, padding: "11px 13px", background: "#fff" }}>
+                  <div key={c.label} style={{ borderRadius: 13, padding: "11px 13px", background: C.surface }}>
                     <b style={{ display: "block", fontSize: 26, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.1, color: C.ink }}>
                       {c.v}
                     </b>
@@ -380,7 +382,7 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
               <div
                 aria-live="polite"
                 style={{
-                  marginTop: 14, border: `1px solid ${C.line}`, borderRadius: 13, background: "#fff",
+                  marginTop: 14, borderRadius: 13, background: C.surface,
                   padding: "6px 13px", height: 136, overflow: "hidden",
                 }}
               >
@@ -418,6 +420,12 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
               <div
                 style={{
                   position: "relative", borderRadius: 16, overflow: "hidden",
+                  /*
+                   * This border and shadow stay. They are not a panel edge —
+                   * they draw a browser window, with the three dots and the
+                   * address bar below. Flattening it into the surface fill would
+                   * remove the only thing that says "this is your site".
+                   */
                   border: `1px solid ${C.line2}`, background: "#fff",
                   boxShadow: "0 12px 34px rgba(25,24,59,.10)",
                 }}
