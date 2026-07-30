@@ -304,15 +304,22 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           the headline rather than the aside it is. The blue it needs is in the
           badge.
         */}
-        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
+        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "flex-start", gap: 11, marginBottom: 12 }}>
           {/*
             A rising line instead of a 46px filled tile with a ✦ in it. The tile
             was the widest thing in the banner and said nothing; the chart says
             what the sentence beside it promises. The line draws itself once on
             mount and then holds — motion that reports, rather than loops.
           */}
-          <div style={{ flexShrink: 0, width: 34, height: 34, color: C.brand }} aria-hidden="true">
-            <svg viewBox="0 0 34 34" width="34" height="34" fill="none">
+          {/*
+            26px and on the first line of the heading, not 34px centred against
+            the whole block. Centring floated it into the middle of a five-line
+            column and the 18px gap beside it took a further chunk of a 334px
+            row, which is the crowding: the mark was reading as a third of the
+            banner rather than as a mark.
+          */}
+          <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand, marginTop: "calc((var(--ar-h3) * 1.25 - 26px) / 2)" }} aria-hidden="true">
+            <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
               <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
                     style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
               <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />

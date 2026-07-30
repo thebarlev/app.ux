@@ -221,7 +221,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           </p>
 
           <div className="mb-[17px] flex gap-2">
-            <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
+            <div className="flex-1 flex flex-col items-center justify-center rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               {/*
                 A padlock on the score's own type scale rather than a grey
                 placeholder bar. It sits in the same 19px line box as the
@@ -241,7 +241,13 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                   <rect x="1.7" y="7.2" width="11.6" height="8.2" rx="2.3" fill="currentColor" />
                 </svg>
               </span>
-              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekScore}</span>
+              {/*
+                No caption under the padlock. "ציון-על" named a number that is
+                not on this screen and does not become one until the report
+                opens, so the label was introducing something the tile could not
+                show. The lock beside the findings count says the same thing
+                without promising a name for it.
+              */}
             </div>
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               <b className="block font-extrabold tabular-nums" style={{ color: C.ink, fontSize: "var(--ar-peek)", lineHeight: "var(--ar-peek)" }}>{issuesCount}</b>

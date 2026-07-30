@@ -103,7 +103,13 @@ function Stars({ n }: { n: number }) {
  */
 function Quote({ t, first }: { t: Testimonial; first: boolean }) {
   return (
-    <figure style={{ margin: 0, padding: "var(--ar-panel)", textAlign: "center", position: "relative" }}>
+    /*
+     * marginTop on every quote after the first, so the rule has room on both
+     * sides. The previous round added the rule and called it separation, but the
+     * two figures were still flush — the only thing between them was their own
+     * padding, so the hairline sat hard against the quote above it.
+     */
+    <figure style={{ margin: 0, marginTop: first ? 0 : 18, padding: "var(--ar-panel)", textAlign: "center", position: "relative" }}>
       {/*
         A short centred rule, not a full-width border. A rule that runs edge to
         edge cuts the block in two; this one separates two quotes inside one
