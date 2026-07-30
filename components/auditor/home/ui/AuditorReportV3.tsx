@@ -334,9 +334,15 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
           {TILES.map((t) => (
             <div key={t.label} className="ar-tile" style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "var(--ar-panel-sm)" }}>
-              <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+              {/*
+                Fixed-height label row as well as a fixed-height value row. The
+                locked tiles carry a padlock next to the word, and the glyph is
+                taller than the label text, so their whole tile shifted down and
+                the meters in one row started at two different heights.
+              */}
+              <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, height: "calc(var(--ar-label) * 1.5)" }}>
                 {t.label}
-                {t.locked && !teaser ? <span style={{ fontSize: "var(--ar-caption)" }}>🔒</span> : null}
+                {t.locked && !teaser ? <span style={{ fontSize: "var(--ar-caption)", lineHeight: 1 }}>🔒</span> : null}
               </div>
               {t.locked && !teaser ? (
                 <>
