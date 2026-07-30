@@ -44,6 +44,7 @@ const T = {
     ledeA: "הציון כבר חושב. השאירו פרטים ו",
     ledeB: "הדוח נפתח מיד כאן על המסך",
     ledeC: ".",
+    peekScoreLocked: "ציון האתר",
     peekIssues: "ממצאים",
     name: "שם מלא",
     phone: "טלפון",
@@ -86,6 +87,7 @@ const T = {
     ledeA: "The score is already calculated. Leave your details and ",
     ledeB: "the report opens right here on screen",
     ledeC: ".",
+    peekScoreLocked: "Site score",
     peekIssues: "Findings",
     name: "Full name",
     phone: "Phone",
@@ -240,12 +242,12 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 </svg>
               </span>
               {/*
-                No caption under the padlock. "ציון-על" named a number that is
-                not on this screen and does not become one until the report
-                opens, so the label was introducing something the tile could not
-                show. The lock beside the findings count says the same thing
-                without promising a name for it.
+                "ציון האתר" under the padlock, not "ציון-על". The old label named
+                a metric that does not exist by that name anywhere else in the
+                flow; this one names the thing the lock is holding, which is what
+                a caption on a locked tile is for.
               */}
+              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekScoreLocked}</span>
             </div>
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               <b className="block font-extrabold tabular-nums" style={{ color: C.ink, fontSize: "var(--ar-peek)", lineHeight: "var(--ar-peek)" }}>{issuesCount}</b>
