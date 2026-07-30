@@ -374,11 +374,16 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           title into a corner of its own heading.
         */}
         <div style={{ margin: "0 4px 12px" }}>
+          {/*
+            A question, in the register the homepage headline uses, rather than
+            "ציון לפי קטגוריה" — which named the mechanism and not the stake. The
+            mechanism moves down into the subhead where it belongs.
+          */}
           <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink, width: "100%" }}>
-            {en ? "Score by category" : "ציון לפי קטגוריה"}
+            {en ? "How likely is your business to be found?" : "מה הסיכוי שהעסק שלך יימצא?"}
           </h2>
           <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>
-            {en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"}
+            {en ? "By category · 0–100" : "לפי קטגוריה · 0–100"}
           </div>
         </div>
         <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 24 }}>
