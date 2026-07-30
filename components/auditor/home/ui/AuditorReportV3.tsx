@@ -423,7 +423,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           washed-out paragraph inside the single dark band read as the weakest
           text on the screen while sitting in the loudest place on it.
         */}
-            <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
+            <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", padding: "var(--ar-panel-lg)", color: "#fff" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 240 }}>
                 {/*
                 Explicit white, not inherited white.
@@ -457,19 +458,25 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                 {en ? `Call ${phone}` : `חייגו ${phone}`}
               </a>
             </div>
+            </div>
             {/*
               The mark closes the block. It is the one place on this page where
               our name belongs: directly under two customers vouching for it, so
               the quotes land on somebody rather than trailing off. White on the
               navy, and decorative — the page has already said who we are.
+
+              A sibling of the CTA row inside the same navy wrapper, not a child
+              of the row. Inside it, it became a third item in a space-between
+              flex and sat off to one side; in a wrapper of its own it would have
+              restarted the gradient and drawn a seam.
             */}
-            <div style={{ display: "flex", justifyContent: "center", paddingBottom: 22, marginTop: -4 }}>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/white.svg" alt="" aria-hidden="true" width={116} height={40}
                    style={{ width: 116, height: "auto", opacity: 0.92 }} />
             </div>
           </div>
-        </div>
+          </div>
         ) : null}
       </div>
     </div>
