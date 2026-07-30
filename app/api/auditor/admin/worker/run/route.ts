@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { continueAuditorScan } from "@/lib/auditor/pipeline/continue"
+import { runReportEmailPass } from "@/lib/auditor/report/email-worker"
 
 function unauthorized() {
   return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
@@ -43,7 +44,37 @@ async function handler(req: Request) {
 
   const admin = createServiceRoleClient()
 
-  const budgetMs = 9_000
+  /*
+   * The report-email pass rides this tick rather than getting a cron of its own.
+   *
+   * A second cron would mean a new route and a new vercel.json entry; neither is
+   * on the table, and this tick already runs every two minutes with the right
+   * client and the right auth. It goes first and takes a small fixed slice: the
+   * scan loop below will happily consume all 50 seconds whenever there is work,
+   * so anything queued behind it would be starved on exactly the busy days it
+   * matters. Eight seconds is enough for a batch of ten and leaves the scan loop
+   * with 42 of its 50.
+   *
+   * Sending is still off — the pass renders and logs and stamps nothing while
+   * AUDITOR_REPORT_EMAIL_ENABLED is not "true".
+   */
+  const emailPass = await runReportEmailPass({ supabase: admin, budgetMs: 8_000, limit: 10 })
+
+  /*
+   * 50s of the 60s this route is given in vercel.json, matching the margin the
+   * /continue route keeps.
+   *
+   * A full scan is 18 steps and roughly 36-72s of actual work. At the previous
+   * 9s the limit was not load, it was waiting: the tick spent 9 seconds working
+   * and then handed the scan back to a 2-minute cron gap, stretching a
+   * one-minute scan across 8-16 minutes with 85% of the function budget unused.
+   * Cost is unchanged — the same work either way, and the loop takes one scan
+   * per pass, so nothing runs concurrently. Full scans now land in ~2-4 min.
+   *
+   * Worth revisiting only if many scans queue at once: one long pass is less
+   * fair to the others than several short ones. Not a concern at current volume.
+   */
+  const budgetMs = 50_000
   const started = Date.now()
   let progressed = 0
 
@@ -74,7 +105,7 @@ async function handler(req: Request) {
     break
   }
 
-  return NextResponse.json({ ok: true, progressed })
+  return NextResponse.json({ ok: true, progressed, reportEmail: emailPass })
 }
 
 // Vercel Cron uses GET. External callers can POST.

@@ -21,31 +21,41 @@ export type PublicReport = {
   top_recommendations?: string[]
 }
 
-/** Rule key → translations per locale. Add new locales here. */
+/**
+ * Rule key → translations per locale. Add new locales here.
+ *
+ * Strings only. None of the scoring values, weights or thresholds in this file
+ * are touched by the wording pass — see the note on buildPublicReport.
+ *
+ * House style for these lines: connected sentences, joined with a comma or a
+ * conjunction. No em dashes. A dash splicing two clauses together is the single
+ * clearest tell of machine-written copy, and this text is the first thing a
+ * prospect reads about their own site.
+ */
 const RULE_KEY_TO_LOCALE: Record<string, { he: string; en: string }> = {
   "tech.robots_block_all": {
-    he: "robots.txt חוסם סריקה — מנועי חיפוש וכלי AI לא יוכלו לקרוא את האתר.",
-    en: "robots.txt blocks crawling — search engines and AI tools cannot read the site.",
+    he: "robots.txt חוסם סריקה, ולכן מנועי חיפוש וכלי AI לא יוכלו לקרוא את האתר.",
+    en: "robots.txt blocks crawling, so search engines and AI tools cannot read the site.",
   },
   "tech.noindex_present": {
-    he: "האתר מסומן כ-Noindex — ייתכן שגוגל/בוטים לא יציגו את האתר בתוצאות.",
-    en: "Site is marked Noindex — Google/bots may not show the site in results.",
+    he: "האתר מסומן כ-Noindex, וייתכן שגוגל ובוטים אחרים לא יציגו אותו בתוצאות.",
+    en: "The site is marked Noindex, so Google and other bots may not show it in results.",
   },
   "tech.https_enforced": {
-    he: "אין אכיפה עקבית של HTTPS — מומלץ לייצב הפניות וגרסה ראשית אחת.",
-    en: "No consistent HTTPS enforcement — recommend standardizing redirects to secure version.",
+    he: "אין אכיפה עקבית של HTTPS, ומומלץ לייצב את ההפניות ולבחור גרסה ראשית אחת.",
+    en: "HTTPS is not enforced consistently, so redirects should be stabilised around one primary version.",
   },
   "tech.canonical_host_match": {
-    he: "Canonical לא עקבי — עלול לגרום לכפילויות ופגיעה בדירוג.",
-    en: "Canonical is inconsistent — may cause duplicates and hurt ranking.",
+    he: "Canonical לא עקבי, ועלול לגרום לכפילויות ולפגיעה בדירוג.",
+    en: "Canonical is inconsistent, which can cause duplicates and hurt ranking.",
   },
   "tech.sitemap_present": {
-    he: "חסר sitemap.xml תקין — אינדוקס יכול להיות חלקי.",
-    en: "Valid sitemap.xml is missing — indexing may be partial.",
+    he: "חסר sitemap.xml תקין, ולכן האינדוקס עלול להיות חלקי.",
+    en: "A valid sitemap.xml is missing, so indexing may be partial.",
   },
   "tech.robots_txt_present": {
-    he: "חסר robots.txt או שהוא לא נגיש — מומלץ להוסיף הגדרות סריקה בסיסיות.",
-    en: "robots.txt is missing or inaccessible — add basic crawl directives.",
+    he: "חסר robots.txt או שהוא לא נגיש, ומומלץ להוסיף הגדרות סריקה בסיסיות.",
+    en: "robots.txt is missing or inaccessible, so basic crawl directives should be added.",
   },
   "tech.title_present": {
     he: "להוסיף תגית title ייחודית וברורה לעמוד הבית (עדיף 30–60 תווים).",
@@ -64,16 +74,16 @@ const RULE_KEY_TO_LOCALE: Record<string, { he: string; en: string }> = {
     en: "Set lang on the <html> tag (e.g. he/en) to improve SEO and accessibility.",
   },
   "onpage.viewport_present": {
-    he: "חסר meta viewport — חוויית מובייל עלולה להיפגע.",
-    en: "Meta viewport is missing — mobile experience may suffer.",
+    he: "חסר meta viewport, וחוויית המובייל עלולה להיפגע.",
+    en: "Meta viewport is missing, so the mobile experience may suffer.",
   },
   "onpage.single_h1": {
-    he: "מבנה כותרות בעמודים לא עקבי (H1) — מומלץ לשפר היררכיה.",
-    en: "Heading structure is inconsistent (H1) — improve hierarchy.",
+    he: "מבנה הכותרות בעמודים לא עקבי (H1), ומומלץ לשפר את ההיררכיה.",
+    en: "Heading structure is inconsistent (H1), so the hierarchy should be improved.",
   },
   "onpage.images_alt": {
-    he: "חסרים טקסטים חלופיים (alt) לתמונות — פוגע בנגישות וב-SEO.",
-    en: "Missing alt text for images — hurts accessibility and SEO.",
+    he: "חסרים טקסטים חלופיים (alt) לתמונות, וזה פוגע בנגישות וב-SEO.",
+    en: "Images are missing alt text, which hurts accessibility and SEO.",
   },
   "schema.jsonld_present": {
     he: "להוסיף Schema.org באמצעות JSON-LD (לפחות Organization ו-WebSite) כדי לשפר הבנה סמנטית ו-AEO.",
@@ -84,12 +94,12 @@ const RULE_KEY_TO_LOCALE: Record<string, { he: string; en: string }> = {
     en: "Add or strengthen Organization and/or WebSite JSON-LD on the homepage.",
   },
   "schema.faq_or_article": {
-    he: "חסרה סכמה מתאימה (FAQ/Article) בעמודים רלוונטיים — מקשה על AI לחלץ תשובות.",
-    en: "Suitable schema (FAQ/Article) is missing on relevant pages — makes it harder for AI to extract answers.",
+    he: "חסרה סכמה מתאימה (FAQ/Article) בעמודים רלוונטיים, וזה מקשה על AI לחלץ תשובות.",
+    en: "Suitable schema (FAQ/Article) is missing on relevant pages, which makes it harder for AI to extract answers.",
   },
   "ai.llms_txt_present": {
-    he: "חסר קובץ llms.txt — מומלץ כדי לשפר קריאות ל-AI.",
-    en: "llms.txt file is missing — recommended to improve AI readability.",
+    he: "חסר קובץ llms.txt, שמומלץ כדי לשפר את הקריאות לכלי AI.",
+    en: "The llms.txt file is missing, and it is recommended to improve AI readability.",
   },
   "ai.well_known_ai_json_present": {
     he: "מומלץ להוסיף `/.well-known/ai.json` (אם רלוונטי) כדי לחשוף מטא-דאטה/מדיניות ל-AI crawlers וכלים.",
@@ -142,6 +152,16 @@ function clampScore(n: any): number {
   return Math.max(0, Math.min(100, Math.round(x)))
 }
 
+/**
+ * Shapes what the public report exposes. Nothing here computes a score: the
+ * numbers arrive already computed from the pipeline and are only clamped to
+ * 0..100 on the way out.
+ *
+ * Stated because this file holds both the visitor-facing wording and the report
+ * shaping, and the wording is edited far more often than the shaping. A pass
+ * over RULE_KEY_TO_LOCALE must not reach clampScore, the 12-issue cap, or any
+ * weight or threshold.
+ */
 export function buildPublicReport(params: {
   score_total: number
   score_search: number

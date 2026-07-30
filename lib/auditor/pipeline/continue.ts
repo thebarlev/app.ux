@@ -1808,12 +1808,20 @@ export async function continueAuditorScan(params: {
 
       const scoreSearch = Math.round(((scoreBreakdown.technical ?? 0) + (scoreBreakdown.schema ?? 0)) / 2)
       const scoreAi = Math.round(scoreBreakdown.ai_readiness ?? 0)
+      /**
+       * tracking carries 10% of score_total but fed neither category, so fixing
+       * GTM/GA4 moved the headline number while every category sat still — which
+       * reads as the score changing for no reason. It is reported as its own
+       * category rather than folded into search or AI, because it measures
+       * neither: it is whether the site can see its own traffic.
+       */
+      const scoreTracking = Math.round(scoreBreakdown.tracking ?? 0)
 
       const publicReport = buildPublicReport({
         score_total: scoreTotal,
         score_search: scoreSearch,
         score_ai: scoreAi,
-        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi, tracking: scoreTracking },
         findings: rules.map((r) => ({ rule_key: r.rule_key, severity: "medium", status: r.status })),
         confidence_level: confidenceLevel,
         warning,
@@ -1854,7 +1862,7 @@ export async function continueAuditorScan(params: {
         score_search: scoreSearch,
         score_ai: scoreAi,
         score_breakdown: scoreBreakdown,
-        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi },
+        category_scores: { search_readiness: scoreSearch, ai_readiness: scoreAi, tracking: scoreTracking },
         rules: rulesForReport,
         total_pages: totalCount,
         extracted_pages: extractedCount,
@@ -2012,6 +2020,30 @@ export async function continueAuditorScan(params: {
 
     // Step: competitor_discovery (discover competitor domains from SERP or heuristic signals)
     if (step === "competitor_discovery") {
+      // Competitor discovery is the only thing that needs Serper, and it is paid
+      // per query, so it stays off for the free tier. Without the key
+      // discoverCompetitors returns [] immediately and the three steps that feed
+      // on it — crawl, keywords, content gaps — each run a full round trip to
+      // find nothing. Skip straight to recommendations instead: same result,
+      // four fewer steps on every scan a registered user triggers.
+      if (!String(process.env.AUDITOR_SERPER_API_KEY || "").trim()) {
+        await applyScanWhere(
+          supabase.from("auditor_scans").update({ step: "recommendations", updated_at: nowIso() }),
+          scanId,
+          companyId
+        )
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          message: "competitor_discovery:skipped_no_serper_key",
+          data: { skipped: ["competitor_discovery", "competitor_crawl", "competitor_keywords", "content_gap_analysis"] },
+        })
+        await releaseLock()
+        const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
+        return { ok: true, kind: "progressed", scan }
+      }
+
       await auditorLog({ supabase, scanId, companyId, message: "competitor_discovery:start" })
       const competitors = await discoverCompetitors({
         supabase,

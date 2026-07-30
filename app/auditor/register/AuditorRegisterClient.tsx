@@ -139,6 +139,10 @@ export default function AuditorRegisterClient(props: {
           address: !isLtr ? address.trim() || undefined : undefined,
           website: !isLtr ? website.trim() || undefined : undefined,
           contact_name: !isLtr ? contactName.trim() || undefined : undefined,
+          // Lets the server adopt exactly the scan this visitor watched rather
+          // than guessing from the website field. Falls back to host matching
+          // when the landing page did not carry an id this far.
+          scan_id: scanId || undefined,
         }),
       })
       const j = await r.json().catch(() => null)

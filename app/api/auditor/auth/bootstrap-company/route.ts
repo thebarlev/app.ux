@@ -7,7 +7,9 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
 import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
+import { attachScanToCompany } from "@/lib/auditor/leads/attachScanToCompany"
 import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
+import { sendAuditorLead } from "@/lib/email/sendAuditorLead"
 
 const bodySchema = z.object({
   full_name: z.string().min(1).max(200),
@@ -16,6 +18,8 @@ const bodySchema = z.object({
   address: z.string().max(500).optional(),
   website: z.string().max(200).optional(),
   contact_name: z.string().max(200).optional(),
+  /** The scan the visitor watched on the landing page, when it survived the trip. */
+  scan_id: z.string().uuid().optional(),
 })
 
 function firstNameFromFullName(fullName: string): string {
@@ -45,6 +49,58 @@ export async function POST(req: Request) {
 
   const admin = createServiceRoleClient()
 
+  /**
+   * Claim the pre-signup scan and queue the full one. Runs on every path that
+   * returns a company — a returning user reusing an existing company has just as
+   * likely scanned again before signing in. Never allowed to break signup, so
+   * failures are logged and swallowed like the notification below.
+   */
+  const attachScans = async (targetCompanyId: string) => {
+    try {
+      const result = await attachScanToCompany({
+        admin,
+        companyId: targetCompanyId,
+        userId: user.id,
+        scanId: parsed.data.scan_id ?? null,
+        website: parsed.data.website ?? null,
+      })
+      console.log("[AUDITOR_BOOTSTRAP] scan attach", { companyId: targetCompanyId, ...result })
+      return result
+    } catch (err) {
+      console.error("[AUDITOR_BOOTSTRAP] scan attach failed", err)
+      return null
+    }
+  }
+
+  /**
+   * One lead per signup, on every path that returns a company — including the
+   * two that reuse one. Those return early, which is why the older support-inbox
+   * notification below only ever saw brand-new companies.
+   *
+   * Swallowed like the notification: a mail failure must not fail a signup.
+   */
+  const emitLead = async (
+    companyId: string,
+    reused: boolean,
+    scan: Awaited<ReturnType<typeof attachScans>>
+  ) => {
+    try {
+      const result = await sendAuditorLead({
+        email,
+        contactName: parsed.data.contact_name || parsed.data.full_name || null,
+        companyName: parsed.data.company_name || null,
+        website: parsed.data.website || null,
+        phone: parsed.data.phone || null,
+        companyId,
+        reused,
+        scan,
+      })
+      console.log("[AUDITOR_BOOTSTRAP] lead email", { companyId, reused, ...result })
+    } catch (err) {
+      console.error("[AUDITOR_BOOTSTRAP] lead email failed", err)
+    }
+  }
+
   const canonical = await resolveCanonicalAuditorCompany(admin, { userId: user.id, email })
   if (canonical) {
     const companyId = canonical.companyId
@@ -72,6 +128,8 @@ export async function POST(req: Request) {
     } catch {
       /* ignore */
     }
+    const scan = await attachScans(companyId)
+    await emitLead(companyId, true, scan)
     return NextResponse.json({ ok: true, company_id: companyId, reused: true })
   }
 
@@ -107,6 +165,8 @@ export async function POST(req: Request) {
     // Race: someone else created it by email (companies.email unique in this repo)
     const { data: again } = await admin.from("companies").select("id").eq("email", email).maybeSingle()
     if (!again?.id) return NextResponse.json({ ok: false, error: "Failed to create company" }, { status: 500 })
+    const scan = await attachScans(String(again.id))
+    await emitLead(String(again.id), true, scan)
     return NextResponse.json({ ok: true, company_id: String(again.id), reused: true })
   }
 
@@ -153,6 +213,8 @@ export async function POST(req: Request) {
     // ignore
   }
 
+  const scan = await attachScans(companyId)
+  await emitLead(companyId, false, scan)
   return NextResponse.json({ ok: true, company_id: companyId })
 }
 
