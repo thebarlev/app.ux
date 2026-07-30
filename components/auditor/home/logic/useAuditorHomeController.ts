@@ -217,7 +217,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
       const r = await fetch("/api/auditor/lead-and-scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...lead, url: siteUrl.trim(), scanId, scanAccessToken: token }),
+        body: JSON.stringify({ ...lead, url: siteUrl.trim(), scanId, scanAccessToken: token, locale }),
       })
       const j = await r.json().catch(() => null)
       if (!r.ok) throw new Error(j?.error || `Failed (${r.status})`)

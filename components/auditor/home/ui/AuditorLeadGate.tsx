@@ -6,6 +6,7 @@ import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/
 import { Input } from "@/components/ui/input"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
+import { AUDITOR_CONSENT_TEXT } from "@/lib/auditor/consent-text"
 
 type Props = {
   locale: AuditorLocale
@@ -48,9 +49,15 @@ const T = {
     name: "שם מלא",
     phone: "טלפון",
     email: "אימייל",
-    terms: "אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות",
-    contactBold: "שלחו לי עותק של הדוח למייל",
-    contactRest: ", וגם עדכונים ותכנים שיווקיים. בלי אישור הדוח יוצג כאן על המסך בלבד.",
+    /*
+     * These three come from lib/auditor/consent-text.ts, not from here.
+     * The lead route records the same strings into consent_terms_text and
+     * consent_contact_text, so the sentence on screen and the sentence in the
+     * evidence row cannot drift apart. See the note in that file.
+     */
+    terms: AUDITOR_CONSENT_TEXT.he.terms,
+    contactBold: AUDITOR_CONSENT_TEXT.he.contactBold,
+    contactRest: AUDITOR_CONSENT_TEXT.he.contactRest,
     cta: "הציגו לי את הדוח ←",
     micro: "ללא עלות · הדוח נפתח מיד על המסך",
     errName: "נא למלא שם מלא",
@@ -85,9 +92,9 @@ const T = {
     name: "Full name",
     phone: "Phone",
     email: "Email",
-    terms: "I accept the terms of use and privacy policy",
-    contactBold: "Email me a copy of the report",
-    contactRest: ", plus updates and marketing content. Without this approval the report is shown here on screen only.",
+    terms: AUDITOR_CONSENT_TEXT.en.terms,
+    contactBold: AUDITOR_CONSENT_TEXT.en.contactBold,
+    contactRest: AUDITOR_CONSENT_TEXT.en.contactRest,
     cta: "Show me the report →",
     micro: "Free · the report opens immediately on screen",
     errName: "Please enter your full name",

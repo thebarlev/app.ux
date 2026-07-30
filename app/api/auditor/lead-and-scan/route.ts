@@ -6,6 +6,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server"
 import { auditorLeadSchema, normalizeEmail } from "@/lib/auditor/lead"
 import { followRedirectsWithValidation, normalizeInputUrl } from "@/lib/auditor/ssrf"
 import { sendAuditorLead } from "@/lib/email/sendAuditorLead"
+import { auditorContactConsentSentence, auditorTermsConsentSentence } from "@/lib/auditor/consent-text"
 import { z } from "zod"
 
 function notFoundIfDisabled() {
@@ -17,6 +18,26 @@ function notFoundIfDisabled() {
 
 function token(): string {
   return crypto.randomUUID()
+}
+
+/**
+ * A single address out of x-forwarded-for, for consent_ip.
+ *
+ * Behind Vercel the header is a comma-separated chain and the client-supplied
+ * end of it is not trustworthy; the left-most entry is the original client as
+ * seen by the edge, which is the one worth recording. Falls back to
+ * x-real-ip when the chain is absent.
+ *
+ * Returns null rather than a guess, and never throws. Migration 113 made the
+ * column text and not inet for exactly this reason: a malformed header must not
+ * be able to fail the insert and cost a lead. Capped so a hostile header cannot
+ * push an unbounded string into the row.
+ */
+function clientIp(req: Request): string | null {
+  const chain = String(req.headers.get("x-forwarded-for") || "").trim()
+  const first = chain ? chain.split(",")[0].trim() : String(req.headers.get("x-real-ip") || "").trim()
+  if (!first) return null
+  return first.slice(0, 64)
 }
 
 export async function POST(req: Request) {
@@ -69,6 +90,33 @@ export async function POST(req: Request) {
    * initial scan already exists for this host and email, inserts nothing and is
    * a resubmission rather than a lead.
    */
+  /**
+   * What was on screen when they agreed, recorded alongside the two booleans.
+   *
+   * The booleans say what was agreed to and cannot say what was above the box,
+   * which is the half that matters if a consent is ever challenged. Built once
+   * and spread into both insert paths so the two can never disagree.
+   *
+   * The sentences come from lib/auditor/consent-text.ts, the same constant the
+   * gate renders, rather than from the request body — a consent record the
+   * submitter can author is not evidence. The client only says which locale it
+   * rendered.
+   *
+   * consent_recorded_at is its own timestamp rather than a read of created_at:
+   * per migration 113 the row-creation time is the same moment only by
+   * coincidence, and a consent record should carry its own.
+   *
+   * The marketing sentence is stored whether or not the box was ticked. It was
+   * rendered either way, and "declined this exact wording" is as much a fact
+   * worth keeping as accepting it.
+   */
+  const consentEvidence = {
+    consent_recorded_at: new Date().toISOString(),
+    consent_terms_text: auditorTermsConsentSentence(parsed.data.locale),
+    consent_contact_text: auditorContactConsentSentence(parsed.data.locale),
+    consent_ip: clientIp(req),
+  }
+
   const notifyLead = async () => {
     try {
       const result = await sendAuditorLead({
@@ -131,6 +179,7 @@ export async function POST(req: Request) {
         normalized_host: normalizedHost,
         consent_terms: parsed.data.consent_terms,
         consent_contact: parsed.data.consent_contact,
+        ...consentEvidence,
       })
       .select("id")
       .single()
@@ -190,6 +239,7 @@ export async function POST(req: Request) {
       normalized_host: normalizedHost,
       consent_terms: parsed.data.consent_terms,
       consent_contact: parsed.data.consent_contact,
+      ...consentEvidence,
     })
     .select("id")
     .single()
