@@ -392,7 +392,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               */}
               <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, height: "calc(var(--ar-label) * 1.5)" }}>
                 {t.label}
-                {t.locked && !teaser ? <span style={{ fontSize: "var(--ar-caption)", lineHeight: 1 }}>🔒</span> : null}
+                {/* The lock lives on the value row now, next to the word "נעול". */}
               </div>
               {t.locked && !teaser ? (
                 <>
