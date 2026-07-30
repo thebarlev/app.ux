@@ -100,9 +100,16 @@ function Quote({ t }: { t: Testimonial }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         {/*
           A plain <img>. next/image wants width and height or a fill parent, and
-          these are two fixed 44px avatars in a component that is also rendered
-          inside the blurred teaser — the optimiser buys nothing here and the
-          teaser would pay for it twice.
+          these are two fixed 44px avatars — the optimiser buys nothing here.
+
+          Not lazy. Measured on the preview: at 1440 both avatars had decoded
+          (naturalWidth 144 and 64), and at 390 and 360 both were still at 0 and
+          came out blank in a full-page capture, because on a phone this section
+          sits about 5900px down a 7376px page. Whether a given scroll would have
+          triggered them is exactly the thing not worth depending on: these are
+          two files of 30KB and 2KB whose whole job is that a stranger's face is
+          next to their words, and a testimonial that arrives without one is worse
+          than the bytes it saved.
         */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -110,7 +117,7 @@ function Quote({ t }: { t: Testimonial }) {
           alt={t.imageAlt}
           width={44}
           height={44}
-          loading="lazy"
+          decoding="async"
           style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         />
         <div style={{ minWidth: 0 }}>
