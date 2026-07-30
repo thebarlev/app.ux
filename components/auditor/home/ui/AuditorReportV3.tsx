@@ -67,6 +67,12 @@ const C = {
    * rules rather than frames, and hierarchy comes from scale and space.
    */
   surface: "#F6F8FC",
+  /**
+   * Secondary text on the navy closing block. Same value as onNavyDim in
+   * AuditorTestimonials, which owns the top half of that block — the two halves
+   * have to agree and this is the second of them.
+   */
+  onNavyDim: "#C4D3E6",
 } as const
 
 function toneFor(v: number | null): { text: string; fill: string } {
@@ -570,10 +576,18 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               flex and sat off to one side; in a wrapper of its own it would have
               restarted the gradient and drawn a seam.
             */}
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, marginTop: 20 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/brand/white.svg" alt="" aria-hidden="true" width={116} height={40}
                    style={{ width: 116, height: "auto", opacity: 0.92 }} />
+              {/*
+                The line under the mark. Ours, not a customer's, so unlike the
+                quotes above it this one is translated rather than shown in
+                Hebrew on an English page.
+              */}
+              <span style={{ fontSize: "var(--ar-meta)", fontWeight: 600, color: C.onNavyDim, textAlign: "center", letterSpacing: ".01em" }}>
+                {en ? "Digital presence that brings customers" : "נוכחות דיגיטלית שמביאה לקוחות"}
+              </span>
             </div>
           </div>
           </div>
