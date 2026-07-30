@@ -199,3 +199,39 @@
 
 **לא מוחזר:** נתיבי/URL-ים של עמודים (`auditor_scan_pages` נשלף עם `.select("state")`
 בלבד), סטטוסים לכל חוק, משקלים, קטגוריות, נתוני מתחרים.
+
+---
+
+## חריגה מאושרת מכלל "המנוע קבוע" — `lib/auditor/pipeline/continue.ts`
+
+הכלל הוא שמנוע הניקוד וה-pipeline הם read-only ואין נוגעים בהם בלי אישור מפורש.
+שני שינויים כן נכנסו ל-`continue.ts` לפני שהכלל נאמר, נבדקו בדיעבד ב-2026-07-30,
+**ואושרו להישאר**. לא עושים להם revert. נרשם כאן כדי שסבב הבא לא יחקור מחדש.
+
+| # | הקומיט | מה השתנה |
+|---|---|---|
+| 1 | `fb7451d` | `tracking` הפך למפתח שלישי ב-`category_scores`, בשתי הכתיבות של שלב `rules` (`report_public` ו-`report_admin`). |
+| 2 | `bf53e77` | `competitor_discovery` מקצר דרך ישירות ל-`recommendations` כשאין `AUDITOR_SERPER_API_KEY`, ומדלג על ארבעה שלבים. |
+
+**אומת כאפס השפעה על ניקוד:**
+
+- **`tracking`** — `scoreTracking = Math.round(scoreBreakdown.tracking ?? 0)` *קורא* ערך
+  שכבר חושב במעלה הזרם. `score_total`, `score_search` ו-`score_ai` מחושבים לפניו ולא
+  נגעו. אף אחד מ-20 המקומות שנוגעים ב-`category_scores` לא מונה מפתחות ולא ממצע:
+  `public.ts` מצמיד כל ערך בנפרד, `status/route.ts` מעביר, `AuditorReportV3` קורא
+  מפתחות בשם, `email-worker` מעביר, ושלב `ai_readiness` מאחד ב-spread. תוספת מפתח
+  אינה משנה שום מספר מחושב.
+  מסלול ה-verification (`continue.ts:271`, `:1127`) נשאר **בכוונה** בלי המפתח, ולכן
+  אריח "מעקב תנועה" מציג `—` בסריקות טרום-הרשמה. אומת על סריקה אמיתית:
+  `category_scores` חזר `{"ai_readiness":90,"search_readiness":100}`.
+
+- **קיצור הדרך** — סדר השלבים בפועל הוא `rules`(1524) → `ai_readiness`(1919) →
+  `competitor_discovery`(2022). **כל הניקוד מסתיים לפני הקיצור.** שלושת השלבים
+  המדולגים כותבים רק `competitor_pages_count`, `competitor_keywords_count`,
+  `content_gaps_count` ו-`top_content_gaps` לתוך הדוחות ב-spread — אפס שדות ניקוד.
+  שום קוד בריפו לא קורא את ארבעת המפתחות; עמוד הסריקה באדמין קורא מהטבלאות
+  `auditor_competitors` ו-`auditor_content_gaps`, שלא מקבלות שורות בלי המפתח בין כה.
+  ההבדל ההתנהגותי היחיד: ארבעת מפתחות המניה נעדרים במקום להיות `0`.
+
+**המשמעות לסבבים הבאים:** הכלל עומד בעינו. אלה שני חריגים מתועדים ומאושרים, לא
+תקדים. שינוי נוסף ב-`continue.ts` דורש אישור מפורש כמו קודם.
