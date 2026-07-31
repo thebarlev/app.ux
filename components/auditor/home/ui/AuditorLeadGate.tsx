@@ -281,8 +281,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
-                className="h-[52px] rounded-[11px] shadow-none"
-                style={{ background: "transparent", borderColor: C.line2 }}
+                className="ar-field h-[52px] focus:ring-0"
+                style={{}}
               />
             </div>
             <div>
@@ -297,8 +297,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: "transparent", borderColor: C.line2 }}
-                className="h-[52px] rounded-[11px] shadow-none"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
+                className="ar-field h-[52px] focus:ring-0"
               />
             </div>
             <div>
@@ -313,8 +313,8 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: "transparent", borderColor: C.line2 }}
-                className="h-[52px] rounded-[11px] shadow-none"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
+                className="ar-field h-[52px] focus:ring-0"
               />
             </div>
           </div>

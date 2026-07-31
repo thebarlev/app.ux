@@ -60,6 +60,27 @@ export function AuditorScaleStyles() {
   .${AUDITOR_SCOPE} .ar-actions{ width:100%; }
   .${AUDITOR_SCOPE} .ar-actions > a{ flex:1 1 100%; justify-content:center; }
 }
+/*
+  Underline fields, not boxes.
+
+  A rule under the line the visitor types on is the whole affordance a text field
+  needs; the rectangle around it was the last frame left in this flow after the
+  panel and the fills came off. Written here rather than inline because the base
+  input classes set a border, a radius and a focus ring, and a rule at
+  .ar-scope .ar-field outranks a single Tailwind utility without needing
+  !important on four declarations.
+
+  Focus thickens and darkens the rule instead of drawing a ring around a shape
+  that no longer exists.
+*/
+.${AUDITOR_SCOPE} .ar-field{
+  border:0; border-bottom:1px solid #E2E7F0; border-radius:0;
+  background:transparent; box-shadow:none; padding-inline:2px;
+}
+.${AUDITOR_SCOPE} .ar-field:focus,
+.${AUDITOR_SCOPE} .ar-field:focus-visible{
+  border-bottom:2px solid #3F76AC; box-shadow:none; outline:none;
+}
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
 @media (prefers-reduced-motion:reduce){ .${AUDITOR_SCOPE} svg *{ animation:none !important } }
