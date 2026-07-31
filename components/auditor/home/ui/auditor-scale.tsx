@@ -74,7 +74,7 @@ export function AuditorScaleStyles() {
   that no longer exists.
 */
 .${AUDITOR_SCOPE} .ar-field{
-  border:0; border-bottom:1px solid #E2E7F0; border-radius:0;
+  border:0; border-bottom:1px solid #5C6473; border-radius:0;
   background:transparent; box-shadow:none; padding-inline:2px;
 }
 .${AUDITOR_SCOPE} .ar-field:focus,

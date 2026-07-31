@@ -29,6 +29,19 @@ const C = {
   muted: "#8A90A0",
   line: "#ECEFF4",
   line2: "#E2E7F0",
+  /**
+   * The field underline, and darker than the hairline it used to borrow.
+   *
+   * line2 is #E2E7F0, which sits at about 1.2:1 against white — visible in a
+   * mockup and not on a phone in daylight. This is the only rule left telling a
+   * visitor where the field is, so it needs to carry that on its own. Roughly
+   * 5.3:1, comfortably past the 3:1 that non-text UI boundaries want, and still
+   * a grey rather than a black line.
+   *
+   * The thickness is deliberately unchanged at 1px. What was hard to see was the
+   * contrast, not the weight.
+   */
+  fieldLine: "#5C6473",
   field: "#F7F9FC",
   brand: "#5389BB",
   brandDk: "#3F76AC",
@@ -295,7 +308,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
                 className="ar-field h-[52px] focus:ring-0"
-                style={{ border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
               />
             </div>
             <div>
@@ -311,7 +324,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
@@ -328,7 +341,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
