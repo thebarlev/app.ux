@@ -3,12 +3,7 @@
 import { useEffect } from "react"
 import { useSubscriptionStatus } from "@/components/subscription/useSubscriptionStatus"
 import { trackPurchase } from "@/lib/analytics/meta-pixel"
-
-declare global {
-  interface Window {
-    dataLayer: Array<Record<string, unknown>>
-  }
-}
+import { pushEvent } from "@/lib/tracking/events"
 
 /**
  * Fires the purchase analytics events once after a successful purchase.
@@ -29,9 +24,13 @@ export default function PurchaseTracker() {
     const alreadyTracked = window.sessionStorage.getItem("vow_purchase_tracked")
 
     if (subscription.status === "active" && pendingPurchase && !alreadyTracked) {
-      window.dataLayer = window.dataLayer || []
-      window.dataLayer.push({
-        event: "vow_purchase",
+      /*
+        Through pushEvent like every other event, rather than a raw dataLayer
+        push of its own. This was a fifth consumer of the dead container, missed
+        in the first sweep because it wrote to the dataLayer directly instead of
+        going through the helper.
+      */
+      pushEvent("vow_purchase", {
         plan: subscription.plan_id,
         value: subscription.plan_price,
         currency: subscription.currency || "ILS",
