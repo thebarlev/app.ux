@@ -288,6 +288,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
               <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.name}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={nameId}
                 value={fullName}
@@ -301,6 +302,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
               <label htmlFor={phoneId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.phone}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={phoneId}
                 value={phone}
@@ -317,6 +319,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
               <label htmlFor={emailId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.email}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={emailId}
                 value={email}
