@@ -79,7 +79,7 @@ export function AuditorScaleStyles() {
 }
 .${AUDITOR_SCOPE} .ar-field:focus,
 .${AUDITOR_SCOPE} .ar-field:focus-visible{
-  border-bottom:2px solid #3F76AC; box-shadow:none; outline:none;
+  border-bottom:2px solid #3F76AC !important; box-shadow:none !important; outline:none;
 }
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }

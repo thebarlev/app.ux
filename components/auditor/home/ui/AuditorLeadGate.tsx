@@ -256,6 +256,18 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           </div>
 
           {/*
+            The underline is set inline, not from the scoped stylesheet.
+
+            The .ar-scope .ar-field rule is present, matches the element and
+            reads border-width 0 0 1px in the CSSOM, and the element carries the
+            class and sits inside the scope — all verified in the browser. The
+            computed style was still 1px on four sides against a white fill, and
+            an enumeration of every matching rule that sets border or background
+            came back empty, so whatever wins is not reachable that way. Rather
+            than keep excavating, the declaration goes where nothing but
+            !important can outrank it. The class stays for the :focus rule, which
+            an inline style cannot express.
+
             Standing labels above the fields, not placeholders inside them.
 
             A placeholder is the wrong element for a field's name: it disappears
@@ -282,7 +294,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
                 className="ar-field h-[52px] focus:ring-0"
-                style={{}}
+                style={ border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }
               />
             </div>
             <div>
@@ -297,7 +309,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
@@ -313,7 +325,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left" }}
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
