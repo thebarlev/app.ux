@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { captureAuditorScanCompleted, captureAuditorScanStarted, resolvePageLocale } from "@/lib/analytics/posthog-events"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
+import { trackLead } from "@/lib/analytics/meta-pixel"
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
 import type { StatusResponse, Step } from "@/components/auditor/home/logic/auditor-home-types"
 
@@ -132,8 +133,18 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     setError(null)
     if (!siteUrl.trim()) return
 
+    /*
+      Fires for everyone now.
+
+      It was `if (trackedPlan) pushEvent(...)`, and trackedPlan comes from
+      link_id or a chosen plan — so a visitor arriving straight at /auditor,
+      organically or by typing the address, started a scan that was never
+      counted. Only traffic from the marketing site's tagged CTAs was. The plan
+      falls back to "organic" so the dimension stays populated instead of the
+      event disappearing.
+    */
     const trackedPlan = planFromLinkId(linkId) || normalizeTrackedPlan(selectedPlanId)
-    if (trackedPlan) pushEvent("scan_started", { plan: trackedPlan })
+    pushEvent("scan_started", { plan: trackedPlan ?? "organic" })
 
     setIsSubmitting(true)
     try {
@@ -228,6 +239,21 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
       const t = String(j?.scanAccessToken || "").trim() || token
       setScanId(sid)
       setToken(t)
+      /*
+        The lead, to both platforms, at the one moment it is real.
+
+        This is the most valuable step in the funnel and until now it was
+        measured nowhere: trackLead existed but was only called from the account
+        register page, so a visitor who left details at the gate and never signed
+        up converted silently. Fired here, after r.ok and after the row exists
+        server-side, so a failed submit cannot report a lead.
+
+        Two platforms, deliberately: Lead is Meta's standard event, generate_lead
+        is GA4's, and each is what its own reporting is built around.
+      */
+      trackLead({ source: "auditor_lead_gate" })
+      pushEvent("generate_lead", { plan: planFromLinkId(linkId) ?? "organic" })
+
       setLeadCaptured(true)
       setLeadEmailCopy(Boolean(lead.consent_contact))
       setStep(3)
