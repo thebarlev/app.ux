@@ -294,7 +294,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
                 className="ar-field h-[52px] focus:ring-0"
-                style={ border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }
+                style={{ border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
               />
             </div>
             <div>
