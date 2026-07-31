@@ -177,8 +177,16 @@ export default function AuditorRegisterClient(props: {
     <div className="auth-scope">
       <main className="min-h-svh w-full flex items-center justify-center bg-bg px-4 py-8">
         <div className="w-full max-w-[420px]">
+          {/*
+            Same treatment as the logo on /auditor: a link out to the marketing
+            site rather than a bare image. It was unlinked here too, and its alt
+            said "Vow" while the same mark two screens earlier said "Uxellent" —
+            one asset, one name.
+          */}
           <div className="mb-10 flex justify-center">
-            <Image src="/brand/black.svg" alt="Vow" width={210} height={94} priority />
+            <a href="https://uxellent.com" aria-label="Uxellent">
+              <Image src="/brand/black.svg" alt="Uxellent" width={210} height={94} priority />
+            </a>
           </div>
 
           <Card className="shadow-ui-lg auth-card">

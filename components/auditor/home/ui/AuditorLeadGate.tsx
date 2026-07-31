@@ -44,7 +44,7 @@ const T = {
     ledeA: "הציון כבר חושב. השאירו פרטים ו",
     ledeB: "הדוח נפתח מיד כאן על המסך",
     ledeC: ".",
-    peekScore: "ציון-על",
+    peekScoreLocked: "ציון האתר",
     peekIssues: "ממצאים",
     name: "שם מלא",
     phone: "טלפון",
@@ -87,7 +87,7 @@ const T = {
     ledeA: "The score is already calculated. Leave your details and ",
     ledeB: "the report opens right here on screen",
     ledeC: ".",
-    peekScore: "Overall score",
+    peekScoreLocked: "Site score",
     peekIssues: "Findings",
     name: "Full name",
     phone: "Phone",
@@ -185,11 +185,22 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
       />
 
-      <div className="relative flex min-h-[80svh] items-center justify-center px-4 py-10">
-        <div
-          className="w-full max-w-[430px] rounded-[20px] bg-white p-[26px] pb-5"
-          style={{ border: `1px solid ${C.line2}`, boxShadow: "0 30px 70px rgba(25,24,59,.20)" }}
-        >
+      {/*
+        No card around the form.
+
+        The last round flattened the three fields but left the thing they sat in:
+        a white panel with a border and a 70px drop shadow, holding a 26px inset
+        of its own. On a 390px screen that was another 52px gone plus an edge, and
+        it is the reason the form still read as cramped after the fields were
+        already flat.
+
+        The veil behind it already separates the form from the blurred report —
+        that is what a veil is for — so the panel was drawing a second boundary
+        for the same job. The form is now the content of the page at this step,
+        with a width cap so it does not sprawl on a desktop.
+      */}
+      <div className="relative flex min-h-[80svh] items-center justify-center px-3 py-10 sm:px-4">
+        <div className="w-full max-w-[460px]">
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
             style={{ background: C.greenBg, color: C.green, fontSize: "var(--ar-meta)" }}
@@ -210,7 +221,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           </p>
 
           <div className="mb-[17px] flex gap-2">
-            <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
+            <div className="flex-1 flex flex-col items-center justify-center rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               {/*
                 A padlock on the score's own type scale rather than a grey
                 placeholder bar. It sits in the same 19px line box as the
@@ -230,7 +241,13 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                   <rect x="1.7" y="7.2" width="11.6" height="8.2" rx="2.3" fill="currentColor" />
                 </svg>
               </span>
-              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekScore}</span>
+              {/*
+                "ציון האתר" under the padlock, not "ציון-על". The old label named
+                a metric that does not exist by that name anywhere else in the
+                flow; this one names the thing the lock is holding, which is what
+                a caption on a locked tile is for.
+              */}
+              <span className="mt-0.5 block font-bold" style={{ color: C.muted, fontSize: "var(--ar-caption)" }}>{t.peekScoreLocked}</span>
             </div>
             <div className="flex-1 rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               <b className="block font-extrabold tabular-nums" style={{ color: C.ink, fontSize: "var(--ar-peek)", lineHeight: "var(--ar-peek)" }}>{issuesCount}</b>
@@ -239,6 +256,18 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
           </div>
 
           {/*
+            The underline is set inline, not from the scoped stylesheet.
+
+            The .ar-scope .ar-field rule is present, matches the element and
+            reads border-width 0 0 1px in the CSSOM, and the element carries the
+            class and sits inside the scope — all verified in the browser. The
+            computed style was still 1px on four sides against a white fill, and
+            an enumeration of every matching rule that sets border or background
+            came back empty, so whatever wins is not reachable that way. Rather
+            than keep excavating, the declaration goes where nothing but
+            !important can outrank it. The class stays for the :focus rule, which
+            an inline style cannot express.
+
             Standing labels above the fields, not placeholders inside them.
 
             A placeholder is the wrong element for a field's name: it disappears
@@ -254,24 +283,26 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
 
             ids come from useId so two gates on one page cannot collide.
           */}
-          <div className="space-y-[11px]">
+          <div className="space-y-[15px]">
             <div>
               <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.name}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={nameId}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 autoComplete="name"
-                className="h-[45px] rounded-[11px]"
-                style={{ background: C.field, borderColor: C.line2 }}
+                className="ar-field h-[52px] focus:ring-0"
+                style={{ border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
               />
             </div>
             <div>
               <label htmlFor={phoneId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.phone}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={phoneId}
                 value={phone}
@@ -280,14 +311,15 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-                className="h-[45px] rounded-[11px]"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                className="ar-field h-[52px] focus:ring-0"
               />
             </div>
             <div>
               <label htmlFor={emailId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.email}
               </label>
+              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
               <Input
                 id={emailId}
                 value={email}
@@ -296,13 +328,23 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", background: C.field, borderColor: C.line2 }}
-                className="h-[45px] rounded-[11px]"
+                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.line2}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                className="ar-field h-[52px] focus:ring-0"
               />
             </div>
           </div>
 
           {/*
+            Alignment note, because this reverses a verified change on purpose.
+
+            A previous round moved these labels from items-start to items-center,
+            and that was measured and confirmed: the box sat dead-centre of the
+            two-line block. Centring on the block is the wrong target. A consent
+            box belongs on the line it introduces, so a two-line label does not
+            drift it into the gap between lines. Back to items-start, with an
+            explicit offset that lands it on the first line rather than above it.
+            This is deliberate, not a regression.
+
             The size sits on each label, not on this wrapper.
 
             app/globals.css carries an unlayered `label { font-size: 13px }`, and
@@ -314,25 +356,37 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             element rule quietly outranking inheritance.
           */}
           <div className="mt-[9px] space-y-[9px] leading-[1.45]">
-            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-start gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentTerms}
                 onChange={(e) => setConsentTerms(e.target.checked)}
-                className="mt-0.5 h-[15px] w-[15px] shrink-0"
-                style={{ accentColor: C.brand }}
+                className="shrink-0"
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)",
+                  // Centred on the first line of the label rather than on the block.
+                  // items-start alone pins it to the top edge, which sits above the
+                  // cap height; half the difference between one line box and the box
+                  // itself puts it on the line. Derived from the two tokens, so it
+                  // stays true at both scales.
+                  marginTop: "calc((var(--ar-prose) * 1.45 - var(--ar-check)) / 2)" }}
               />
               <span style={{ color: C.ink2 }}>
                 {t.terms} <b style={{ color: C.red }}>*</b>
               </span>
             </label>
-            <label className="flex cursor-pointer items-start gap-2" style={{ fontSize: "var(--ar-prose)" }}>
+            <label className="flex cursor-pointer items-start gap-2.5" style={{ fontSize: "var(--ar-prose)" }}>
               <input
                 type="checkbox"
                 checked={consentContact}
                 onChange={(e) => setConsentContact(e.target.checked)}
-                className="mt-0.5 h-[15px] w-[15px] shrink-0"
-                style={{ accentColor: C.brand }}
+                className="shrink-0"
+                style={{ accentColor: C.brand, width: "var(--ar-check)", height: "var(--ar-check)",
+                  // Centred on the first line of the label rather than on the block.
+                  // items-start alone pins it to the top edge, which sits above the
+                  // cap height; half the difference between one line box and the box
+                  // itself puts it on the line. Derived from the two tokens, so it
+                  // stays true at both scales.
+                  marginTop: "calc((var(--ar-prose) * 1.45 - var(--ar-check)) / 2)" }}
               />
               <span style={{ color: C.ink2 }}>
                 <b style={{ color: C.ink }}>{t.contactBold}</b>

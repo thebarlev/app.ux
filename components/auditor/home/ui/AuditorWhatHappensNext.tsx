@@ -46,6 +46,32 @@ const C = {
 
 type State = "done" | "active" | "waiting"
 
+/**
+ * The open/close marker for the step that expands.
+ *
+ * The reveal step used to borrow the "waiting" marker, which is a hollow circle
+ * — the shape this file uses for a step that has not happened yet, and the shape
+ * a radio button uses for one-of-many. Neither is what this control does. It
+ * opens and closes, so it gets a plus that becomes a minus.
+ */
+function ToggleMarker({ open }: { open: boolean }) {
+  return (
+    <span style={{
+      width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+      background: open ? C.brand : "#fff",
+      border: `2px solid ${open ? C.brand : "#DDE3EC"}`,
+      color: open ? "#fff" : C.brandInk,
+      display: "grid", placeItems: "center", transition: "background .15s ease, border-color .15s ease",
+    }}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2 6 H10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        <path d="M6 2 V10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+              style={{ opacity: open ? 0 : 1, transition: "opacity .15s ease" }} />
+      </svg>
+    </span>
+  )
+}
+
 function Marker({ state }: { state: State }) {
   if (state === "done") {
     return (
@@ -115,13 +141,6 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
         marginBottom: 14,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <span style={{ color: C.green, fontSize: "var(--ar-h3)", fontWeight: 800 }}>✓</span>
-        <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800, color: C.ink }}>
-          {en ? "We got your details, here's what happens now" : "קיבלנו את הפרטים, הנה מה שקורה עכשיו"}
-        </b>
-      </div>
-
       {/*
         Horizontal on desktop, stacked on mobile. auto-fit rather than a media
         query so the three collapse on their own at narrow widths, which is what
@@ -130,32 +149,47 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 14 }}>
         {steps.map((s) =>
           s.reveals ? (
-            <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-              <Marker state={s.state} />
-              <div>
-                <div style={{ fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink2 }}>{s.title}</div>
-                <button
-                  type="button"
-                  onClick={() => setShowContact(true)}
-                  aria-expanded={showContact}
-                  style={{
-                    marginTop: 3,
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    fontSize: "var(--ar-meta)",
-                    fontWeight: 800,
-                    color: C.brandInk,
-                    textDecoration: "underline",
-                    textUnderlineOffset: 3,
-                    cursor: "pointer",
-                  }}
-                >
+            /*
+             * The whole step is the control, not a link buried under it.
+             *
+             * It was a title with a small underlined word beneath, and the
+             * underline was the only thing saying anything here could be
+             * clicked. The step now is a <button>: the marker, the title and a
+             * chevron that turns when it opens, with the whole row as the tap
+             * target. What it reveals — the number and the WhatsApp button — is
+             * genuinely not on screen until asked for, which is the point.
+             */
+            <button
+              key={s.title}
+              type="button"
+              onClick={() => setShowContact((v) => !v)}
+              aria-expanded={showContact}
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 10, width: "100%",
+                background: "none", border: "none", padding: 0, font: "inherit",
+                textAlign: "start", cursor: "pointer", color: "inherit",
+              }}
+            >
+              {/*
+                Both the marker and the chevron sit on the first line rather than
+                in the middle of the row. The title can wrap, and when it did the
+                pair drifted into the gap between its two lines.
+              */}
+              <span style={{ marginTop: "calc((var(--ar-prose) * 1.45 - 26px) / 2)", display: "flex" }}>
+                <ToggleMarker open={showContact} />
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: "var(--ar-prose)", fontWeight: 800, color: C.ink2 }}>{s.title}</span>
+                <span style={{ display: "block", fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, marginTop: 2 }}>
                   {s.body}
-                </button>
-              </div>
-            </div>
+                </span>
+              </span>
+              <svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden="true"
+                   style={{ flexShrink: 0, color: C.brandInk, marginTop: "calc((var(--ar-prose) * 1.45 - 13px) / 2)",
+                            transform: showContact ? "rotate(180deg)" : "none", transition: "transform .18s ease" }}>
+                <path d="M2.5 4.5 L6 8 L9.5 4.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           ) : (
             <div key={s.title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <Marker state={s.state} />
@@ -168,7 +202,13 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
         )}
       </div>
 
-      {/* Only after the visitor asks. See the note on showContact. */}
+      {/*
+        Only after the visitor asks. See the note on showContact.
+
+        It arrives on its own tinted shelf rather than as a bare row, because the
+        complaint was that opening it produced no visible change: the buttons
+        appeared, but nothing said a panel had opened.
+      */}
       {showContact ? (
         <div
           style={{
@@ -176,9 +216,12 @@ export function AuditorWhatHappensNext({ locale, whatsappUrl, phone = "054-52151
             alignItems: "center",
             gap: 10,
             flexWrap: "wrap",
-            marginTop: 16,
-            paddingTop: 14,
-            borderTop: `1px solid ${C.line}`,
+            marginTop: 14,
+            padding: "12px 14px",
+            borderRadius: 12,
+            background: "#fff",
+            border: `1px solid ${C.line}`,
+            animation: "ar-reveal .18s ease-out both",
           }}
         >
           <span style={{ fontSize: "var(--ar-prose)", fontWeight: 700, color: C.ink2 }}>

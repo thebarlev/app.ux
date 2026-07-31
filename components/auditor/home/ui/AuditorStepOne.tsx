@@ -47,16 +47,32 @@ export function AuditorStepOne(props: Props) {
 
   return (
     <div className="mx-auto flex min-h-[70svh] w-full max-w-2xl flex-col items-center justify-center gap-10 text-center">
-      <Image src="/brand/black.svg" alt="Uxellent" width={140} height={48} priority />
+      {/*
+        The logo leaves the product and goes to the marketing site.
+
+        It was a bare <img> with no anchor at all — not an internal link, not
+        href="#", simply not clickable. app.uxellent.com is the product and
+        uxellent.com is the shop window, so the mark at the top of the funnel
+        belongs to the shop window.
+
+        Plain external link, no target=_blank: this is a visitor stepping out of
+        a flow they have not started yet, and a new tab for that is clutter.
+      */}
+      <a href="https://uxellent.com" aria-label="Uxellent">
+        <Image src="/brand/black.svg" alt="Uxellent" width={140} height={48} priority />
+      </a>
       <h1 className="text-balance text-3xl font-semibold leading-tight md:text-4xl">
         {locale === "en" ? (
           <>How visible is your site in Google & AI search?</>
         ) : (
-          <>
-            כמה סיכוי יש לאתר שלך להופיע
-            <br />
-            בגוגל ובחיפוש AI?
-          </>
+          /*
+           * No hard <br />. It used to force the split after "להופיע", and on a
+           * phone the first half then wrapped again — three lines from a
+           * two-line headline. text-wrap:balance on the h1 picks the split
+           * itself once the line is not pre-broken, and it balances the two
+           * rather than leaving one word stranded.
+           */
+          <>כמה סיכוי יש לאתר שלך להופיע בגוגל ובחיפוש AI?</>
         )}
       </h1>
       <div className={`w-full max-w-xl ${locale === "en" ? "flex flex-row" : ""}`} dir={locale === "en" ? "ltr" : undefined}>

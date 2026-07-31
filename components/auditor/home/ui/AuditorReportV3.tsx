@@ -67,6 +67,12 @@ const C = {
    * rules rather than frames, and hierarchy comes from scale and space.
    */
   surface: "#F6F8FC",
+  /**
+   * Secondary text on the navy closing block. Same value as onNavyDim in
+   * AuditorTestimonials, which owns the top half of that block — the two halves
+   * have to agree and this is the second of them.
+   */
+  onNavyDim: "#C4D3E6",
 } as const
 
 function toneFor(v: number | null): { text: string; fill: string } {
@@ -92,12 +98,47 @@ function Val({ v, teaser, size = 30 }: { v: number | null; teaser: boolean; size
   )
 }
 
+/**
+ * Where this category stands, as a climb rather than a stripe.
+ *
+ * A flat filled bar says "some of a thing" and nothing else — it has no low end
+ * and no high end, so 40 and 80 look like different amounts of the same
+ * indifferent colour. Twelve rungs that rise left to right give the axis back:
+ * the lit ones are how far up this site has got, the unlit ones are the room
+ * above it, and the height of each rung says which direction is better.
+ *
+ * Twelve because the tile is narrow on a phone and fewer, fatter rungs read at a
+ * glance; the value is still exact in the figure above.
+ */
+const RUNGS = 12
+
 function Meter({ v, teaser }: { v: number | null; teaser: boolean }) {
   const pct = teaser ? 60 : v === null ? 0 : Math.max(0, Math.min(100, v))
   const tone = toneFor(teaser ? null : v)
+  const lit = Math.round((pct / 100) * RUNGS)
   return (
-    <div style={{ height: 7, background: C.track, borderRadius: 99, position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", insetInlineEnd: 0, top: 0, bottom: 0, width: `${pct}%`, borderRadius: 99, background: teaser ? "#00000022" : tone.fill }} />
+    <div
+      style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 26 }}
+      role="img"
+      aria-label={v === null ? undefined : `${pct} / 100`}
+    >
+      {Array.from({ length: RUNGS }, (_, i) => {
+        const on = i < lit
+        return (
+          <span
+            key={i}
+            style={{
+              flex: 1,
+              // 34% at the low end rising to full height at the high end, so the
+              // shape itself reads as a scale before any colour is noticed.
+              height: `${34 + (i / (RUNGS - 1)) * 66}%`,
+              borderRadius: 2,
+              background: on ? (teaser ? "#00000022" : tone.fill) : C.track,
+              transition: "background .2s ease",
+            }}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -187,11 +228,26 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
     <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "var(--ar-page)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
       <AuditorScaleStyles />
       <div style={{ maxWidth: 1040, margin: "0 auto" }}>
-        {/* header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, gap: 12, flexWrap: "wrap" }}>
-          <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)" }}>
-            {en ? "Ranking report" : "דוח דירוג"} · <span style={{ color: C.brandInk }}>{teaser ? "" : host}</span>
+        {/*
+          The masthead. It used to be one unstyled line of bold text with a dot
+          and a hostname, sitting under a block of empty page — the only part of
+          the report that looked like it had been forgotten.
+
+          Now a labelled strip: a small brand-coloured eyebrow saying what this
+          document is, and the hostname under it at heading weight, which is the
+          thing the visitor actually wants confirmed. Hairline under it so the
+          head of the page has an edge to sit on.
+        */}
+        <div style={{ marginTop: 0, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
+            {en ? "Ranking report" : "דוח דירוג"}
           </div>
+          {!teaser && host ? (
+            <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)", color: C.ink, marginTop: 3, wordBreak: "break-word" }} dir="ltr">
+              {host}
+            </div>
+          ) : null}
         </div>
 
         {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
@@ -248,8 +304,27 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           the headline rather than the aside it is. The blue it needs is in the
           badge.
         */}
-        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "center", gap: 18, marginBottom: 12 }}>
-          <div style={{ flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: C.brand, display: "grid", placeItems: "center", color: "#fff", fontSize: 22, boxShadow: "0 4px 12px rgba(83,137,187,.35)" }}>✦</div>
+        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "flex-start", gap: 11, marginBottom: 12 }}>
+          {/*
+            A rising line instead of a 46px filled tile with a ✦ in it. The tile
+            was the widest thing in the banner and said nothing; the chart says
+            what the sentence beside it promises. The line draws itself once on
+            mount and then holds — motion that reports, rather than loops.
+          */}
+          {/*
+            26px and on the first line of the heading, not 34px centred against
+            the whole block. Centring floated it into the middle of a five-line
+            column and the 18px gap beside it took a further chunk of a 334px
+            row, which is the crowding: the mark was reading as a third of the
+            banner rather than as a mark.
+          */}
+          <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand, marginTop: "calc((var(--ar-h3) * 1.25 - 26px) / 2)" }} aria-hidden="true">
+            <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
+              <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
+              <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
           <div style={{ flex: 1 }}>
             {/*
               Nobody is working on this site yet. The service starts after an
@@ -264,12 +339,12 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
               half a reader takes least seriously.
             */}
             <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800 }}>
-              {en ? "We're ready to start on your site" : "אנחנו מוכנים להתחיל לעבוד על האתר שלך"}
+              {en ? "We'll bring your business new customers" : "נביא לעסק שלך לקוחות חדשים"}
             </b>
             <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2 }}>
               {en
-                ? "We scan, spot and fix, and you watch the ranking climb without doing any of it yourself. It starts the moment you give us the go-ahead."
-                : "אנחנו סורקים, מזהים ומתקנים, ואתם רואים את הדירוג מטפס בלי לעשות כלום. מתחילים ברגע שתאשרו."}
+                ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
+                : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
             </p>
           </div>
         </div>
@@ -280,7 +355,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Panelling a single sentence was most of what made this page feel closed
           in.
         */}
-        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: "var(--ar-label)", color: C.ink2, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "4px 6px", margin: "2px 0 24px", fontSize: "var(--ar-label)", lineHeight: 1.35, color: C.ink2, flexWrap: "wrap" }}>
           <span>🔍</span>
           <span>
             <span style={{ fontWeight: 800, color: C.ink }}>
@@ -300,32 +375,70 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             {en ? "with data-based analysis, not estimates." : "באתר שלך, בניתוח מבוסס-נתונים ולא בהערכות."}
           </span>
           <span style={{ color: C.muted }}>·</span>
-          <span style={{ color: C.gold, fontWeight: 700 }}>
+          <span style={{ color: C.gold, fontWeight: 700, lineHeight: 1.25 }}>
             {en ? "Premium customers get a deep scan across dozens of pages ↗" : "לקוחות פרימיום מקבלים סריקה עמוקה בעשרות עמודים ↗"}
           </span>
         </div>
 
         {/* category tiles */}
-        <SectionHead title={en ? "Score by category" : "ציון לפי קטגוריה"} hint={en ? "0–100 · higher is better" : "0–100 · ככל שגבוה יותר, טוב יותר"} />
-        <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, marginBottom: 24 }}>
+        {/*
+          Title on its own line, hint under it, cards below. The two used to sit
+          on one row with space-between, and on a phone the hint crowded the
+          title into a corner of its own heading.
+        */}
+        <div style={{ margin: "0 4px 12px" }}>
+          {/*
+            A question, in the register the homepage headline uses, rather than
+            "ציון לפי קטגוריה" — which named the mechanism and not the stake. The
+            mechanism moves down into the subhead where it belongs.
+          */}
+          <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.ink, width: "100%" }}>
+            {en ? "How likely is your business to be found?" : "מה הסיכוי שהעסק שלך יימצא?"}
+          </h2>
+          <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>
+            {en ? "By category · 0–100" : "לפי קטגוריה · 0–100"}
+          </div>
+        </div>
+        <div className="ar-tiles" style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 24 }}>
           {TILES.map((t) => (
             <div key={t.label} className="ar-tile" style={{ background: t.locked && !teaser ? C.goldBg : C.surface, borderRadius: 15, padding: "var(--ar-panel-sm)" }}>
-              <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+              {/*
+                Fixed-height label row as well as a fixed-height value row. The
+                locked tiles carry a padlock next to the word, and the glyph is
+                taller than the label text, so their whole tile shifted down and
+                the meters in one row started at two different heights.
+              */}
+              <div className="ar-tile-label" style={{ fontSize: "var(--ar-label)", color: C.ink2, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, height: "calc(var(--ar-label) * 1.5)" }}>
                 {t.label}
-                {t.locked && !teaser ? <span style={{ fontSize: "var(--ar-caption)" }}>🔒</span> : null}
+                {/* The lock lives on the value row now, next to the word "נעול". */}
               </div>
               {t.locked && !teaser ? (
                 <>
-                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: 1.1, margin: "10px 0 11px", color: C.gold }}>
-                    {en ? "Premium" : "בפרימיום"}
+                  {/*
+                    A locked tile shows a lock and the word, not a grey bar that
+                    looks like a score of zero. The row underneath says what is
+                    behind it rather than drawing an empty scale, because an
+                    unlit scale on a locked card reads as "measured, and bad".
+                  */}
+                  <div className="ar-tile-val" style={{ fontSize: "var(--ar-label)", fontWeight: 800, lineHeight: "var(--ar-val)", height: "var(--ar-val)", display: "flex", alignItems: "center", gap: 7, margin: "4px 0 9px", color: C.gold }}>
+                    <span style={{ fontSize: "var(--ar-caption)", lineHeight: 1 }}>🔒</span>
+                    {en ? "Locked" : "נעול"}
                   </div>
-                  <div className="ar-tile-meter">
-                    <Meter v={null} teaser={false} />
+                  <div className="ar-tile-meter" style={{ display: "flex", alignItems: "center", height: 26 }}>
+                    <span style={{ fontSize: "var(--ar-meta)", color: C.gold, fontWeight: 700 }}>
+                      {en ? "Opens with premium" : "נפתח בפרימיום"}
+                    </span>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="ar-tile-val" style={{ margin: "4px 0 9px" }}>
+                  {/*
+                    A fixed --ar-val-tall slot, so the meter under every tile
+                    starts at the same y whatever the tile has to show: a real
+                    figure, the em dash for "not measured", or the word Premium.
+                    They used to be three different heights in one row.
+                  */}
+                  <div className="ar-tile-val" style={{ height: "var(--ar-val)", display: "flex", alignItems: "center", margin: "4px 0 9px" }}>
                     <Val v={t.value} teaser={teaser} />
                   </div>
                   <div className="ar-tile-meter">
@@ -395,13 +508,25 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
         </div>
 
         {/*
-          Social proof, between the findings and the ask. Not in the teaser: the
-          teaser is a shape to glimpse behind a form, and two paragraphs of real
-          customer prose blurred out is noise there.
-        */}
-        {!teaser ? <AuditorTestimonials locale={locale} /> : null}
+          The closing block: what other customers say, and then us saying we have
+          their details. One container, not two.
 
-        {/*
+          They were two blocks with a gap between them, and the gap made the
+          quotes read as one more report section that happened to be followed by
+          a CTA. Joined, the sequence is an argument: here is what they say about
+          us, and here is us. Clipped by a single overflow:hidden radius so the
+          tinted half and the navy half are one shape.
+
+          The separation this had from the findings above it is untouched — that
+          seam is the one that should stay open.
+
+          Not in the teaser: it is a shape to glimpse behind a form, and two
+          paragraphs of real customer prose blurred out is noise there.
+        */}
+        {!teaser ? (
+          <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden", background: "linear-gradient(135deg,#1B3453,#2C577F)" }}>
+            <AuditorTestimonials locale={locale} />
+            {/*
           CTA. The visitor has already left their details by the time this shows.
 
           It is the one dark block on the page and the only place colour is used
@@ -411,8 +536,8 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           washed-out paragraph inside the single dark band read as the weakest
           text on the screen while sitting in the loudest place on it.
         */}
-        {!teaser ? (
-          <div style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)", borderRadius: 20, padding: "var(--ar-panel-lg)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap", marginTop: 16 }}>
+            <div style={{ padding: "var(--ar-panel-lg)", color: "#fff" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 240 }}>
                 {/*
                 Explicit white, not inherited white.
@@ -446,6 +571,32 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                 {en ? `Call ${phone}` : `חייגו ${phone}`}
               </a>
             </div>
+            </div>
+            {/*
+              The mark closes the block. It is the one place on this page where
+              our name belongs: directly under two customers vouching for it, so
+              the quotes land on somebody rather than trailing off. White on the
+              navy, and decorative — the page has already said who we are.
+
+              A sibling of the CTA row inside the same navy wrapper, not a child
+              of the row. Inside it, it became a third item in a space-between
+              flex and sat off to one side; in a wrapper of its own it would have
+              restarted the gradient and drawn a seam.
+            */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 7, marginTop: 20 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/white.svg" alt="" aria-hidden="true" width={116} height={40}
+                   style={{ width: 116, height: "auto", opacity: 0.92 }} />
+              {/*
+                The line under the mark. Ours, not a customer's, so unlike the
+                quotes above it this one is translated rather than shown in
+                Hebrew on an English page.
+              */}
+              <span style={{ fontSize: "var(--ar-meta)", fontWeight: 600, color: C.onNavyDim, textAlign: "center", letterSpacing: ".01em" }}>
+                {en ? "Digital presence that brings customers" : "נוכחות דיגיטלית שמביאה לקוחות"}
+              </span>
+            </div>
+          </div>
           </div>
         ) : null}
       </div>
