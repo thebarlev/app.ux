@@ -48,6 +48,12 @@ const AI_SCORE_CSS = `
 .aisc-badge { font-size:.84rem; font-weight:700; border-radius:99px; padding:5px 18px; letter-spacing:.03em; animation:badgeIn .4s .12s ease both; position:relative; z-index:1; }
 .aisc-desc { font-size:.9rem; color:#6b6359; max-width:290px; text-align:center; line-height:1.55; animation:badgeIn .4s .22s ease both; position:relative; z-index:1; }
 .aisc-scanning-msg { font-size:.8rem; color:#9b8e82; animation:msgFade 2.8s ease both; min-height:1.2em; position:relative; z-index:1; font-family:'DM Mono', monospace; letter-spacing:.02em; }
+/* Same look as .aisc-scanning-msg but WITHOUT msgFade. The rotating scan
+   messages only stay visible because they remount every 2.8s (key={msgIdx}),
+   which restarts the animation; msgFade ends at opacity:0 and fill-mode "both"
+   keeps it there. Terminal-state text never remounts, so with msgFade it would
+   fade out permanently and leave a bare score with no explanation. */
+.aisc-terminal-msg { font-size:.8rem; color:#9b8e82; min-height:1.2em; position:relative; z-index:1; font-family:'DM Mono', monospace; letter-spacing:.02em; }
 `
 
 type Grade = { label: string; desc: string; color: string; bg: string; border: string; scoreColor: string }
@@ -143,10 +149,10 @@ export function AiScoreHero({ status, locale }: { status: StatusResponse | null;
           </>
         ) : isTerminalWithoutScore ? (
           <div className="space-y-1">
-            <div className="aisc-scanning-msg">
+            <div className="aisc-terminal-msg">
               {locale === "en" ? "Scan completed, but no scorable pages were fetched." : "הסריקה הושלמה, אבל לא נמשכו עמודים מתאימים לחישוב ציון."}
             </div>
-            <div className="aisc-scanning-msg">
+            <div className="aisc-terminal-msg">
               {locale === "en" ? "Try another URL or run the scan again." : "נסו כתובת אחרת או הריצו סריקה מחדש."}
             </div>
           </div>
