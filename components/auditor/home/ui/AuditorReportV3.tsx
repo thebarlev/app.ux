@@ -230,6 +230,22 @@ function scoreBand(total: number): "high" | "mid" | "low" {
   return "low"
 }
 
+/**
+ * One fixed size for the whole band, desktop and phone alike.
+ *
+ * Everything else in this flow rides the --ar-* scale, which grows on a phone
+ * — 13.5px prose becomes 20px. This block is asked to hold one size at both
+ * widths instead, so the sizes are literals rather than tokens; a token cannot
+ * express "the same at every width" here.
+ *
+ * 18px rather than a 16/18 split. auditor-scale states the floor in as many
+ * words — nothing a visitor reads goes below 18px on a phone — and a 16px body
+ * would have sat under it on exactly the screens that rule was written for.
+ * Hierarchy comes from weight instead: the reading leads at 800, the rest is
+ * regular, and the block still steps up from the 14.5px lede around it.
+ */
+const BAND_TYPE = 18
+
 function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number }) {
   const copy = locale === "en" ? SCORE_BAND_COPY.en : SCORE_BAND_COPY.he
   if (!copy) return null
@@ -246,11 +262,11 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
      * commercial promise and it is what the contact block below is for.
      */
     <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14 }}>
-      <h3 style={{ fontSize: "var(--ar-h3)", fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
-      <p style={{ fontSize: "var(--ar-lede)", color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
+      <h3 style={{ fontSize: BAND_TYPE, fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
+      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
 
       <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.line}` }}>
-        <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
+        <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
         {/*
           White on the surface fill, not gold.
 
@@ -268,8 +284,9 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
             color: C.ink,
             borderRadius: 14,
             padding: "12px 14px",
-            fontSize: "var(--ar-prose)",
+            fontSize: BAND_TYPE,
             fontWeight: 700,
+            textAlign: "center",
           }}
         >
           {copy.offer}
@@ -414,6 +431,22 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             </div>
           </div>
         </div>
+
+        {/*
+          Directly under the gauge, because it is the reading of that number.
+
+          It used to sit just above the closing contact block, on the argument
+          that the reading and the invitation to act on it are one beat. In
+          practice that put four paragraphs about the score at the far end of
+          the page, after every finding and category, where the visitor has
+          already formed their own view of it. Under the panel it comments on,
+          it lands while the number is still on screen — and the closing block
+          keeps its own job of asking for the conversation.
+
+          Gated on a real number: the teaser has no score by design, and a scan
+          that ended without one never reaches this component.
+        */}
+        {!teaser && total !== null ? <ScoreBandCopy locale={locale} total={total} /> : null}
 
         {/* experts banner */}
         {/*
@@ -642,13 +675,6 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Not in the teaser: it is a shape to glimpse behind a form, and two
           paragraphs of real customer prose blurred out is noise there.
         */}
-        {/*
-          Reads the score, sells nothing the score does not support. Gated on a
-          real number: the teaser has no score by design, and a scan that ended
-          without one never reaches this component.
-        */}
-        {!teaser && total !== null ? <ScoreBandCopy locale={locale} total={total} /> : null}
-
         {!teaser ? (
           <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden", background: "linear-gradient(135deg,#1B3453,#2C577F)" }}>
             <AuditorTestimonials locale={locale} />
