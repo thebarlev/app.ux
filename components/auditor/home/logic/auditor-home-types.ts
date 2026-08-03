@@ -42,6 +42,21 @@ export type StatusResponse =
     }
   | { ok: false; error: string }
 
+/**
+ * A scan that reached a terminal state without producing a usable score.
+ *
+ * Deliberately not `status === "failed"`. The common real-world case is a scan
+ * that finishes cleanly with nothing to score — every page fetch blocked, so
+ * the pipeline finalizes via buildMinimalReport() and leaves score_total null
+ * while status reads "done". Keyed on score_ready, which the status route
+ * derives from the score_total column, so the UI and the pipeline agree.
+ */
+export function isScanTerminalWithoutScore(status: StatusResponse | null): boolean {
+  if (!status || status.ok !== true) return false
+  const terminal = status.status === "done" || status.status === "failed"
+  return terminal && status.score_ready !== true
+}
+
 export type AuditorHomeProps = {
   locale?: AuditorLocale
   basePath?: string

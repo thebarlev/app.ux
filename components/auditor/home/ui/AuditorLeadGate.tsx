@@ -14,6 +14,13 @@ type Props = {
   /** Real counts from the finished scan — the headline states them out loud. */
   pagesScanned: number
   issuesCount: number
+  /**
+   * The scan reached a conclusion but produced no score, so there is no report
+   * behind this form. Switches every promise on the screen: no "הדוח מוכן", no
+   * peek tiles over 0/0, and a CTA that offers a callback instead of a report.
+   * Rule 5 permits the gate to open here; it does not permit it to lie.
+   */
+  noScore?: boolean
   onSubmit: (lead: {
     full_name: string
     phone: string
@@ -93,6 +100,24 @@ const T = {
       const found = i === 0 ? "ולא מצאנו ממצאים מהותיים" : i === 1 ? "ומצאנו ממצא אחד" : `ומצאנו ${i} ממצאים`
       return `${scanned} ${found}.`
     },
+    /**
+     * The no-score variant. Every line that promises a report is replaced
+     * rather than softened: there is no score, no findings count and no
+     * document waiting, so "מוכן", "הציון כבר חושב" and "הדוח נפתח מיד" would
+     * each be false. What is true is that the scan finished, that something
+     * blocked it, and that a person will look at it — which is what the email
+     * to the team is for.
+     */
+    noScore: {
+      ready: "● הסריקה הסתיימה",
+      headlineA: "לא הצלחנו לקרוא את האתר.",
+      where: "השאירו פרטים ונחזור אליכם",
+      ledeA: "יש תקלה בסריקת האתר. השאירו פרטים ו",
+      ledeB: "נבדוק מה חסם אותה ונחזור אליכם",
+      ledeC: ".",
+      cta: "שלחו פרטים ←",
+      micro: "ללא עלות · נחזור אליכם באופן אישי",
+    },
   },
   en: {
     ready: "● Your report is ready",
@@ -119,6 +144,16 @@ const T = {
       const found = i === 0 ? "and found no major findings" : i === 1 ? "and found 1 finding" : `and found ${i} findings`
       return `${scanned} ${found}.`
     },
+    noScore: {
+      ready: "● Scan finished",
+      headlineA: "We couldn't read this site.",
+      where: "Leave your details and we'll get back to you",
+      ledeA: "Something blocked the scan. Leave your details and ",
+      ledeB: "we'll find out what and come back to you",
+      ledeC: ".",
+      cta: "Send my details →",
+      micro: "Free · a person will get back to you",
+    },
   },
 } as const
 
@@ -141,10 +176,14 @@ const T = {
  * makes the form it is meant to gate optional. The count of findings is not
  * treated that way because the headline above already says it in words.
  */
-export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCount, onSubmit }: Props) {
+export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCount, noScore = false, onSubmit }: Props) {
   const en = locale === "en"
   const t = T[en ? "en" : "he"]
   const rtl = !en
+  /** Every promise-bearing string, resolved once against the two variants. */
+  const copy = noScore
+    ? t.noScore
+    : { ready: t.ready, where: t.where, ledeA: t.ledeA, ledeB: t.ledeB, ledeC: t.ledeC, cta: t.cta, micro: t.micro }
 
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
@@ -185,12 +224,20 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         and pointer-events-none stops it swallowing taps meant for the fields,
         which matters on mobile where the two overlap almost entirely.
       */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 select-none overflow-hidden blur-[6px] opacity-40 sm:blur-[8px] sm:opacity-50"
-      >
-        <AuditorReportV3 locale={locale} status={null} teaser />
-      </div>
+      {/*
+        Dropped in the no-score variant. Decorative or not, a report-shaped
+        thing sitting behind the form is the strongest promise on the screen —
+        it says the document exists and the form is the only thing in the way.
+        With no score there is nothing behind the form, so nothing is drawn.
+      */}
+      {noScore ? null : (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 select-none overflow-hidden blur-[6px] opacity-40 sm:blur-[8px] sm:opacity-50"
+        >
+          <AuditorReportV3 locale={locale} status={null} teaser />
+        </div>
+      )}
 
       {/* The mockup's veil: white at 62% over a 2.5px blur. */}
       <div
@@ -216,24 +263,34 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         <div className="w-full max-w-[460px]">
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
-            style={{ background: C.greenBg, color: C.green, fontSize: "var(--ar-meta)" }}
+            style={
+              noScore
+                ? { background: "#FDF3E3", color: "#B7791F", fontSize: "var(--ar-meta)" }
+                : { background: C.greenBg, color: C.green, fontSize: "var(--ar-meta)" }
+            }
           >
-            {t.ready}
+            {copy.ready}
           </span>
 
           <h2 className="mb-1.5 mt-3 font-extrabold leading-[1.3]" style={{ color: C.ink, fontSize: "var(--ar-h1)" }}>
-            {t.headline(pagesScanned, issuesCount)}
+            {noScore ? t.noScore.headlineA : t.headline(pagesScanned, issuesCount)}
             <br />
-            {t.where}
+            {copy.where}
           </h2>
 
           <p className="mb-4" style={{ color: C.ink2, fontSize: "var(--ar-lede)" }}>
-            {t.ledeA}
-            <b style={{ color: C.ink }}>{t.ledeB}</b>
-            {t.ledeC}
+            {copy.ledeA}
+            <b style={{ color: C.ink }}>{copy.ledeB}</b>
+            {copy.ledeC}
           </p>
 
-          <div className="mb-[17px] flex gap-2">
+          {/*
+            The peek tiles are dropped entirely rather than zeroed. A padlock
+            over a score that was never computed advertises something being
+            withheld, and "0 ממצאים" reads as a clean bill of health for a site
+            nobody managed to read. Neither number exists here.
+          */}
+          <div className={`mb-[17px] flex gap-2 ${noScore ? "hidden" : ""}`}>
             <div className="flex-1 flex flex-col items-center justify-center rounded-[11px] p-[9px_6px] text-center" style={{ background: C.field, border: `1px solid ${C.line}` }}>
               {/*
                 A padlock on the score's own type scale rather than a grey
@@ -423,11 +480,11 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             style={{ background: C.brandDk, boxShadow: "0 8px 20px rgba(63,118,172,.28)", fontSize: "var(--ar-lede)" }}
           >
             {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-            {t.cta}
+            {copy.cta}
           </button>
 
           <div className="mt-2.5 text-center" style={{ color: C.muted, fontSize: "var(--ar-meta)" }}>
-            {t.micro}
+            {copy.micro}
           </div>
         </div>
       </div>

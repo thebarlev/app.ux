@@ -7,7 +7,7 @@ import type { AuditorLocale } from "@/lib/auditor/locale"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
 import { trackLead } from "@/lib/analytics/meta-pixel"
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
-import type { StatusResponse, Step } from "@/components/auditor/home/logic/auditor-home-types"
+import { isScanTerminalWithoutScore, type StatusResponse, type Step } from "@/components/auditor/home/logic/auditor-home-types"
 
 export function useAuditorHomeController(params: { locale: AuditorLocale; basePath: string }) {
   const { locale, basePath } = params
@@ -33,6 +33,15 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
   const [leadCaptured, setLeadCaptured] = useState(false)
+  /**
+   * The lead was submitted against a scan that produced no score.
+   *
+   * Sticky on purpose, and separate from scanEndedWithoutScore: after submit the
+   * flow moves to step 3, and step 3 has to know it owes this visitor a callback
+   * rather than a report. Reading the live scan state there would be wrong — the
+   * adopted scan restarts as "initial" and its status changes underneath.
+   */
+  const [leadWithoutScore, setLeadWithoutScore] = useState(false)
   /** Ticked marketing consent — decides whether the report is also emailed. */
   const [leadEmailCopy, setLeadEmailCopy] = useState(false)
 
@@ -47,13 +56,24 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
 
   /** Rule 5: a score that exists. Nothing else opens the gate. */
   const scoreReady = okStatus?.score_ready === true
-  const scanFailed = Boolean(okStatus && okStatus.status === "failed")
+  /**
+   * Rule 5's other half: a scan that ended with no score to show.
+   *
+   * This was `status === "failed"`, which missed the case that actually happens.
+   * A blocked crawler (Cloudflare 403 on every page, say) does not fail the
+   * scan — fetch_pages finalizes it through buildMinimalReport() and the row
+   * ends up status "done" with score_total null. That fell between both
+   * branches: not "failed", so no failure screen; no score, so the gate never
+   * opened; and step2IsDone true, so the animation stopped. The visitor sat on
+   * a frozen scan screen with no message and no way forward.
+   */
+  const scanEndedWithoutScore = isScanTerminalWithoutScore(status)
 
   const step2IsDone = Boolean(step2OkStatus && (step2OkStatus.done === true || step2OkStatus.status === "done" || step2OkStatus.status === "failed"))
   // The screenshot used to be half of this condition. It is always null in
   // production — AUDITOR_SCREENSHOT_ENABLED is empty there — so the scan card
   // now reports on the score alone.
-  const step2IsWorking = step === 2 && Boolean(scanId && token) && !scanFailed && !step2IsDone && !scoreReady
+  const step2IsWorking = step === 2 && Boolean(scanId && token) && !scanEndedWithoutScore && !step2IsDone && !scoreReady
 
   /** What the gate states out loud. Real counts or nothing. */
   const pagesScanned = typeof okStatus?.pages_scanned === "number" ? okStatus.pages_scanned : 0
@@ -185,25 +205,39 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   }
 
   /**
-   * The lead form opens on the score, not on a timer.
+   * The lead form opens on a conclusion, not on a timer and not on a score.
    *
-   * This used to be a flat 5 second setTimeout, on the reasoning that the form
-   * is what the visitor is here to be asked and so should not wait on a slow
-   * site. Rule 5 of docs/auditor-scanflow-behavior-rules.md overrides that: the
-   * gate says "הדוח מוכן", states a page count and a findings count, and
-   * promises the report opens immediately. On a scan that has not finished,
-   * every one of those is false — and on a scan that failed, the visitor hands
-   * over their details for a report that is never coming.
+   * It was a flat 5 second setTimeout once, then `scoreReady` alone. Neither is
+   * right. A timer shows the form while the scan is still running, so every
+   * promise on it is unverified. `scoreReady` alone goes too far the other way:
+   * a site that blocks the crawler produces no score at all, and those visitors
+   * were shown a dead end instead of being asked for details — while their site
+   * is exactly the one worth a human looking at.
    *
-   * The cost is real and deliberate: on a slow site the form appears later than
-   * it used to, and some visitors will leave before it does. A form that lies
-   * to arrive sooner is not the trade this flow makes.
+   * The condition is therefore "the scan reached a conclusion", with or without
+   * a number behind it. Rule 5's substance is intact: nothing opens before there
+   * is an answer, and the gate states which answer it got — see the noScore
+   * copy in AuditorLeadGate, which drops the report promise and the counters
+   * rather than showing "הדוח מוכן" over 0 pages and 0 findings.
    */
   useEffect(() => {
-    if (step !== 2 || leadCaptured) return
-    if (!scoreReady) return
+    if (step !== 2) return
+    if (!scoreReady && !scanEndedWithoutScore) return
+
+    /*
+      A visitor who already left details is not asked again — but they were
+      also never let through. The old guard returned on leadCaptured and
+      nothing else moved the step, so somebody who submitted once and then ran
+      a second scan sat on a finished scan screen indefinitely, success or
+      failure. Send them to the result instead of to the form.
+    */
+    if (leadCaptured) {
+      setLeadWithoutScore(!scoreReady)
+      setStep(3)
+      return
+    }
     setStep("gate")
-  }, [step, leadCaptured, scoreReady])
+  }, [step, leadCaptured, scoreReady, scanEndedWithoutScore])
 
   /**
    * Hand the details to the scan already running, rather than starting another.
@@ -251,9 +285,21 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
         Two platforms, deliberately: Lead is Meta's standard event, generate_lead
         is GA4's, and each is what its own reporting is built around.
       */
-      trackLead({ source: "auditor_lead_gate" })
-      pushEvent("generate_lead", { plan: planFromLinkId(linkId) ?? "organic" })
+      /*
+        scan_outcome rides both events because the gate now opens on a scan that
+        produced nothing as well. Without it "Lead" and "generate_lead" would
+        blend a lead that can open its report immediately with one that needs a
+        person to call back, and the ad reporting would read the second as the
+        first at a better cost per lead.
 
+        Captured before setLeadCaptured so it describes the scan the visitor
+        actually submitted against.
+      */
+      const scanOutcome: "scored" | "no_score" = scoreReady ? "scored" : "no_score"
+      trackLead({ source: "auditor_lead_gate", scanOutcome })
+      pushEvent("generate_lead", { plan: planFromLinkId(linkId) ?? "organic", scan_outcome: scanOutcome })
+
+      setLeadWithoutScore(scanOutcome === "no_score")
       setLeadCaptured(true)
       setLeadEmailCopy(Boolean(lead.consent_contact))
       setStep(3)
@@ -395,6 +441,20 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     setStatus(null)
     setScanId(null)
     setToken(null)
+    /*
+      The address field is cleared too.
+
+      It never was, because the only caller used to be a retry on the same
+      site. The no-score screen's button says "לסרוק כתובת אחרת", and landing
+      back on step 1 with the previous address still in the box contradicts it —
+      and, since the field is prefilled, invites appending to it rather than
+      replacing it.
+
+      leadCaptured is deliberately NOT cleared: the visitor already gave their
+      details and asking twice in one session would be worse than not asking.
+      The gate effect sends them straight to the result instead.
+    */
+    setSiteUrl("")
     router.replace(basePath)
   }
 
@@ -421,7 +481,8 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     canGoToDetails,
     step2IsWorking,
     scoreReady,
-    scanFailed,
+    scanEndedWithoutScore,
+    leadWithoutScore,
     pagesScanned,
     issuesCount,
     isSubmittingLead,
