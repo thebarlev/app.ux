@@ -441,6 +441,20 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     setStatus(null)
     setScanId(null)
     setToken(null)
+    /*
+      The address field is cleared too.
+
+      It never was, because the only caller used to be a retry on the same
+      site. The no-score screen's button says "לסרוק כתובת אחרת", and landing
+      back on step 1 with the previous address still in the box contradicts it —
+      and, since the field is prefilled, invites appending to it rather than
+      replacing it.
+
+      leadCaptured is deliberately NOT cleared: the visitor already gave their
+      details and asking twice in one session would be worse than not asking.
+      The gate effect sends them straight to the result instead.
+    */
+    setSiteUrl("")
     router.replace(basePath)
   }
 
