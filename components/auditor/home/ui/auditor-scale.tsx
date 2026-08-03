@@ -44,6 +44,32 @@ export function AuditorScaleStyles() {
   --ar-page:22px 16px 40px; --ar-panel:22px 24px; --ar-panel-lg:26px 30px; --ar-panel-sm:15px 16px;
   --ar-btn:13px 20px; --ar-gap:16px; --ar-check:15px; --ar-testi-top:34px;
 }
+/*
+  Two testimonials side by side, one per column.
+
+  The pair used to stack at every width, which left the closing block a tall
+  single file on a desktop where the two quotes fit comfortably beside each
+  other. Only the layout moves: the quotes, the avatars, the rule and every
+  colour in the block are untouched.
+
+  The rule follows the axis it separates. Between two columns it is a short
+  vertical mark on the shared edge; stacked on a phone it turns back into the
+  horizontal one. Same 64px, same colour, same "a short centred rule, not a
+  full-width border" argument as the original — see AuditorTestimonials.
+
+  Base first, phone override inside the query below, because these rules and
+  the ones in there have equal specificity and the later block wins.
+
+  align-items:start so a shorter quote does not stretch its figure to the
+  height of the taller one and float its rule away from the text.
+*/
+.${AUDITOR_SCOPE} .ar-testi-grid{
+  display:grid; grid-template-columns:1fr 1fr; column-gap:var(--ar-gap); align-items:start;
+}
+.${AUDITOR_SCOPE} .ar-testi-rule{
+  inset-inline-start:0; top:50%; transform:translateY(-50%);
+  width:1px; height:64px;
+}
 @media (max-width:640px){
   .${AUDITOR_SCOPE}{
     --ar-h1:26px; --ar-h2:21px; --ar-h3:20px; --ar-cta:24px; --ar-score:46px;
@@ -59,6 +85,19 @@ export function AuditorScaleStyles() {
   /* Full-width taps, stacked, instead of two half-width buttons wrapping. */
   .${AUDITOR_SCOPE} .ar-actions{ width:100%; }
   .${AUDITOR_SCOPE} .ar-actions > a{ flex:1 1 100%; justify-content:center; }
+  /*
+    Testimonials fall back to one column, and the rule between them turns back
+    from a vertical edge into the short horizontal one it is on a phone. Two
+    quotes side by side at 390px would be two narrow columns of broken lines,
+    which is the squeezed-desktop look the rest of this breakpoint exists to
+    avoid.
+  */
+  .${AUDITOR_SCOPE} .ar-testi-grid{ grid-template-columns:1fr; }
+  .${AUDITOR_SCOPE} .ar-testi-item + .ar-testi-item{ margin-top:18px; }
+  .${AUDITOR_SCOPE} .ar-testi-rule{
+    inset-inline-start:50%; transform:translateX(50%);
+    top:0; width:64px; height:1px;
+  }
 }
 /*
   Underline fields, not boxes.
