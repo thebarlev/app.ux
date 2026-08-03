@@ -109,17 +109,18 @@ function Quote({ t, first }: { t: Testimonial; first: boolean }) {
      * two figures were still flush — the only thing between them was their own
      * padding, so the hairline sat hard against the quote above it.
      */
-    <figure style={{ margin: 0, marginTop: first ? 0 : 18, padding: "var(--ar-panel)", textAlign: "center", position: "relative" }}>
+    <figure className="ar-testi-item" style={{ margin: 0, padding: "var(--ar-panel)", textAlign: "center", position: "relative" }}>
       {/*
         A short centred rule, not a full-width border. A rule that runs edge to
         edge cuts the block in two; this one separates two quotes inside one
         block, which is a smaller job and wants a smaller mark.
+
+        Its axis and the gap above it now come from auditor-scale: vertical on
+        the shared column edge beside a neighbour, horizontal above it once the
+        pair stacks. Only the colour stays here, with the rest of the palette.
       */}
       {first ? null : (
-        <span aria-hidden="true" style={{
-          position: "absolute", insetInlineStart: "50%", transform: "translateX(50%)",
-          top: 0, width: 64, height: 1, background: C.navyRule,
-        }} />
+        <span aria-hidden="true" className="ar-testi-rule" style={{ position: "absolute", background: C.navyRule }} />
       )}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, marginBottom: 12 }}>
         {/*
@@ -178,7 +179,16 @@ export function AuditorTestimonials({ locale }: { locale: AuditorLocale }) {
       <h2 style={{ fontSize: "var(--ar-h2)", fontWeight: 800, color: C.onNavy, textAlign: "center", margin: "0 0 14px" }}>
         {en ? "What our customers say" : "מה הלקוחות שלנו אומרים"}
       </h2>
-      <div>
+      {/*
+        The grid class is applied only when there are two quotes to lay out.
+
+        /en carries one testimonial — the Google review runs in Hebrew only and
+        translating a quotation would be writing it, per the note at the top of
+        this file. A single figure in a two-column grid would sit in one half
+        with the other empty; without the class it stays the full-width block it
+        is today.
+      */}
+      <div className={items.length > 1 ? "ar-testi-grid" : undefined}>
         {items.map((t, i) => (
           <Quote key={t.name} t={t} first={i === 0} />
         ))}
