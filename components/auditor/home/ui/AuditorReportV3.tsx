@@ -230,6 +230,22 @@ function scoreBand(total: number): "high" | "mid" | "low" {
   return "low"
 }
 
+/**
+ * One fixed size for the whole band, desktop and phone alike.
+ *
+ * Everything else in this flow rides the --ar-* scale, which grows on a phone
+ * — 13.5px prose becomes 20px. This block is asked to hold one size at both
+ * widths instead, so the sizes are literals rather than tokens; a token cannot
+ * express "the same at every width" here.
+ *
+ * 18px rather than a 16/18 split. auditor-scale states the floor in as many
+ * words — nothing a visitor reads goes below 18px on a phone — and a 16px body
+ * would have sat under it on exactly the screens that rule was written for.
+ * Hierarchy comes from weight instead: the reading leads at 800, the rest is
+ * regular, and the block still steps up from the 14.5px lede around it.
+ */
+const BAND_TYPE = 18
+
 function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number }) {
   const copy = locale === "en" ? SCORE_BAND_COPY.en : SCORE_BAND_COPY.he
   if (!copy) return null
@@ -246,11 +262,11 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
      * commercial promise and it is what the contact block below is for.
      */
     <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14 }}>
-      <h3 style={{ fontSize: "var(--ar-h3)", fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
-      <p style={{ fontSize: "var(--ar-lede)", color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
+      <h3 style={{ fontSize: BAND_TYPE, fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
+      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
 
       <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.line}` }}>
-        <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
+        <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
         {/*
           White on the surface fill, not gold.
 
@@ -268,8 +284,9 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
             color: C.ink,
             borderRadius: 14,
             padding: "12px 14px",
-            fontSize: "var(--ar-prose)",
+            fontSize: BAND_TYPE,
             fontWeight: 700,
+            textAlign: "center",
           }}
         >
           {copy.offer}
