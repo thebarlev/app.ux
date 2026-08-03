@@ -41,6 +41,7 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           token={controller.token}
           status={controller.status}
           step2IsWorking={controller.step2IsWorking}
+          onRetry={controller.resetToNewScan}
         />
       ) : null}
 

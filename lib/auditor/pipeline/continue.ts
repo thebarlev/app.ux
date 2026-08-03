@@ -164,6 +164,29 @@ function computeVerificationScore(page: {
   return { scoreTotal, scoreSearch, scoreAi, failedRuleKeys }
 }
 
+// A single page can legitimately take up to ~16s: redirect resolution (4s) +
+// fetch (6s) + one browser-UA retry on a bot-block response (6s). Pages inside a
+// batch run in parallel, so the batch is bounded by its slowest page rather than
+// the sum — but each extra page still adds connection and DB round-trip overhead,
+// hence a small per-page margin on top. The old flat 4s default was shorter than
+// a single page's own timeouts, so any site slower than ~4s lost its whole batch.
+const PAGE_WORST_CASE_MS = 16_000
+const PER_PAGE_MARGIN_MS = 1_500
+const FETCH_PAGES_TIMEOUT_CAP_MS = 30_000
+// Verification is a one-page preview that must stay snappy (30s global budget),
+// so it gets a tighter ceiling than a full crawl.
+const VERIFICATION_FETCH_TIMEOUT_MS = 12_000
+
+function fetchPagesTimeoutMs(batchSize: number, isVerification: boolean): number {
+  if (isVerification) return VERIFICATION_FETCH_TIMEOUT_MS
+  return Math.min(FETCH_PAGES_TIMEOUT_CAP_MS, PAGE_WORST_CASE_MS + PER_PAGE_MARGIN_MS * Math.max(1, batchSize))
+}
+
+// How many consecutive fetch_pages timeouts we retry before giving up and moving
+// on. Without a cap a permanently slow host would keep the scan on this step
+// until the global scan timeout force-finalizes it with no report at all.
+const FETCH_PAGES_MAX_TIMEOUT_RETRIES = 3
+
 async function withStepTimeout<T>(fn: () => Promise<T>, limitMs = 4000): Promise<T> {
   return Promise.race([
     fn(),
@@ -871,14 +894,20 @@ export async function continueAuditorScan(params: {
             savedCount += 1
           }
         }))
-      })
+      }, fetchPagesTimeoutMs(batchSize, isVerification))
       console.log("[auditor][fetch_pages] fetched:", fetchedCount)
       console.log("[auditor][fetch_pages] saved:", savedCount)
       console.log("[auditor][fetch_pages] failed:", failedCount)
 
       await auditorLog({ supabase, scanId, companyId, message: "fetch_pages:batch_done" })
 
-      await releaseLock()
+      // The timeout counter is about consecutive failures. A batch that finished
+      // inside its budget clears it, so one slow batch mid-crawl doesn't spend
+      // the retry allowance that a genuinely stuck host needs.
+      const priorTimeouts = Number.isFinite(Number((artifacts as any)?.fetch_pages_timeouts))
+        ? Number((artifacts as any).fetch_pages_timeouts)
+        : 0
+      await releaseLock(priorTimeouts > 0 ? { artifacts: { ...artifacts, fetch_pages_timeouts: 0 } } : {})
       const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", scanId).maybeSingle()
       return { ok: true, kind: "progressed", scan }
     }
@@ -2089,6 +2118,66 @@ export async function continueAuditorScan(params: {
         console.warn("[auditor] verification step_timeout, finalizing", { scanId: params.scanId, step: currentStep })
         await auditorLog({ supabase, scanId: params.scanId, companyId: params.companyId ?? null, level: "warn", message: "verification:timeout_finalize", data: { step: currentStep } })
         await supabase.from("auditor_scans").update({ status: "done", step: "done", finished_at: nowIso(), locked_at: null, locked_by: null, updated_at: nowIso() }).eq("id", params.scanId)
+        const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
+        return { ok: true, kind: "progressed", scan }
+      }
+
+      // fetch_pages is resumable: nothing marks a page as in-progress, so every
+      // page that did not finish is still state="queued". Staying on the step
+      // retries exactly those pages on the next continue instead of skipping to
+      // extract and abandoning them silently — which is what made a slow host
+      // lose most of its crawl. Bounded so a permanently slow host still advances.
+      if (currentStep === "fetch_pages") {
+        const lArtifacts = (lockedScan?.artifacts || {}) as any
+        const prior = Number.isFinite(Number(lArtifacts?.fetch_pages_timeouts)) ? Number(lArtifacts.fetch_pages_timeouts) : 0
+        const attempts = prior + 1
+        const nextArtifacts = { ...lArtifacts, fetch_pages_timeouts: attempts }
+
+        if (attempts < FETCH_PAGES_MAX_TIMEOUT_RETRIES) {
+          console.warn("[auditor] fetch_pages step_timeout, requeueing", { scanId: params.scanId, attempts })
+          await auditorLog({
+            supabase,
+            scanId,
+            companyId,
+            level: "warn",
+            message: "fetch_pages:timeout_requeue",
+            data: { attempts, maxAttempts: FETCH_PAGES_MAX_TIMEOUT_RETRIES },
+          })
+          await supabase
+            .from("auditor_scans")
+            .update({ artifacts: nextArtifacts, locked_at: null, locked_by: null, updated_at: nowIso() })
+            .eq("id", params.scanId)
+          const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
+          return { ok: true, kind: "progressed", scan }
+        }
+
+        // Retries exhausted. Mark whatever is still queued as failed so the
+        // coverage numbers and logs say "we gave up on these" rather than
+        // leaving rows in a state the pipeline will never touch again.
+        // NOTE: scope by the scan's own company_id, not params.companyId — the
+        // caller usually omits that, and applyCompanyWhere reads a nullish value
+        // as "company_id IS NULL", which would match no rows for a company scan.
+        let abandonQuery = supabase
+          .from("auditor_scan_pages")
+          .update({ state: "failed", error: "fetch_timeout_abandoned", fetched_at: nowIso() })
+          .eq("scan_id", scanId)
+          .eq("state", "queued")
+        abandonQuery = applyCompanyWhere(abandonQuery, companyId)
+        await abandonQuery
+
+        console.warn("[auditor] fetch_pages step_timeout, giving up", { scanId: params.scanId, attempts })
+        await auditorLog({
+          supabase,
+          scanId,
+          companyId,
+          level: "warn",
+          message: "fetch_pages:timeout_abandoned",
+          data: { attempts },
+        })
+        await supabase
+          .from("auditor_scans")
+          .update({ artifacts: nextArtifacts, step: "extract", locked_at: null, locked_by: null, updated_at: nowIso() })
+          .eq("id", params.scanId)
         const { data: scan } = await supabase.from("auditor_scans").select("*").eq("id", params.scanId).maybeSingle()
         return { ok: true, kind: "progressed", scan }
       }

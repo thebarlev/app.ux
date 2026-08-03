@@ -29,6 +29,21 @@ export type StatusResponse =
     }
   | { ok: false; error: string }
 
+/**
+ * A scan that reached a terminal state (done or failed) without producing a
+ * usable score — e.g. every page fetch was blocked, so the pipeline finalized
+ * with buildMinimalReport() and score_total stayed null.
+ *
+ * Shared by AiScoreHero (renders the "no score" state) and AuditorStepTwo
+ * (must not offer paid signup for a report that does not exist) so the two
+ * cannot drift apart on whether the scan actually succeeded.
+ */
+export function isScanTerminalWithoutScore(status: StatusResponse | null): boolean {
+  if (!status || status.ok !== true) return false
+  const terminal = status.status === "done" || status.status === "failed"
+  return terminal && status.score_ready !== true
+}
+
 export type AuditorHomeProps = {
   locale?: AuditorLocale
   basePath?: string

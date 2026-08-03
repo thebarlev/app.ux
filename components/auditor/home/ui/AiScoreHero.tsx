@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { AuditorLocale } from "@/lib/auditor/locale"
-import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
+import { isScanTerminalWithoutScore, type StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
 
 const SCAN_MESSAGES_HE = [
   "בודק מבנה דפים…",
@@ -68,11 +68,9 @@ function getGrade(score: number, locale: AuditorLocale): Grade {
 export function AiScoreHero({ status, locale }: { status: StatusResponse | null; locale: AuditorLocale }) {
   const okStatus = status && status.ok === true ? status : null
   const statusDone = okStatus?.status === "done"
-  const statusFailed = okStatus?.status === "failed"
-  const scoreReady = okStatus?.score_ready === true
   const finalScore = statusDone && okStatus && typeof okStatus.score_ai === "number" ? okStatus.score_ai : null
   const isReady = finalScore !== null
-  const isTerminalWithoutScore = Boolean((statusDone || statusFailed) && !scoreReady)
+  const isTerminalWithoutScore = isScanTerminalWithoutScore(status)
   const [counter, setCounter] = useState(0)
   const [msgIdx, setMsgIdx] = useState(0)
 

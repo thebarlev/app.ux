@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Loader2 } from "lucide-react"
 import { AiScoreHero } from "@/components/auditor/home/ui/AiScoreHero"
 import type { AuditorLocale } from "@/lib/auditor/locale"
-import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
+import { isScanTerminalWithoutScore, type StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
 
 type Props = {
   locale: AuditorLocale
@@ -15,12 +15,17 @@ type Props = {
   token: string | null
   status: StatusResponse | null
   step2IsWorking: boolean
+  onRetry: () => void
 }
 
 export function AuditorStepTwo(props: Props) {
-  const { locale, basePath, linkId, scanId, token, status, step2IsWorking } = props
+  const { locale, basePath, linkId, scanId, token, status, step2IsWorking, onRetry } = props
   const runningStep = status && status.ok === true ? String(status.step || "") : ""
   const progress = status && status.ok === true && typeof status.progress === "number" ? Math.max(0, Math.min(100, Math.round(status.progress))) : null
+  // The scan finished but produced nothing scorable (blocked crawler, no pages
+  // fetched). Offering "sign up & pay for the full report" here would sell a
+  // report that does not exist — show a retry path instead.
+  const scanFailedWithoutScore = isScanTerminalWithoutScore(status)
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6 text-center">
       <Image src="/brand/vow.svg" alt="VOW" width={140} height={48} priority={false} />
@@ -57,24 +62,48 @@ export function AuditorStepTwo(props: Props) {
             : `שלב נוכחי: ${runningStep}${typeof progress === "number" ? ` (${progress}%)` : ""}`}
         </p>
       ) : null}
-      <div className="w-full max-w-md space-y-1 text-center">
-        <h2>{locale === "en" ? "Want the full report?" : "רוצים לראות את הדוח המלא?"}</h2>
-        <h3 className="text-[18px]">
-          {locale === "en" ? "Sign up, pay & get instant access to the full report." : "הירשמו, שלמו ותעברו ישר לדוח המלא עם כל התוצאות וההמלצות."}
-        </h3>
-      </div>
-      <div className="w-full max-w-md">
-        <Link
-          href={
-            scanId && token
-              ? `${basePath}/register?link_id=${encodeURIComponent(linkId)}&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
-              : `${basePath}/register?link_id=${encodeURIComponent(linkId)}`
-          }
-          className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
-        >
-          {locale === "en" ? "Sign up & continue to payment" : "הרשמה והמשך לתשלום"}
-        </Link>
-      </div>
+      {scanFailedWithoutScore ? (
+        <>
+          <div className="w-full max-w-md space-y-1 text-center">
+            <h2>{locale === "en" ? "We couldn't scan this site" : "לא הצלחנו לסרוק את האתר"}</h2>
+            <h3 className="text-[18px]">
+              {locale === "en"
+                ? "The site blocked our scanner or returned no readable pages, so there is no report to show yet."
+                : "האתר חסם את הסורק שלנו או לא החזיר עמודים קריאים, ולכן אין עדיין דוח להציג."}
+            </h3>
+          </div>
+          <div className="w-full max-w-md">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
+            >
+              {locale === "en" ? "Try another address" : "נסו כתובת אחרת"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="w-full max-w-md space-y-1 text-center">
+            <h2>{locale === "en" ? "Want the full report?" : "רוצים לראות את הדוח המלא?"}</h2>
+            <h3 className="text-[18px]">
+              {locale === "en" ? "Sign up, pay & get instant access to the full report." : "הירשמו, שלמו ותעברו ישר לדוח המלא עם כל התוצאות וההמלצות."}
+            </h3>
+          </div>
+          <div className="w-full max-w-md">
+            <Link
+              href={
+                scanId && token
+                  ? `${basePath}/register?link_id=${encodeURIComponent(linkId)}&scanId=${encodeURIComponent(scanId)}&token=${encodeURIComponent(token)}`
+                  : `${basePath}/register?link_id=${encodeURIComponent(linkId)}`
+              }
+              className="inline-flex h-14 w-full items-center justify-center rounded-none bg-black text-base text-white hover:bg-black/90"
+            >
+              {locale === "en" ? "Sign up & continue to payment" : "הרשמה והמשך לתשלום"}
+            </Link>
+          </div>
+        </>
+      )}
     </div>
   )
 }
