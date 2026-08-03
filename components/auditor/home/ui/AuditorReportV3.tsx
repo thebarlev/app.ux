@@ -432,6 +432,22 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </div>
         </div>
 
+        {/*
+          Directly under the gauge, because it is the reading of that number.
+
+          It used to sit just above the closing contact block, on the argument
+          that the reading and the invitation to act on it are one beat. In
+          practice that put four paragraphs about the score at the far end of
+          the page, after every finding and category, where the visitor has
+          already formed their own view of it. Under the panel it comments on,
+          it lands while the number is still on screen — and the closing block
+          keeps its own job of asking for the conversation.
+
+          Gated on a real number: the teaser has no score by design, and a scan
+          that ended without one never reaches this component.
+        */}
+        {!teaser && total !== null ? <ScoreBandCopy locale={locale} total={total} /> : null}
+
         {/* experts banner */}
         {/*
           The same surface fill as the score panel above it, which is what it
@@ -659,13 +675,6 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Not in the teaser: it is a shape to glimpse behind a form, and two
           paragraphs of real customer prose blurred out is noise there.
         */}
-        {/*
-          Reads the score, sells nothing the score does not support. Gated on a
-          real number: the teaser has no score by design, and a scan that ended
-          without one never reaches this component.
-        */}
-        {!teaser && total !== null ? <ScoreBandCopy locale={locale} total={total} /> : null}
-
         {!teaser ? (
           <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden", background: "linear-gradient(135deg,#1B3453,#2C577F)" }}>
             <AuditorTestimonials locale={locale} />
