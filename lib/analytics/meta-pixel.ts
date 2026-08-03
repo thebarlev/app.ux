@@ -152,9 +152,18 @@ export function trackPurchase(params: {
  * is a PostHog event and does not reach Meta, so this is sent alongside it
  * rather than instead of it.
  */
-export function trackLead(params?: { source?: string }): void {
+export function trackLead(params?: { source?: string; scanOutcome?: "scored" | "no_score" }): void {
   track("Lead", {
     ...(params?.source ? { content_name: params.source } : {}),
+    /*
+      Whether a report actually existed behind this lead.
+
+      The gate now opens on a scan that ended without a score as well, so "Lead"
+      no longer implies a deliverable. Without this dimension the ad reporting
+      would show a cheaper CPL while quietly mixing in leads that can only be
+      followed up by hand.
+    */
+    ...(params?.scanOutcome ? { scan_outcome: params.scanOutcome } : {}),
   })
 }
 

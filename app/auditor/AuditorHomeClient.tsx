@@ -34,31 +34,15 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
       ) : null}
 
       {/*
-        Rule 5: a failed scan gets an explicit failure. Not the gate — asking
-        for details in exchange for a report that is not coming — and not an
-        empty report.
-      */}
-      {controller.step === 2 && controller.scanEndedWithoutScore ? (
-        <div className="mx-auto max-w-md rounded-2xl border border-danger/40 bg-danger/5 p-6 text-center">
-          <h2 className="text-lg font-semibold">
-            {locale === "en" ? "The scan did not complete" : "הסריקה לא הושלמה"}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {locale === "en"
-              ? "We could not finish reading this site, so there is no score to show. Check the address and try again."
-              : "לא הצלחנו לסיים לקרוא את האתר, ולכן אין ציון להציג. בדקו את הכתובת ונסו שוב."}
-          </p>
-          <button
-            type="button"
-            onClick={controller.resetToNewScan}
-            className="mt-5 h-11 w-full rounded-full bg-fg text-sm font-medium text-white transition hover:opacity-90"
-          >
-            {locale === "en" ? "Scan again" : "לסרוק שוב"}
-          </button>
-        </div>
-      ) : null}
+        The step 2 failure card is gone, and deliberately so.
 
-      {controller.step === 2 && !controller.scanEndedWithoutScore ? (
+        It rendered on scanEndedWithoutScore, which is now exactly the condition
+        that opens the gate — so it had become a single frame of red before the
+        form replaced it. Rule 5 still holds: the explicit failure state moved to
+        the two places the visitor actually reaches, the gate's noScore copy
+        before details and the block below after them.
+      */}
+      {controller.step === 2 ? (
         <AuditorStepTwo
           locale={locale}
           status={controller.status}
@@ -73,11 +57,39 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           isSubmitting={controller.isSubmittingLead}
           pagesScanned={controller.pagesScanned}
           issuesCount={controller.issuesCount}
+          noScore={controller.scanEndedWithoutScore}
           onSubmit={controller.submitLead}
         />
       ) : null}
 
-      {controller.step === 3 ? (
+      {/*
+        Details are in, and there is no report to open. The team has the lead by
+        email already — sendAuditorLead fires inside lead-and-scan for both
+        creation paths — so this states the callback as a commitment rather than
+        an apology, and still offers another address for anyone who would rather
+        not wait.
+      */}
+      {controller.step === 3 && controller.leadWithoutScore ? (
+        <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 text-center">
+          <h2 className="text-lg font-semibold">
+            {locale === "en" ? "We couldn't scan this site" : "יש תקלה בסריקת האתר"}
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {locale === "en"
+              ? "Your details are with us. Try another address, or leave it with us — we'll look into what blocked the scan and get back to you."
+              : "הפרטים שלכם אצלנו. נסו כתובת אחרת, או השאירו לנו — נבדוק מה חסם את הסריקה ונחזור אליכם."}
+          </p>
+          <button
+            type="button"
+            onClick={controller.resetToNewScan}
+            className="mt-5 h-11 w-full rounded-full bg-fg text-sm font-medium text-white transition hover:opacity-90"
+          >
+            {locale === "en" ? "Scan another address" : "לסרוק כתובת אחרת"}
+          </button>
+        </div>
+      ) : null}
+
+      {controller.step === 3 && !controller.leadWithoutScore ? (
         <AuditorReportV3
           locale={locale}
           status={controller.status}

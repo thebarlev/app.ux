@@ -60,6 +60,16 @@ export type AuditorLead = {
    * caller reads unchanged.
    */
   stage?: "gate" | "signup"
+  /**
+   * Whether a report existed behind this lead.
+   *
+   * The gate opens on a scan that produced no score as well, so a gate lead no
+   * longer implies a deliverable. "no_score" is the one that needs a human: the
+   * visitor was told somebody would look into what blocked the scan, and this
+   * email is the only thing that says so. Absent for signup leads, which have
+   * no scan outcome to report.
+   */
+  scanOutcome?: "scored" | "no_score"
 }
 
 export async function sendAuditorLead(lead: AuditorLead): Promise<{ sent: boolean; reason?: string }> {
@@ -73,16 +83,31 @@ export async function sendAuditorLead(lead: AuditorLead): Promise<{ sent: boolea
   const row = (label: string, value: string) =>
     `<tr><td style="padding:6px 14px 6px 0;color:#64748b;white-space:nowrap">${label}</td><td style="padding:6px 0"><strong>${value}</strong></td></tr>`
 
+  /*
+    The callback banner, and the reason this email now says something the team
+    has to act on rather than only record. A no_score lead was promised, on
+    screen, that somebody would look into what blocked the scan. Nothing else in
+    the system carries that promise forward.
+  */
+  const needsCallback = lead.scanOutcome === "no_score"
+  const callbackBanner = needsCallback
+    ? `<p style="margin:0 0 16px;padding:10px 14px;border-radius:8px;background:#FDF3E3;color:#B7791F;font-weight:700">
+         ⚠ הסריקה לא הפיקה ציון — הובטח למבקר שנחזור אליו. דורש מעקב ידני.
+       </p>`
+    : ""
+
   const html = `
 <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;direction:rtl;text-align:right;color:#0f172a">
   <h2 style="margin:0 0 4px">ליד חדש · אודיטור</h2>
   <p style="margin:0 0 16px;color:#64748b">${esc(kind)}</p>
+  ${callbackBanner}
   <table style="border-collapse:collapse;font-size:15px">
     ${row("שם", esc(lead.contactName))}
     ${row("אימייל", `<a href="mailto:${esc(lead.email)}">${esc(lead.email)}</a>`)}
     ${row("טלפון", esc(lead.phone))}
     ${lead.companyName ? row("חברה", esc(lead.companyName)) : ""}
     ${row("אתר", siteCell)}
+    ${lead.scanOutcome ? row("תוצאת סריקה", lead.scanOutcome === "scored" ? "ציון קיים · הדוח נפתח למבקר" : "ללא ציון · אין דוח") : ""}
     ${lead.companyId ? row("מזהה חברה", esc(lead.companyId)) : ""}
     ${row("נרשם בשעה", esc(new Date().toISOString()))}
   </table>

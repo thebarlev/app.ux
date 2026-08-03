@@ -33,6 +33,15 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmittingLead, setIsSubmittingLead] = useState(false)
   const [leadCaptured, setLeadCaptured] = useState(false)
+  /**
+   * The lead was submitted against a scan that produced no score.
+   *
+   * Sticky on purpose, and separate from scanEndedWithoutScore: after submit the
+   * flow moves to step 3, and step 3 has to know it owes this visitor a callback
+   * rather than a report. Reading the live scan state there would be wrong — the
+   * adopted scan restarts as "initial" and its status changes underneath.
+   */
+  const [leadWithoutScore, setLeadWithoutScore] = useState(false)
   /** Ticked marketing consent — decides whether the report is also emailed. */
   const [leadEmailCopy, setLeadEmailCopy] = useState(false)
 
@@ -196,25 +205,39 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   }
 
   /**
-   * The lead form opens on the score, not on a timer.
+   * The lead form opens on a conclusion, not on a timer and not on a score.
    *
-   * This used to be a flat 5 second setTimeout, on the reasoning that the form
-   * is what the visitor is here to be asked and so should not wait on a slow
-   * site. Rule 5 of docs/auditor-scanflow-behavior-rules.md overrides that: the
-   * gate says "הדוח מוכן", states a page count and a findings count, and
-   * promises the report opens immediately. On a scan that has not finished,
-   * every one of those is false — and on a scan that failed, the visitor hands
-   * over their details for a report that is never coming.
+   * It was a flat 5 second setTimeout once, then `scoreReady` alone. Neither is
+   * right. A timer shows the form while the scan is still running, so every
+   * promise on it is unverified. `scoreReady` alone goes too far the other way:
+   * a site that blocks the crawler produces no score at all, and those visitors
+   * were shown a dead end instead of being asked for details — while their site
+   * is exactly the one worth a human looking at.
    *
-   * The cost is real and deliberate: on a slow site the form appears later than
-   * it used to, and some visitors will leave before it does. A form that lies
-   * to arrive sooner is not the trade this flow makes.
+   * The condition is therefore "the scan reached a conclusion", with or without
+   * a number behind it. Rule 5's substance is intact: nothing opens before there
+   * is an answer, and the gate states which answer it got — see the noScore
+   * copy in AuditorLeadGate, which drops the report promise and the counters
+   * rather than showing "הדוח מוכן" over 0 pages and 0 findings.
    */
   useEffect(() => {
-    if (step !== 2 || leadCaptured) return
-    if (!scoreReady) return
+    if (step !== 2) return
+    if (!scoreReady && !scanEndedWithoutScore) return
+
+    /*
+      A visitor who already left details is not asked again — but they were
+      also never let through. The old guard returned on leadCaptured and
+      nothing else moved the step, so somebody who submitted once and then ran
+      a second scan sat on a finished scan screen indefinitely, success or
+      failure. Send them to the result instead of to the form.
+    */
+    if (leadCaptured) {
+      setLeadWithoutScore(!scoreReady)
+      setStep(3)
+      return
+    }
     setStep("gate")
-  }, [step, leadCaptured, scoreReady])
+  }, [step, leadCaptured, scoreReady, scanEndedWithoutScore])
 
   /**
    * Hand the details to the scan already running, rather than starting another.
@@ -262,9 +285,21 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
         Two platforms, deliberately: Lead is Meta's standard event, generate_lead
         is GA4's, and each is what its own reporting is built around.
       */
-      trackLead({ source: "auditor_lead_gate" })
-      pushEvent("generate_lead", { plan: planFromLinkId(linkId) ?? "organic" })
+      /*
+        scan_outcome rides both events because the gate now opens on a scan that
+        produced nothing as well. Without it "Lead" and "generate_lead" would
+        blend a lead that can open its report immediately with one that needs a
+        person to call back, and the ad reporting would read the second as the
+        first at a better cost per lead.
 
+        Captured before setLeadCaptured so it describes the scan the visitor
+        actually submitted against.
+      */
+      const scanOutcome: "scored" | "no_score" = scoreReady ? "scored" : "no_score"
+      trackLead({ source: "auditor_lead_gate", scanOutcome })
+      pushEvent("generate_lead", { plan: planFromLinkId(linkId) ?? "organic", scan_outcome: scanOutcome })
+
+      setLeadWithoutScore(scanOutcome === "no_score")
       setLeadCaptured(true)
       setLeadEmailCopy(Boolean(lead.consent_contact))
       setStep(3)
@@ -433,6 +468,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     step2IsWorking,
     scoreReady,
     scanEndedWithoutScore,
+    leadWithoutScore,
     pagesScanned,
     issuesCount,
     isSubmittingLead,

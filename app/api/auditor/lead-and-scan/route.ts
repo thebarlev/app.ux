@@ -117,7 +117,27 @@ export async function POST(req: Request) {
     consent_ip: clientIp(req),
   }
 
-  const notifyLead = async () => {
+  /**
+   * Read the outcome off the scan row rather than taking the client's word.
+   *
+   * The gate now opens on a scan that produced no score, and a "no_score" lead
+   * is the one the team has to phone back — so this decides who gets chased. It
+   * is derived server-side from score_total for the same reason /status is: a
+   * value the browser can set is not evidence of anything.
+   *
+   * Only meaningful when a pre-scan is being adopted. The bare path creates its
+   * scan here, queued and unscored by definition, so there is no outcome yet.
+   */
+  const scanOutcomeOf = async (id: string): Promise<"scored" | "no_score" | undefined> => {
+    if (!id) return undefined
+    const { data } = await admin.from("auditor_scans").select("status,score_total").eq("id", id).maybeSingle()
+    if (!data) return undefined
+    const terminal = data.status === "done" || data.status === "failed"
+    if (!terminal) return undefined
+    return typeof data.score_total === "number" ? "scored" : "no_score"
+  }
+
+  const notifyLead = async (scanOutcome?: "scored" | "no_score") => {
     try {
       const result = await sendAuditorLead({
         email: parsed.data.email.trim(),
@@ -126,6 +146,7 @@ export async function POST(req: Request) {
         website: parsed.data.url.trim(),
         companyId: null,
         stage: "gate",
+        scanOutcome,
       })
       console.log("[AUDITOR_LEAD_GATE] lead email", { host: normalizedHost, ...result })
     } catch (err) {
@@ -188,7 +209,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Failed to create lead" }, { status: 500 })
     }
 
-    await notifyLead()
+    await notifyLead(await scanOutcomeOf(maybeScanId))
 
     const { data: updated, error: updErr } = await admin
       .from("auditor_scans")
