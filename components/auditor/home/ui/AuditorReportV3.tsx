@@ -160,6 +160,125 @@ function SectionHead({ title, hint }: { title: string; hint?: string }) {
   )
 }
 
+/**
+ * What the score means, in the visitor's terms, and what we are offering about it.
+ *
+ * Content only — it reads score_total and changes nothing about how that number
+ * is produced. It sits directly above the closing contact block because the two
+ * belong to the same beat: this is the reading of the result, and the block
+ * under it is the invitation to act on it.
+ *
+ * Band boundaries follow the wording of the brief literally — "above 70",
+ * "50 to 70", "below 50" — so both endpoints fall in the middle band: 70 is
+ * "50 to 70" and 50 is "50 to 70". Stated here because a boundary that lives
+ * only in a comparison operator is the kind of thing that gets flipped by
+ * accident later.
+ */
+const SCORE_BAND_COPY = {
+  he: {
+    high: {
+      title: "ציון טוב, אבל זה לא אומר שהוא מביא לקוחות",
+      body: "האתר שלכם עומד ברוב הדרישות הטכניות, וזה בסיס מצוין. אבל ציון גבוה בבדיקה כזו לא מבטיח שמבקרים הופכים ללקוחות. יש עוד כמה דברים שישפיעו ישירות על התוצאות שלכם, ונשמח לעבור עליהם יחד איתכם.",
+    },
+    mid: {
+      title: "ציון בינוני, אתם כבר בדרך הנכונה",
+      body: "האתר שלכם עומד בחלק מהדרישות, וזו התחלה טובה. יש כמה נקודות מרכזיות שכדאי לחדד כדי שהאתר באמת יעבוד בשבילכם. נשמח לעזור לכם לסגור את הפערים האלה.",
+    },
+    low: {
+      title: "יש כאן עבודה, ואנחנו כאן בשבילה",
+      body: "כרגע האתר לא ממצה את מה שהוא יכול לתת לכם, לא בבדיקות הטכניות ולא ביכולת להביא לקוחות חדשים. זו הזדמנות טובה להתחיל לבנות את זה נכון, ונשמח לעשות את זה איתכם.",
+    },
+    always: "ציון גבוה חשוב, אבל הוא לא הכל. הצלחה אמיתית באינטרנט היא שילוב של אתר תקין ודרך נכונה להביא לקוחות. בזה אנחנו יכולים לעזור לכם.",
+    offer:
+      "הטבה מיוחדת ל-24 השעות הקרובות. פרטים אצל הסוכנים שלנו, החל מ-300 ₪ לחודש לקידום אורגני ב-SEO ובבינה מלאכותית (AI).",
+  },
+  /**
+   * Written to read as English rather than as a translation of the Hebrew, and
+   * approved as such — the two say the same thing without matching clause for
+   * clause. Kept nullable in the type so a future locale can opt out the way
+   * this one did before the wording existed.
+   */
+  en: {
+    high: {
+      title: "A good score — but a good score doesn't bring customers",
+      body: "Your site meets most of the technical requirements, and that's an excellent base. But a high score here doesn't guarantee that visitors turn into customers. A few more things affect your results directly, and we'd be glad to go through them with you.",
+    },
+    mid: {
+      title: "A fair score — you're on the right track",
+      body: "Your site meets some of the requirements, and that's a good start. There are a few key points worth sharpening so the site really works for you. We'd be glad to help you close those gaps.",
+    },
+    low: {
+      title: "There's work to do here, and that's what we're for",
+      body: "Right now your site isn't giving you what it could — not in the technical checks, and not in bringing in new customers. This is a good opportunity to start building it properly, and we'd be glad to do it with you.",
+    },
+    always:
+      "A high score matters, but it isn't everything. Real success online is a working site combined with the right way to bring in customers. That's where we can help.",
+    offer:
+      "Special offer for the next 24 hours. Details from our agents — from ₪300/month for organic SEO and AI visibility.",
+  } as null | {
+    high: { title: string; body: string }
+    mid: { title: string; body: string }
+    low: { title: string; body: string }
+    always: string
+    offer: string
+  },
+} as const
+
+function scoreBand(total: number): "high" | "mid" | "low" {
+  if (total > 70) return "high"
+  if (total >= 50) return "mid"
+  return "low"
+}
+
+function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number }) {
+  const copy = locale === "en" ? SCORE_BAND_COPY.en : SCORE_BAND_COPY.he
+  if (!copy) return null
+  const band = copy[scoreBand(total)]
+
+  return (
+    /*
+     * One panel, two tiers, so the four lines do not read as a wall.
+     *
+     * The band reading leads at heading weight. The two fixed lines sit under a
+     * hairline as a separate register — they are ours in every case rather than
+     * a reading of this particular score — and the offer is the only one of the
+     * four that carries a fill, because it is the only one making a concrete
+     * commercial promise and it is what the contact block below is for.
+     */
+    <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14 }}>
+      <h3 style={{ fontSize: "var(--ar-h3)", fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
+      <p style={{ fontSize: "var(--ar-lede)", color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
+
+      <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.line}` }}>
+        <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
+        {/*
+          White on the surface fill, not gold.
+
+          Gold on this page means "locked, pay to unlock" — it is the LockBand
+          fill, and two of those sit directly above this panel. An offer in the
+          same gold read as a third lock band rather than as an invitation to
+          talk to somebody, which is the opposite of what it is. Inverting the
+          figure/ground instead keeps it distinct using the page's own system,
+          where grouping comes from fill and nothing draws a border.
+        */}
+        <p
+          style={{
+            marginTop: 12,
+            background: "#fff",
+            color: C.ink,
+            borderRadius: 14,
+            padding: "12px 14px",
+            fontSize: "var(--ar-prose)",
+            fontWeight: 700,
+          }}
+        >
+          {copy.offer}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /** The gold "and more — in premium" band from the mockup. */
 function LockBand({ title, body, cta, onUnlock }: { title: string; body: string; cta: string; onUnlock?: () => void }) {
   return (
@@ -523,6 +642,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           Not in the teaser: it is a shape to glimpse behind a form, and two
           paragraphs of real customer prose blurred out is noise there.
         */}
+        {/*
+          Reads the score, sells nothing the score does not support. Gated on a
+          real number: the teaser has no score by design, and a scan that ended
+          without one never reaches this component.
+        */}
+        {!teaser && total !== null ? <ScoreBandCopy locale={locale} total={total} /> : null}
+
         {!teaser ? (
           <div style={{ marginTop: 40, borderRadius: 20, overflow: "hidden", background: "linear-gradient(135deg,#1B3453,#2C577F)" }}>
             <AuditorTestimonials locale={locale} />
