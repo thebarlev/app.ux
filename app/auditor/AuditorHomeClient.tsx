@@ -38,7 +38,7 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
         for details in exchange for a report that is not coming — and not an
         empty report.
       */}
-      {controller.step === 2 && controller.scanFailed ? (
+      {controller.step === 2 && controller.scanEndedWithoutScore ? (
         <div className="mx-auto max-w-md rounded-2xl border border-danger/40 bg-danger/5 p-6 text-center">
           <h2 className="text-lg font-semibold">
             {locale === "en" ? "The scan did not complete" : "הסריקה לא הושלמה"}
@@ -58,7 +58,7 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
         </div>
       ) : null}
 
-      {controller.step === 2 && !controller.scanFailed ? (
+      {controller.step === 2 && !controller.scanEndedWithoutScore ? (
         <AuditorStepTwo
           locale={locale}
           status={controller.status}

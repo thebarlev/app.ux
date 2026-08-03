@@ -7,7 +7,7 @@ import type { AuditorLocale } from "@/lib/auditor/locale"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
 import { trackLead } from "@/lib/analytics/meta-pixel"
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
-import type { StatusResponse, Step } from "@/components/auditor/home/logic/auditor-home-types"
+import { isScanTerminalWithoutScore, type StatusResponse, type Step } from "@/components/auditor/home/logic/auditor-home-types"
 
 export function useAuditorHomeController(params: { locale: AuditorLocale; basePath: string }) {
   const { locale, basePath } = params
@@ -47,13 +47,24 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
 
   /** Rule 5: a score that exists. Nothing else opens the gate. */
   const scoreReady = okStatus?.score_ready === true
-  const scanFailed = Boolean(okStatus && okStatus.status === "failed")
+  /**
+   * Rule 5's other half: a scan that ended with no score to show.
+   *
+   * This was `status === "failed"`, which missed the case that actually happens.
+   * A blocked crawler (Cloudflare 403 on every page, say) does not fail the
+   * scan — fetch_pages finalizes it through buildMinimalReport() and the row
+   * ends up status "done" with score_total null. That fell between both
+   * branches: not "failed", so no failure screen; no score, so the gate never
+   * opened; and step2IsDone true, so the animation stopped. The visitor sat on
+   * a frozen scan screen with no message and no way forward.
+   */
+  const scanEndedWithoutScore = isScanTerminalWithoutScore(status)
 
   const step2IsDone = Boolean(step2OkStatus && (step2OkStatus.done === true || step2OkStatus.status === "done" || step2OkStatus.status === "failed"))
   // The screenshot used to be half of this condition. It is always null in
   // production — AUDITOR_SCREENSHOT_ENABLED is empty there — so the scan card
   // now reports on the score alone.
-  const step2IsWorking = step === 2 && Boolean(scanId && token) && !scanFailed && !step2IsDone && !scoreReady
+  const step2IsWorking = step === 2 && Boolean(scanId && token) && !scanEndedWithoutScore && !step2IsDone && !scoreReady
 
   /** What the gate states out loud. Real counts or nothing. */
   const pagesScanned = typeof okStatus?.pages_scanned === "number" ? okStatus.pages_scanned : 0
@@ -421,7 +432,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
     canGoToDetails,
     step2IsWorking,
     scoreReady,
-    scanFailed,
+    scanEndedWithoutScore,
     pagesScanned,
     issuesCount,
     isSubmittingLead,
