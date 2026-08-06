@@ -72,8 +72,15 @@ export async function POST(req: Request) {
       })
       return NextResponse.json({ success: false, message: "Unauthorized", attempt_id: tracker.attemptId, step: "auth_resolved" }, { status: 401 })
     }
-    resolvedUserId = typeof body?.user_id === "string" && body.user_id.trim() ? body.user_id.trim() : auth.user.id
-    resolvedEmail  = typeof body?.email   === "string" && body.email.trim()   ? body.email.trim()   : (auth.user.email || "")
+    // Identity comes from the session ONLY. body.user_id / body.email are
+    // ignored here on purpose: this endpoint issues a final, signed
+    // invoice-receipt in the books of VOW_BILLING_COMPANY_ID, so honouring a
+    // client-supplied identity let any authenticated user issue a real tax
+    // document in someone else's name.
+    // The x-api-key branch above still takes them from the body — that is a
+    // trusted server-to-server integration and is unchanged.
+    resolvedUserId = auth.user.id
+    resolvedEmail  = auth.user.email || ""
   }
 
   tracker.step("auth_resolved", {
