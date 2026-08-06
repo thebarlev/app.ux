@@ -18,13 +18,12 @@ try {
   CRON_SECRET = null
 }
 
+// NOTE: there is deliberately no user-agent / x-vercel-cron-schedule check here.
+// Both headers are fully client-controlled, so `curl -H "user-agent: vercel-cron/1.0"`
+// authenticated as the platform on a route that runs with the service role and
+// processes Cardcom billing events. The shared secret is the only accepted proof.
+// Fails closed when CRON_SECRET is unset.
 function isAuthorized(req: Request): boolean {
-  // Vercel Cron identification
-  const ua = req.headers.get("user-agent") || ""
-  const isVercelCron = ua.startsWith("vercel-cron/") || !!req.headers.get("x-vercel-cron-schedule")
-  if (isVercelCron) return true
-
-  // Optional: external cron with secret
   const got =
     req.headers.get("x-cron-secret") ||
     (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "")
