@@ -171,12 +171,16 @@ Baseline ירוק לחלוטין. **כל כשל חדש בסוף השלב הוא 
 - **שינוי בהתנהגות:** משתמש מחובר לא יכול יותר להנפיק חשבונית-קבלה על שם אחר. מי שאין לו אימייל בסשן יקבל שגיאת ולידציה במקום להשלים מהגוף.
 - **לא נגעתי:** `amount`/`currency` — מתועד ב-`FOLLOWUPS.md` מול הדפוס ב-`checkout/create/route.ts:45-58`.
 
-## S1.5 — הפסקת אמון ב-`x-auditor-scan-guest`
-- **סטטוס:** הושלם (קומיט `3d95346`)
-- **קבצים:** `app/en/auditor/(account)/layout.tsx` שורות 1-2 (הסרת `headers`), 14-21 (הסרת הענף)
-- **מה נעשה:** הוסר ה-short-circuit שדילג על ה-redirect ללוגין.
-- **איך אומת:** `npx tsc --noEmit` → 0, `npx eslint <file>` → 0. `grep -rn x-auditor-scan-guest` → הכותב היחיד הוא `lib/supabase/proxy.ts:44`, שמגיע רק דרך `proxy.ts` בשורש (מוסכמת Next 15.5+) בעוד `package.json:67` מצהיר `next: 14.2.24` ואין `middleware.ts`.
-- **למה זה לא שובר פיצ'ר:** הפריסה העברית `app/auditor/(account)/layout.tsx` **מעולם לא הכילה** את הענף הזה ותמיד דרשה אימות. אין זרימת "אורח סריקה" אמיתית — זו אנומליה באנגלית בלבד, ועכשיו שתי הפריסות זהות.
+## S1.5 — `x-auditor-scan-guest` — **נעשה מחדש מול `main`**
+- **סטטוס:** הושלם בגרסה מתוקנת. הניסוח המקורי (`3d95346`, שהועבר כ-`166a665`) **בוטל** ב-`3b71465`, והתיקון הנכון הוא `e46bb7e`.
+- **קבצים:** `lib/supabase/proxy.ts` — `forwardedHeaders()` חדשה, ושלושת אתרי ה-`NextResponse.next` (שורות 26-28, 44-46, 67-69). `app/en/auditor/(account)/layout.tsx` — **חזר למקור**, ממשיך לסמוך על הכותרת.
+- **למה הניסוח הראשון היה שגוי:** הוא הסתמך על כך שאין כותב בתוך האפליקציה — `proxy.ts` בשם של Next 15.5+, ש-`next@14.2.24` לא אורז, ולכן `updateSession` לא רץ. זה היה נכון **רק** לענף `feat/shaam-production-profile`, שהיה 95 קומיטים מאחורי `main`. ב-`main` הקובץ הוא `middleware.ts` שמייצא `middleware` — שינוי שנעשה בדיוק כדי לתקן את הבאג הזה — וה-build מראה `ƒ Middleware 72.2 kB`. כלומר ה-middleware **כן** קובע את הכותרת, בעבור פיצ'ר אמיתי: תצוגת האורח ב-`/en/auditor/dashboard?scan_id=&token=`. הסרת האמון שברה אותו.
+- **איפה החור באמת היה:** בדיקת האימות של ה-middleware מכסה רק את הנתיבים המדויקים `/en/auditor/dashboard` ו-`/en/auditor/checkout`, בעוד ה-layout של `(account)` שומר על **ארבעה**: `dashboard`, `invoices`, `settings`, `subscription`. לכן כותרת מזויפת הגיעה לשלושת האחרונים. ב-`dashboard` היא לא עזרה, כי ה-middleware מפנה ללוגין לפני שה-layout רץ.
+- **מה נעשה בסוף:** להפוך את הכותרת ל**בלתי-ניתנת-לזיוף** במקום ל**לא-נאמנת**. `updateSession` מעביר כל בקשה דרך `forwardedHeaders()`, שמוחקת את הכותרת **ראשונה, בלי תנאי, ובכל נתיב** — לא רק תחת `/en/auditor`, כדי שהחור לא יחזור בנתיב הבא שיתווסף. ענף האורח בונה על אותה פונקציה, ולכן ה-`"1"` שלו הוא המקור היחיד האפשרי. שום התנהגות אחרת ב-`updateSession` לא נגעה.
+- **למה per-call ולא פעם אחת בראש הפונקציה:** `request.cookies.set()` מעדכן את כותרת ה-cookie של הבקשה, ורענון הסשן של Supabase מסתמך על כך שהערך המעודכן הוא זה שמועבר. העתקה אחת בראש הפונקציה הייתה מקפיאה cookies ישנים.
+- **איך אומת:** 8/8 מקרי זרימת-כותרת עוברים — כותרת מזויפת אינה שורדת באף אחד מארבעת הנתיבים השמורים ולא בנתיב אחר, ובמקביל קישור האורח האמיתי עדיין מקבל `"1"`. `tsc` → 0, `eslint` → 0, `next build` → 0 עם חבילת Middleware חיה ובלי אזהרות חדשות.
+- **שינוי בהתנהגות:** מי ששלח את הכותרת בעצמו מקבל עכשיו redirect ללוגין ב-`invoices`/`settings`/`subscription`. תצוגת האורח דרך קישור סריקה — ללא שינוי.
+- **מה דווח ולא תוקן:** ה-middleware קובע את הדגל לפי **נוכחות** `scan_id` ו-`token` בלבד, בלי לאמת את הטוקן. האימות האמיתי קיים במורד הזרם ב-`/api/auditor/status:49`, ולכן צמד מזויף אינו מקבל נתונים — אבל הדגל לבדו אינו מעיד על טוקן תקף. ב-`FOLLOWUPS.md`.
 
 ## S1.6 — כותרות אבטחה
 - **סטטוס:** הושלם (קומיט `2ea6c39`)
@@ -184,9 +188,10 @@ Baseline ירוק לחלוטין. **כל כשל חדש בסוף השלב הוא 
 - **מה נעשה:** נוספו חמש הכותרות שלא שוברות כלום, ו-CSP ב-**Report-Only בלבד**.
 - **איך אומת:** ייבוא הקונפיג ב-node מאשר שכל שש הכותרות נפלטות על `/:path*`, שאין `Content-Security-Policy` אוכפת, ושה-`ignoreBuildErrors: false` נשמר. `npx next build` → 0, בלי אזהרות חדשות מול baseline. `tsconfig strict: true` ללא שינוי.
 - **שינוי בהתנהגות:** כל תגובה נושאת את הכותרות. הדפדפן ידווח על הפרות CSP **לקונסולה בלבד**.
-- **מקורות חיצוניים שנמצאו בקוד:** googletagmanager (GTM + gtag ל-`G-VRWRQ29QBW`) · PostHog (`NEXT_PUBLIC_POSTHOG_HOST`, ברירת מחדל `us.i.posthog.com`) · Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`) · `*.supabase.co` · `va.vercel-scripts.com` (`@vercel/analytics`).
+- **מקורות חיצוניים שנמצאו בקוד (מעודכן מול `main` בקומיט `b43ceac`):** googletagmanager — **רק** `gtag.js` של `G-VRWRQ29QBW`, אין מכולת GTM (בוטלה ב-`7568b98`) · **פיקסל Meta** — `connect.facebook.net` לסקריפט ו-`www.facebook.com` לאירועים, מ-`lib/analytics/meta-pixel.ts` · PostHog (`NEXT_PUBLIC_POSTHOG_HOST`, ברירת מחדל `us.i.posthog.com`) · Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`) · `*.supabase.co` · `va.vercel-scripts.com` (`@vercel/analytics`).
+- **תיקון:** רשימת המקורות הראשונה נגזרה מ-`app/layout.tsx` בענף שהיה 95 קומיטים מאחורי `main`, ולכן החסירה את הפיקסל והכילה `frame-src` ל-GTM שאין לו iframe. תוקן ב-`b43ceac`. מכיוון שהמדיניות היא Report-Only, אף אחת מהשתיים לא יכלה לשבור עמוד.
 - **מה במכוון לא ב-CSP:** `PDF_RENDER_URL` (`lib/pdf-service.ts:2847`) ו-`api.ipify.org` — קריאות צד-שרת ש-CSP לא חל עליהן. `secure.cardcom.solutions` נשמר ב-`form-action`/`frame-src` בלבד, כי כל השימושים בו הם server-to-server מ-`app/api/**`.
-- **על `X-Frame-Options: SAMEORIGIN`:** נבדק. כל ה-iframes של תצוגת מסמך טוענים נתיב יחסי `/api/documents/**/pdf` (same-origin), וה-iframe של GTM מטמיע צד-שלישי **בתוך** העמוד שלנו — מה שהכותרת אינה מגבילה. לא נמצא שימוש שמצריך הטמעה חוצה-מקורות.
+- **על `X-Frame-Options: SAMEORIGIN`:** נבדק. כל ה-iframes של תצוגת מסמך טוענים נתיב יחסי `/api/documents/**/pdf` (same-origin), וב-`main` אין ב-layout שום iframe של צד-שלישי. הכותרת מגבילה מי מטמיע **אותנו**, לא את מי שאנחנו מטמיעים. לא נמצא שימוש שמצריך הטמעה חוצה-מקורות.
 - **מגבלה שחייבת להיאמר:** אין `report-to`/`report-uri`, ולכן ההפרות אינן נאספות לשום מקום. **עד שיחובר endpoint איסוף, אין כאן מקור נתונים** — יש רק היעדר סיכון.
 
 ## S1.7 — זיהוי IP אמיתי בהגבלת הקצב
