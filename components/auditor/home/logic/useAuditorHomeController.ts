@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { captureAuditorScanCompleted, captureAuditorScanStarted, resolvePageLocale } from "@/lib/analytics/posthog-events"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
-import { trackLead } from "@/lib/analytics/meta-pixel"
+import { trackAuditStarted, trackLead } from "@/lib/analytics/meta-pixel"
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
 import { isScanTerminalWithoutScore, type StatusResponse, type Step } from "@/components/auditor/home/logic/auditor-home-types"
 
@@ -45,6 +45,19 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   /** Ticked marketing consent — decides whether the report is also emailed. */
   const [leadEmailCopy, setLeadEmailCopy] = useState(false)
 
+  /**
+   * One scan per press, however fast the presses come.
+   *
+   * A ref rather than the isSubmitting state, for the same reason
+   * continuingRef below is one: state updates are asynchronous, so two Enter
+   * keydowns in the same frame both read isSubmitting as false and both get
+   * through. The arrow button is already covered — canGoToDetails disables it
+   * on isSubmitting — but the field's onKeyDown has no such guard, and Enter is
+   * the input a visitor can repeat fastest.
+   *
+   * Cleared in onStart's finally, so a failed pre-scan can be retried.
+   */
+  const startingRef = useRef(false)
   const continuingRef = useRef(false)
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const completedTrackedScanRef = useRef<string | null>(null)
@@ -150,8 +163,10 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
   }
 
   const onStart = async () => {
+    if (startingRef.current) return
     setError(null)
     if (!siteUrl.trim()) return
+    startingRef.current = true
 
     /*
       Fires for everyone now.
@@ -164,7 +179,25 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
       event disappearing.
     */
     const trackedPlan = planFromLinkId(linkId) || normalizeTrackedPlan(selectedPlanId)
-    pushEvent("scan_started", { plan: trackedPlan ?? "organic" })
+    const plan = trackedPlan ?? "organic"
+    pushEvent("scan_started", { plan })
+
+    /*
+      The top of the funnel, reported to both destinations.
+
+      Meta had no signal before the lead form was submitted, so campaigns were
+      optimising against a conversion that only a fraction of the visitors who
+      actually started a scan ever reached. AuditStarted is spelled exactly as
+      the custom conversion registered in Events Manager — trackCustom, because
+      it is not one of Meta's standard event names — and audit_started is the
+      GA4 side of the same moment.
+
+      Both sit under startingRef with scan_started, so a doubled press counts
+      once. The payload is the plan dimension and nothing else: the visitor is
+      anonymous at this point in the flow and stays that way.
+    */
+    trackAuditStarted({ plan })
+    pushEvent("audit_started", { plan })
 
     setIsSubmitting(true)
     try {
@@ -201,6 +234,7 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
       setError(String(e?.message || e))
     } finally {
       setIsSubmitting(false)
+      startingRef.current = false
     }
   }
 

@@ -168,6 +168,23 @@ export function trackLead(params?: { source?: string; scanOutcome?: "scored" | "
 }
 
 /**
+ * A visitor pressed start on a scan.
+ *
+ * Custom rather than standard: no Meta standard event describes it, and the
+ * conversion already configured in Events Manager is keyed on this exact
+ * name — "AuditStarted", case-sensitive — so it must not be spelled any other
+ * way here.
+ *
+ * The dimension mirrors GA4's audit_started so the two reports can be read
+ * side by side. Nothing identifying the visitor is sent.
+ */
+export function trackAuditStarted(params?: { plan?: string }): void {
+  trackCustom("AuditStarted", {
+    ...(params?.plan ? { plan: params.plan } : {}),
+  })
+}
+
+/**
  * A document was issued. Custom rather than standard: no Meta standard event
  * describes it, and it is the product's core activation signal.
  */
