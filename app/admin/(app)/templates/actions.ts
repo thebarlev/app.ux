@@ -77,6 +77,22 @@ export async function getTemplatesAction() {
 export async function getTemplateByIdAction(templateId: string) {
   try {
     const supabase = await createClient()
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { ok: false as const, message: "משתמש לא מחובר" }
+    }
+
+    // Check if user is admin
+    const { data: adminData } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
+
+    const isAdmin = !!adminData
+
     const companyId = await getCompanyIdForUser()
 
     const { data, error } = await supabase
@@ -88,6 +104,14 @@ export async function getTemplateByIdAction(templateId: string) {
 
     if (error) {
       return { ok: false as const, message: error.message }
+    }
+
+    // Global templates (company_id = null) are admin-only. A Server Action is a
+    // public POST endpoint and does not pass through app/admin/(app)/layout.tsx,
+    // so the layout guard cannot be relied on here.
+    // Reported as "not found" so a non-admin cannot confirm the template exists.
+    if ((data as any)?.company_id === null && !isAdmin) {
+      return { ok: false as const, message: "תבנית לא נמצאה" }
     }
 
     const { data: typeRows } = await supabase
@@ -281,6 +305,22 @@ const toTemplateDocumentType = (documentType: string) => {
 export async function updateTemplateAction(payload: UpdateTemplatePayload) {
   try {
     const supabase = await createClient()
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return { ok: false as const, message: "משתמש לא מחובר" }
+    }
+
+    // Check if user is admin
+    const { data: adminData } = await supabase
+      .from("system_admins")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle()
+
+    const isAdmin = !!adminData
+
     const companyId = await getCompanyIdForUser()
 
     // Validation
@@ -303,8 +343,18 @@ export async function updateTemplateAction(payload: UpdateTemplatePayload) {
       return { ok: false as const, message: "תבנית לא נמצאה" }
     }
 
-    // Allow editing global templates (company_id = null) for admins
-    // Allow editing company templates only if they belong to the user's company
+    // Allow admins to edit global templates.
+    // A Server Action is a public POST endpoint and does not pass through
+    // app/admin/(app)/layout.tsx, so the layout guard cannot be relied on here.
+    if (existing.company_id === null && !isAdmin) {
+      return { ok: false as const, message: "לא ניתן לערוך תבניות גלובליות" }
+    }
+
+    // Allow editing company templates only if they belong to the user's company.
+    // NOTE: deliberately NOT relaxed for admins. deleteTemplateAction and
+    // toggleTemplateActiveAction do let an admin bypass this ownership check;
+    // replicating that here would grant admins a write capability they do not
+    // have today, which is outside the scope of this task. Left as-is.
     if (existing.company_id !== null && existing.company_id !== companyId) {
       return { ok: false as const, message: "אין הרשאה לערוך תבנית זו" }
     }

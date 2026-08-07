@@ -41,12 +41,13 @@ function formatDownloadFilename(
  * ONE SOURCE OF TRUTH: Server-side only PDF generation and storage.
  * 
  * Uses two Supabase clients:
- * - userClient: Authentication (auth.getUser())
- * - adminClient: Document fetch + storage (bypasses RLS; standard for financial docs)
- * 
+ * - userClient: Authentication (auth.getUser()) + document metadata fetch (RLS-scoped)
+ * - adminClient: Storage only (service role)
+ *
  * Flow:
  * 1. Authenticate user with userClient
- * 2. Fetch document metadata with adminClient (bypasses RLS)
+ * 2. Fetch document metadata with userClient — RLS (documents_select) is the
+ *    tenant gate; a document the caller may not read comes back empty -> 404
  * 3. If pdf_storage_key exists: Create signed URL with adminClient
  * 4. If pdf_storage_key missing: Generate PDF with adminClient (idempotent fallback)
  * 5. Return signed URL redirect
@@ -135,8 +136,19 @@ export async function GET(
       console.log("[PDF] Start:", { documentId, userId: auth.user.id })
     }
 
-    // 2) Fetch document metadata (adminClient bypasses RLS; auth already verified)
-    const { data: doc, error: docError } = await adminClient
+    // 2) Fetch document metadata with the RLS-scoped userClient — NOT adminClient.
+    //
+    // This is the cross-tenant gate. `documents_select` (scripts/090, latest
+    // definition) already allows exactly the three legitimate cases:
+    //   a. company_id in user_company_ids()                    — own tenant
+    //   b. linked in billing_documents.buyer_company_id        — main-app billing invoice
+    //   c. linked in auditor_subscription_charges.company_id   — auditor subscription invoice
+    // Anything else returns no row, and the handler below answers 404 (not 403,
+    // so a foreign document's existence is never confirmed).
+    //
+    // Do NOT "restore" adminClient here for consistency with the storage calls:
+    // that reopens the IDOR this gate closes.
+    const { data: doc, error: docError } = await userClient
       .from("documents")
       .select(
         "id, document_type, document_status, document_number, company_id, language, template_version_id, finalized_at, pdf_storage_key, pdf_storage_key_he_copy, pdf_storage_key_en, original_issued_at, original_issued_language, reference_text"

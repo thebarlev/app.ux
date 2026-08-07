@@ -17,24 +17,22 @@ function notFoundIfDisabled() {
   return null
 }
 
-function isVercelCron(req: Request): boolean {
-  // Vercel Cron always sends user-agent starting with "vercel-cron/" and an
-  // x-vercel-cron-schedule header. Implicit auth from the platform.
-  const ua = req.headers.get("user-agent") || ""
-  if (ua.startsWith("vercel-cron/")) return true
-  if (req.headers.get("x-vercel-cron-schedule")) return true
-  return false
-}
-
+// NOTE: there is deliberately no user-agent / x-vercel-cron-schedule check here.
+// Both headers are fully client-controlled, so `curl -H "user-agent: vercel-cron/1.0"`
+// authenticated as the platform on a route that runs with the service role.
+// The shared secret is the only accepted proof. Fails closed when unset.
+// Resolved into a single `expected` (the app/api/auditor/admin/cron/tick shape).
+// Keeping two separate comparisons would be unsafe here: with only one of the two
+// variables set, the other resolves to "" and an absent header ("" === "") would
+// authenticate. The user-agent bypass used to mask that; it no longer can.
 function checkSecret(req: Request): boolean {
-  if (isVercelCron(req)) return true
-
-  const expected = String(process.env.AUDITOR_WORKER_SECRET || "").trim()
-  const cronExpected = String(process.env.AUDITOR_CRON_SECRET || "").trim()
-  if (!expected && !cronExpected) return false
+  const expected = String(
+    process.env.AUDITOR_WORKER_SECRET || process.env.AUDITOR_CRON_SECRET || ""
+  ).trim()
+  if (!expected) return false
   const got = String(req.headers.get("x-auditor-worker-secret") || "").trim()
   const gotBearer = String(req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim()
-  return got === expected || gotBearer === expected || got === cronExpected || gotBearer === cronExpected
+  return got === expected || gotBearer === expected
 }
 
 async function handler(req: Request) {
