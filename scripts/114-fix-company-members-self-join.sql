@@ -15,7 +15,10 @@
 -- scripts/007 is written against it. No trigger and no constraint blocked it.
 --
 -- THE FIX
--- Additionally require that the company is one the caller owns.
+-- Additionally require that company_id is one of the caller's own companies,
+-- resolved through public.user_company_ids() — memberships union owned
+-- companies. See "WHY user_company_ids()" below for why the lookup goes through
+-- that helper rather than an inline select on public.companies.
 --
 -- WHY REGISTRATION STILL WORKS
 -- All four browser paths create the company FIRST, with auth_user_id set to the
