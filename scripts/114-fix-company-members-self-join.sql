@@ -36,19 +36,25 @@
 --     lib/auditor/billing/process-indicator-event.ts:194,232,256,405
 -- * Every read path. All other references to this table are SELECTs.
 --
--- READ THIS BEFORE RUNNING — the one way this can bite
--- A policy expression is evaluated with the caller's own privileges, so the
--- SELECT on public.companies below is itself subject to companies' RLS. This
--- migration therefore assumes a registrant can SELECT the company row they just
--- created. That is almost certainly true, but public.companies' policies were
--- created outside scripts/ and could not be verified from the repository.
+-- WHY user_company_ids() AND NOT AN INLINE SELECT ON companies
+-- A policy expression is evaluated with the caller's own privileges, so an
+-- inline `select id from public.companies where auth_user_id = auth.uid()`
+-- inside this WITH CHECK would itself be subject to companies' RLS. If that
+-- policy did not return the row, registration would break in production and we
+-- would find out on a real user. public.companies' policies were created outside
+-- scripts/ and cannot be verified from the repository, so that risk is not worth
+-- taking.
 --
--- If end-to-end registration of a NEW user fails after this migration with a
--- row-level-security error on company_members, this is the cause. Run
--- 114-115-ROLLBACK.sql, report it, and do not patch forward on production: the
--- fix would be to swap the subquery for the SECURITY DEFINER helper
--- public.user_company_ids(), which is not subject to the caller's RLS. That is
--- a decision, not a guess to make mid-incident.
+-- public.user_company_ids() (scripts/006:218) is SECURITY DEFINER, so it is not
+-- subject to the caller's RLS and cannot come back empty because of a policy.
+-- The risk disappears.
+--
+-- The check is exactly as strong. user_company_ids() is
+-- `company_members ∪ companies WHERE auth_user_id = auth.uid()`, i.e.
+-- memberships plus owned companies. The attack is joining a company you have no
+-- relationship with, and a stranger is in neither set. It is also the pattern
+-- every other policy in the project already uses, so this introduces no
+-- exception to the house style.
 --
 -- NOTE ON THE ROLE CLAUSE
 -- The live policy's TO clause is unknown (dashboard-created), so none is
@@ -65,11 +71,7 @@ create policy company_members_signup_insert on public.company_members
   for insert
   with check (
     user_id = auth.uid()
-    and company_id in (
-      select c.id
-      from public.companies c
-      where c.auth_user_id = auth.uid()
-    )
+    and company_id in (select public.user_company_ids())
   );
 
 commit;

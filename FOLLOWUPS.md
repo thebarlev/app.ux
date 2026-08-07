@@ -5,6 +5,20 @@
 
 ---
 
+## המסד שונה ידנית מחוץ למיגרציות — `scripts/` אינו מקור אמת אמין  `[התגלה בשלב 1.5א — קריטי להמשך]`
+- **מה:** לפחות שתי מדיניות RLS קיימות בפרודקשן ואינן מופיעות באף קובץ ב-`scripts/`: `company_members_signup_insert` ו-`system_admins_insert`. שתיהן נוצרו ידנית במסד. בנוסף, מדיניות שכן קיימת בקבצים — `company_members_insert` — **שונה בפועל ממה שכתוב ב-`scripts/007:15-28`**: בקובץ היא דורשת תפקיד `owner`/`admin` או בעלות על החברה, ובמפה החיה היא `company_id in (select user_company_ids())`. גם מדיניות ה-RLS של `public.companies` אינה מופיעה באף קובץ.
+- **המשמעות:** **אי אפשר להסתמך על `scripts/` כדי לדעת מה מצב ההרשאות בפרודקשן.** קריאת הקבצים תיתן תמונה שגויה — לפעמים מחמירה מהמציאות, לפעמים מקלה. בשלב 1 כבר נתקלנו במקרה ההפוך (`documents_select`, שבו דווקא הקבצים היו נכונים ו-`scripts/090` היה ההגדרה האחרונה), ולכן אי אפשר גם להניח שהקבצים תמיד מיושנים. אין כלל אצבע — חייבים לאמת.
+- **מה זה מחייב בכל שלב הבא:** לפני כתיבת מיגרציה שנוגעת במדיניות קיימת, לאמת את ההגדרה מול `pg_policies` ולא מול `scripts/`:
+  ```sql
+  select policyname, cmd, permissive, roles, qual, with_check
+  from pg_policies where schemaname = 'public' and tablename = '<טבלה>'
+  order by policyname;
+  ```
+  ואת ההרשאות מול `information_schema.role_table_grants`.
+- **איפה:** `scripts/007-tenant-rls-policies.sql:15-28` מול המפה החיה · `scripts/002-enable-rls.sql:52` (מדיניות ה-SELECT על `system_admins`, בשם `"System admins can view system admins"` — ייתכן שבמסד יש גם `system_admins_select` בשם אחר) · אין קובץ כלל למדיניות של `public.companies`
+- **למה נדחה:** תיקון הפער עצמו — הוצאת המצב החי לקובץ מיגרציה שמשקף אותו — הוא פרויקט בפני עצמו, ולא בהיקף חלק א׳.
+- **מה מחזיר אותו לראש התור:** לפני חלק ב׳. חלק ב׳ נוגע בתשע פונקציות, בכפל מדיניות על `document_sequences` וב-CASE 3 ב-`templates_update` — כולם מתוארים ב-`scripts/`, וכפי שראינו כאן, התיאור הזה עלול פשוט לא להיות נכון.
+
 ## ה-middleware קובע את דגל האורח לפי נוכחות פרמטרים, בלי לאמת את הטוקן  `[נדרש ע"י הארכיטקט — לא תוקן]`
 - **התנאי המדויק שביקשת:** `lib/supabase/proxy.ts:60-69` —
   ```
