@@ -55,26 +55,29 @@ order by table_name, grantee, privilege_type;
 
 -- ── 1.א  מאיפה להשיג את שני המזהים ─────────────────────────────────────────
 
--- מזהה משתמש הבדיקה. קח את השורה של המשתמש שאתה בודק איתו (למשל itzik+test1):
-select id, email
-from auth.users
-order by created_at desc
-limit 20;
--- ← העתק את ה-id. זה ה-<UUID_של_משתמש_הבדיקה> בכל מקום בהמשך.
-
--- מזהה חברה זרה — חברה שלמשתמש הבדיקה אין איתה שום קשר.
--- הדבק את ה-UUID של משתמש הבדיקה בשני המקומות המסומנים:
-select c.id, c.name
-from public.companies c
-where c.auth_user_id is distinct from '<UUID_של_משתמש_הבדיקה>'::uuid
-  and not exists (
-    select 1 from public.company_members m
-    where m.company_id = c.id
-      and m.user_id = '<UUID_של_משתמש_הבדיקה>'::uuid
-  )
-limit 5;
--- ← העתק id אחד. זה ה-<UUID_של_חברה_זרה>.
--- אם השאילתה לא מחזירה כלום, למשתמש הזה יש קשר לכל החברות — בחר משתמש בדיקה אחר.
+-- שאילתה אחת שמחזירה את שני המזהים יחד. אין מה להדביק לתוכה.
+-- כל שורה בתוצאה היא זוג תקין: משתמש, וחברה שאין לו איתה שום קשר.
+-- בחר שורה אחת והשתמש בשני הערכים שלה בכל הבדיקות בהמשך.
+select
+  u.id    as test_user_id,
+  u.email as test_user_email,
+  fc.id   as foreign_company_id,
+  fc.company_name as foreign_company_name
+from auth.users u
+cross join lateral (
+  select c.id, c.company_name
+  from public.companies c
+  where c.auth_user_id is distinct from u.id
+    and not exists (
+      select 1 from public.company_members m
+      where m.company_id = c.id
+        and m.user_id = u.id
+    )
+  limit 1
+) fc
+order by u.created_at desc
+limit 10;
+-- אם התוצאה ריקה לגמרי — לכל משתמש יש קשר לכל החברות, ואי אפשר לבדוק כך.
 
 
 -- ── 1.ב  לפני התיקון: הצטרפות לחברה זרה — אמורה להצליח ─────────────────────
