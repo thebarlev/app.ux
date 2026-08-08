@@ -28,10 +28,39 @@
 שבהערה ("לקבוע `is_default`") הקנתה בפועל את השורה כולה. הזרימה שלמענה נכתב הענף עברה מזמן
 ל-`company_template_selections`, שמחווטת בקוד ומהווה עדיפות 0 בצינור ה-PDF.
 
-### פריט 2 היה חלקי — חמש פונקציות טופלו בהמשך
-117 כיסתה שלוש מתוך תשע. חמש נותרו חסומות עד שההגדרות החיות הוחזרו, והן מטופלות במיגרציה 120.
-`get_document_company_id(text)` **נשארת פתוחה ל-`authenticated` במכוון** — מדיניות RLS על
+### פריט 2 — הושלם בשני חלקים
+117 כיסתה שלוש מתוך תשע הפונקציות. חמש נותרו חסומות עד שההגדרות החיות הוחזרו, וטופלו במיגרציה 120
+(להלן). `get_document_company_id(text)` **נשארת פתוחה ל-`authenticated` במכוון** — מדיניות RLS על
 `storage.objects` שניתנה `TO authenticated` קוראת לה, וביטול ההרשאה ישבור העלאת PDF לכל המשתמשים.
+זו התשיעית, והיא מכוסה בהחלטה ולא במיגרציה.
+
+### מיגרציה 120 — חמש הפונקציות הנותרות · הושלמה ואומתה בפרודקשן
+**ענף:** `security/stage-1.5b-functions`, נחתך מ-`main@9f1f552`.
+
+| פונקציה | מה נעשה | אימות שהוחזר |
+|---|---|---|
+| `generate_document_number(uuid, text)` | בדיקת בעלות בגוף הפונקציה, **בלי לגעת בהרשאות** | `has_ownership_guard=true`, ו-`authenticated` **עדיין ב-acl** כנדרש |
+| `allocate_document_number(uuid, text, text)` | `revoke` → `service_role` | `service_role` בלבד |
+| `lock_sequence_start(uuid, text, bigint)` | `revoke` → `service_role` · **קוד מת** | `service_role` בלבד |
+| `lock_sequence_start(uuid, text, integer, text, uuid)` | `revoke` → `service_role` | `service_role` בלבד |
+| `select_company_template(uuid, text, uuid)` | `revoke` → `service_role` · מסלול נטוש | `service_role` בלבד |
+
+**מסלול הכסף אומת בפועל:** הנפקת מסמך אמיתית דרך האפליקציה עברה בהצלחה. זו הבדיקה שנדרשה, שכן
+הבדיקה בגוף הפונקציה יושבת בדיוק על נתיב ההנפקה — היא נקראת כ-`authenticated` מ-`lib/document-helpers.ts:299`
+ומ-`lib/documents/actions.ts:675`, ולכן `revoke` היה שובר אותה ובדיקה בגוף היא הדרך היחידה.
+
+**למה `create or replace` היה בטוח כאן:** ההגדרה החיה אומתה כזהה ל-`scripts/006:237`, ואימתתי
+תוכניתית שגוף הפונקציה במיגרציה, בלי שורות הבדיקה, זהה **בייט-בייט** למקור — כך שהאטומיות של המספור
+(`select ... for update`, נספח א׳) לא נגעה. הבדיקה מותנית ב-`auth.uid() is not null`, ולכן מסלול
+ה-`service_role` אינו נחסם.
+
+**שתי הערות על מה שלא נעשה:**
+- `lock_sequence_start(uuid, text, bigint)` **בוטלה הרשאתה ולא נמחקה.** הגוף שלה פונה לעמודות
+  `business_id`, `doc_type`, `start_number`, `next_number` שאינן קיימות ב-`document_sequences`, ולכן
+  כל קריאה אליה תיפול ב-`undefined_column`. `revoke` הפיך בקלות ו-`drop function` לא, וסגירת ההרשאה
+  היא כל מה שהפריט דרש.
+- `select_company_template` כותבת ל-`company_selected_templates` בעוד האפליקציה עובדת מול
+  `company_template_selections` — שמות מוחלפים, רק השנייה חיה.
 
 ---
 
