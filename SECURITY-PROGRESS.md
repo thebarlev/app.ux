@@ -4,6 +4,57 @@
 
 ---
 
+## שלב 1.5 חלק ג׳ — הופעל חלקית · עסקה 3 מוקפאת בכוונה
+
+**ענף:** `security/stage-1.5c` (לא מוזג). התוכנית: `scripts/121-transfer-bogo-media-ownership.sql`.
+
+### מה הורץ ואומת בפרודקשן
+`121-PREFLIGHT.sql` הורץ במלואו ואומת. **עסקאות 1 ו-2 הורצו ידנית ב-SQL Editor ואומתו.**
+
+| מה | מצב מאומת |
+|---|---|
+| `4ae68334-15a0-4fa3-a9ba-fd77deccc95d` | הבעלים כעת `d9186573-a7d5-46f9-90da-a05c4b762b47` (itzikbab@gmail.com) · 145 מסמכים |
+| חברי `4ae68334` | **שניים:** itzikbab (`owner`) ו-support (`owner`) |
+| `be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed` | `auth_user_id` ריק · אפס חברים · אפס מסמכים · **יתומה, לא נמחקה** |
+| מדדי בסיס | `companies` 12 · `company_members` 12 · `documents` 151 — **ללא שינוי** |
+
+המדד `company_members` = 12 ללא שינוי הוא מה שמצופה: עסקה 1 הסירה שורה אחת (itzikbab מ-be2ed4f5)
+והוסיפה שורה אחת (itzikbab ל-4ae68334). נטו אפס.
+
+### ⛔ עסקאות 1 ו-2 כבר הורצו. אין להריץ אותן שוב, ואין להריץ את `121-ROLLBACK.sql`. ⛔
+
+### עסקה 3 — מוקפאת בכוונה, לא הורצה
+עסקה 3 מסירה את שורת ה-`company_members` של support מ-4ae68334. היא **לא הורצה**.
+
+**ההתנגדות שהוסרה:** מסלול ה-API החיצוני להנפקת מסמכים אינו תלוי בחברוּת של support. אומת בקוד:
+האימות הוא סוד בלבד (`UXELLENT_BILLING_API_KEY`, `app/api/billing/create-document/route.ts:29`),
+החברה נגזרת מ-`VOW_BILLING_COMPANY_ID` בלבד (`lib/billing/vow-billing/billing-service.ts:113`,
+`providers/internal-provider.ts:124`) ונכתבת ישירות כ-`documents.company_id` (`internal-provider.ts:152`),
+סכימת הקלט (`billing-service.ts:12-60`) אינה מקבלת `company_id` כלל, והכתיבה ב-service role ולכן
+RLS אינה נבדקת. חיפוש ממוקד ב-`lib/billing/vow-billing/` כולו ובנתיב הראוט לא מצא אף התייחסות
+ל-`company_members`, `auth_user_id`, `user_company_ids` או פתרון לפי אימייל.
+
+**ההתנגדות שנשארה, והיא הסיבה להקפאה:** `app/api/auditor/auth/bootstrap-company/route.ts:119`
+מחזיר בעלות על חברה לפי `companies.email` למשתמש שאין לו חברה, בלי שום בדיקת `system_admins`.
+פירוט מלא ב-`FOLLOWUPS.md`.
+
+### ⚠️ המצב הנוכחי — יציב, אך היעד לא הושג
+- **יציב:** לכל אחד מהמשתמשים חברה אחת בדיוק, ולכן אין את אי-הדטרמיניזם של
+  `getCompanyIdForUser` (`lib/document-helpers.ts:73`). אין חלון פתוח ואין סיכון להנפקה על חברה שגויה.
+- **תופעת לוואי מועילה של ההקפאה:** כל עוד ל-support יש שורת חברוּת,
+  `resolveCanonicalAuditorCompanyForUser` מוצא את החברה לפי מזהה משתמש ומחזיר לפני שהוא נופל
+  להתאמה לפי אימייל — כלומר **ההקפאה עצמה מונעת כרגע את החולשה שבגללה הוקפאה.** זו הסיבה שאין
+  דחיפות מבצעית להריץ את עסקה 3 לפני שהמסלול נחסם.
+- **אבל היעד לא הושג:** הפרדת הזהויות **אינה שלמה.** ל-support יש עדיין גישת חבר בתפקיד `owner`
+  ל-4ae68334 ולספרים שלה, וזו בדיוק הגישה ש-1.5ג׳ נועד להסיר. הבעלוּת עברה; ההפרדה לא.
+
+### מה נדרש לפני שעסקה 3 תרוץ
+חסימת ההתחברות וההרשמה למודול ה-auditor, שסוגרת את `bootstrap-company` (הקורא היחיד שלו הוא
+טופס ההרשמה, `app/auditor/register/AuditorRegisterClient.tsx:132`). עד אז — **support אינו נוגע
+ב-`/auditor` בכלל**, לפי האזהרה התפעולית בראש קובץ התוכנית.
+
+---
+
 ## שלב 1.5 חלק ב׳ — פריטים 1-4 הושלמו ואומתו בפרודקשן
 
 **ענף:** `security/stage-1.5b`, נחתך מ-`main@22a2c12`.
