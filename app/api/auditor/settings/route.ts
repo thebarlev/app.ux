@@ -7,6 +7,16 @@ import { getCompanyIdForUser } from "@/lib/document-helpers"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { z } from "zod"
 
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
+
 const updateSchema = z.object({
   company_name: z.string().min(1).max(200).optional(),
   phone: z.string().max(50).optional(),
@@ -17,6 +27,9 @@ const updateSchema = z.object({
 })
 
 export async function GET() {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const cfg = getAuditorConfig()
   if (!cfg.enabled) return new NextResponse(null, { status: 404 })
 
@@ -55,6 +68,9 @@ export async function GET() {
 }
 
 export async function PATCH(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const cfg = getAuditorConfig()
   if (!cfg.enabled) return new NextResponse(null, { status: 404 })
 
