@@ -1,14 +1,28 @@
 import { createClient } from "@/lib/supabase/server"
 import AuditorRegisterClient from "@/app/auditor/register/AuditorRegisterClient"
+import { notFound } from "next/navigation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
 
 export default async function EnAuditorRegisterPage({
   searchParams,
 }: {
   searchParams: Promise<{ link_id?: string; scanId?: string; token?: string }>
 }) {
+  // AUDITOR BLOCKED — first statement executed in this component.
+  if (AUDITOR_BLOCKED) notFound()
+
   const sp = await searchParams
   const linkId = (typeof sp?.link_id === "string" ? sp.link_id.trim() : "") || "a_basic"
   const scanId = typeof sp?.scanId === "string" ? sp.scanId.trim() : ""
