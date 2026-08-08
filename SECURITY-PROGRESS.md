@@ -4,6 +4,37 @@
 
 ---
 
+## שלב 1.5 חלק ב׳ — פריטים 1-4 הושלמו ואומתו בפרודקשן
+
+**ענף:** `security/stage-1.5b`, נחתך מ-`main@22a2c12`.
+
+| מיגרציה | מה נסגר | אימות שהוחזר מפרודקשן |
+|---|---|---|
+| `116-revoke-truncate-references.sql` | `TRUNCATE` ו-`REFERENCES` בוטלו מ-`anon` ומ-`authenticated` על כל טבלה ב-`public` | **אפס שורות** |
+| `117-lock-security-definer-functions.sql` | `EXECUTE` צומצם על שלוש פונקציות `SECURITY DEFINER` שרצות רק בשרת | **`postgres` ו-`service_role` בלבד**, בלי `anon` ובלי `authenticated` |
+| `118-drop-duplicate-sequences-update-policy.sql` | `sequences_update` (מ-`QUICK_SETUP.sql`) נמחקה — היא ביטלה ב-OR את תנאי `is_locked` | `sequences_update` נמחקה, **נשארה מדיניות UPDATE אחת עם `is_locked`** |
+| `119-templates-update-drop-global-branch.sql` | הענף `company_id IS NULL AND auth.uid() IS NOT NULL` הוסר מ-`templates_update` | **`auth.uid() IS NOT NULL` נעלם** מהמדיניות |
+
+### ⛔ ארבע המיגרציות כבר הורצו ידנית על פרודקשן. אין להריץ אותן שוב, ואין להריץ את קבצי ה-ROLLBACK. ⛔
+
+### מה 118 תיקן בפועל
+תנאי `is_locked = false` ב-`document_sequences_update` (`scripts/007:96-99`) — הנעילה שנספח א׳ פריט 2
+מגדיר כדבר שאסור לשבור — **מעולם לא החזיק**, כי `sequences_update` הפרמיסיבית התאחדה איתו ב-OR
+בלי התנאי. אחרי 118 הוא אפקטיבי בפעם הראשונה.
+
+### מה 119 סגר
+כל משתמש מחובר יכול היה לעדכן **כל עמודה** בתבנית גלובלית, כולל `html_template` ו-`css`, שנרנדרים
+לתוך המסמכים של דיירים אחרים. RLS אינה יכולה להגביל אילו עמודות UPDATE נוגע בהן, ולכן הכוונה הצרה
+שבהערה ("לקבוע `is_default`") הקנתה בפועל את השורה כולה. הזרימה שלמענה נכתב הענף עברה מזמן
+ל-`company_template_selections`, שמחווטת בקוד ומהווה עדיפות 0 בצינור ה-PDF.
+
+### פריט 2 היה חלקי — חמש פונקציות טופלו בהמשך
+117 כיסתה שלוש מתוך תשע. חמש נותרו חסומות עד שההגדרות החיות הוחזרו, והן מטופלות במיגרציה 120.
+`get_document_company_id(text)` **נשארת פתוחה ל-`authenticated` במכוון** — מדיניות RLS על
+`storage.objects` שניתנה `TO authenticated` קוראת לה, וביטול ההרשאה ישבור העלאת PDF לכל המשתמשים.
+
+---
+
 ## שלב 1.5 חלק א׳ — הושלם ואומת בפרודקשן
 
 **ענף:** `security/stage-1.5a`, נחתך מ-`main@f9b285b`.
