@@ -5,6 +5,59 @@
 
 ---
 
+## `TRUNCATE` ו-`REFERENCES` מוענקים ל-anon ול-authenticated על כל טבלה  `[חמור — התגלה בצילום של 1.5א׳]`
+- **מה:** צילום ההרשאות הראה ש-`TRUNCATE` ו-`REFERENCES` מוענקים ל-`anon` ול-`authenticated` **על כל טבלה** בסכימה `public`.
+- **למה `TRUNCATE` חמור במיוחד — הוא עוקף את כל שכבות ההגנה שבנינו:**
+  1. **`TRUNCATE` אינה כפופה ל-RLS.** מדיניות שורה חלה על `SELECT`/`INSERT`/`UPDATE`/`DELETE`, לא על `TRUNCATE`. כל עבודת הבידוד בין דיירים אינה רלוונטית מולה.
+  2. **היא אינה מפעילה טריגרים ברמת השורה.** ההגנה על מסמך סופי בנויה משתי שכבות — policy (`scripts/007:130-135`) וטריגר `BEFORE DELETE` (`scripts/006:338-355`). `TRUNCATE` מפעילה רק טריגרי `TRUNCATE`, שאין כאלה, ולכן **שתי השכבות נעקפות**.
+  3. **התוצאה:** משתמש רשום — ואם ההרשאה נתונה גם ל-`anon`, גם מי שאינו מחובר — יכול למחוק את כל התוכן של `documents`, `document_line_items`, `company_members` או כל טבלה אחרת בפקודה אחת. זו מחיקה מלאה של ספרי החשבונות של כל הלקוחות, בלתי הפיכה למעט שחזור מגיבוי.
+- **הערה על החומרה:** זה גדול משני החורים שנסגרו בחלק א׳. הם אפשרו **קריאה** של ספרים זרים והסלמת הרשאות; זה מאפשר **השמדה** של כל הנתונים. גם `FOREIGN KEY` על טבלה אחרת אינו מגן: `TRUNCATE` על טבלה שיש אליה הפניות תיכשל, אבל `TRUNCATE ... CASCADE` תמחק גם את הטבלאות המפנות.
+- **`REFERENCES`:** חמור פחות בהרבה. הוא מאפשר ליצור אילוץ `FOREIGN KEY` שמפנה לטבלה, ובכך לגלות קיום מזהים ולהפריע למחיקות עתידיות. בעיה של היגיינת הרשאות, לא נתיב לאובדן נתונים.
+- **הבדיקה:**
+  ```sql
+  select table_name, grantee, privilege_type
+  from information_schema.role_table_grants
+  where table_schema = 'public'
+    and grantee in ('anon','authenticated')
+    and privilege_type in ('TRUNCATE','REFERENCES')
+  order by table_name, grantee, privilege_type;
+  ```
+  **התוצאה התקינה: ריקה.**
+- **התיקון (לא מבוצע כאן):** `revoke truncate, references on all tables in schema public from anon, authenticated;` ובנוסף `alter default privileges` כדי שטבלאות חדשות לא יקבלו זאת שוב. **צריך לאמת לפני הרצה** שאין נתיב אפליקטיבי שמסתמך על אחת מהשתיים — לפי מה שנבדק בחלק א׳ אין שימוש ב-`TRUNCATE` בקוד, אבל זו בדיקה שצריכה לרוץ במלואה, כולל מיגרציות ופונקציות SECURITY DEFINER.
+- **למה נדחה:** מחוץ להיקף חלק א׳, שהוגדר במפורש כשני החורים בלבד. שינוי הרשאות גורף על כל הסכימה הוא מיגרציה בפני עצמה ודורש אימות מלא.
+- **מה מחזיר אותו לראש התור:** מומלץ לפני חלק ב׳ ולא אחריו. כל עוד זה פתוח, שאר עבודת ה-RLS מגנה על הקריאה בעוד המחיקה ההמונית נשארה זמינה.
+
+## `grant all on all tables in schema public` יחזיר בשקט את ההרשאה ל-`system_admins`  `[נובע מ-115 — דורש בדיקה תקופתית]`
+- **מה:** מיגרציה 115 מבטלת `insert, update, delete` על `public.system_admins` מ-`anon` ו-`authenticated`. אבל ב-Supabase נהוג לתת הרשאות בפקודה גורפת כמו `grant all on all tables in schema public to authenticated;` — פקודה כזו, בין אם תרוץ ידנית, בתוך מיגרציה עתידית, או כחלק מסקריפט הקמה — **תחזיר את ה-INSERT ל-`system_admins` בלי שאף אחד ישים לב.** אין שגיאה, אין אזהרה, והחור נפתח מחדש בשקט. מדיניות ה-RLS לא תציל: 115 מוחקת גם אותה, אבל בלי מדיניות ובלי RLS מפורש הטבלה נשענת על ההרשאה בלבד.
+- **למה זה מסוכן במיוחד כאן:** זו הטבלה שקובעת מי אדמין מערכת. כל מדיניות שבודקת `EXISTS` מולה סומכת עליה, כך שהחזרה שקטה של ההרשאה שווה להחזרת ההסלמה המלאה.
+- **מה לעשות:** בדיקה תקופתית, ואחרי **כל** מיגרציה שנוגעת בהרשאות:
+  ```sql
+  select grantee, privilege_type
+  from information_schema.role_table_grants
+  where table_schema = 'public'
+    and table_name = 'system_admins'
+    and grantee in ('anon','authenticated')
+  order by grantee, privilege_type;
+  ```
+  **התוצאה התקינה: רק `SELECT`.** כל הופעה של `INSERT`, `UPDATE` או `DELETE` מהשניים האלה = החור חזר, ויש להריץ שוב את חלק ה-`revoke` של 115.
+- **איפה:** `scripts/115-lock-system-admins.sql` (ה-`revoke`) · `information_schema.role_table_grants`
+- **למה נדחה:** אכיפה אמיתית דורשת החלטה על מנגנון — בדיקה בתהליך פריסה, טסט אוטומטי, או `event trigger` על `GRANT`. זה מעבר להיקף חלק א׳, שהוא סגירת שני החורים.
+- **מה מחזיר אותו לראש התור:** כל מיגרציה עתידית שכוללת `grant` גורף על הסכימה, וכן חלק ב׳ — ששם ממילא נוגעים בהרשאות ובפונקציות.
+
+## המסד שונה ידנית מחוץ למיגרציות — `scripts/` אינו מקור אמת אמין  `[התגלה בשלב 1.5א — קריטי להמשך]`
+- **מה:** לפחות שתי מדיניות RLS קיימות בפרודקשן ואינן מופיעות באף קובץ ב-`scripts/`: `company_members_signup_insert` ו-`system_admins_insert`. שתיהן נוצרו ידנית במסד. בנוסף, מדיניות שכן קיימת בקבצים — `company_members_insert` — **שונה בפועל ממה שכתוב ב-`scripts/007:15-28`**: בקובץ היא דורשת תפקיד `owner`/`admin` או בעלות על החברה, ובמפה החיה היא `company_id in (select user_company_ids())`. גם מדיניות ה-RLS של `public.companies` אינה מופיעה באף קובץ.
+- **המשמעות:** **אי אפשר להסתמך על `scripts/` כדי לדעת מה מצב ההרשאות בפרודקשן.** קריאת הקבצים תיתן תמונה שגויה — לפעמים מחמירה מהמציאות, לפעמים מקלה. בשלב 1 כבר נתקלנו במקרה ההפוך (`documents_select`, שבו דווקא הקבצים היו נכונים ו-`scripts/090` היה ההגדרה האחרונה), ולכן אי אפשר גם להניח שהקבצים תמיד מיושנים. אין כלל אצבע — חייבים לאמת.
+- **מה זה מחייב בכל שלב הבא:** לפני כתיבת מיגרציה שנוגעת במדיניות קיימת, לאמת את ההגדרה מול `pg_policies` ולא מול `scripts/`:
+  ```sql
+  select policyname, cmd, permissive, roles, qual, with_check
+  from pg_policies where schemaname = 'public' and tablename = '<טבלה>'
+  order by policyname;
+  ```
+  ואת ההרשאות מול `information_schema.role_table_grants`.
+- **איפה:** `scripts/007-tenant-rls-policies.sql:15-28` מול המפה החיה · `scripts/002-enable-rls.sql:52` (מדיניות ה-SELECT על `system_admins`, בשם `"System admins can view system admins"` — ייתכן שבמסד יש גם `system_admins_select` בשם אחר) · אין קובץ כלל למדיניות של `public.companies`
+- **למה נדחה:** תיקון הפער עצמו — הוצאת המצב החי לקובץ מיגרציה שמשקף אותו — הוא פרויקט בפני עצמו, ולא בהיקף חלק א׳.
+- **מה מחזיר אותו לראש התור:** לפני חלק ב׳. חלק ב׳ נוגע בתשע פונקציות, בכפל מדיניות על `document_sequences` וב-CASE 3 ב-`templates_update` — כולם מתוארים ב-`scripts/`, וכפי שראינו כאן, התיאור הזה עלול פשוט לא להיות נכון.
+
 ## ה-middleware קובע את דגל האורח לפי נוכחות פרמטרים, בלי לאמת את הטוקן  `[נדרש ע"י הארכיטקט — לא תוקן]`
 - **התנאי המדויק שביקשת:** `lib/supabase/proxy.ts:60-69` —
   ```
