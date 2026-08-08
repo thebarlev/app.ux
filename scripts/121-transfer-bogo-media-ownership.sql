@@ -10,6 +10,25 @@
 --  be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed  כפילות ריקה · **מנותקת, לא נמחקת**
 --  d9186573-a7d5-46f9-90da-a05c4b762b47  itzikbab@gmail.com · הבעלים החדש
 --
+--  ⚠️⚠️  אזהרה תפעולית — עד שחסימת ה-auditor נכנסת:  ⚠️⚠️
+--  ⚠️⚠️  support אינו נוגע ב-/auditor בכלל.                ⚠️⚠️
+--
+--  הסיבה: אחרי עסקה 3 ל-support אין אף חברה, ואימייל 4ae68334 נשאר
+--  support@uxellent.com. שליחת טופס ההרשמה של ה-auditor
+--  (app/auditor/register/AuditorRegisterClient.tsx:132 → bootstrap-company)
+--  תריץ resolveCanonicalAuditorCompany עם האימייל שלו, ההתאמה לפי מזהה
+--  משתמש תחזיר ריק, הפתרון ייפול להתאמה לפי companies.email, וימצא את
+--  4ae68334 — ואז bootstrap-company/route.ts:119 יריץ
+--  `update companies set auth_user_id = user.id` ויוסיף שורת חברוּת בתפקיד
+--  owner. **ההעברה תתבטל מעצמה, בשקט, בלי שגיאה.** אין בדיקת system_admins
+--  בכל הנתיב הזה.
+--  מיטיגציה חלקית שקיימת כבר: דפי הדשבורד של ה-auditor מפנים אדמין מערכת
+--  ל-/admin/auditor/scans (app/auditor/(account)/dashboard/page.tsx:50 ו-en:85),
+--  ולכן ביקור פסיבי בדשבורד אינו מפעיל את המסלול. מה שכן מפעיל אותו הוא
+--  **שליחת טופס ההרשמה** ב-/auditor/register.
+--  אם זה קרה — בדיקת מצב-היעד שבתחתית הקובץ תתפוס זאת, ועסקאות 2 ו-3
+--  צריכות לרוץ שוב.
+--
 --  ⚠️  121-PREFLIGHT.sql חייב לרוץ קודם, והפלט שלו שמור.  ⚠️
 --
 --  הביטולים ב-121-ROLLBACK.sql, אחד לכל עסקה בנפרד.
@@ -193,6 +212,21 @@ where c.auth_user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
      select company_id from public.company_members
      where user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
    );
+
+-- ⚠️ support חייב להיות לא-בעלים ולא-חבר של 4ae68334. שתי העמודות = false.
+-- הרץ את זה שוב בכל פעם שיש חשד ש-support נגע ב-/auditor: אם אחת מהן חזרה
+-- ל-true, מסלול ההצמדה לפי אימייל (בדיקה 7א) ביטל את ההעברה, ויש להריץ
+-- מחדש את עסקאות 2 ו-3.
+select
+  u.email,
+  exists (select 1 from public.companies c
+          where c.id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
+            and c.auth_user_id = u.id) as support_is_owner_must_be_false,
+  exists (select 1 from public.company_members m
+          where m.company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
+            and m.user_id = u.id) as support_is_member_must_be_false
+from auth.users u
+where lower(u.email) = 'support@uxellent.com';
 
 -- והחברה הריקה — קיימת, חסרת בעלים, ללא חברים. זבל מנוטרל, לא נמחק.
 select id, company_name, email, auth_user_id,

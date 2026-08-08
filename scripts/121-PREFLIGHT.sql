@@ -3,7 +3,7 @@
 --  העברת הבעלות על "בוגו מדיה בע״מ" · שלב 1.5ג׳
 -- ═══════════════════════════════════════════════════════════════════════════
 --
---  שבע בדיקות. אם אחת מהן מחזירה משהו אחר ממה שכתוב מתחתיה — עצור ודווח.
+--  שמונה בדיקות (7 ו-7א). אם אחת מהן מחזירה משהו אחר ממה שכתוב מתחתיה — עצור ודווח.
 --  בדיקה 3 היא היחידה שכותבת, והיא עטופה ב-begin/rollback ולכן לא נשמרת.
 --  התוכנית שאחריה: שלוש עסקאות, בלי מחיקת חברה.
 --
@@ -106,6 +106,48 @@ select
   exists (select 1 from public.system_admins sa where sa.auth_user_id = u.id) as is_system_admin
 from auth.users u
 where lower(u.email) = 'itzikbab@gmail.com';
+
+
+-- ── 7א. מסלול ההצמדה האוטומטית לפי companies.email ──────────────────────────
+-- ⚠️ זו החולשה שמבטלת את ההעברה בשקט. קרא לפני שמריצים את עסקה 3. ⚠️
+--
+-- app/api/auditor/auth/bootstrap-company/route.ts:47 לוקח את האימייל של
+-- המשתמש המחובר עצמו, מעביר אותו ל-resolveCanonicalAuditorCompany, ואם
+-- ההתאמה לפי מזהה משתמש מחזירה ריק — הפתרון נופל להתאמה לפי
+-- companies.email (lib/auditor/company-resolution.ts:92-98). ואז שורה 119
+-- מריצה `update companies set auth_user_id = user.id` ומוסיפה שורת חברוּת
+-- בתפקיד owner. אין בדיקת system_admins בכל הנתיב.
+--
+-- אחרי עסקה 3 ל-support אין אף חברה, ואימייל 4ae68334 נשאר support@uxellent.com
+-- במכוון — ולכן הוא בדיוק המקרה שנופל ל-fallback הזה ומחזיר לעצמו את הבעלות.
+--
+-- הבדיקה: אילו חברות ניתנות להצמדה אוטומטית לפי אימייל של משתמש קיים.
+-- כל שורה כאן היא חברה שמשתמש יכול לספח לעצמו דרך המסלול הזה.
+-- מצופה: 4ae68334 מופיעה, עם matching_login = support@uxellent.com. זו התמונה
+-- של החולשה לפני, ולכן היא מתועדת ולא מתוקנת כאן.
+select
+  c.id as company_id,
+  c.company_name,
+  c.email as company_email,
+  u.email as matching_login,
+  c.auth_user_id
+from public.companies c
+join auth.users u on lower(u.email) = lower(c.email)
+order by (c.id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid) desc, c.company_name;
+
+-- ומצב הפתיחה של support מול 4ae68334 — התמונה לפני.
+-- מצופה כרגע: is_owner = false (הבעלים הוא support דרך auth_user_id? ראה
+-- בדיקה 1), is_member = true. אחרי עסקה 3 שני אלה חייבים להיות false.
+select
+  u.email,
+  exists (select 1 from public.companies c
+          where c.id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
+            and c.auth_user_id = u.id) as is_owner,
+  exists (select 1 from public.company_members m
+          where m.company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
+            and m.user_id = u.id) as is_member
+from auth.users u
+where lower(u.email) = 'support@uxellent.com';
 
 
 -- ── 7. עמודות company_members — האם קיימת עמודת status? ─────────────────────
