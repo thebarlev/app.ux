@@ -5,10 +5,11 @@
 --
 --  שבע בדיקות. אם אחת מהן מחזירה משהו אחר ממה שכתוב מתחתיה — עצור ודווח.
 --  בדיקה 3 היא היחידה שכותבת, והיא עטופה ב-begin/rollback ולכן לא נשמרת.
+--  התוכנית שאחריה: שלוש עסקאות, בלי מחיקת חברה.
 --
---  ⚠️  פלט בדיקה 2 הוא התנאי היחיד לשחזור של צעד א׳.  ⚠️
---  מחיקת be2ed4f5 היא הצעד היחיד בתוכנית שאינו הפיך באמת. בלי הפלט הזה
---  אי אפשר לשחזר את החברה, גם לא בקירוב.
+--  שים לב: התוכנית **אינה מוחקת** אף חברה. be2ed4f5 מנותקת ונשארת קיימת,
+--  ולכן אין בתוכנית אף פעולה שאינה הפיכה. בדיקה 2 נשמרת בכל זאת — היא
+--  התמונה של המצב לפני, והיא מה שיאפשר לזהות בעתיד מה השתנה ומה לא.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -32,13 +33,16 @@ where c.id in (
 order by documents desc;
 
 
--- ── 2. ⚠️ צילום מלא של be2ed4f5 לפני מחיקה — שמור את הפלט ⚠️ ────────────────
--- מצופה: שורה אחת. זו התשתית היחידה לשחזור אם צעד א׳ יתברר כשגוי.
+-- ── 2. צילום מלא של be2ed4f5 — שמור את הפלט ─────────────────────────────────
+-- מצופה: שורה אחת, עם auth_user_id = d9186573 ו-email = itzikbab@gmail.com.
+-- החברה לא נמחקת, אבל התמונה הזאת היא מה שמאפשר לוודא אחר כך ששני השדות
+-- האלה — ורק הם — הם מה שהשתנה.
 select * from public.companies
 where id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid;
 
 -- וכל מה שתלוי בה, לפי טבלה. מצופה: subscriptions=1 (מהטריגר),
--- company_members=1 (itzikbab), documents=0, billing_documents=0.
+-- company_members=1 (itzikbab), documents=0. אחרי עסקה 1 מצופה
+-- company_members=0 ושאר המספרים ללא שינוי — שום דבר לא נמחק בשרשרת.
 select 'subscriptions'      as t, count(*) from public.subscriptions      where company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
 union all select 'usage_monthly',       count(*) from public.usage_monthly       where company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
 union all select 'company_members',     count(*) from public.company_members     where company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
@@ -48,8 +52,10 @@ union all select 'customers',           count(*) from public.customers          
 union all select 'templates',           count(*) from public.templates           where company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
 order by t;
 
--- ⚠️ החוסם היחיד: billing_documents הוא ON DELETE RESTRICT בשני העמודות.
--- מצופה: 0. כל מספר אחר יחסום את המחיקה בצעד א׳ — אז עצור ודווח.
+-- billing_documents הוא ON DELETE RESTRICT בשתי העמודות. **אינו חוסם את
+-- התוכנית הזאת**, שכן איננו מוחקים דבר. נבדק לתיעוד בלבד, כי הוא כן יחסום
+-- את משימת ניקוי הזבל העתידית — ואז המספר הזה הוא מה שיקבע אם היא אפשרית.
+-- מצופה: 0.
 select count(*) as billing_documents_rows_must_be_zero
 from public.billing_documents
 where issuer_company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
@@ -57,6 +63,7 @@ where issuer_company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
 
 
 -- ── 3. הטריגר של ה-checksum — האם UPDATE על 4ae68334 עובר בכלל? ─────────────
+-- רלוונטי לעסקה 2, וגם לעסקה 1 שמריצה UPDATE על be2ed4f5.
 -- trigger_enforce_company_registration_number_checksum רץ BEFORE INSERT OR UPDATE
 -- (scripts/050:82), ולכן הוא מאמת מחדש את ח.פ. בכל עדכון — כולל צעד ג׳.
 -- זהו UPDATE ריק (company_name = company_name) שמפעיל את הטריגר בלי לשנות דבר,
@@ -81,7 +88,7 @@ where company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
 
 -- ── 5. מזהה המשתמש של support — נדרש לצעד ד׳ ────────────────────────────────
 -- מצופה: שורה אחת, ו-is_system_admin = true.
--- צעד ד׳ מוחק לפי תת-שאילתה על האימייל הזה, ולכן חייבת להיות בדיוק שורה אחת.
+-- עסקה 3 מוחקת לפי תת-שאילתה על האימייל הזה, ולכן חייבת להיות בדיוק שורה אחת.
 select
   u.id as support_auth_user_id,
   u.email,
@@ -102,11 +109,11 @@ where lower(u.email) = 'itzikbab@gmail.com';
 
 
 -- ── 7. עמודות company_members — האם קיימת עמודת status? ─────────────────────
--- ה-INSERT בצעד ב׳ אינו כולל status, כי היא אינה קיימת בסכימה שבקבצים
+-- ה-INSERT בעסקה 1ג׳ אינו כולל status, כי היא אינה קיימת בסכימה שבקבצים
 -- (scripts/006:11-23). הקוד באפליקציה מנסה לכתוב status ונופל חזרה בלעדיה,
 -- מה שמרמז שאולי היא נוספה במסד ידנית.
 -- מצופה: אם status קיימת ו-is_nullable='NO' ואין לה column_default —
--- עצור ודווח, כי אז ה-INSERT בצעד ב׳ ייכשל וצריך להוסיף לו את העמודה.
+-- עצור ודווח, כי אז ה-INSERT בעסקה 1ג׳ ייכשל וצריך להוסיף לו את העמודה.
 select column_name, data_type, is_nullable, column_default
 from information_schema.columns
 where table_schema = 'public' and table_name = 'company_members'

@@ -1,86 +1,91 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 --  121 — העברת הבעלות על "בוגו מדיה בע״מ"  ·  שלב 1.5ג׳
+--  שלוש עסקאות. אין מחיקה של אף חברה. כל עסקה הפיכה במלואה.
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 --  היעד: itzikbab יהיה הבעלים היחיד של 4ae68334; support יישאר אדמין בלבד
 --  וללא אף חברה; itzikbab יישאר עם חברה אחת בדיוק.
 --
---  4ae68334-15a0-4fa3-a9ba-fd77deccc95d  "בוגו מדיה בע״מ" · 145 מסמכים · נשארת
---  be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed  כפילות ריקה · נמחקת
+--  4ae68334-15a0-4fa3-a9ba-fd77deccc95d  "בוגו מדיה בע״מ" · 145 מסמכים · היעד
+--  be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed  כפילות ריקה · **מנותקת, לא נמחקת**
 --  d9186573-a7d5-46f9-90da-a05c4b762b47  itzikbab@gmail.com · הבעלים החדש
 --
 --  ⚠️  121-PREFLIGHT.sql חייב לרוץ קודם, והפלט שלו שמור.  ⚠️
---  בלי צילום be2ed4f5 מבדיקה 2 אין דרך לשחזר את צעד א׳.
 --
---  הביטולים נמצאים ב-121-ROLLBACK.sql, אחד לכל צעד בנפרד.
+--  הביטולים ב-121-ROLLBACK.sql, אחד לכל עסקה בנפרד.
+--
+-- ── מנתקים ולא מוחקים ────────────────────────────────────────────────────────
+--  הדרישה היא ש-itzikbab לא יחזיק שתי חברות. ניתוק משיג זאת במלואו.
+--  DELETE עם CASCADE על 30 טבלאות היה הפעולה היחידה בכל הפרויקט שאינה הפיכה,
+--  והשחזור שלה הוא יצירה מחדש עם created_at חדש ומנוי ניסיון חדש — כלומר לא
+--  שחזור. אין סיבה לקחת את הסיכון הזה כדי להשיג משהו ששתי שורות הפיכות משיגות.
+--  החברה הריקה נשארת כזבל, לצד חברות test אחרות שכבר קיימות. ניקוי הזבל הוא
+--  משימה נפרדת בסיכון נמוך, ואין לערבב אותה עם העברת בעלות על 145 מסמכים.
+--
+-- ── auth_user_id = null הוא מצב חוקי — נבדק, לא הונח ──────────────────────────
+--  1. הסכימה מגדירה אותו כך במפורש: scripts/001:16 הוא
+--     `auth_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL` — כלומר
+--     המסד עצמו מאפס אותו כשמשתמש נמחק. להשוואה, scripts/001:49 הוא
+--     `NOT NULL` על system_admins, שם זה כן נדרש.
+--  2. האפליקציה כותבת null בעצמה: lib/auditor/billing/process-indicator-event.ts:293
+--     מבצע INSERT של חברה חדשה עם `auth_user_id: null`. זה מסלול חי בזרימת
+--     החיוב של ה-auditor, ולכן חברות חסרות בעלים כבר קיימות בפרודקשן.
+--  3. כל 60+ הקריאות הן `.eq("auth_user_id", <uuid>)`, ו-NULL אינו שווה ל-uuid
+--     בשום השוואה — כולל user_company_ids() (scripts/006:218). שורה חסרת בעלים
+--     פשוט לא נכללת בתוצאות. אין קריסה.
+--  4. שני המקומות היחידים שקוראים את הערך עצמו מטפלים ב-null במפורש:
+--     app/admin/(app)/auditor/clients/page.tsx:18 מטפס אותו `string | null`,
+--     :159 מסנן `.filter((v): v is string => !!v)`, :179 עושה `|| ""`,
+--     ו-clients/actions.ts:54,99,106 בודקים `typeof === "string"`.
+--     lib/types/admin.ts:13 מגדיר אותו `string | null`.
 --
 -- ── מה במפורש לא נעשה כאן ────────────────────────────────────────────────────
---  * companies.email של 4ae68334 לא נוגע. הוא מרונדר לתוך ה-PDF כמשתנה
---    company_email (lib/pdf-service.ts:1739,1876), והעתקים נאמנים נבנים
---    מנתונים חיים — שינוי שלו היה משנה את האימייל שמופיע על העתקים של
---    145 המסמכים שכבר הונפקו. הבעלות נשענת על auth_user_id ועל
---    company_members, לא על האימייל, ולכן שינוי שלו אינו נדרש כלל.
---  * מזהה החברה אינו משתנה. ולכן — נרשם כאן כדי שלא ייחשב חוב בעתיד —
---    כל המקומות שמקבעים את 4ae68334 בקוד
+--  * companies.email של 4ae68334 לא נוגע. הוא מרונדר ל-PDF כ-company_email
+--    (lib/pdf-service.ts:1739,1876) והעתקים נאמנים נבנים מנתונים חיים, ולכן
+--    שינוי היה משנה את האימייל שעל העתקים של 145 המסמכים שהונפקו.
+--  * מזהה החברה אינו משתנה, ולכן כל המקומות שמקבעים את 4ae68334
 --    (app/api/auditor/billing/subscription/status/route.ts:10,
 --     lib/subscription-unlimited.ts:12, lib/auditor/billing/env.ts:22,
---     scripts/064:37, 075:483, 091:31, 093:18) ממשיכים להצביע על אותה חברה
---    ואינם דורשים שינוי. אין כאן חוב טכני. הקיבוע נוגע למזהה החברה, ואנחנו
---    משנים רק מי רשום כבעליה.
+--     scripts/064:37, 075:483, 091:31, 093:18) ממשיכים להצביע על אותה חברה.
+--    נרשם כאן כדי שלא ייחשב חוב בעתיד: אין שם חוב.
 --  * מדיניות ה-RLS של האדמין על documents אינה נוגעת. זה שלב 1.5ד׳.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- צעד א׳ — מחיקת החברה הריקה be2ed4f5
+-- עסקה 1 — ניתוק מ-be2ed4f5 והצמדה ל-4ae68334, באותה עסקה
 -- ═══════════════════════════════════════════════════════════════════════════
--- ⚠️ הצעד היחיד בתוכנית שאינו הפיך. ה-ROLLBACK שלו הוא יצירה מחדש מהצילום,
---    לא שחזור: created_at יהיה חדש, והטריגר trigger_create_trial_subscription
---    ייצור מנוי ניסיון חדש עם תאריכים חדשים.
+-- שלוש הפקודות חייבות לרוץ יחד. הסיבה: אם הניתוק וההצמדה יופרדו, נפתח חלון
+-- שבו ל-itzikbab יש אפס חברות או שתיים, ושני המצבים רעים:
 --
--- מה נמחק בשרשרת (ON DELETE CASCADE): המנוי שנוצר אוטומטית, usage_monthly,
--- שורת company_members של itzikbab, ועוד 27 טבלאות — כולן ריקות עבור החברה
--- הזאת לפי בדיקה 2.
--- מה יחסום: רק billing_documents (RESTRICT ×2). בדיקה 2 חייבת להראות 0.
+--   * אפס חברות — app/dashboard/layout.tsx:21-24 הוא
+--     `try { await getCompanyIdForUser() } catch { redirect("/register") }`,
+--     כלומר סשן פתוח שנכנס לדשבורד נזרק לטופס ההרשמה ועלול לייצר חברה
+--     שלישית עם אותו ח.פ.
+--   * שתי חברות — getCompanyIdForUser() ב-lib/document-helpers.ts:73 מחזיר
+--     Array.from(companyIds)[0] מ-Set שנבנה משתי שאילתות בלי ORDER BY, כלומר
+--     או-זו-או-זו ואפילו לא עקבי בין קריאות. מסמך שיונפק בחלון כזה עלול
+--     להיכתב על החברה הריקה ולפתוח בה רצף מספור חדש, ובגלל טריגרי האי-שינוי
+--     זה לא משהו שמתקנים אחר כך.
 --
--- מדוע דווקא ראשון: כל עוד be2ed4f5 קיימת, ברגע שנוסיף את itzikbab ל-4ae68334
--- (צעד ב׳) יהיו לו שתי חברות, ואז getCompanyIdForUser() ב-
--- lib/document-helpers.ts:73 מחזיר Array.from(companyIds)[0] מ-Set שנבנה
--- משתי שאילתות בלי ORDER BY — כלומר או-זו-או-זו, ואפילו לא עקבי בין קריאות.
--- מסמך שיונפק בחלון הזה עלול להיכתב על החברה הריקה ולפתוח בה רצף מספור חדש,
--- ובגלל טריגרי האי-שינוי זה לא משהו שמתקנים אחר כך.
+-- בתוך עסקה אחת אין חלון כזה כלל: מכל סשן אחר המעבר אטומי.
+-- ה-INSERT אידמפוטנטי. אין status ב-INSERT — העמודה אינה בסכימה שבקבצים
+-- (scripts/006:11-23). אם בדיקה 7 הראתה שהיא קיימת NOT NULL בלי default —
+-- עצור, ה-INSERT ייכשל.
 
 begin;
 
-delete from public.companies
+-- 1א. הסרת החברוּת של itzikbab בחברה הריקה
+delete from public.company_members
+where company_id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid
+  and user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid;
+
+-- 1ב. ניתוק הבעלוּת על החברה הריקה
+update public.companies
+set auth_user_id = null
 where id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid;
 
-commit;
-
--- אימות צעד א׳ — מצופה: אפס שורות.
-select id, company_name, email
-from public.companies
-where id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid;
-
--- ואימות של-itzikbab אין כרגע אף חברה — מצופה: 0.
--- זה החלון שבו הוא בלי חברה. ראה את האזהרה התפעולית בדוח.
-select count(*) as itzikbab_companies_now_zero
-from public.company_members
-where user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid;
-
-
--- ═══════════════════════════════════════════════════════════════════════════
--- צעד ב׳ — itzikbab נכנס ל-company_members של 4ae68334 בתפקיד owner
--- ═══════════════════════════════════════════════════════════════════════════
--- אידמפוטנטי: אם השורה קיימת, התפקיד מתעדכן ל-owner ולא נזרקת שגיאה.
--- אין status ב-INSERT — העמודה אינה קיימת בסכימה שבקבצים (scripts/006:11-23).
--- אם בדיקה 7 הראתה שהיא קיימת, NOT NULL ובלי ברירת מחדל — עצור, ה-INSERT ייכשל.
---
--- מכאן ועד סוף צעד ד׳ שני המשתמשים חברים ב-4ae68334. זה תקין: לכל אחד מהם
--- עדיין חברה אחת בלבד, ולכן אין את אי-הדטרמיניזם של getCompanyIdForUser.
-
-begin;
-
+-- 1ג. הצמדת itzikbab לחברה האמיתית
 insert into public.company_members (company_id, user_id, role)
 values (
   '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid,
@@ -91,22 +96,34 @@ on conflict (company_id, user_id) do update set role = 'owner';
 
 commit;
 
--- אימות צעד ב׳ — מצופה: שתי שורות, itzikbab ו-support, שניהם owner.
-select m.user_id, u.email, m.role
-from public.company_members m
-join auth.users u on u.id = m.user_id
-where m.company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
-order by u.email;
+-- אימות עסקה 1 — מצופה: שורה אחת בדיוק, 4ae68334, source = member.
+-- אם מופיעה גם be2ed4f5 — הניתוק לא תפס. אם אין אף שורה — ההצמדה לא תפסה.
+select c.id, c.company_name,
+       case when c.auth_user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
+            then 'owner' else 'member' end as how
+from public.companies c
+where c.id in (
+  select company_id from public.company_members
+  where user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
+)
+or c.auth_user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid;
+
+-- ואימות שהחברה הריקה נותרה קיימת וחסרת בעלים — מצופה: auth_user_id ריק, 0 חברים.
+select id, company_name, email, auth_user_id,
+       (select count(*) from public.company_members m where m.company_id = c.id) as members
+from public.companies c
+where id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- צעד ג׳ — companies.auth_user_id של 4ae68334 עובר ל-itzikbab
+-- עסקה 2 — companies.auth_user_id של 4ae68334 עובר ל-itzikbab
 -- ═══════════════════════════════════════════════════════════════════════════
--- זה ה-UPDATE שמפעיל את trigger_enforce_company_registration_number_checksum.
--- בדיקה 3 ב-PREFLIGHT הוכיחה שהוא עובר. אם היא לא רצה — אל תריץ את זה.
+-- זה ה-UPDATE שמפעיל את trigger_enforce_company_registration_number_checksum
+-- (scripts/050:82, רץ BEFORE INSERT OR UPDATE). בדיקה 3 ב-PREFLIGHT הוכיחה
+-- שהוא עובר. אם היא לא רצה — אל תריץ את זה.
 --
--- auth_user_id הוא מה ש-user_company_ids() קורא בענף הבעלות (scripts/006:218),
--- ולכן מכאן והלאה 4ae68334 נחשבת לחברה של itzikbab גם ללא שורת החברות.
+-- מכאן: ל-itzikbab החברה גם דרך בעלוּת וגם דרך חברוּת. ל-support נשארת
+-- חברוּת בלבד. לכל אחד חברה אחת. מצב תקין.
 
 begin;
 
@@ -116,8 +133,8 @@ where id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
 
 commit;
 
--- אימות צעד ג׳ — מצופה: owner_login_email = itzikbab@gmail.com,
--- ו-email של החברה נשאר support@uxellent.com, כמתוכנן.
+-- אימות עסקה 2 — מצופה: owner_login_email = itzikbab@gmail.com,
+-- ו-company_email נשאר support@uxellent.com, כמתוכנן.
 select c.id, c.email as company_email, c.auth_user_id, u.email as owner_login_email
 from public.companies c
 left join auth.users u on u.id = c.auth_user_id
@@ -125,15 +142,14 @@ where c.id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- צעד ד׳ — הסרת שורת company_members של support מ-4ae68334
+-- עסקה 3 — הסרת שורת company_members של support מ-4ae68334
 -- ═══════════════════════════════════════════════════════════════════════════
--- אחרי הצעד הזה ל-support לא תישאר אף חברה, והוא אדמין מערכת בלבד — זה היעד.
--- המחיקה לפי תת-שאילתה על האימייל, ולא לפי UUID מקובע. בדיקה 5 ב-PREFLIGHT
+-- אחרי זה ל-support לא תישאר אף חברה, והוא אדמין מערכת בלבד — זה היעד.
+-- המחיקה לפי תת-שאילתה על האימייל ולא לפי UUID מקובע; בדיקה 5 ב-PREFLIGHT
 -- חייבת להראות בדיוק שורה אחת, אחרת המחיקה עלולה לא לתפוס כלום.
 --
--- ⚠️ מיד אחרי הצעד הזה — קרא את "אחרי צעד ד׳" בדוח. support לא יוכל להיכנס
---    דרך /login, ו-/dashboard מפנה אותו ל-/register. הוא חייב להשתמש
---    ב-/admin/login מכאן והלאה.
+-- ⚠️ מיד אחרי זה: support אינו יכול להיכנס דרך /login, ופתיחת /dashboard
+--    תזרוק אותו ל-/register. הוא משתמש ב-/admin/login בלבד. ראה את הדוח.
 
 begin;
 
@@ -145,35 +161,41 @@ where company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid
 
 commit;
 
--- אימות צעד ד׳ — מצופה: שורה אחת בלבד, itzikbab, owner.
+-- אימות עסקה 3 — מצופה: שורה אחת בלבד, itzikbab, owner.
 select m.user_id, u.email, m.role
 from public.company_members m
 join auth.users u on u.id = m.user_id
 where m.company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
 
--- אימות ל-support — מצופה: אפס חברות, ו-is_system_admin = true.
+-- ול-support — מצופה: 0, 0, true.
 select
-  (select count(*) from public.company_members m
-     where m.user_id = u.id) as support_memberships_must_be_zero,
-  (select count(*) from public.companies c
-     where c.auth_user_id = u.id) as support_owned_companies_must_be_zero,
+  (select count(*) from public.company_members m where m.user_id = u.id) as support_memberships_must_be_zero,
+  (select count(*) from public.companies c where c.auth_user_id = u.id)  as support_owned_must_be_zero,
   exists (select 1 from public.system_admins sa where sa.auth_user_id = u.id) as is_system_admin_must_be_true
 from auth.users u
 where lower(u.email) = 'support@uxellent.com';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- אימות סופי — מצב היעד
+-- אימות מצב היעד
 -- ═══════════════════════════════════════════════════════════════════════════
--- מצופה: שורה אחת בלבד. חברה אחת, 145 מסמכים, בעלים itzikbab, חבר אחד.
+-- מצופה: שורה אחת בלבד — 4ae68334, 145 מסמכים, בעלים itzikbab, חבר אחד,
+-- ואימייל החברה עדיין support@uxellent.com.
 select
-  c.id,
-  c.company_name,
-  c.email as company_email,
+  c.id, c.company_name, c.email as company_email,
   u.email as owner_login_email,
   (select count(*) from public.documents d where d.company_id = c.id) as documents,
   (select count(*) from public.company_members m where m.company_id = c.id) as members
 from public.companies c
 left join auth.users u on u.id = c.auth_user_id
 where c.auth_user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
-   or c.id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d'::uuid;
+   or c.id in (
+     select company_id from public.company_members
+     where user_id = 'd9186573-a7d5-46f9-90da-a05c4b762b47'::uuid
+   );
+
+-- והחברה הריקה — קיימת, חסרת בעלים, ללא חברים. זבל מנוטרל, לא נמחק.
+select id, company_name, email, auth_user_id,
+       (select count(*) from public.company_members m where m.company_id = c.id) as members
+from public.companies c
+where id = 'be2ed4f5-53bc-464f-bd1b-b8f14f0fb4ed'::uuid;
