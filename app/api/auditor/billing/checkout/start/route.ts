@@ -9,6 +9,16 @@ import { getAuditorConfig } from "@/lib/auditor/env"
 import { getPublicBaseUrl, openLowProfile, requirePublicCallbackUrl } from "@/lib/auditor/billing/cardcom"
 import { getCardcomMarketConfig, resolveBillingMarket } from "@/lib/auditor/billing/market"
 
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
+
 const bodySchema = z.object({
   link_id: z.string().min(2).max(80),
   success_url: z.string().url().optional(),
@@ -32,6 +42,9 @@ function safeUtmFromRequest(req: Request): Record<string, string> {
 }
 
 export async function POST(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const auditorCfg = getAuditorConfig()
   if (!auditorCfg.enabled) return new NextResponse(null, { status: 404 })
 
