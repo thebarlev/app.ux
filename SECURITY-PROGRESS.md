@@ -4,6 +4,56 @@
 
 ---
 
+## חסימת מודול ה-auditor — הושלמה ואומתה ב-preview · מוזגה ל-main
+
+**ענף:** `security/auditor-block` @ `8e07f39`, נחתך מ-`main@dade0c8`. קומיט מיזוג `bdc59de`.
+**השיטה:** חסימה קשיחה בשכבת העמוד והנתיב — `notFound()` בעמוד, `404` בנתיב API, **כהוראה הראשונה
+בגוף כל רכיב וכל handler**, לפני כל קריאה ל-auth, ל-config או למסד.
+
+### למה מקודד ולא משתנה סביבה
+`const AUDITOR_BLOCKED: boolean = true` בכל קובץ. משתנה סביבה שאינו מוגדר **נכשל פתוח** — זה בדיוק
+הכשל שתוקן ב-S1.3. ביטול עתידי = revert של ארבעת קומיטי החסימה.
+
+**ה-annotation `: boolean` הוא load-bearing.** בלעדיו TypeScript מצמצם את הגוף שאחרי החסימה
+ל-unreachable ומדווח מחדש על כולו — נמדד: **156 שגיאות** מול baseline נקי, מה שמפיל את הבנייה
+בגלל `ignoreBuildErrors: false` ב-`next.config.mjs`. אין לשנות זאת ל-`= true` בלי annotation,
+ואין להחליף בעוזר משותף (הוחלט מפורשות).
+
+### מה נחסם — 26 קבצי קוד
+| קומיט | מה |
+|---|---|
+| `82b1e8d` | 10 עמודים: `login`, `register`, `checkout`, `success` בשתי השפות, ושני layouts של `(account)` שמכסים dashboard, dashboard/scan/[scanId], invoices, settings, subscription ו-onboarding |
+| `dfa6902` | `auth/bootstrap-company` — הקורא היחיד שלו היה טופס ההרשמה |
+| `bc53dfa` | 9 נתיבי חיוב + `preview-scan` |
+| `bda91f6` | 6 נתיבי הלקוח שנשארו, 8 handlers: `settings`, `intake`, `scans`, `scans/[scanId]`, `…/continue`, `…/export` |
+
+### מה אומת ב-preview — שתים-עשרה בדיקות, כולן עברו
+- **שש הכתובות מחזירות 404** — גם מחובר וגם לא מחובר.
+- **הסריקה הציבורית והלידים עובדים.** קישור הליד נבנה ב-`lib/auditor/report/email-worker.ts:77`
+  כ-`${baseUrl()}/auditor?scanId=…&token=…` — לעמוד השורש שאינו חסום, ומשם ל-`/api/auditor/status`
+  שגם הוא אינו חסום. אף ליד אינו נפגע.
+- **מסך האדמין סורק.** הוא קורא רק ל-`/api/admin/auditor/*`, שלא נגעו.
+- **מוצר החשבוניות תקין.** `api/auditor/billing/subscription/status` הושאר בכוונה — מנגנון המכסה
+  של מוצר החשבוניות קורא לו, וסגירתו הייתה שוברת את המוצר הראשי.
+
+### מה הושאר בכוונה
+`app/auditor/layout.tsx` (ה-`notFound()` שלו מפיל את הסריקה הציבורית) · `app/auditor/page.tsx` ·
+`app/auditor/[scanId]/page.tsx` · `api/auditor/pre-scan`, `continue`, `status`, `lead-and-scan` ·
+`api/auditor/admin/*` (כולל ה-cron ב-`vercel.json`) · `api/auditor/billing/subscription/status` ·
+`lib/auditor/**` (`ssrf.ts` ו-`fetch.ts` משמשים את כלי ה-SEO של האדמין) · `middleware.ts` ·
+`vercel.json` · `scripts/`.
+
+### תוצאת לוואי מכוונת — משוחרר חסימה בשלב 1.5ג׳
+`bootstrap-company` הוא הנתיב שהחזיר בעלות לפי `companies.email` למשתמש בלי חברה, בלי בדיקת
+`system_admins`. חסימתו סוגרת את המסלול הזה, ולכן **ההתנגדות שהקפיאה את עסקה 3 של שלב 1.5ג׳ הוסרה.**
+רשומת 1.5ג׳ עצמה יושבת על ענף `security/stage-1.5c`, שאינו מוזג — ולא נמשך ממנו דבר לכאן.
+
+### מדידה מול Baseline
+`npx tsc --noEmit` → קוד יציאה 0, פלט ריק. `npx next build` → קוד יציאה 0, 184 מסלולים,
+ו-`diff` על האזהרות מול ה-baseline → **זהה, אין אזהרה או שגיאה חדשה.**
+
+---
+
 ## שלב 1.5 חלק ב׳ — פריטים 1-4 הושלמו ואומתו בפרודקשן
 
 **ענף:** `security/stage-1.5b`, נחתך מ-`main@22a2c12`.
