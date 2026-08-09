@@ -56,7 +56,7 @@ test("declared values land on the columns the spec gives them", () => {
   expect(a000.slice(9, 24)).toBe("000000000001234"); // 1002, cols 10-24
   expect(a000.slice(24, 33)).toBe("515960508"); // 1003, cols 25-33
   expect(a000.slice(33, 48)).toBe("123456789012345"); // 1004, cols 34-48
-  expect(a000.slice(48, 56)).toBe("&1.31OF&"); // 1005, cols 49-56
+  expect(a000.slice(48, 56)).toBe("&OF1.31&"); // 1005, cols 49-56
   expect(a000.slice(56, 64)).toBe("00000000"); // 1006, cols 57-64
   expect(a000.slice(64, 84)).toBe("UXellent".padEnd(20, " ")); // 1007, cols 65-84
   expect(a000.slice(84, 104)).toBe("1.0".padEnd(20, " ")); // 1008, cols 85-104
@@ -69,6 +69,16 @@ test("declared values land on the columns the spec gives them", () => {
   expect(a000.slice(396, 416)).toBe("JSZip".padEnd(20, " ")); // 1030, cols 397-416
   expect(a000.slice(416, 419)).toBe("ILS"); // 1032, cols 417-419
   expect(a000.slice(419, 420)).toBe("0"); // 1034, col 420
+});
+
+test("the date fields are YYYYMMDD and the time field is hhmm", () => {
+  const a000 = buildIniTxt(input()).lines[0];
+
+  expect(a000.slice(362, 366)).toBe("2026"); // 1023 שנת המס, cols 363-366
+  expect(a000.slice(366, 374)).toBe("20260101"); // 1024, cols 367-374
+  expect(a000.slice(374, 382)).toBe("20261231"); // 1025, cols 375-382
+  expect(a000.slice(382, 390)).toBe("20260809"); // 1026, cols 383-390
+  expect(a000.slice(390, 394)).toBe("1642"); // 1027, cols 391-394
 });
 
 test("the reserved areas 1001, 1017 and 1035 are blank", () => {

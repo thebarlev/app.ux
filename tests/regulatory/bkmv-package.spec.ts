@@ -59,12 +59,12 @@ test("the archive reproduces OPENFRMT/<8 digits>.<YY>/<MMDDhhmm>/ with the three
     .filter((name) => !zip.files[name].dir)
     .sort();
 
-  // Sorted, so BKMVDATA.TXT precedes BKMVDATA.zip on case.
+  // Two files, not three: section 2.2 saves INI.TXT and the COMPRESSED BKMVDATA.
   expect(files).toEqual([
-    `OPENFRMT/51596050.26/08091642/${BKMV_DATA_FILENAME}`,
     `OPENFRMT/51596050.26/08091642/${BKMV_DATA_ARCHIVE_FILENAME}`,
     `OPENFRMT/51596050.26/08091642/${BKMV_INI_FILENAME}`,
   ]);
+  expect(files).not.toContain(`OPENFRMT/51596050.26/08091642/${BKMV_DATA_FILENAME}`);
 });
 
 test("entry paths use forward slashes so they extract as real directories", async () => {
@@ -86,10 +86,10 @@ test("BKMVDATA is delivered compressed in its own archive, and its bytes match t
   expect(names).toEqual([BKMV_DATA_FILENAME]);
 
   const fromInner = await innerZip.file(BKMV_DATA_FILENAME)!.async("nodebuffer");
-  const plain = await zip.file(`${DIRECTORY.replace(/\\/g, "/")}/${BKMV_DATA_FILENAME}`)!.async("nodebuffer");
 
+  // The only copy of BKMVDATA.TXT that ships is the one inside the archive.
   expect(fromInner.equals(data)).toBe(true);
-  expect(plain.equals(data)).toBe(true);
+  expect(zip.file(`${DIRECTORY.replace(/\\/g, "/")}/${BKMV_DATA_FILENAME}`)).toBeNull();
 });
 
 /**
@@ -116,8 +116,8 @@ test("INI.TXT is stored uncompressed, read from the ZIP header itself", async ()
 
   // 0 = STORE, 8 = DEFLATE.
   expect(methods[`${dir}/${BKMV_INI_FILENAME}`]).toBe(0);
-  expect(methods[`${dir}/${BKMV_DATA_FILENAME}`]).toBe(0);
   expect(methods[`${dir}/${BKMV_DATA_ARCHIVE_FILENAME}`]).toBe(0);
+  expect(methods[`${dir}/${BKMV_DATA_FILENAME}`]).toBeUndefined();
 });
 
 test("inside BKMVDATA.zip the payload really is deflated", async () => {
