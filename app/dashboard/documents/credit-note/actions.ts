@@ -17,6 +17,18 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
 
+// ── CREDIT NOTE BLOCKED ───────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which is
+// exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore credit-note issuance,
+// revert the security/credit-note-block commits.
+//
+// Deliberately NOT applied to saveCreditNoteDraftAction: a draft carries no
+// document number and consumes nothing, so it is harmless and stays working.
+const CREDIT_NOTE_BLOCKED: boolean = true;
+
 export {
   getRecipientConsentStatusAction,
   giveRecipientConsentAction,
@@ -32,6 +44,28 @@ export async function getInitialCreditNoteCreateData(): Promise<InitialCreditNot
  }
  
  export async function issueCreditNoteAction(payload: CreditNoteDraftPayload) {
+   // CREDIT NOTE BLOCKED — first statement executed, before issueDocumentAction.
+   //
+   // This is the allocation stop, and it is the one that matters. Issuance calls
+   // generate_document_number at lib/document-helpers.ts:298 and persists the
+   // number at :321-328, roughly 760 lines BEFORE the PDF is built at :1057.
+   // Those are separate PostgREST calls, so each commits on its own — there is no
+   // enclosing transaction for a later failure to abort. With no credit_note
+   // template, lib/pdf-service.ts:979 throws TEMPLATE_NOT_FOUND, which surfaces as
+   // { ok: false } at :254 and returns at document-helpers.ts:1078 — after the
+   // number is already committed. Nothing anywhere decrements current_number or
+   // deletes the numbered draft, so every new failing draft permanently consumes a
+   // number in a sequence that generate_document_number creates with
+   // is_locked = true.
+   //
+   // Returning the failure here stops that before a number is ever drawn.
+   // Deliberately a return and not a throw: the shape below is what
+   // CreditNoteFormClient.tsx:665-677 already handles, so the form shows a toast
+   // instead of crashing.
+   if (CREDIT_NOTE_BLOCKED) {
+     return { ok: false as const, message: "הפקת חשבונית זיכוי אינה זמינה כרגע" };
+   }
+
    return issueDocumentAction("creditNote", payload);
  }
  
