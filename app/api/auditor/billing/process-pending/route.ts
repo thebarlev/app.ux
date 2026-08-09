@@ -7,6 +7,16 @@ import { getAuditorConfig } from "@/lib/auditor/env"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { processCardcomIndicatorEvent } from "@/lib/auditor/billing/process-indicator-event"
 
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
+
 const BATCH_LIMIT = 3
 const MAX_MS = 240_000 // stop before 300s Vercel limit
 
@@ -79,9 +89,15 @@ async function handler(req: Request) {
 }
 
 export async function GET(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   return handler(req)
 }
 
 export async function POST(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   return handler(req)
 }

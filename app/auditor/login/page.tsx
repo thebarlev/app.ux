@@ -1,8 +1,18 @@
 "use client"
 
 import { Suspense } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, notFound } from "next/navigation"
 import { LoginForm } from "@/components/auth/LoginForm"
+
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
 
 function AuditorLoginInner() {
   const sp = useSearchParams()
@@ -34,6 +44,9 @@ function AuditorLoginInner() {
 }
 
 export default function AuditorLoginPage() {
+  // AUDITOR BLOCKED — first statement executed in this component.
+  if (AUDITOR_BLOCKED) notFound()
+
   return (
     <Suspense fallback={null}>
       <AuditorLoginInner />

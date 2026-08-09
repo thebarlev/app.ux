@@ -10,6 +10,16 @@ import { decryptToken } from "@/lib/auditor/billing/tokenCrypto"
 import { computeMonthlyPeriod, computeNextMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
 
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
+
 function requireCronSecret(req: Request): boolean {
   const expected = getAuditorBillingConfig().cronSecret
   if (!expected) return false
@@ -18,6 +28,9 @@ function requireCronSecret(req: Request): boolean {
 }
 
 export async function POST(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const auditorCfg = getAuditorConfig()
   if (!auditorCfg.enabled) return new NextResponse(null, { status: 404 })
   if (!requireCronSecret(req)) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })

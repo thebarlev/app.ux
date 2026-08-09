@@ -6,6 +6,16 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { requireAuditorApiAccess } from "@/lib/auditor/guard"
 
+// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which
+// is exactly the failure mode fixed in S1.3, so the value is a literal here.
+// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
+// code below to unreachable and re-reports the whole body, which fails the build
+// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
+// security/auditor-block commits.
+const AUDITOR_BLOCKED: boolean = true
+
+
 const bodySchema = z.object({
   url: z.string().min(1).max(2000),
 })
@@ -19,6 +29,9 @@ function isAllowedRpcRow(row: any): row is { allowed: boolean; new_count: number
 }
 
 export async function POST(req: Request) {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const access = await requireAuditorApiAccess()
   if (access instanceof NextResponse) return access
 
@@ -93,6 +106,9 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
+  // AUDITOR BLOCKED — first statement executed in this handler.
+  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+
   const access = await requireAuditorApiAccess()
   if (access instanceof NextResponse) return access
 
