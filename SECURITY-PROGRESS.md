@@ -103,6 +103,86 @@
 
 ---
 
+## שלב 1.5 חלק ג׳ — הושלם במלואו ואומת בפרודקשן · שלוש העסקאות
+
+**הענף:** `security/stage-1.5c` @ `3c8e7a1` — **נשאר לא-ממוזג, תיעוד בלבד.** התוכנית והביטולים
+שם: `scripts/121-PREFLIGHT.sql`, `121-transfer-bogo-media-ownership.sql`, `121-ROLLBACK.sql`.
+
+⚠️ **הרשומה שבענף עצמו מיושנת** — היא אומרת "עסקה 3 מוקפאת בכוונה". **הרשומה הזאת גוברת עליה.**
+עסקה 3 בוצעה ואומתה.
+
+### מה הושג
+הפרדת זהות: `support@uxellent.com` הוא אדמין מערכת בלבד ואינו מחזיק אף חברה;
+`itzikbab@gmail.com` (`d9186573-a7d5-46f9-90da-a05c4b762b47`) הוא הבעלים היחיד של
+"בוגו מדיה בע״מ" (`4ae68334-15a0-4fa3-a9ba-fd77deccc95d`) עם 145 מסמכים, ובעל חברה **אחת** בדיוק.
+
+| עסקה | מה | מצב |
+|---|---|---|
+| 1 | ניתוק itzikbab מ-`be2ed4f5` + הצמדתו ל-`4ae68334`, באותה עסקה | ✅ הורצה ואומתה |
+| 2 | `companies.auth_user_id` של `4ae68334` → itzikbab | ✅ הורצה ואומתה |
+| 3 | הסרת שורת `company_members` של support מ-`4ae68334` | ✅ **הורצה ואומתה** |
+
+### אימות שהוחזר מפרודקשן אחרי עסקה 3
+חבר יחיד ב-`4ae68334`: **itzikbab (`owner`)** · `support_companies` **ריק** ·
+`support_still_admin=1` · **145 מסמכים** · מדדי בסיס: `companies` 12 · `company_members` **11** ·
+`documents` 151.
+
+`company_members` ירד מ-12 ל-11, וזה בדיוק המצופה: עסקה 1 הייתה נטו-אפס (הסירה שורה והוסיפה שורה),
+ועסקה 3 הסירה שורה אחת. `companies` ו-`documents` ללא שינוי — **לא נמחקה אף חברה**, ו-`be2ed4f5`
+נשארה יתומה (`auth_user_id` ריק, אפס חברים, אפס מסמכים) ולא נמחקה.
+
+### מה שחרר את ההקפאה
+עסקה 3 הוקפאה בגלל `app/api/auditor/auth/bootstrap-company/route.ts:119`, שהחזיר בעלות לפי
+`companies.email` למשתמש בלי חברה ובלי בדיקת `system_admins` — כלומר support היה מחזיר לעצמו את
+הבעלות בשקט. חסימת מודול ה-auditor סגרה את הנתיב (הקורא היחיד שלו היה טופס ההרשמה), ולכן ההתנגדות
+הוסרה. הפריט עצמו נשאר ב-`FOLLOWUPS.md` כחולשה בפני עצמה.
+
+### ⚠️ תוצאה תפעולית שהיא כעת בתוקף
+ל-support אין אף חברה. `/login` יחזיר לו שגיאה ויוציא אותו (`components/auth/LoginForm.tsx:108-113`),
+ופתיחת `/dashboard` תזרוק אותו ל-`/register` (`app/dashboard/layout.tsx:21-24`).
+**הוא משתמש ב-`/admin/login` בלבד** — נתיב שאינו נוגע ב-`companies` כלל
+(`app/admin/(auth)/login/page.tsx:54-67`). התיקון (`dashboard/layout` שולח חבר `system_admins`
+ל-`/admin`) נשאר פריט לשלב 1.5ד׳.
+
+---
+
+## עדכון למפת ה-`document_number` — שני חסמים הוסרו
+
+נוגע לטריגר המתוכנן על `documents.document_number` (אי-שינוי · טווח · `final` חייב מספר).
+
+### `allocate_document_number` — מוקש מנוטרל, ומועמד למחיקה
+הגוף החי הוחזר מהמסד ומבצע:
+```sql
+update document_sequences set current_number = current_number + 1
+returning (current_number - 1)
+```
+`RETURNING` רואה את השורה **אחרי** העדכון, ולכן `current_number - 1` הוא ה-`current_number` הישן —
+כלומר **מספר שכבר הונפק**. `generate_document_number` מחזירה `current + 1`. **שתי הפונקציות אינן
+עקביות זו עם זו**, ו-`allocate_document_number` הייתה מייצרת התנגשות מספרים.
+
+**מנוטרלת:** אין לה קורא בקוד, וההרשאה עליה בוטלה במיגרציה 120
+(`revoke all ... from public, anon, authenticated`, `grant execute ... to service_role`).
+בנוסף, `unique(company_id, document_type, document_number)` (`scripts/006:158`) הייתה דוחה את
+הכפילות בשגיאה ולא מייצרת שני מסמכים באותו מספר. מועמדת למחיקה — ב-`FOLLOWUPS.md`, לא היום.
+
+### 073 מול 070 — אינו חסם
+שתי הגרסאות של `issue_paid_checkout_document_service` מעדכנות את הרצף **לפני** שהן כותבות את
+המספר, ולכן שתיהן עומדות בשלושת הכללים. השאלה איזו גרסה מותקנת בפועל אינה חוסמת יותר את כתיבת
+הטריגר.
+
+### מה עוד נשאר לפני כתיבת הטריגר
+הממצאים ממפת ה-`document_number` שלא השתנו: **הערך נשמר עם ה-prefix** בכל הכותבים
+(`prefix || number`), ולכן כלל הטווח חייב לפשוט אותו — הדפוס הקיים הוא
+`regexp_replace(document_number, '\D', '', 'g')::integer` (`scripts/074:26`) ·
+**רצף ה-1000 floor** בשלוש פונקציות השירות עלול להשאיר מסמכים היסטוריים מתחת ל-`starting_number`,
+ולכן כלל הטווח חייב להיות מותנה ב-`new.document_number is distinct from old.document_number`
+אחרת ביטולים של מסמכים ותיקים ייכשלו · **`finalize_document_with_period_guard_service`
+(`scripts/107:133`) מעביר ל-`final` בלי לדרוש מספר**, ולכן כלל ג׳ יידרוש בדיקה מוקדמת שאין
+שורות `final` עם מספר ריק · שני נתיבי fallback כותבים חיתוך UUID לא-מספרי
+(`073:218`, `085:210`).
+
+---
+
 ## שלב 1.5 חלק ב׳ — פריטים 1-4 הושלמו ואומתו בפרודקשן
 
 **ענף:** `security/stage-1.5b`, נחתך מ-`main@22a2c12`.
