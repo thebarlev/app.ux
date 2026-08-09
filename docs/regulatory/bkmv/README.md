@@ -70,5 +70,8 @@
 ## Spec (Single Source of Truth)
 
 המפרט המחייב נמצא ב:
-- `docs/regulatory/bkmv/spec.md`
+- `docs/regulatory/bkmv/fields-1.31.json` — טבלאות השדות, מקור האמת שממנו נגזר `lib/regulatory/bkmv/`
+- `docs/regulatory/bkmv/field-spec-1.31.md` — אותן טבלאות בקריאה אנושית
+
+`docs/regulatory/bkmv/spec.md` **מיושן** ואינו מחייב.
 

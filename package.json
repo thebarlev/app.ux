@@ -11,7 +11,7 @@
     "start": "next start",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
     "verify:bkmv": "node scripts/verify-bkmv-record-lengths.mjs",
-    "vercel-build": "npx playwright install chromium --with-deps && next build"
+    "vercel-build": "npm run verify:bkmv && npx playwright install chromium --with-deps && next build"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
