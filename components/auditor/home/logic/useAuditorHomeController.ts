@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { captureAuditorScanCompleted, captureAuditorScanStarted, resolvePageLocale } from "@/lib/analytics/posthog-events"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import { normalizeTrackedPlan, planFromLinkId, pushEvent } from "@/lib/tracking/events"
-import { trackLead } from "@/lib/analytics/meta-pixel"
+import { trackCustom, trackLead } from "@/lib/analytics/meta-pixel"
 import { detectDomain, isScanFinished, isScanRunning } from "@/components/auditor/home/logic/auditor-home-utils"
 import { isScanTerminalWithoutScore, type StatusResponse, type Step } from "@/components/auditor/home/logic/auditor-home-types"
 
@@ -192,6 +192,16 @@ export function useAuditorHomeController(params: { locale: AuditorLocale; basePa
         is_logged_in: false,
         user_id: null,
       })
+
+      // Meta custom event for the AuditStarted campaign. Placed here, after
+      // pre-scan returned a scan id, so it fires only when a scan actually
+      // started — not on the submit attempt at the pushEvent("scan_started")
+      // above. Domain only: detectDomain returns the bare hostname, so no
+      // email, phone, name or lead id can reach the payload. trackCustom
+      // carries the consent check, the typeof fbq guard and the try/catch
+      // (lib/analytics/meta-pixel.ts:89-110), and defaults eventID to
+      // newEventId() — so a raw fbq call here would be strictly less safe.
+      trackCustom("AuditStarted", { domain: detectDomain(siteUrl) ?? "" })
 
       // Move to progress UI immediately; polling effect continues the pipeline.
       // This avoids blocking the start action on long /continue calls.
