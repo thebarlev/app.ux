@@ -29,14 +29,10 @@ const documentTypes: DocumentType[] = [
     href: "/dashboard/incomes/documents/new/invoiceReceipt",
     enabled: true,
   },
-  {
-    id: "creditNote",
-    name: "חשבונית זיכוי",
-    description: "חשבונית זיכוי",
-    icon: <FileText className="h-6 w-6" />,
-    href: "/dashboard/incomes/documents/new/creditNote",
-    enabled: true,
-  },
+  // CREDIT NOTE BLOCKED — the creditNote tile is removed, not disabled, so the
+  // chooser does not offer a link that 404s. The route itself and the issuance
+  // action are blocked separately; this entry is only the signage.
+  // To restore, revert the security/credit-note-block commits.
   {
     id: "receipt",
     name: "קבלה",
