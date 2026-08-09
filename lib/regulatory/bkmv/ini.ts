@@ -39,13 +39,16 @@ const RESERVED_AREA = " ";
  * stop a caller, not quietly become spaces or zeros.
  */
 export const BKMV_A000_UNRESOLVED = [
-  { no: 1007, tech: "X(20)", name: "שם התוכנה", missing: "The product name as it will be registered." },
-  { no: 1008, tech: "X(20)", name: "מהדורת התוכנה", missing: "What counts as a release — a version string, a build, a commit." },
-  { no: 1011, tech: "9(1)", name: "סוג התוכנה", missing: "1 = single-year, 2 = multi-year. Recorded as open in the scope block." },
-  { no: 1028, tech: "9(1)", name: "קוד שפה", missing: "The code table for the language field." },
-  { no: 1029, tech: "9(1)", name: "סט תוים", missing: "The code that denotes Windows-1255." },
-  { no: 1030, tech: "X(20)", name: "שם תוכנת הכיווץ", missing: "The name to declare for the compressor. The code uses JSZip." },
-  { no: 1034, tech: "9(1)", name: "מידע על סניפים /ענפים", missing: "The code table, and whether a business with no branches declares 0." },
+  { no: 1007, tech: "X(20)", name: "שם התוכנה", missing: "The product name as it will be registered. Awaiting the business owner." },
+  { no: 1008, tech: "X(20)", name: "מהדורת התוכנה", missing: "What counts as a release. Awaiting the business owner." },
+  { no: 1011, tech: "9(1)", name: "סוג התוכנה", missing: "1 = single-year, 2 = multi-year. Awaiting the business owner." },
+  {
+    no: 1029,
+    tech: "9(1)",
+    name: "סט תוים",
+    missing:
+      "The instructions permit exactly two values — 1 = ISO-8859-8-i, 2 = CP-862 — and Windows-1255 is not among them. Blocked pending that decision.",
+  },
 ] as const;
 
 /** The A000 values still awaiting a decision. Every one is mandatory. */
@@ -56,15 +59,39 @@ export type BkmvA000PendingValues = {
   softwareRelease: string;
   /** 1011 `9(1)`: 1 = single-year, 2 = multi-year. */
   softwareKind: string;
-  /** 1028 `9(1)`. */
-  languageCode: string;
-  /** 1029 `9(1)` — the code for Windows-1255. */
+  /**
+   * 1029 `9(1)`, "סט תוים".
+   *
+   * The instructions allow `1` = ISO-8859-8-i or `2` = CP-862, and **do not list
+   * Windows-1255 at all**, which is what `encoding.ts` produces. Nothing here
+   * picks a value.
+   */
   characterSetCode: string;
-  /** 1030 `X(20)`. */
-  compressionSoftwareName: string;
-  /** 1034 `9(1)`. */
-  branchInfo: string;
 };
+
+/**
+ * The record types that get a summary line in INI.TXT: the data records only.
+ *
+ * A100 and Z900 are the envelope and are not summarised. B100, B110 and M100 are
+ * data records but this system never produces them, so they never appear either —
+ * and a type that was not produced gets no line at all, not a line declaring
+ * zero. `docs/BKMV_workplan.md:86`, which said INI.TXT should declare 0 for each
+ * of the three, is obsolete and overruled.
+ */
+export const BKMV_SUMMARISED_RECORD_CODES = ["C100", "D110", "D120"] as const;
+
+/**
+ * Turns the counts taken from BKMVDATA.TXT into the summary lines INI.TXT should
+ * carry, in record order, skipping any type that was not produced.
+ */
+export function bkmvSummaryRecords(
+  counts: Partial<Record<BkmvRecordCode, number>>
+): Array<{ code: BkmvRecordCode; count: number }> {
+  return BKMV_SUMMARISED_RECORD_CODES.filter((code) => (counts[code] ?? 0) > 0).map((code) => ({
+    code: code as BkmvRecordCode,
+    count: counts[code] as number,
+  }));
+}
 
 export type BkmvIniInput = {
   /**
@@ -83,16 +110,33 @@ export type BkmvIniInput = {
   /** 1019-1022, all optional in the spec. */
   address?: {
     street?: string | null;
-    /** No column exists for this in `companies`; the street line may carry it. */
+    /**
+     * 1020, optional.
+     *
+     * **Documented assumption:** `companies` has no house-number column, so this
+     * is left absent and writes blanks; the number is presumably inside `street`.
+     */
     houseNumber?: string | null;
     city?: string | null;
     postalCode?: string | null;
   };
 
-  /** 1015, optional. */
+  /**
+   * 1015, optional.
+   *
+   * **Documented assumption:** left absent for now, which writes zeros. Two
+   * columns are candidates — `companies.registration_number` and
+   * `companies.company_number` — and which of them is the Registrar of Companies
+   * number has not been established.
+   */
   registrarCompanyNumber?: string | null;
 
-  /** 1016, optional. No source exists in this system. */
+  /**
+   * 1016, optional.
+   *
+   * **Documented assumption:** no column holds a withholding file number, so this
+   * is left absent and writes zeros.
+   */
   withholdingFileNumber?: string | null;
 
   /** 1002 — the number of records written to BKMVDATA.TXT. */
@@ -144,19 +188,21 @@ function two(n: number): string {
  * that the path starts at OPENFRMT is documented and still to be put to the
  * registrar.
  *
- * The published example is `00223344.08`, eight digits. An Israeli dealer number
- * is nine. This function will not shorten one to fit, because which digit to drop
- * is not a guess anyone should make silently.
+ * The published example is `00223344.08`, eight digits, while an Israeli dealer
+ * number is nine. The eight are **the first eight** — the number without its
+ * check digit. 515960508 becomes 51596050.
  */
 export function bkmvExportDirectory(params: { dealerNumber: string; at: Date }): string {
-  const digits = params.dealerNumber.replace(/\D/g, "");
-  if (digits.length !== 8) {
+  const all = params.dealerNumber.replace(/\D/g, "");
+  if (all.length < 8) {
     throw new BkmvError(
       "BKMV_FORMAT_VALIDATION",
-      "The export directory needs an 8-digit dealer number; the spec's example is 8 digits and an Israeli dealer number is 9. Unresolved.",
-      { dealerNumber: params.dealerNumber, digits: digits.length }
+      "The export directory needs at least 8 digits of the dealer number",
+      { dealerNumber: params.dealerNumber, digits: all.length }
     );
   }
+  // The first eight: the dealer number without its trailing check digit.
+  const digits = all.slice(0, 8);
 
   const yy = two(params.at.getFullYear() % 100);
   const stamp = `${two(params.at.getMonth() + 1)}${two(params.at.getDate())}${two(params.at.getHours())}${two(params.at.getMinutes())}`;
@@ -211,12 +257,12 @@ function buildA000Line(input: BkmvIniInput): string {
       `${input.processStartedAt.getFullYear()}-${two(input.processStartedAt.getMonth() + 1)}-${two(input.processStartedAt.getDate())}`
     ),
     1027: `${two(input.processStartedAt.getHours())}${two(input.processStartedAt.getMinutes())}`,
-    1028: pending.languageCode,
+    1028: BKMV_DECLARED_VALUES.languageCode,
     1029: pending.characterSetCode,
-    1030: pending.compressionSoftwareName,
+    1030: BKMV_DECLARED_VALUES.compressionSoftwareName,
     // 1031 and 1033 are cancelled X(0) fields and consume no columns at all.
     1032: BKMV_DECLARED_VALUES.leadingCurrency,
-    1034: pending.branchInfo,
+    1034: BKMV_DECLARED_VALUES.branchInfo,
     1035: RESERVED_AREA,
   };
 

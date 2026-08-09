@@ -58,6 +58,21 @@ export const BKMV_DECLARED_VALUES = {
   leadingCurrency: "ILS",
 
   /**
+   * Field 1028, "קוד שפה", `9(1)`: 0 = Hebrew, 1 = Arabic, 2 = other, per the
+   * instructions.
+   */
+  languageCode: "0",
+
+  /**
+   * Field 1030, "שם תוכנת הכיווץ", `X(20)` — the compressor that actually runs.
+   * `zip.ts` uses JSZip.
+   */
+  compressionSoftwareName: "JSZip",
+
+  /** Field 1034, "מידע על סניפים /ענפים", `9(1)`: 0 — the business has no branches. */
+  branchInfo: "0",
+
+  /**
    * Field 1012, "נתיב מיקום שמירת הקבצים", `X(50)` and mandatory.
    *
    * The published directory layout is
