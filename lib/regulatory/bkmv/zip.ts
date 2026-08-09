@@ -11,19 +11,21 @@ import { BkmvError } from "./errors";
  *
  *   <drive>:\OPENFRMT\<8 digits>.<YY>\<MMDDhhmm>\
  *      INI.TXT
- *      BKMVDATA.TXT
  *      BKMVDATA.zip
  *
  * There is no drive in a cloud application, so the tree is reproduced **inside**
  * the archive the user downloads: extracting it onto a drive puts every file where
  * the instructions expect it.
  *
- * The compression layer used to be inverted. The old `buildIncomeZip` produced a
- * single `Income.zip` holding a bare `BKMVDATA.TXT` at the root — a name with no
- * basis in 1.31, no INI.TXT, no directory tree, and BKMVDATA compressed by the
- * outer archive instead of being a compressed file in its own right. What the
- * instructions ask for is the opposite: INI.TXT and BKMVDATA.TXT sit as plain
- * files, and BKMVDATA is *additionally* delivered as its own separate archive.
+ * **Two files, not three.** Section 2.2 says "הקובץ INI.TXT והקובץ BKMVDATA.TXT
+ * המכווץ יישמרו בכונן", and 2.5.ד says to compress BKMVDATA.TXT into an archive
+ * named BKMVDATA. So the uncompressed BKMVDATA.TXT is an intermediate and does not
+ * ship; a previous revision of this function put all three in the directory.
+ *
+ * The compression layer used to be inverted as well: the old `buildIncomeZip`
+ * produced a single `Income.zip` holding a bare `BKMVDATA.TXT` at the root — a
+ * name with no basis in 1.31, no INI.TXT, no directory tree, and BKMVDATA
+ * compressed by the outer archive instead of being an archive in its own right.
  */
 
 /** Entry names, fixed by the instructions. */
@@ -81,7 +83,6 @@ export async function buildBkmvPackageZip(params: {
   // either would only obscure the bytes an auditor is meant to read.
   const stored = { compression: "STORE" } as const;
   folder.file(BKMV_INI_FILENAME, new Uint8Array(params.iniTxt), stored);
-  folder.file(BKMV_DATA_FILENAME, new Uint8Array(params.bkmvDataTxt), stored);
   folder.file(BKMV_DATA_ARCHIVE_FILENAME, new Uint8Array(innerBuffer), stored);
 
   const zipBuffer: Buffer = await outer.generateAsync({ type: "nodebuffer" });
@@ -89,10 +90,6 @@ export async function buildBkmvPackageZip(params: {
   return {
     zipBuffer,
     directory,
-    entries: [
-      `${directory}/${BKMV_INI_FILENAME}`,
-      `${directory}/${BKMV_DATA_FILENAME}`,
-      `${directory}/${BKMV_DATA_ARCHIVE_FILENAME}`,
-    ],
+    entries: [`${directory}/${BKMV_INI_FILENAME}`, `${directory}/${BKMV_DATA_ARCHIVE_FILENAME}`],
   };
 }

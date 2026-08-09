@@ -2,14 +2,37 @@ import { BkmvError } from "./errors";
 import { BKMV_AMOUNT_SIGN } from "./spec";
 import type { BkmvAlign, BkmvAmountField, BkmvFieldSpec } from "./types";
 
-export function formatDateDDMMYYYY(isoDate: string): string {
+/**
+ * Renders a date into the eight digits the file requires.
+ *
+ * Section 2.4.ב: "שדות מסוג תאריך יהיו שדות נומריים באורך 8 תווים ובמבנה
+ * YYYYMMDD". **Not DDMMYYYY** — an earlier revision of this function reversed it,
+ * which would have put the day where the year belongs in every date field of
+ * every record.
+ *
+ * The user-facing dialog in appendix 4 does take DDMMYYYY, which is probably where
+ * the confusion came from. That is the input format, not the file format.
+ */
+export function formatDateYYYYMMDD(isoDate: string): string {
   // Expect YYYY-MM-DD
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
   if (!m) {
     throw new BkmvError("BKMV_FORMAT_VALIDATION", "Invalid date format; expected YYYY-MM-DD", { isoDate });
   }
   const [, y, mm, dd] = m;
-  return `${dd}${mm}${y}`;
+  return `${y}${mm}${dd}`;
+}
+
+/** `hhmm`, per section 2.4.ג. */
+export function formatTimeHHMM(date: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${two(date.getHours())}${two(date.getMinutes())}`;
+}
+
+/** The `YYYY-MM-DD` of a Date in local time, for feeding `formatDateYYYYMMDD`. */
+export function localIsoDate(date: Date): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
 }
 
 export function pad(value: string, length: number, align: BkmvAlign, padChar: string): string {

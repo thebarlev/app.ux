@@ -29,11 +29,13 @@ export const BKMV_DECLARED_VALUES = {
   /**
    * Fields 1005 / 1104 / 1154, "קבוע מערכת", `X(8)` and mandatory in all three.
    *
-   * Eight characters, verbatim from "הוראות להפקת קבצים במבנה אחיד" 1.31. There is
-   * one correct value and it is this one. **If a future reading of the PDF
-   * disagrees, stop and report rather than editing it.**
+   * Eight characters, verbatim from "הוראות להפקת קבצים במבנה אחיד" 1.31, where the
+   * remark column of all three rows reads `&OF1.31&`.
+   *
+   * It was briefly recorded reversed as "&1.31OF&". Reading the PDF settled it:
+   * three independent occurrences, all `& O F 1 . 3 1 &`.
    */
-  systemConstant: "&1.31OF&",
+  systemConstant: "&OF1.31&",
 
   /** Field 1007, "שם התוכנה", `X(20)`. */
   softwareName: "UXellent",
@@ -105,14 +107,20 @@ export const BKMV_DECLARED_VALUES = {
 /**
  * The characters written into the sign column of a signed amount field.
  *
- * **Open decision.** The spec's sign rules live in sections י"א and י"ב, which
- * have not been read into this repository; the widths are settled, the glyphs are
- * not. Changing these two characters is the whole change — no other code encodes
- * a sign.
+ * Settled against section 2.3, which gives worked examples for `x9(5)v99`:
+ * `-12345.65` is written `"-1234565"`, `1245.65` is written `"+0124565"`, and
+ * `1245` is written `"+0124500"`. **A positive amount carries a literal `+`, not
+ * a space.** An earlier revision used a space and would have shifted nothing but
+ * meant nothing either.
+ *
+ * Which amounts are negative is section י"ב: values in C100 and D110 are positive
+ * except those whose meaning is a reduction of the document or line total. So a
+ * document discount (1220) and a line discount (1266) are negative, while
+ * withholding tax (1224) is positive — clarifications 4 and 5.
  */
 export const BKMV_AMOUNT_SIGN = {
   negative: "-",
-  positive: " ",
+  positive: "+",
 } as const;
 
 export const BKMV_SPEC: BkmvSpec = {

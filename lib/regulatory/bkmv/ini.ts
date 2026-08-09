@@ -3,7 +3,7 @@ import "server-only";
 import { randomInt } from "node:crypto";
 
 import { encodeIso88598i } from "./encoding";
-import { buildFixedLengthRecord, formatDateDDMMYYYY } from "./format";
+import { buildFixedLengthRecord, formatDateYYYYMMDD, formatTimeHHMM, localIsoDate } from "./format";
 import { BkmvError } from "./errors";
 import { BKMV_DECLARED_VALUES, BKMV_SPEC } from "./spec";
 import type { BkmvRecordCode } from "./types";
@@ -237,12 +237,10 @@ function buildA000Line(input: BkmvIniInput): string {
     1021: input.address?.city ?? undefined,
     1022: input.address?.postalCode ?? undefined,
     1023: taxYear(input.range),
-    1024: formatDateDDMMYYYY(input.range.from),
-    1025: formatDateDDMMYYYY(input.range.to),
-    1026: formatDateDDMMYYYY(
-      `${input.processStartedAt.getFullYear()}-${two(input.processStartedAt.getMonth() + 1)}-${two(input.processStartedAt.getDate())}`
-    ),
-    1027: `${two(input.processStartedAt.getHours())}${two(input.processStartedAt.getMinutes())}`,
+    1024: formatDateYYYYMMDD(input.range.from),
+    1025: formatDateYYYYMMDD(input.range.to),
+    1026: formatDateYYYYMMDD(localIsoDate(input.processStartedAt)),
+    1027: formatTimeHHMM(input.processStartedAt),
     1028: BKMV_DECLARED_VALUES.languageCode,
     1029: BKMV_DECLARED_VALUES.characterSetCode,
     1030: BKMV_DECLARED_VALUES.compressionSoftwareName,
