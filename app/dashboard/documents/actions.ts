@@ -3,6 +3,23 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser, initializeSequence, isSequenceLocked } from "@/lib/document-helpers";
 
+// ── CREDIT NOTE BLOCKED ───────────────────────────────────────────────────────
+// Hard-coded, not configurable. An env-var gate that is unset fails open, which is
+// exactly the failure mode fixed in S1.3, so the values are literals here.
+//
+// Scoped deliberately to the three credit document types, in BOTH the app-level
+// camelCase spelling used by the caller and the snake_case spelling used by the
+// database. Nothing else in this file changes, and no other document type is
+// affected. To restore credit-note issuance, revert the
+// security/credit-note-block commits.
+const CREDIT_NOTE_SEQUENCE_BLOCKED_TYPES: ReadonlySet<string> = new Set([
+  "creditNote",
+  "credit_note",
+  "selfCreditNote",
+  "self_credit_note",
+  "credit_invoice",
+]);
+
 export type DocumentsListFilters = {
   search?: string;
   documentType?: string;
@@ -327,6 +344,29 @@ export async function lockStartingNumberAction(params: {
   startingNumber: number;
   prefix?: string | null;
 }) {
+  // CREDIT NOTE BLOCKED — first statement executed, and scoped to credit types ONLY.
+  //
+  // Why this is blocked in the action and not only in the screen: initializeSequence
+  // inserts the row with is_locked = true (lib/document-helpers.ts:111-121), and
+  // since migration 118 removed the permissive duplicate policy that guard is
+  // actually enforced. So one click permanently fixes the starting number of the
+  // credit-note sequence — before the accountant has decided what it should be —
+  // and initializeSequence itself then refuses to change it
+  // (returns "sequence_already_locked"). That is an irreversible database change,
+  // so it is stopped at the action.
+  //
+  // Both spellings are listed on purpose. The modal passes the app-level camelCase
+  // type (CreditNoteFormClient.tsx:1377 sends "creditNote"), while the database
+  // types are snake_case and the normalisation happens later inside
+  // initializeSequence via a helper that is not exported. Matching only the
+  // snake_case forms would make this guard a no-op.
+  //
+  // Every other document type — invoice, invoiceReceipt, receipt, tax_invoice and
+  // the rest — falls through untouched, with identical behaviour to before.
+  if (CREDIT_NOTE_SEQUENCE_BLOCKED_TYPES.has(params.documentType)) {
+    return { ok: false as const, message: "הפקת חשבונית זיכוי אינה זמינה כרגע" };
+  }
+
   try {
     const companyId = await getCompanyIdForUser();
 
