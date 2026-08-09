@@ -80,7 +80,12 @@ export async function POST(req: Request) {
     // Documents: FINAL only, any document type, within date range by issue_date
     const { data: docs, error: docsError } = await service
       .from("documents")
-      .select("id, document_type, document_number, issue_date, created_at, currency, total_amount, company_id, document_status")
+      .select(
+        "id, document_type, document_number, issue_date, finalized_at, created_at, currency, " +
+          "total_amount, subtotal, vat_amount, vat_rate, company_id, document_status, " +
+          "customer_id, customer_name, customer_tax_id, customer_address, customer_phone, " +
+          "customers(address_city, address_zip, address_country, customer_number)"
+      )
       .eq("company_id", companyId)
       .eq("document_status", "final")
       .gte("issue_date", from)
@@ -93,15 +98,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
-    const documents: BkmvDocument[] = (docs || []).map((d: any) => ({
-      id: d.id,
-      documentType: d.document_type,
-      documentNumber: d.document_number,
-      issueDate: d.issue_date,
-      createdAt: d.created_at,
-      currency: d.currency,
-      totalAmount: d.total_amount,
-    }));
+    const documents: BkmvDocument[] = (docs || []).map((d: any) => {
+      // `customers` is the joined row, present only when customer_id is set.
+      const c = Array.isArray(d.customers) ? d.customers[0] : d.customers;
+      return {
+        id: d.id,
+        documentType: d.document_type,
+        documentNumber: d.document_number,
+        issueDate: d.issue_date,
+        finalizedAt: d.finalized_at ?? null,
+        createdAt: d.created_at,
+        documentStatus: d.document_status ?? null,
+        currency: d.currency,
+        totalAmount: d.total_amount,
+        subtotal: d.subtotal ?? null,
+        vatAmount: d.vat_amount ?? null,
+        vatRate: d.vat_rate ?? null,
+        customerName: d.customer_name ?? null,
+        customerTaxId: d.customer_tax_id ?? null,
+        customerAddress: d.customer_address ?? null,
+        customerPhone: d.customer_phone ?? null,
+        customerCity: c?.address_city ?? null,
+        customerPostalCode: c?.address_zip ?? null,
+        customerCountry: c?.address_country ?? null,
+        customerNumber: c?.customer_number ?? null,
+      };
+    });
 
     if (documents.length === 0) {
       return NextResponse.json(
@@ -114,7 +136,10 @@ export async function POST(req: Request) {
     const docIds = documents.map((d) => d.id);
     const { data: items, error: itemsError } = await service
       .from("document_line_items")
-      .select("document_id, line_number, description, quantity, unit_price, line_total, currency")
+      .select(
+        "document_id, line_number, description, quantity, unit_price, discount_amount, line_total, " +
+          "currency, item_date, item_code, bank_name, branch, account_number, payment_metadata"
+      )
       .in("document_id", docIds)
       .order("document_id", { ascending: true })
       .order("line_number", { ascending: true });
@@ -130,8 +155,15 @@ export async function POST(req: Request) {
       description: it.description,
       quantity: it.quantity,
       unitPrice: it.unit_price,
+      discountAmount: it.discount_amount ?? null,
       lineTotal: it.line_total,
       currency: it.currency,
+      itemDate: it.item_date ?? null,
+      itemCode: it.item_code ?? null,
+      bankName: it.bank_name ?? null,
+      branch: it.branch ?? null,
+      accountNumber: it.account_number ?? null,
+      paymentMetadata: it.payment_metadata ?? null,
     }));
 
     const generatedAt = new Date();
@@ -144,16 +176,19 @@ export async function POST(req: Request) {
       generatedAtIso: generatedAt.toISOString(),
     };
 
-    // NOTE: buildBkmvTxt throws before any of the following runs. Its per-field
-    // values are not mapped to database columns yet — that is workplan stage 5 —
-    // so every record fails its own mandatory-field validation and this route
-    // answers 400. Nothing is built and nothing is uploaded. The packaging below
-    // is wired correctly for when the mapping lands.
-    const { txtBuffer, stats, recordCounts, recordCount } = buildBkmvTxt({ ctx, documents, lineItems });
+    // One identifier per export, shared by A000 1004, A100 1103 and Z900 1153.
+    const primaryIdentifier = bkmvPrimaryIdentifier();
+
+    const { txtBuffer, stats, recordCounts, recordCount } = buildBkmvTxt({
+      ctx,
+      documents,
+      lineItems,
+      primaryIdentifier,
+    });
 
     const directory = bkmvExportDirectory({ dealerNumber: companyTaxId, at: generatedAt });
     const { txtBuffer: iniBuffer } = buildIniTxt({
-      primaryIdentifier: bkmvPrimaryIdentifier(),
+      primaryIdentifier,
       dealerNumber: companyTaxId,
       businessName: String(company.company_name || "").trim(),
       bkmvDataRecordCount: recordCount,

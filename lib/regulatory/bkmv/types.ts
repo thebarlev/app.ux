@@ -124,10 +124,26 @@ export type BkmvDocument = {
   id: string;
   documentType: string;
   documentNumber: string | null;
-  issueDate: string | null; // YYYY-MM-DD
+  issueDate: string | null; // YYYY-MM-DD — documents.issue_date, field 1230
+  /** documents.finalized_at — field 1205, the date the system set, per clarification 12. */
+  finalizedAt: string | null;
   createdAt: string;
+  /** documents.document_status — field 1228 is set for cancelled/voided. */
+  documentStatus: string | null;
   currency: string | null;
   totalAmount: number | null;
+  subtotal: number | null;
+  vatAmount: number | null;
+  vatRate: number | null;
+  customerName: string | null;
+  customerTaxId: string | null;
+  customerAddress: string | null;
+  customerPhone: string | null;
+  /** From `customers`, present only when the document carries a customer_id. */
+  customerCity: string | null;
+  customerPostalCode: string | null;
+  customerCountry: string | null;
+  customerNumber: string | null;
 };
 
 export type BkmvLineItem = {
@@ -136,6 +152,23 @@ export type BkmvLineItem = {
   description: string;
   quantity: number | null;
   unitPrice: number | null;
+  discountAmount: number | null;
   lineTotal: number | null;
   currency: string | null;
+  /** document_line_items.item_date — a payment line's own date. */
+  itemDate: string | null;
+  itemCode: string | null;
+  bankName: string | null;
+  branch: string | null;
+  accountNumber: string | null;
+  paymentMetadata: Record<string, unknown> | null;
 };
+
+/**
+ * What a line item is for. The file needs to know, because a goods line becomes
+ * D110 and a payment line becomes D120, and both live in `document_line_items`.
+ *
+ * There is no column that says which. The discriminator is derived — see
+ * `classifyLine` in `map.ts`.
+ */
+export type BkmvLineRole = "goods" | "payment";
