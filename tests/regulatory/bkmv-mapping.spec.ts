@@ -578,3 +578,69 @@ test("a currency that is neither a code nor normalisable throws instead of becom
   );
   expect(() => bkmvNormaliseCurrency("$", { field: 1218, documentNumber: "1" })).toThrow(/ISO-4217/);
 });
+
+test("a document whose currency column holds ₪ gets 1218=ILS and 1217 zero", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ currency: "₪", totalAmount: 110 })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const c100 = built.txtBuffer.toString("latin1").split("\r\n")[1];
+  expect(at(c100, "C100", 1218)).toBe("ILS");
+  // Not a foreign currency once normalised, so no foreign-currency total.
+  expect(at(c100, "C100", 1217)).toBe("+" + "0".repeat(14));
+  // The document's own total is still there, in 1223.
+  expect(at(c100, "C100", 1223)).toBe("+" + "11000".padStart(14, "0"));
+});
+
+test("no document anywhere in a built file declares ILS and a foreign-currency total", () => {
+  // A whole-file integrity check rather than a single-field one: the failure this
+  // catches was two fields disagreeing, which no assertion on either one would see.
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [
+      doc({ id: "a", documentNumber: "1", currency: "ILS", totalAmount: 100 }),
+      doc({ id: "b", documentNumber: "2", currency: "₪", totalAmount: 110 }),
+      doc({ id: "c", documentNumber: "3", currency: "NIS", totalAmount: 120 }),
+      doc({ id: "d", documentNumber: "4", currency: "USD", totalAmount: 130 }),
+      doc({ id: "e", documentNumber: "5", currency: "usd", totalAmount: 140 }),
+    ],
+    lineItems: [
+      line({ documentId: "a", paymentMetadata: { kind: "item" } }),
+      line({ documentId: "b", paymentMetadata: { kind: "item" } }),
+      line({ documentId: "c", paymentMetadata: { kind: "item" } }),
+      line({ documentId: "d", paymentMetadata: { kind: "item" } }),
+      line({ documentId: "e", paymentMetadata: { kind: "item" } }),
+    ],
+    primaryIdentifier: IDENT,
+  });
+
+  const c100s = built.txtBuffer
+    .toString("latin1")
+    .split("\r\n")
+    .filter((l) => l.startsWith("C100"));
+
+  expect(c100s).toHaveLength(5);
+
+  const contradictions = c100s
+    .map((l) => ({
+      documentNumber: at(l, "C100", 1204).trim(),
+      currency: at(l, "C100", 1218),
+      foreignTotal: at(l, "C100", 1217),
+    }))
+    .filter((r) => r.currency === "ILS" && r.foreignTotal.replace(/[+\-0]/g, "") !== "");
+
+  expect(contradictions).toEqual([]);
+
+  // And the converse still works: a genuinely foreign document does carry one.
+  const usd = c100s.filter((l) => at(l, "C100", 1218) === "USD");
+  expect(usd).toHaveLength(2);
+  for (const l of usd) {
+    expect(at(l, "C100", 1217).replace(/[+\-0]/g, "")).not.toBe("");
+  }
+
+  // Three shekel documents, spelled three different ways in the column.
+  expect(c100s.filter((l) => at(l, "C100", 1218) === "ILS")).toHaveLength(3);
+});

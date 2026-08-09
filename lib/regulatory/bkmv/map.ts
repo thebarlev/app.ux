@@ -199,6 +199,12 @@ export function bkmvC100Values(params: {
   const { document: d, ctx } = params;
   const code = bkmvDocumentTypeCode(d.documentType);
   const t = textFor(d.documentNumber, -1, params.notes);
+  // Normalised once, then used by every field that depends on the currency.
+  const currency = bkmvNormaliseCurrency(
+    d.currency,
+    { field: 1218, documentNumber: d.documentNumber },
+    params.notes?.currencyNormalisations
+  );
 
   return {
     1201: params.recordNumber,
@@ -224,9 +230,16 @@ export function bkmvC100Values(params: {
     1215: digits(d.customerTaxId),
     // 1216 תאריך ערך — NO SOURCE. No value-date column is written by issuance.
     // Left out: zeros.
-    // 1217 סכום סופי במט"ח — only meaningful in foreign currency.
-    1217: d.currency && d.currency !== "ILS" ? d.totalAmount : undefined,
-    1218: bkmvNormaliseCurrency(d.currency, { field: 1218, documentNumber: d.documentNumber }, params.notes?.currencyNormalisations),
+    /*
+     * 1217 סכום סופי במט"ח — only meaningful in a foreign currency, so it is
+     * derived from `currency` too. Both fields read the SAME normalised value,
+     * computed once above: deriving 1217 from the raw column while 1218 read the
+     * normalised one put a foreign-currency total on three shekel documents whose
+     * column held "₪", because "₪" !== "ILS" is true. One source, so they cannot
+     * disagree again.
+     */
+    1217: currency && currency !== "ILS" ? d.totalAmount : undefined,
+    1218: currency,
     // 1219 סכום המסמך לפני הנחת מסמך. With no document-level discount this equals
     // 1221 by construction.
     1219: d.subtotal,
