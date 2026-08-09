@@ -29,13 +29,11 @@ export const BKMV_DECLARED_VALUES = {
   /**
    * Fields 1005 / 1104 / 1154, "קבוע מערכת", `X(8)` and mandatory in all three.
    *
-   * Eight characters, from the official instructions. Supplied by the architect
-   * rather than extracted from the PDF; **if a future extraction disagrees with
-   * this, stop and report rather than editing it.** The logical order below is
-   * `& O F 1 . 3 1 &`; the alternative reading of the same eight characters is
-   * "&1.31OF&", which is what a bidi round-trip through a Hebrew line produces.
+   * Eight characters, verbatim from "הוראות להפקת קבצים במבנה אחיד" 1.31. There is
+   * one correct value and it is this one. **If a future reading of the PDF
+   * disagrees, stop and report rather than editing it.**
    */
-  systemConstant: "&OF1.31&",
+  systemConstant: "&1.31OF&",
 
   /** Field 1009, "מספר ע\"מ של יצרן התוכנה", `9(9)`. */
   vendorTaxId: "515960508",
