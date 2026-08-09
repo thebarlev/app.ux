@@ -10,8 +10,9 @@ import {
   bkmvD120Values,
   bkmvZ900Values,
   classifyLine,
+  emptyNotes,
 } from "./map";
-import type { BkmvTruncation } from "./map";
+import type { BkmvExportNotes } from "./map";
 import { assertBkmvSpecComplete, BKMV_SPEC } from "./spec";
 import type { BkmvContext, BkmvDocument, BkmvLineItem, BkmvRecordCode, BkmvRecordKey } from "./types";
 
@@ -49,10 +50,12 @@ export type BkmvBuildResult = {
     docsWithoutPaymentLines: number;
   };
   /**
-   * Every value that had to be cut to fit its field, with the original. Approved
-   * data loss is still data loss, so it is reported rather than absorbed.
+   * Everything the export had to do to make the data fit: values cut to a field's
+   * width, characters transliterated before encoding, currency codes normalised.
+   * Each carries the original. Approved changes are still changes, so they are
+   * reported rather than absorbed.
    */
-  truncations: BkmvTruncation[];
+  notes: BkmvExportNotes;
   /** How many records of each type were written — INI.TXT's summary lines. */
   recordCounts: Partial<Record<BkmvRecordCode, number>>;
   /** Total records in the file, for A000 field 1002 and Z900 field 1155. */
@@ -86,7 +89,7 @@ export function buildBkmvTxt(params: {
   }
 
   const records: RecordInput[] = [];
-  const truncations: BkmvTruncation[] = [];
+  const notes = emptyNotes();
 
   /*
    * Which records are emitted, and which are not.
@@ -125,14 +128,14 @@ export function buildBkmvTxt(params: {
     records.push({
       key: "C100",
       code: "C100",
-      values: bkmvC100Values({ ctx, document: doc, recordNumber: next(), linkNumber }),
+      values: bkmvC100Values({ ctx, document: doc, recordNumber: next(), linkNumber, notes }),
     });
 
     for (const line of goods) {
       records.push({
         key: "D110",
         code: "D110",
-        values: bkmvD110Values({ ctx, document: doc, line, recordNumber: next(), linkNumber, truncations }),
+        values: bkmvD110Values({ ctx, document: doc, line, recordNumber: next(), linkNumber, notes }),
       });
     }
 
@@ -153,7 +156,7 @@ export function buildBkmvTxt(params: {
       records.push({
         key: "D120",
         code: "D120",
-        values: bkmvD120Values({ ctx, document: doc, line, recordNumber: next(), linkNumber }),
+        values: bkmvD120Values({ ctx, document: doc, line, recordNumber: next(), linkNumber, notes }),
       });
     }
   });
@@ -184,7 +187,7 @@ export function buildBkmvTxt(params: {
   return {
     txtBuffer,
     stats: { totalDocs: docsSorted.length, docsWithoutPaymentLines },
-    truncations,
+    notes,
     recordCounts,
     recordCount: records.length,
   };

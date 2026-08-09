@@ -212,7 +212,7 @@ export async function POST(req: Request) {
     // One identifier per export, shared by A000 1004, A100 1103 and Z900 1153.
     const primaryIdentifier = bkmvPrimaryIdentifier();
 
-    const { txtBuffer, stats, recordCounts, recordCount, truncations } = buildBkmvTxt({
+    const { txtBuffer, stats, recordCounts, recordCount, notes } = buildBkmvTxt({
       ctx,
       documents,
       lineItems,
@@ -260,9 +260,9 @@ export async function POST(req: Request) {
       bucket: "regulatory-exports",
       generatedAt: generatedAt.toISOString(),
       stats,
-      // What is not in the file, and what was cut to fit it.
+      // What is not in the file, and what the export had to change to fit it.
       excludedDocuments,
-      truncations,
+      notes,
     });
   } catch (e: any) {
     if (e instanceof BkmvError) {

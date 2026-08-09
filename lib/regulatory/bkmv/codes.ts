@@ -200,3 +200,53 @@ export function bkmvCreditDealCode(dealType: unknown): string | undefined {
   if (typeof dealType !== "string") return undefined;
   return CREDIT_DEAL_CODES[dealType.trim().toLowerCase()];
 }
+
+/** One currency code that had to be normalised, so it can be reported. */
+export type BkmvCurrencyNormalisation = {
+  field: number;
+  documentNumber: string | null;
+  original: string;
+  written: string;
+};
+
+/**
+ * Field 1218, "קוד מט\"ח", `X(3)`.
+ *
+ * Appendix 2 requires an ISO-4217 code. Four rows in `documents.currency` hold the
+ * shekel **sign** rather than a code, so the sign is normalised on read — in the
+ * export only. The documents themselves are not touched: `currency` is on the
+ * blocked list of `enforce_document_immutability`, and an update to a final
+ * document is supposed to be refused.
+ *
+ * Anything that is neither an ISO-4217-shaped code nor in the table below throws.
+ * **It does not fall back to ILS**: silently defaulting a currency would put a
+ * wrong code on a document's own amounts.
+ */
+const CURRENCY_NORMALISATIONS: Record<string, string> = {
+  "\u20aa": "ILS", // ₪
+  NIS: "ILS", // the pre-1998 code, still typed by hand
+};
+
+export function bkmvNormaliseCurrency(
+  value: unknown,
+  meta: { field: number; documentNumber: string | null },
+  sink?: BkmvCurrencyNormalisation[]
+): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  const raw = String(value).trim();
+  if (raw.length === 0) return undefined;
+
+  const normalised = CURRENCY_NORMALISATIONS[raw] ?? CURRENCY_NORMALISATIONS[raw.toUpperCase()];
+  if (normalised) {
+    sink?.push({ ...meta, original: raw, written: normalised });
+    return normalised;
+  }
+
+  if (/^[A-Za-z]{3}$/.test(raw)) return raw.toUpperCase();
+
+  throw new BkmvError(
+    "BKMV_FORMAT_VALIDATION",
+    `"${raw}" is not an ISO-4217 currency code and has no approved normalisation. Field 1218 takes a code from appendix 2; it is not defaulted to ILS.`,
+    { field: meta.field, documentNumber: meta.documentNumber, value: raw }
+  );
+}

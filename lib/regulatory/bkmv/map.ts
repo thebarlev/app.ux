@@ -4,8 +4,12 @@ import {
   bkmvClearingHouseCode,
   bkmvCreditDealCode,
   bkmvDocumentTypeCode,
+  bkmvNormaliseCurrency,
   bkmvPaymentMeansCode,
 } from "./codes";
+import type { BkmvCurrencyNormalisation } from "./codes";
+import { transliterate } from "./text";
+import type { BkmvTransliteration } from "./text";
 import { encodeIso88598i } from "./encoding";
 import { formatDateYYYYMMDD, formatTimeHHMM } from "./format";
 import { BkmvError } from "./errors";
@@ -72,10 +76,43 @@ function truncate(
   return written;
 }
 
-function text(value: unknown): string | undefined {
+/**
+ * Everything a record wants to report about how it had to bend the data to fit.
+ * Threaded through rather than logged, so the caller can hand it to a human.
+ */
+export type BkmvExportNotes = {
+  truncations: BkmvTruncation[];
+  transliterations: BkmvTransliteration[];
+  currencyNormalisations: BkmvCurrencyNormalisation[];
+};
+
+export function emptyNotes(): BkmvExportNotes {
+  return { truncations: [], transliterations: [], currencyNormalisations: [] };
+}
+
+function plainText(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
   const s = String(value).trim();
   return s.length > 0 ? s : undefined;
+}
+
+/**
+ * Binds a record's identity to the text pipeline, so every alphanumeric value goes
+ * through transliteration with the right field number attached.
+ *
+ * Transliteration comes first and truncation second: `…` becomes three characters,
+ * so the width a field must satisfy is the width AFTER transliteration.
+ */
+function textFor(
+  documentNumber: string | null,
+  lineNumber: number,
+  notes: BkmvExportNotes | undefined
+) {
+  return (field: number, value: unknown): string | undefined => {
+    const s = plainText(value);
+    if (s === undefined) return undefined;
+    return transliterate(s, { field, documentNumber, lineNumber }, notes?.transliterations);
+  };
 }
 
 /** The ISO date part of a timestamp, or undefined. */
@@ -157,37 +194,39 @@ export function bkmvC100Values(params: {
   recordNumber: number;
   /** The internal number linking this header to its lines — fields 1234/1273/1323. */
   linkNumber: number;
+  notes?: BkmvExportNotes;
 }): Record<number, unknown> {
   const { document: d, ctx } = params;
   const code = bkmvDocumentTypeCode(d.documentType);
+  const t = textFor(d.documentNumber, -1, params.notes);
 
   return {
     1201: params.recordNumber,
     1202: digits(ctx.companyTaxId),
     1203: code,
-    1204: text(d.documentNumber),
+    1204: t(1204, d.documentNumber),
     // 1205 תאריך הפקת מסמך — the date the system set, which is finalized_at, not
     // issue_date. Clarification 12 distinguishes them explicitly.
     1205: dateField(d.finalizedAt) ?? dateField(d.issueDate),
     1206: timeField(d.finalizedAt),
-    1207: text(d.customerName),
+    1207: t(1207, d.customerName),
     // 1208 מען הלקוח - רחוב. documents.customer_address is one TEXT column for the
     // whole address, so it goes to the street field whole; 1209 has no source.
-    1208: text(d.customerAddress),
+    1208: t(1208, d.customerAddress),
     // 1209 מען הלקוח - מס בית — NO SOURCE. No house-number column exists; the
     // number is presumably inside the address string. Left out: spaces.
-    1210: text(d.customerCity),
-    1211: text(d.customerPostalCode),
+    1210: t(1210, d.customerCity),
+    1211: t(1211, d.customerPostalCode),
     // 1212 מען הלקוח - מדינה — NO SOURCE. customers.address_country holds a code,
     // not a name, and it belongs in 1213. Left out: spaces.
-    1213: text(d.customerCountry),
-    1214: text(d.customerPhone),
+    1213: t(1213, d.customerCountry),
+    1214: t(1214, d.customerPhone),
     1215: digits(d.customerTaxId),
     // 1216 תאריך ערך — NO SOURCE. No value-date column is written by issuance.
     // Left out: zeros.
     // 1217 סכום סופי במט"ח — only meaningful in foreign currency.
     1217: d.currency && d.currency !== "ILS" ? d.totalAmount : undefined,
-    1218: text(d.currency),
+    1218: bkmvNormaliseCurrency(d.currency, { field: 1218, documentNumber: d.documentNumber }, params.notes?.currencyNormalisations),
     // 1219 סכום המסמך לפני הנחת מסמך. With no document-level discount this equals
     // 1221 by construction.
     1219: d.subtotal,
@@ -197,7 +236,7 @@ export function bkmvC100Values(params: {
     1223: d.totalAmount,
     // 1224 סכום הניכוי במקור — NO SOURCE. Left out: zeros. Note that were it ever
     // populated, clarification 4 requires it POSITIVE, unlike a discount.
-    1225: text(d.customerNumber),
+    1225: t(1225, d.customerNumber),
     // 1226 שדה התאמה — NO SOURCE. Left out: spaces.
     // 1228 מסמך מבוטל. The instructions do not state which character to write, so
     // this marks a cancelled document with "1" and leaves anything else blank.
@@ -217,23 +256,23 @@ export function bkmvD110Values(params: {
   line: BkmvLineItem;
   recordNumber: number;
   linkNumber: number;
-  /** Collects any value that had to be cut to fit. */
-  truncations?: BkmvTruncation[];
+  notes?: BkmvExportNotes;
 }): Record<number, unknown> {
   const { document: d, line, ctx } = params;
-  const description = text(line.description);
+  const t = textFor(d.documentNumber, line.lineNumber, params.notes);
+  const description = t(1260, line.description);
 
   return {
     1251: params.recordNumber,
     1252: digits(ctx.companyTaxId),
     1253: bkmvDocumentTypeCode(d.documentType),
-    1254: text(d.documentNumber),
+    1254: t(1254, d.documentNumber),
     1255: line.lineNumber,
     // 1256 סוג מסמך בסיס / 1257 מספר מסמך בסיס — NO SOURCE. Nothing records what
     // a document is based on; voiding_document_id is a cancellation link, not a
     // base. Left out: zeros and spaces.
     // 1258 סוג עסקה — NO SOURCE. Left out: zeros.
-    1259: text(line.itemCode),
+    1259: t(1259, line.itemCode),
     // 1260 — X(30), mandatory. Product descriptions are unbounded in the database,
     // so longer ones are cut to 30 characters. Approved, lossy, and counted.
     1260:
@@ -243,7 +282,7 @@ export function bkmvD110Values(params: {
             description,
             30,
             { field: 1260, documentNumber: d.documentNumber, lineNumber: line.lineNumber },
-            params.truncations
+            params.notes?.truncations
           ),
     // 1261 שם היצרן · 1262 מספר סידורי · 1263 תיאור יחידת מידה — NO SOURCE.
     // Left out: spaces.
@@ -273,15 +312,17 @@ export function bkmvD120Values(params: {
   line: BkmvLineItem;
   recordNumber: number;
   linkNumber: number;
+  notes?: BkmvExportNotes;
 }): Record<number, unknown> {
   const { document: d, line, ctx } = params;
+  const t = textFor(d.documentNumber, line.lineNumber, params.notes);
   const meta = line.paymentMetadata ?? {};
 
   return {
     1301: params.recordNumber,
     1302: digits(ctx.companyTaxId),
     1303: bkmvDocumentTypeCode(d.documentType),
-    1304: text(d.documentNumber),
+    1304: t(1304, d.documentNumber),
     1305: line.lineNumber,
     // 1306 סוג אמצעי התשלום, mandatory. The means is stored as a Hebrew label in
     // the line's description (lib/types/receipt.ts:281); codes.ts maps the closed
@@ -298,7 +339,7 @@ export function bkmvD120Values(params: {
     // Left out: zeros.
     1312: line.lineTotal,
     1313: bkmvClearingHouseCode(meta.cardType),
-    1314: text(meta.cardLastDigits ?? meta.cardType),
+    1314: t(1314, meta.cardLastDigits ?? meta.cardType),
     1315: bkmvCreditDealCode(meta.cardDealType),
     // 1316-1319 are cancelled X(0) fields and occupy no columns.
     // 1320 מזהה סניף/ענף — conditional on 1034=1, and it is 0. Spaces.

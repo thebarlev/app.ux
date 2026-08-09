@@ -6,13 +6,16 @@ export {
   BKMV_EXPORTABLE_DOCUMENT_TYPES,
   BKMV_PAYMENT_MEANS_NEEDS_ACCOUNTANT,
   bkmvIsExportableDocumentType,
+  bkmvNormaliseCurrency,
   bkmvClearingHouseCode,
   bkmvCreditDealCode,
   bkmvDocumentTypeCode,
   bkmvPaymentMeansCode,
 } from "./codes";
-export { classifyLine } from "./map";
-export type { BkmvTruncation } from "./map";
+export { classifyLine, emptyNotes } from "./map";
+export type { BkmvExportNotes, BkmvTruncation } from "./map";
+export { BKMV_TRANSLITERATIONS, transliterate } from "./text";
+export type { BkmvTransliteration } from "./text";
 export {
   BKMV_DATA_ARCHIVE_FILENAME,
   BKMV_DATA_FILENAME,

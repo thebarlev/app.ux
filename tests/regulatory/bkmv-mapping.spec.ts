@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { BKMV_TRANSLITERATIONS } from "@/lib/regulatory/bkmv/text";
 import {
   BKMV_EXPORTABLE_DOCUMENT_TYPES,
   BKMV_PAYMENT_MEANS_NEEDS_ACCOUNTANT,
   bkmvIsExportableDocumentType,
+  bkmvNormaliseCurrency,
   bkmvClearingHouseCode,
   bkmvCreditDealCode,
   bkmvDocumentTypeCode,
@@ -463,8 +465,8 @@ test("a description longer than 30 characters is cut, and the cut is reported wi
   expect(written).toHaveLength(30);
   expect(written).toBe(encodeIso88598i(long.slice(0, 30)).toString("latin1"));
 
-  expect(built.truncations).toHaveLength(1);
-  expect(built.truncations[0]).toMatchObject({
+  expect(built.notes.truncations).toHaveLength(1);
+  expect(built.notes.truncations[0]).toMatchObject({
     field: 1260,
     documentNumber: "1156",
     lineNumber: 1,
@@ -481,5 +483,98 @@ test("a description that fits is not touched and nothing is reported", () => {
     lineItems: [line({ description: "ייעוץ", paymentMetadata: { kind: "item" } })],
     primaryIdentifier: IDENT,
   });
-  expect(built.truncations).toEqual([]);
+  expect(built.notes.truncations).toEqual([]);
+});
+
+
+// ------------------------------------------- transliteration and currency
+
+test("the transliteration table covers exactly what was approved", () => {
+  expect(BKMV_TRANSLITERATIONS).toEqual({
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2026": "...",
+    "\u00a0": " ",
+  });
+});
+
+test("an en dash is transliterated, counted, and the original is kept", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ customerName: "Auditor \u2013 \u05e0\u05d5\u05e2\u05dd" })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const c100 = built.txtBuffer.toString("latin1").split("\r\n")[1];
+  expect(at(c100, "C100", 1207)).toBe(
+    encodeIso88598i("Auditor - \u05e0\u05d5\u05e2\u05dd".padEnd(50, " ")).toString("latin1")
+  );
+
+  expect(built.notes.transliterations).toHaveLength(1);
+  expect(built.notes.transliterations[0]).toMatchObject({
+    field: 1207,
+    original: "Auditor \u2013 \u05e0\u05d5\u05e2\u05dd",
+    written: "Auditor - \u05e0\u05d5\u05e2\u05dd",
+  });
+});
+
+test("transliteration happens before truncation, so an ellipsis cannot overflow the field", () => {
+  // 29 characters, of which the last is an ellipsis that becomes three.
+  const desc = "a".repeat(28) + "\u2026";
+  expect(desc).toHaveLength(29);
+
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc()],
+    lineItems: [line({ description: desc, paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const d110 = built.txtBuffer.toString("latin1").split("\r\n")[2];
+  expect(at(d110, "D110", 1260)).toHaveLength(30);
+  // 28 a's + "..." is 31, so it was transliterated first and then cut to 30.
+  expect(at(d110, "D110", 1260)).toBe("a".repeat(28) + "..".slice(0, 2));
+  expect(built.notes.transliterations).toHaveLength(1);
+  expect(built.notes.truncations).toHaveLength(1);
+});
+
+test("a character with no transliteration and no encoding still throws, naming itself", () => {
+  expect(() =>
+    buildBkmvTxt({
+      ctx: CTX,
+      documents: [doc({ customerName: "caf\u00e9" })],
+      lineItems: [line({ paymentMetadata: { kind: "item" } })],
+      primaryIdentifier: IDENT,
+    })
+  ).toThrow(/Unsupported character/);
+});
+
+test("the shekel sign is normalised to ILS, counted, and nothing defaults", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ currency: "\u20aa" })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const c100 = built.txtBuffer.toString("latin1").split("\r\n")[1];
+  expect(at(c100, "C100", 1218)).toBe("ILS");
+  expect(built.notes.currencyNormalisations).toEqual([
+    { field: 1218, documentNumber: "1156", original: "\u20aa", written: "ILS" },
+  ]);
+
+  expect(bkmvNormaliseCurrency("USD", { field: 1218, documentNumber: null })).toBe("USD");
+  expect(bkmvNormaliseCurrency(null, { field: 1218, documentNumber: null })).toBeUndefined();
+});
+
+test("a currency that is neither a code nor normalisable throws instead of becoming ILS", () => {
+  expect(() => bkmvNormaliseCurrency("shekel", { field: 1218, documentNumber: "1" })).toThrow(
+    /not defaulted to ILS/
+  );
+  expect(() => bkmvNormaliseCurrency("$", { field: 1218, documentNumber: "1" })).toThrow(/ISO-4217/);
 });
