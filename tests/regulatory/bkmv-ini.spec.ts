@@ -15,18 +15,6 @@ import { BKMV_RECORDS, bkmvRecordLengthReport } from "@/lib/regulatory/bkmv/fiel
  * read off a rendered record.
  */
 
-/**
- * Stand-ins for the A000 fields still awaiting a decision. **Test-only.** The
- * product path cannot reach these: they are required members of the input, so a
- * caller must supply them deliberately.
- */
-const PENDING: BkmvIniInput["pending"] = {
-  softwareName: "PENDING",
-  softwareRelease: "PENDING",
-  softwareKind: "1",
-  characterSetCode: "1",
-};
-
 function input(overrides: Partial<BkmvIniInput> = {}): BkmvIniInput {
   return {
     primaryIdentifier: "123456789012345",
@@ -42,7 +30,6 @@ function input(overrides: Partial<BkmvIniInput> = {}): BkmvIniInput {
     range: { from: "2026-01-01", to: "2026-12-31" },
     processStartedAt: new Date(2026, 7, 9, 16, 42),
     filePath: "OPENFRMT\\51596050.26\\08091642",
-    pending: PENDING,
     ...overrides,
   };
 }
@@ -71,10 +58,14 @@ test("declared values land on the columns the spec gives them", () => {
   expect(a000.slice(33, 48)).toBe("123456789012345"); // 1004, cols 34-48
   expect(a000.slice(48, 56)).toBe("&1.31OF&"); // 1005, cols 49-56
   expect(a000.slice(56, 64)).toBe("00000000"); // 1006, cols 57-64
+  expect(a000.slice(64, 84)).toBe("UXellent".padEnd(20, " ")); // 1007, cols 65-84
+  expect(a000.slice(84, 104)).toBe("1.0".padEnd(20, " ")); // 1008, cols 85-104
   expect(a000.slice(104, 113)).toBe("515960508"); // 1009, cols 105-113
   expect(a000.slice(113, 133)).toBe("Uxellent".padEnd(20, " ")); // 1010, cols 114-133
+  expect(a000.slice(133, 134)).toBe("2"); // 1011, col 134
   expect(a000.slice(184, 185)).toBe("0"); // 1013, col 185
   expect(a000.slice(394, 395)).toBe("0"); // 1028, col 395
+  expect(a000.slice(395, 396)).toBe("1"); // 1029, col 396
   expect(a000.slice(396, 416)).toBe("JSZip".padEnd(20, " ")); // 1030, cols 397-416
   expect(a000.slice(416, 419)).toBe("ILS"); // 1032, cols 417-419
   expect(a000.slice(419, 420)).toBe("0"); // 1034, col 420
@@ -127,8 +118,8 @@ test("a range spanning two tax years is refused rather than truncated", () => {
   );
 });
 
-test("the four unresolved A000 fields are still declared unresolved", () => {
-  expect(BKMV_A000_UNRESOLVED.map((f) => f.no)).toEqual([1007, 1008, 1011, 1029]);
+test("no mandatory A000 field is left without a value", () => {
+  expect(BKMV_A000_UNRESOLVED).toEqual([]);
 });
 
 test("every in-scope record's field widths add up to its published length", () => {
