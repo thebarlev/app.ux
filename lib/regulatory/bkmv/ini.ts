@@ -1,6 +1,8 @@
 import "server-only";
 
-import { encodeWindows1255 } from "./encoding";
+import { randomInt } from "node:crypto";
+
+import { encodeIso88598i } from "./encoding";
 import { buildFixedLengthRecord, formatDateDDMMYYYY } from "./format";
 import { BkmvError } from "./errors";
 import { BKMV_DECLARED_VALUES, BKMV_SPEC } from "./spec";
@@ -14,10 +16,10 @@ import type { BkmvRecordCode } from "./types";
  * 19 characters per record type, where field 1050 carries the code of the type
  * being summarised and 1051 its count.
  *
- * B100, B110 and M100 are not produced by this system, so no count is passed for
- * them. Whether the spec nonetheless wants a zero line for a type that does not
- * exist is an open question — see the note on `summaries` below. This module
- * emits exactly the counts it is given and decides nothing.
+ * Summary lines cover the data records only — C100, D110, D120. A100 and Z900 are
+ * the envelope and are not summarised, and a type that was not produced gets no
+ * line at all rather than a line declaring zero. Build the list with
+ * `bkmvSummaryRecords` from the counts BKMVDATA.TXT actually emitted.
  */
 
 /**
@@ -31,43 +33,19 @@ import type { BkmvRecordCode } from "./types";
 const RESERVED_AREA = " ";
 
 /**
- * The seven A000 values that have no source in this system and no decision
- * behind them yet.
+ * A000 fields that are mandatory and still have no value behind them.
  *
- * They are a required part of `BkmvIniInput`, so nothing can build an A000
- * without supplying them. That is the point: an undecided mandatory field must
- * stop a caller, not quietly become spaces or zeros.
+ * **Empty, and it must stay empty.** Every mandatory field now carries either a
+ * value from the database or a value declared in `BKMV_DECLARED_VALUES`. Anything
+ * added back to this list is a field that would ship blank, which is a rejected
+ * file — the test suite asserts the list is empty for exactly that reason.
  */
-export const BKMV_A000_UNRESOLVED = [
-  { no: 1007, tech: "X(20)", name: "שם התוכנה", missing: "The product name as it will be registered. Awaiting the business owner." },
-  { no: 1008, tech: "X(20)", name: "מהדורת התוכנה", missing: "What counts as a release. Awaiting the business owner." },
-  { no: 1011, tech: "9(1)", name: "סוג התוכנה", missing: "1 = single-year, 2 = multi-year. Awaiting the business owner." },
-  {
-    no: 1029,
-    tech: "9(1)",
-    name: "סט תוים",
-    missing:
-      "The instructions permit exactly two values — 1 = ISO-8859-8-i, 2 = CP-862 — and Windows-1255 is not among them. Blocked pending that decision.",
-  },
-] as const;
-
-/** The A000 values still awaiting a decision. Every one is mandatory. */
-export type BkmvA000PendingValues = {
-  /** 1007 `X(20)`. */
-  softwareName: string;
-  /** 1008 `X(20)`. */
-  softwareRelease: string;
-  /** 1011 `9(1)`: 1 = single-year, 2 = multi-year. */
-  softwareKind: string;
-  /**
-   * 1029 `9(1)`, "סט תוים".
-   *
-   * The instructions allow `1` = ISO-8859-8-i or `2` = CP-862, and **do not list
-   * Windows-1255 at all**, which is what `encoding.ts` produces. Nothing here
-   * picks a value.
-   */
-  characterSetCode: string;
-};
+export const BKMV_A000_UNRESOLVED: ReadonlyArray<{
+  no: number;
+  tech: string;
+  name: string;
+  missing: string;
+}> = [];
 
 /**
  * The record types that get a summary line in INI.TXT: the data records only.
@@ -144,12 +122,8 @@ export type BkmvIniInput = {
 
   /**
    * One summary record per entry, in order. Field 1050 takes `code`, 1051 takes
-   * `count`.
-   *
-   * **The caller decides which types appear here, and this module does not
-   * second-guess it.** Two questions are open and both change this list: whether
-   * the envelope records A100 and Z900 are summarised at all, and whether a type
-   * that was not produced still needs a line declaring zero.
+   * `count`. Build it with `bkmvSummaryRecords`, which applies the policy: data
+   * records only, and nothing for a type that was not produced.
    */
   summaries: Array<{ code: BkmvRecordCode; count: number }>;
 
@@ -164,10 +138,23 @@ export type BkmvIniInput = {
    * with `bkmvExportDirectory` rather than by hand.
    */
   filePath: string;
-
-  /** The values that have no source yet. */
-  pending: BkmvA000PendingValues;
 };
+
+/**
+ * A fresh fifteen-digit primary identifier for one export.
+ *
+ * The instructions call for a random fifteen-digit number that appears
+ * **identically** in A000 field 1004, A100 field 1103 and Z900 field 1153. It is
+ * generated once, here, so that the three cannot drift apart — that mismatch is
+ * the first thing an audit looks for.
+ */
+export function bkmvPrimaryIdentifier(): string {
+  let digits = "";
+  while (digits.length < 15) {
+    digits += String(randomInt(0, 1_000_000_000)).padStart(9, "0");
+  }
+  return digits.slice(0, 15);
+}
 
 function requireSpec(key: "A000" | "INI-SUM") {
   const spec = BKMV_SPEC.records[key];
@@ -224,7 +211,6 @@ function taxYear(range: { from: string; to: string }): string {
 
 function buildA000Line(input: BkmvIniInput): string {
   const spec = requireSpec("A000");
-  const { pending } = input;
 
   const values: Record<number, unknown> = {
     1001: RESERVED_AREA,
@@ -233,11 +219,11 @@ function buildA000Line(input: BkmvIniInput): string {
     1004: input.primaryIdentifier,
     1005: BKMV_DECLARED_VALUES.systemConstant,
     1006: BKMV_DECLARED_VALUES.registrationNumberPlaceholder,
-    1007: pending.softwareName,
-    1008: pending.softwareRelease,
+    1007: BKMV_DECLARED_VALUES.softwareName,
+    1008: BKMV_DECLARED_VALUES.softwareRelease,
     1009: BKMV_DECLARED_VALUES.vendorTaxId,
     1010: BKMV_DECLARED_VALUES.vendorName,
-    1011: pending.softwareKind,
+    1011: BKMV_DECLARED_VALUES.softwareKind,
     1012: input.filePath,
     1013: BKMV_DECLARED_VALUES.bookkeepingKind,
     // 1014 איזון חשבונאי נדרש — optional, and only meaningful under double-entry
@@ -258,7 +244,7 @@ function buildA000Line(input: BkmvIniInput): string {
     ),
     1027: `${two(input.processStartedAt.getHours())}${two(input.processStartedAt.getMinutes())}`,
     1028: BKMV_DECLARED_VALUES.languageCode,
-    1029: pending.characterSetCode,
+    1029: BKMV_DECLARED_VALUES.characterSetCode,
     1030: BKMV_DECLARED_VALUES.compressionSoftwareName,
     // 1031 and 1033 are cancelled X(0) fields and consume no columns at all.
     1032: BKMV_DECLARED_VALUES.leadingCurrency,
@@ -316,7 +302,7 @@ export function buildIniTxt(input: BkmvIniInput): BkmvIniResult {
   });
 
   return {
-    txtBuffer: encodeWindows1255(lines.join("\r\n") + "\r\n"),
+    txtBuffer: encodeIso88598i(lines.join("\r\n") + "\r\n"),
     lines,
     // Whatever 1006 actually holds: all zeros means no registration number has
     // been issued, and the file is a sample.

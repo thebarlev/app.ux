@@ -7,7 +7,7 @@
 - הפלט הוא **ZIP בשם `Income.zip`**
 - בתוך ה־ZIP קובץ יחיד: **`BKMVDATA.TXT`**
 - `BKMVDATA.TXT` בנוי מ־**רשומות fixed-length** (אין מפרידי שדות)
-- **Encoding**: Windows-1255
+- **Encoding**: ISO-8859-8-i (שדה 1029 = 1). **לא** Windows-1255 — הוא אינו מופיע במפרט.
 - **סיום שורה**: CRLF
 - **Scope**: רק מסמכים במצב **FINAL** (כלומר `documents.document_status = 'final'`)
 - **D120**: יופיע רק עבור מסמכי `receipt`

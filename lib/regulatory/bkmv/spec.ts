@@ -35,6 +35,24 @@ export const BKMV_DECLARED_VALUES = {
    */
   systemConstant: "&1.31OF&",
 
+  /** Field 1007, "שם התוכנה", `X(20)`. */
+  softwareName: "UXellent",
+
+  /** Field 1008, "מהדורת התוכנה", `X(20)`. */
+  softwareRelease: "1.0",
+
+  /** Field 1011, "סוג התוכנה", `9(1)`: 1 = single-year, 2 = multi-year. */
+  softwareKind: "2",
+
+  /**
+   * Field 1029, "סט תוים", `9(1)`.
+   *
+   * The instructions permit exactly two values — `1` = ISO-8859-8-i and `2` =
+   * CP-862 — and Windows-1255 is not among them. This is a Windows-side export,
+   * not DOS, so it declares `1`, which is what `encoding.ts` emits.
+   */
+  characterSetCode: "1",
+
   /** Field 1009, "מספר ע\"מ של יצרן התוכנה", `9(9)`. */
   vendorTaxId: "515960508",
 

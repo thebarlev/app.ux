@@ -16,7 +16,7 @@ Income.zip
 
 ## Encoding / newline
 
-- **Encoding**: Windows-1255 (cp1255)
+- **Encoding**: ISO-8859-8-i (שדה 1029 = 1). **לא** Windows-1255 — הוא אינו מופיע במפרט.
 - **Record format**: Fixed length (אין מפרידי שדות)
 - **Newline**: CRLF (`\r\n`)
 
