@@ -7,8 +7,10 @@
     "dev": "next dev",
     "lint": "eslint .",
     "postinstall": "node scripts/playwright-install.mjs",
+    "prebuild": "npm run verify:bkmv",
     "start": "next start",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
+    "verify:bkmv": "node scripts/verify-bkmv-record-lengths.mjs",
     "vercel-build": "npx playwright install chromium --with-deps && next build"
   },
   "dependencies": {
