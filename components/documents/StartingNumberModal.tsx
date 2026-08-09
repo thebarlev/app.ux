@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { lockStartingNumberAction } from "@/app/dashboard/documents/actions";
+import { getSequenceInfoAction, lockStartingNumberAction } from "@/app/dashboard/documents/actions";
+import { resolveStartingNumberOutcome } from "@/lib/documents/starting-number-outcome";
 import { lockBodyScroll, unlockBodyScroll } from "@/lib/ui/scroll-lock";
 
 type Props = {
@@ -69,18 +70,35 @@ export default function StartingNumberModal({
         prefix: null,
       });
 
-      if (!res.ok) {
-        // If already locked, treat as success
-        if (res.message?.includes("sequence_already_locked")) {
-          onSuccess();
-          return;
+      /*
+       * An already-locked sequence used to be treated as a success: onSuccess()
+       * and the dialog closed, so the number the user typed was discarded without
+       * a word. It is now told to them, with the number that is actually in force
+       * read back from the sequence.
+       */
+      let inForce: { currentNumber: number | null; nextNumber: number | null } | null = null;
+      if (!res.ok && res.message?.includes("sequence_already_locked")) {
+        try {
+          const info = await getSequenceInfoAction({ documentType });
+          inForce = { currentNumber: info.currentNumber, nextNumber: info.nextNumber };
+        } catch {
+          // Leave it null; the message says the number could not be read rather
+          // than inventing one.
         }
+      }
 
-        setError(res.message || "אירעה שגיאה. נסה שוב.");
+      const outcome = resolveStartingNumberOutcome({
+        result: res,
+        attempted: startingNumber,
+        inForce,
+      });
+
+      if (outcome.kind === "success") {
+        onSuccess();
         return;
       }
 
-      onSuccess();
+      setError(outcome.message);
     } catch (e) {
       setError("אירעה שגיאה. נסה שוב.");
     } finally {

@@ -5,6 +5,25 @@
 
 ---
 
+## ⛔ מוקש מספור · הפרש של אחד בין הכתיבה בקוד לכתיבה ב-RPC  `[קריטי — לא תוקן]`
+- **⛔ מוקש מספור.** `initializeSequence` כותבת `current_number = startingNumber - 1`; `lock_sequence_start` גרסה ב׳ כותבת `= p_starting_number`. **הפרש של אחד.** מעבר עתידי ל-RPC יזיז את כל המספור. **חובה ליישב לפני כל חיווט.**
+- **המקומות:** `lib/document-helpers.ts:100` ו-`:117` — `current_number: startingNumber - 1` בשני הענפים (עדכון והוספה). מול גרסה ב׳ במסד, `lock_sequence_start(uuid, text, integer, text, uuid)`, שכותבת `current_number = p_starting_number`.
+- **למה זה מוקש ולא באג:** שתי הסמנטיקות עקביות בתוך עצמן. בקוד `current_number` הוא "המספר האחרון שנצרך", ולכן `starting - 1` נכון והמסמך הראשון מקבל את `starting`. ב-RPC `current_number` הוא "המספר הבא", ולכן המסמך הראשון היה מקבל `starting + 1`. **מי שיחווט את ה-RPC בלי לשים לב יזיז כל מספור בחברה באחד**, וזה שינוי בלתי הפיך על מסמכים חשבונאיים.
+- **מה מחזיר אותו לראש התור:** כל חיווט ל-`lock_sequence_start`. אז — להכריע מה `current_number` אומר, ליישר את שני הצדדים, ולבדוק על רצף קיים.
+
+## מרוץ · `initializeSequence` אינה אטומית  `[לא תוקן]`
+- **מרוץ.** `initializeSequence` עושה `select` ואז `insert` בשתי בקשות PostgREST נפרדות — **בלי אטומיות. שתי לחיצות מקבילות עוברות שתיהן.** `lock_sequence_start` גרסה ב׳ עושה `for update` **ואינה נקראת.**
+- **המקום:** `lib/document-helpers.ts:85-90` (ה-`select`) מול `:111-121` (ה-`insert`). אין `for update`, אין `on conflict`, ואין טרנזקציה — PostgREST מחייב כל בקשה בנפרד.
+- **מה יקרה בפועל:** שתי לחיצות מקבילות על "אישור והתחלת מיספור" עוברות שתיהן את בדיקת `existing`, ואז שתיהן מנסות `insert`. אם קיים אילוץ ייחודיות על `(company_id, document_type)` השנייה תיפול על שגיאת מסד והמשתמש יראה אותה כ-`error.message` גולמי; אם אין אילוץ — **ייווצרו שתי שורות רצף לאותו סוג מסמך**, וההתנהגות מכאן תלויה ב-`maybeSingle()` שיחזיר שגיאה או שורה שרירותית.
+- **לא נבדק:** לא אימתתי אם קיים אילוץ ייחודיות על `(company_id, document_type)` ב-`document_sequences`. זו הבדיקה הראשונה כשהפריט הזה נפתח.
+- **מה מחזיר אותו לראש התור:** יחד עם המוקש שמעליו — שני הפריטים נפתרים באותו מעבר ל-RPC, ובאותה הכרעה על סמנטיקת `current_number`.
+
+## קוד מת ושבור · `lock_sequence_start(uuid, text, bigint)`  `[לא תוקן]`
+- **קוד מת ושבור.** `lock_sequence_start(uuid, text, bigint)` מפנה ל-`business_id`/`doc_type`/`start_number`/`next_number` — **עמודות שאינן קיימות** ב-`document_sequences`. **הייתה נופלת בקריאה.** מנוטרלת ל-`service_role` ב-`120`. **שתי החתימות בלי מיגרציה.**
+- **העמודות שכן קיימות:** `company_id`, `document_type`, `starting_number`, `current_number`, `is_locked`, `locked_at`, `prefix`, `created_by`, `created_at`, `updated_at` — כפי שנראה בשורת רצף חיה מהייצור.
+- **אפס קוראים:** חיפוש `lock_sequence_start` בכל קוד ה-TS/TSX — **אפס מופעים**. כל 11 המופעים בריפו הם `revoke`/`grant`/הערות ב-`117`, `120` ו-`120-ROLLBACK`. אין הכרעת עומס כי אין קורא.
+- **מה מחזיר אותו לראש התור:** מחיקה של גרסה א׳, כחלק מהוצאת ההגדרות החיות לקבצי מיגרציה. **לא למחוק מניחוש** — ההגדרה המדויקת תיחלץ מהייצור קודם.
+
 ## ⛔ סחף מסד-קוד — תופעה, לא תקלה נקודתית  `[קריטי — לא תוקן]`
 - **⛔ סחף מסד-קוד — תופעה, לא תקלה נקודתית.** שני טריגרים (`trg_auditor_invoice_document_company_check`, `trigger_enforce_document_number_integrity`), שתי הפונקציות שלהם, וטבלת `auditor_invoice_documents` — קיימים בייצור, אין להם מיגרציה. הטבלה בשימוש פעיל (`app/admin/(app)/auditor/clients/actions.ts:141`). **ההיקף המלא ממתין לאינוונטר.**
 - **הביקורת שנעשתה (9.8.2026):** ששת הטריגרים שרצים בייצור על `public.documents` הוצלבו מול `scripts/`. ארבעה נמצאו — `before_invoice_receipt_insert` (`043:145-148`) · `trigger_enforce_document_immutability` (`044:77-81`, וגם `009:57-61`) · `trigger_log_document_event` (`006:429-433`) · `trigger_prevent_final_delete` (`006:351-355`). **שניים חסרים לחלוטין**, ואיתם הפונקציות שהם מפעילים. אותן שתיים חסרות בשתי הרשימות — אין מקרה של פונקציה בלי טריגר או להפך.
