@@ -644,3 +644,61 @@ test("no document anywhere in a built file declares ILS and a foreign-currency t
   // Three shekel documents, spelled three different ways in the column.
   expect(c100s.filter((l) => at(l, "C100", 1218) === "ILS")).toHaveLength(3);
 });
+
+// ------------------------------------------ amounts that do not add up
+
+test("a document whose amounts do not add up is counted, and its figures are left alone", () => {
+  // total says 1.10, subtotal and VAT say nothing — five real documents look like this.
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ subtotal: 0, vatAmount: 0, totalAmount: 1.1 })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  expect(built.notes.amountMismatches).toEqual([
+    { documentNumber: "1156", beforeVat: 0, vat: 0, total: 1.1 },
+  ]);
+
+  // And nothing was repaired: the file still carries exactly what the database holds.
+  const c100 = built.txtBuffer.toString("latin1").split("\r\n")[1];
+  expect(at(c100, "C100", 1221)).toBe("+" + "0".repeat(14));
+  expect(at(c100, "C100", 1222)).toBe("+" + "0".repeat(14));
+  expect(at(c100, "C100", 1223)).toBe("+" + "110".padStart(14, "0"));
+});
+
+test("a document whose amounts do add up is not counted", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ subtotal: 0.85, vatAmount: 0.15, totalAmount: 1.0 })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+  expect(built.notes.amountMismatches).toEqual([]);
+});
+
+test("a VAT-exempt document, where the VAT is legitimately zero, is not counted", () => {
+  // 39 of the 121 look like this: subtotal equals total and the rate is zero.
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ subtotal: 11, vatAmount: 0, vatRate: 0, totalAmount: 11 })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+  expect(built.notes.amountMismatches).toEqual([]);
+});
+
+test("field 1225 stays empty rather than being derived from free text", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    // A name and a tax id are present, and neither becomes a key.
+    documents: [doc({ customerName: "לקוח בדיקה", customerTaxId: "123456782", customerNumber: null })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const c100 = built.txtBuffer.toString("latin1").split("\r\n")[1];
+  expect(at(c100, "C100", 1225)).toBe(" ".repeat(15));
+  // The customer is still identified by name and VAT number, which do have sources.
+  expect(at(c100, "C100", 1215)).toBe("123456782");
+});

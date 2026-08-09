@@ -13,7 +13,7 @@ export {
   bkmvPaymentMeansCode,
 } from "./codes";
 export { classifyLine, emptyNotes } from "./map";
-export type { BkmvExportNotes, BkmvTruncation } from "./map";
+export type { BkmvAmountMismatch, BkmvExportNotes, BkmvTruncation } from "./map";
 export { BKMV_TRANSLITERATIONS, transliterate } from "./text";
 export type { BkmvTransliteration } from "./text";
 export {

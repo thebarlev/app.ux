@@ -33,6 +33,24 @@ function digits(value: unknown): string | undefined {
   return only.length > 0 ? only : undefined;
 }
 
+/**
+ * A document whose own amounts do not add up: 1221 (before VAT) plus 1222 (VAT)
+ * does not equal 1223 (total including VAT).
+ *
+ * Counted, never corrected. The export writes what the database holds — deriving a
+ * subtotal from a total, or inventing a VAT amount, would be manufacturing figures
+ * on an accounting document.
+ */
+export type BkmvAmountMismatch = {
+  documentNumber: string | null;
+  /** 1221 — the document total after discounts, excluding VAT. */
+  beforeVat: number;
+  /** 1222 — the VAT amount. */
+  vat: number;
+  /** 1223 — the document total including VAT. */
+  total: number;
+};
+
 /** One truncation that happened, so it can be reported rather than absorbed. */
 export type BkmvTruncation = {
   field: number;
@@ -84,10 +102,12 @@ export type BkmvExportNotes = {
   truncations: BkmvTruncation[];
   transliterations: BkmvTransliteration[];
   currencyNormalisations: BkmvCurrencyNormalisation[];
+  /** Documents whose 1221 + 1222 does not equal 1223. Reported, not repaired. */
+  amountMismatches: BkmvAmountMismatch[];
 };
 
 export function emptyNotes(): BkmvExportNotes {
-  return { truncations: [], transliterations: [], currencyNormalisations: [] };
+  return { truncations: [], transliterations: [], currencyNormalisations: [], amountMismatches: [] };
 }
 
 function plainText(value: unknown): string | undefined {
@@ -199,6 +219,24 @@ export function bkmvC100Values(params: {
   const { document: d, ctx } = params;
   const code = bkmvDocumentTypeCode(d.documentType);
   const t = textFor(d.documentNumber, -1, params.notes);
+  /*
+   * A document's own amounts either add up or they do not, and if they do not that
+   * is a fact about the data. Recorded here so the caller can report it; nothing
+   * is derived, filled or corrected. Five of Bogo Media's 121 documents for 2026
+   * are inconsistent this way, all five from the first day of issuance.
+   */
+  const beforeVat = Number(d.subtotal ?? 0);
+  const vat = Number(d.vatAmount ?? 0);
+  const total = Number(d.totalAmount ?? 0);
+  if (Math.abs(beforeVat + vat - total) > 0.005) {
+    params.notes?.amountMismatches.push({
+      documentNumber: d.documentNumber,
+      beforeVat,
+      vat,
+      total,
+    });
+  }
+
   // Normalised once, then used by every field that depends on the currency.
   const currency = bkmvNormaliseCurrency(
     d.currency,
@@ -247,8 +285,25 @@ export function bkmvC100Values(params: {
     1221: d.subtotal,
     1222: d.vatAmount,
     1223: d.totalAmount,
+    /*
+     * 1221 + 1222 should equal 1223. Where it does not, the document itself is
+     * inconsistent in the database and the mismatch is recorded above by
+     * `noteAmountMismatch` — not silently repaired. See the note there.
+     */
     // 1224 סכום הניכוי במקור — NO SOURCE. Left out: zeros. Note that were it ever
     // populated, clarification 4 requires it POSITIVE, unlike a discount.
+    /*
+     * 1225 מפתח הלקוח אצל המוכר — mandatory-conditional for every document code in
+     * 100-710, which is all four this system issues, and **empty in practice**.
+     * It reads `customers.customer_number`, which is the right source; the table is
+     * empty across the whole system and every document carries a null customer_id,
+     * so nothing comes out.
+     *
+     * Deriving a key from the free-text customer name was measured and REJECTED:
+     * 64 of the 75 keys it produced served a single document, which makes it a
+     * key-per-document in all but name. The field stays empty until there is a real
+     * customer register. See FOLLOWUPS.
+     */
     1225: t(1225, d.customerNumber),
     // 1226 שדה התאמה — NO SOURCE. Left out: spaces.
     // 1228 מסמך מבוטל. The instructions do not state which character to write, so
