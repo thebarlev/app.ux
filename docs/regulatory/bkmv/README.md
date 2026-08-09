@@ -1,3 +1,5 @@
+> ⚠️ **מיושן. מקור האמת הוא `docs/regulatory/bkmv/fields-1.31.json`.**
+
 # BKMV (תקן 5.4) – ייצוא קובץ רישום (Income.zip)
 
 מסמך זה מתאר את מנגנון הייצוא הרגולטורי (BKMV) בהתאם לתקן 5.4:
@@ -64,11 +66,6 @@
 3. **No cross-access**:
    - התחבר כ־`adminA` ונסה לקרוא `download` עם key של companyB → מצופה **403**.
 
-4. **Content checks**:
-   - `Income.zip` מכיל **רק** `BKMVDATA.TXT`.
-   - `BKMVDATA.TXT` הוא Windows-1255 + CRLF.
-   - הרשומות בסדר: A100 → B100 → B110 → (מסמכים כרונולוגיים) → Z900.
-   - D120 מופיע רק למסמכי `receipt`.
 
 ## Spec (Single Source of Truth)
 

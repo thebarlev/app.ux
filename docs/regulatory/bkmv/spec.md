@@ -1,3 +1,5 @@
+> ⚠️ **מיושן. מקור האמת הוא `docs/regulatory/bkmv/fields-1.31.json`.**
+
 # BKMV / תקן 5.4 – Spec (Single Source of Truth)
 
 מסמך זה הוא **Single Source of Truth** לפורמט ייצוא BKMV בתקינה 5.4, והוא מחייב את המימוש תחת `lib/regulatory/bkmv/`.
