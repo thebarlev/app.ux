@@ -1,6 +1,6 @@
 import "server-only";
 
-import { encodeWindows1255 } from "./encoding";
+import { encodeIso88598i } from "./encoding";
 import { buildFixedLengthRecord } from "./format";
 import { BkmvError } from "./errors";
 import { assertBkmvSpecComplete, BKMV_SPEC } from "./spec";
@@ -36,7 +36,17 @@ export function buildBkmvTxt(params: {
   ctx: BkmvContext;
   documents: BkmvDocument[];
   lineItems: BkmvLineItem[];
-}): { txtBuffer: Buffer; stats: { totalDocs: number } } {
+}): {
+  txtBuffer: Buffer;
+  stats: { totalDocs: number };
+  /**
+   * How many records of each type were written, which INI.TXT needs for its
+   * summary lines. Counted from what was actually emitted, not predicted.
+   */
+  recordCounts: Partial<Record<BkmvRecordCode, number>>;
+  /** Total records in the file, for A000 field 1002. */
+  recordCount: number;
+} {
   // Refuse to generate until the fixed-length spec is fully populated.
   assertBkmvSpecComplete();
 
@@ -86,7 +96,17 @@ export function buildBkmvTxt(params: {
 
   // Fixed-length lines + CRLF
   const txt = records.map(buildRecordLine).join("\r\n") + "\r\n";
-  const txtBuffer = encodeWindows1255(txt);
+  const txtBuffer = encodeIso88598i(txt);
 
-  return { txtBuffer, stats: { totalDocs: docsSorted.length } };
+  const recordCounts: Partial<Record<BkmvRecordCode, number>> = {};
+  for (const record of records) {
+    recordCounts[record.code] = (recordCounts[record.code] ?? 0) + 1;
+  }
+
+  return {
+    txtBuffer,
+    stats: { totalDocs: docsSorted.length },
+    recordCounts,
+    recordCount: records.length,
+  };
 }

@@ -3,7 +3,15 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
-import { buildBkmvTxt, buildIncomeZip, BkmvError } from "@/lib/regulatory/bkmv";
+import {
+  BkmvError,
+  bkmvExportDirectory,
+  bkmvPrimaryIdentifier,
+  bkmvSummaryRecords,
+  buildBkmvPackageZip,
+  buildBkmvTxt,
+  buildIniTxt,
+} from "@/lib/regulatory/bkmv";
 import type { BkmvContext, BkmvDocument, BkmvLineItem } from "@/lib/regulatory/bkmv";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
@@ -136,8 +144,30 @@ export async function POST(req: Request) {
       generatedAtIso: generatedAt.toISOString(),
     };
 
-    const { txtBuffer, stats } = buildBkmvTxt({ ctx, documents, lineItems });
-    const zipBuffer = await buildIncomeZip({ bkmvDataTxt: txtBuffer });
+    // NOTE: buildBkmvTxt throws before any of the following runs. Its per-field
+    // values are not mapped to database columns yet — that is workplan stage 5 —
+    // so every record fails its own mandatory-field validation and this route
+    // answers 400. Nothing is built and nothing is uploaded. The packaging below
+    // is wired correctly for when the mapping lands.
+    const { txtBuffer, stats, recordCounts, recordCount } = buildBkmvTxt({ ctx, documents, lineItems });
+
+    const directory = bkmvExportDirectory({ dealerNumber: companyTaxId, at: generatedAt });
+    const { txtBuffer: iniBuffer } = buildIniTxt({
+      primaryIdentifier: bkmvPrimaryIdentifier(),
+      dealerNumber: companyTaxId,
+      businessName: String(company.company_name || "").trim(),
+      bkmvDataRecordCount: recordCount,
+      summaries: bkmvSummaryRecords(recordCounts),
+      range: { from, to },
+      processStartedAt: generatedAt,
+      filePath: directory,
+    });
+
+    const { zipBuffer } = await buildBkmvPackageZip({
+      directory,
+      iniTxt: iniBuffer,
+      bkmvDataTxt: txtBuffer,
+    });
 
     const { yyyy, mm, dd, hh, mi, ss } = toKeyParts(generatedAt);
     const fromDD = toDDMMYYYY(from);

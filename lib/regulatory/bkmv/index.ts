@@ -1,15 +1,22 @@
 import "server-only";
 
 export { buildBkmvTxt } from "./build";
-export { buildIncomeZip } from "./zip";
+export {
+  BKMV_DATA_ARCHIVE_FILENAME,
+  BKMV_DATA_FILENAME,
+  BKMV_INI_FILENAME,
+  buildBkmvPackageZip,
+} from "./zip";
+export type { BkmvPackage } from "./zip";
 export {
   BKMV_A000_UNRESOLVED,
   BKMV_SUMMARISED_RECORD_CODES,
   bkmvExportDirectory,
+  bkmvPrimaryIdentifier,
   bkmvSummaryRecords,
   buildIniTxt,
 } from "./ini";
-export type { BkmvA000PendingValues, BkmvIniInput, BkmvIniResult } from "./ini";
+export type { BkmvIniInput, BkmvIniResult } from "./ini";
 export {
   BKMV_AMOUNT_SIGN,
   BKMV_DECLARED_VALUES,
