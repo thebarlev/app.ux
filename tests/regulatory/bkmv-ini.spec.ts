@@ -76,7 +76,9 @@ test("the date fields are YYYYMMDD and the time field is hhmm", () => {
 
   expect(a000.slice(362, 366)).toBe("2026"); // 1023 שנת המס, cols 363-366
   expect(a000.slice(366, 374)).toBe("20260101"); // 1024, cols 367-374
-  expect(a000.slice(374, 382)).toBe("20261231"); // 1025, cols 375-382
+  // 1025 is capped at the export day — see the dedicated test below. The fixture
+  // exports on 2026-08-09, so a 2026-12-31 request lands on 20260809.
+  expect(a000.slice(374, 382)).toBe("20260809"); // 1025, cols 375-382
   expect(a000.slice(382, 390)).toBe("20260809"); // 1026, cols 383-390
   expect(a000.slice(390, 394)).toBe("1642"); // 1027, cols 391-394
 });
@@ -151,4 +153,29 @@ test("every in-scope record's field widths add up to its published length", () =
       expect(row.declared, `${row.key} is not the published length`).toBe(known[row.key]);
     }
   }
+});
+
+test("1025 is capped at the day the export runs, because a data range cannot end in the future", () => {
+  // A full tax year requested, exported in August.
+  const a000 = buildIniTxt(
+    input({
+      range: { from: "2026-01-01", to: "2026-12-31" },
+      processStartedAt: new Date(2026, 7, 9, 16, 42),
+    })
+  ).lines[0];
+
+  expect(a000.slice(366, 374)).toBe("20260101"); // 1024, the range start, untouched
+  expect(a000.slice(374, 382)).toBe("20260809"); // 1025, capped at today
+  expect(a000.slice(362, 366)).toBe("2026"); // 1023 still the tax year
+});
+
+test("1025 keeps the requested end when the range is already in the past", () => {
+  const a000 = buildIniTxt(
+    input({
+      range: { from: "2025-01-01", to: "2025-12-31" },
+      processStartedAt: new Date(2026, 7, 9, 16, 42),
+    })
+  ).lines[0];
+
+  expect(a000.slice(374, 382)).toBe("20251231");
 });

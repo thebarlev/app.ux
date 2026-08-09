@@ -196,6 +196,11 @@ export function bkmvExportDirectory(params: { dealerNumber: string; at: Date }):
   return `OPENFRMT\\${digits}.${yy}\\${stamp}`;
 }
 
+/** The earlier of two `YYYY-MM-DD` dates. String order is date order in that format. */
+function earlierOf(a: string, b: string): string {
+  return a <= b ? a : b;
+}
+
 function taxYear(range: { from: string; to: string }): string {
   const fromYear = range.from.slice(0, 4);
   const toYear = range.to.slice(0, 4);
@@ -238,7 +243,15 @@ function buildA000Line(input: BkmvIniInput): string {
     1022: input.address?.postalCode ?? undefined,
     1023: taxYear(input.range),
     1024: formatDateYYYYMMDD(input.range.from),
-    1025: formatDateYYYYMMDD(input.range.to),
+    /*
+     * 1025 סיום/חיתוך טווח נתונים.
+     *
+     * Capped at the day the export runs. The requested range is whatever the user
+     * asked for — a full tax year, typically — but the end of the DATA range cannot
+     * be in the future, and the simulator rejects it: "התאריך לא יכול להיות עתידי".
+     * An export of 2026 run in August describes data up to August.
+     */
+    1025: formatDateYYYYMMDD(earlierOf(input.range.to, localIsoDate(input.processStartedAt))),
     1026: formatDateYYYYMMDD(localIsoDate(input.processStartedAt)),
     1027: formatTimeHHMM(input.processStartedAt),
     1028: BKMV_DECLARED_VALUES.languageCode,
