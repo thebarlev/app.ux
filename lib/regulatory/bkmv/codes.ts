@@ -31,6 +31,22 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
   proforma: "300",
 };
 
+/**
+ * The document types that belong in the file at all.
+ *
+ * The unified file describes accounting documents, and appendix 1 is a closed
+ * table — so a type with no code in it is not something to map, it is something
+ * that does not belong. The export selects by this list rather than taking every
+ * final document and hoping each one has a code.
+ *
+ * Anything left out is counted and reported, never silently dropped.
+ */
+export const BKMV_EXPORTABLE_DOCUMENT_TYPES: readonly string[] = Object.keys(DOCUMENT_TYPE_CODES);
+
+export function bkmvIsExportableDocumentType(documentType: string): boolean {
+  return Object.prototype.hasOwnProperty.call(DOCUMENT_TYPE_CODES, documentType);
+}
+
 export function bkmvDocumentTypeCode(documentType: string): string {
   const code = DOCUMENT_TYPE_CODES[documentType];
   if (!code) {

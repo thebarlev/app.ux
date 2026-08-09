@@ -1,13 +1,16 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  BKMV_EXPORTABLE_DOCUMENT_TYPES,
   BKMV_PAYMENT_MEANS_NEEDS_ACCOUNTANT,
+  bkmvIsExportableDocumentType,
   bkmvClearingHouseCode,
   bkmvCreditDealCode,
   bkmvDocumentTypeCode,
   bkmvPaymentMeansCode,
 } from "@/lib/regulatory/bkmv/codes";
 import { formatAmount, formatDateYYYYMMDD, formatTimeHHMM } from "@/lib/regulatory/bkmv/format";
+import { encodeIso88598i } from "@/lib/regulatory/bkmv/encoding";
 import { BKMV_AMOUNT_SIGN, BKMV_DECLARED_VALUES, BKMV_RECORDS } from "@/lib/regulatory/bkmv/spec";
 import { buildBkmvTxt } from "@/lib/regulatory/bkmv/build";
 import { classifyLine } from "@/lib/regulatory/bkmv/map";
@@ -414,4 +417,69 @@ test("an unmapped payment label stops the whole export rather than mislabelling 
       primaryIdentifier: IDENT,
     })
   ).toThrow(/"Revolut"/);
+});
+
+// ------------------------------------------------- whitelist and truncation
+
+test("only document types with an appendix-1 code are exportable, and the lookup stays closed", () => {
+  expect([...BKMV_EXPORTABLE_DOCUMENT_TYPES].sort()).toEqual([
+    "invoice_receipt",
+    "proforma",
+    "receipt",
+    "tax_invoice",
+  ]);
+
+  expect(bkmvIsExportableDocumentType("tax_invoice")).toBe(true);
+  expect(bkmvIsExportableDocumentType("work_order")).toBe(false);
+  expect(bkmvIsExportableDocumentType("delivery_note")).toBe(false);
+
+  // Excluding a type from selection must not weaken the lookup: anything that
+  // reaches it without a code still throws.
+  expect(() => bkmvDocumentTypeCode("work_order")).toThrow(/closed table/);
+});
+
+test("one character is one byte in this encoding, so a 30-character cut is 30 columns", () => {
+  // The property truncation relies on. Asserted rather than assumed.
+  for (const s of ["שירותי חשבונית ירוקה מאובטחת", "Basic plan", 'א"ב', "ABC 123 אבג"]) {
+    expect(encodeIso88598i(s), s).toHaveLength(s.length);
+  }
+});
+
+test("a description longer than 30 characters is cut, and the cut is reported with the original", () => {
+  const long = "שירותי חשבונית ירוקה מאובטחת - Basic"; // 36 characters, from production
+  expect(long).toHaveLength(36);
+
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc()],
+    lineItems: [line({ description: long, paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  // The file is read back as bytes: Hebrew lives at 0xE0-0xFA, so a latin1 string
+  // of the buffer is the byte sequence, not the Hebrew. Compare like with like.
+  const d110 = built.txtBuffer.toString("latin1").split("\r\n")[2];
+  const written = at(d110, "D110", 1260);
+  expect(written).toHaveLength(30);
+  expect(written).toBe(encodeIso88598i(long.slice(0, 30)).toString("latin1"));
+
+  expect(built.truncations).toHaveLength(1);
+  expect(built.truncations[0]).toMatchObject({
+    field: 1260,
+    documentNumber: "1156",
+    lineNumber: 1,
+    width: 30,
+    original: long,
+    written: long.slice(0, 30),
+  });
+});
+
+test("a description that fits is not touched and nothing is reported", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc()],
+    lineItems: [line({ description: "ייעוץ", paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+  expect(built.truncations).toEqual([]);
 });

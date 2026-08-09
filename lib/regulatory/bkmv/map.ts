@@ -6,7 +6,9 @@ import {
   bkmvDocumentTypeCode,
   bkmvPaymentMeansCode,
 } from "./codes";
+import { encodeIso88598i } from "./encoding";
 import { formatDateYYYYMMDD, formatTimeHHMM } from "./format";
+import { BkmvError } from "./errors";
 import { BKMV_DECLARED_VALUES } from "./spec";
 import type { BkmvContext, BkmvDocument, BkmvLineItem, BkmvLineRole } from "./types";
 
@@ -25,6 +27,49 @@ function digits(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
   const only = String(value).replace(/\D/g, "");
   return only.length > 0 ? only : undefined;
+}
+
+/** One truncation that happened, so it can be reported rather than absorbed. */
+export type BkmvTruncation = {
+  field: number;
+  documentNumber: string | null;
+  lineNumber: number;
+  width: number;
+  original: string;
+  written: string;
+};
+
+/**
+ * Cuts a value down to the columns the field has.
+ *
+ * Approved data loss, and the only thing that fits: the field is fixed width and
+ * the instructions provide no continuation field. Every cut is pushed to the sink
+ * so the caller can report it with the original value.
+ *
+ * **By characters, and that is the same as columns here** — this is verified, not
+ * assumed: `encodeIso88598i` emits exactly one byte per character for everything
+ * it accepts (ASCII and the 22 Hebrew letters), so a 30-character cut occupies 30
+ * columns. The assertion below holds the property at runtime, and a test pins it.
+ */
+function truncate(
+  value: string,
+  width: number,
+  meta: { field: number; documentNumber: string | null; lineNumber: number },
+  sink?: BkmvTruncation[]
+): string {
+  if (value.length <= width) return value;
+
+  const written = value.slice(0, width);
+  if (encodeIso88598i(written).length !== width) {
+    throw new BkmvError(
+      "BKMV_FORMAT_VALIDATION",
+      "A truncated value does not occupy the expected number of columns; one character is not one byte here",
+      { field: meta.field, width, chars: written.length, bytes: encodeIso88598i(written).length }
+    );
+  }
+
+  sink?.push({ ...meta, width, original: value, written });
+  return written;
 }
 
 function text(value: unknown): string | undefined {
@@ -172,8 +217,11 @@ export function bkmvD110Values(params: {
   line: BkmvLineItem;
   recordNumber: number;
   linkNumber: number;
+  /** Collects any value that had to be cut to fit. */
+  truncations?: BkmvTruncation[];
 }): Record<number, unknown> {
   const { document: d, line, ctx } = params;
+  const description = text(line.description);
 
   return {
     1251: params.recordNumber,
@@ -186,7 +234,17 @@ export function bkmvD110Values(params: {
     // base. Left out: zeros and spaces.
     // 1258 סוג עסקה — NO SOURCE. Left out: zeros.
     1259: text(line.itemCode),
-    1260: text(line.description),
+    // 1260 — X(30), mandatory. Product descriptions are unbounded in the database,
+    // so longer ones are cut to 30 characters. Approved, lossy, and counted.
+    1260:
+      description === undefined
+        ? undefined
+        : truncate(
+            description,
+            30,
+            { field: 1260, documentNumber: d.documentNumber, lineNumber: line.lineNumber },
+            params.truncations
+          ),
     // 1261 שם היצרן · 1262 מספר סידורי · 1263 תיאור יחידת מידה — NO SOURCE.
     // Left out: spaces.
     1264: line.quantity,

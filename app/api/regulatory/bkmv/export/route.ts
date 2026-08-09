@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
 import {
+  BKMV_EXPORTABLE_DOCUMENT_TYPES,
   BkmvError,
   bkmvExportDirectory,
   bkmvPrimaryIdentifier,
@@ -77,7 +78,13 @@ export async function POST(req: Request) {
       String((company as any).registration_number || "").trim() ||
       "";
 
-    // Documents: FINAL only, any document type, within date range by issue_date
+    /*
+     * FINAL documents of the types that belong in the file, by issue_date.
+     *
+     * Selected by an explicit whitelist rather than by taking every final document
+     * and hoping each one has an appendix-1 code. The unified file describes
+     * accounting documents; a type with no code is not something to map.
+     */
     const { data: docs, error: docsError } = await service
       .from("documents")
       .select(
@@ -88,6 +95,7 @@ export async function POST(req: Request) {
       )
       .eq("company_id", companyId)
       .eq("document_status", "final")
+      .in("document_type", [...BKMV_EXPORTABLE_DOCUMENT_TYPES])
       .gte("issue_date", from)
       .lte("issue_date", to)
       .order("issue_date", { ascending: true })
@@ -97,6 +105,31 @@ export async function POST(req: Request) {
       console.error("[BKMV] docs query failed", docsError);
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
+
+    /*
+     * The final documents in range that the whitelist left out. Reported, never
+     * silently omitted: the caller is told exactly what is not in the file.
+     */
+    const { data: skipped, error: skippedError } = await service
+      .from("documents")
+      .select("document_type, document_number, issue_date, total_amount")
+      .eq("company_id", companyId)
+      .eq("document_status", "final")
+      .not("document_type", "in", `(${BKMV_EXPORTABLE_DOCUMENT_TYPES.join(",")})`)
+      .gte("issue_date", from)
+      .lte("issue_date", to);
+
+    if (skippedError) {
+      console.error("[BKMV] skipped-docs query failed", skippedError);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+
+    const excludedDocuments = (skipped || []).map((d: any) => ({
+      documentType: d.document_type,
+      documentNumber: d.document_number,
+      issueDate: d.issue_date,
+      totalAmount: d.total_amount,
+    }));
 
     const documents: BkmvDocument[] = (docs || []).map((d: any) => {
       // `customers` is the joined row, present only when customer_id is set.
@@ -179,7 +212,7 @@ export async function POST(req: Request) {
     // One identifier per export, shared by A000 1004, A100 1103 and Z900 1153.
     const primaryIdentifier = bkmvPrimaryIdentifier();
 
-    const { txtBuffer, stats, recordCounts, recordCount } = buildBkmvTxt({
+    const { txtBuffer, stats, recordCounts, recordCount, truncations } = buildBkmvTxt({
       ctx,
       documents,
       lineItems,
@@ -227,6 +260,9 @@ export async function POST(req: Request) {
       bucket: "regulatory-exports",
       generatedAt: generatedAt.toISOString(),
       stats,
+      // What is not in the file, and what was cut to fit it.
+      excludedDocuments,
+      truncations,
     });
   } catch (e: any) {
     if (e instanceof BkmvError) {

@@ -11,6 +11,7 @@ import {
   bkmvZ900Values,
   classifyLine,
 } from "./map";
+import type { BkmvTruncation } from "./map";
 import { assertBkmvSpecComplete, BKMV_SPEC } from "./spec";
 import type { BkmvContext, BkmvDocument, BkmvLineItem, BkmvRecordCode, BkmvRecordKey } from "./types";
 
@@ -47,6 +48,11 @@ export type BkmvBuildResult = {
     /** Documents that carry no payment line, and therefore no D120. */
     docsWithoutPaymentLines: number;
   };
+  /**
+   * Every value that had to be cut to fit its field, with the original. Approved
+   * data loss is still data loss, so it is reported rather than absorbed.
+   */
+  truncations: BkmvTruncation[];
   /** How many records of each type were written — INI.TXT's summary lines. */
   recordCounts: Partial<Record<BkmvRecordCode, number>>;
   /** Total records in the file, for A000 field 1002 and Z900 field 1155. */
@@ -80,6 +86,7 @@ export function buildBkmvTxt(params: {
   }
 
   const records: RecordInput[] = [];
+  const truncations: BkmvTruncation[] = [];
 
   /*
    * Which records are emitted, and which are not.
@@ -125,7 +132,7 @@ export function buildBkmvTxt(params: {
       records.push({
         key: "D110",
         code: "D110",
-        values: bkmvD110Values({ ctx, document: doc, line, recordNumber: next(), linkNumber }),
+        values: bkmvD110Values({ ctx, document: doc, line, recordNumber: next(), linkNumber, truncations }),
       });
     }
 
@@ -177,6 +184,7 @@ export function buildBkmvTxt(params: {
   return {
     txtBuffer,
     stats: { totalDocs: docsSorted.length, docsWithoutPaymentLines },
+    truncations,
     recordCounts,
     recordCount: records.length,
   };
