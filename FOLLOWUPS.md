@@ -5,8 +5,11 @@
 
 ---
 
-## מסמך שמעיד על תשלום ואינו שומר איך שולם  `[ממצא מ-BKMV E1 — לא תוקן]`
-- **מה:** טופס חשבונית מס/קבלה (320) אוסף שורות תקבול — אמצעי תשלום, פרטי המחאה, פרטי כרטיס — ו**הן אינן נשמרות**. ב-`lib/documents/actions.ts:792-804` הענף בלעדי: `if (isItemDocumentType(documentType) && payload.items?.length) { … } else if (payload.payments?.length) { … }`, ו-`invoiceReceipt` הוא item type (`:112`). לכן נכתבות שורות הטובין ו-`payload.payments` נזרק. הטופס דווקא מחזיק את הנתון ב-state (`InvoiceReceiptFormClient.tsx:196`) וקורא אותו בחזרה בעריכה (`:305`).
+## מסלול ההנפקה מהטופס מאבד את `payload.payments` ב-320  `[באג מוצר — לא תוקן]`
+- **זה באג מוצר, לא פער ייצוא.** טופס חשבונית מס/קבלה (320) אוסף שורות תקבול — אמצעי תשלום, פרטי המחאה, פרטי כרטיס — ו**הן אינן נשמרות למסד**. הייצוא הרגולטורי רק חשף אותו.
+- **השורה המדויקת:** `lib/documents/actions.ts:792` פותח `if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {`, ו-**`lib/documents/actions.ts:798`** הוא `} else if (payload.payments && payload.payments.length > 0) {`. הענף **בלעדי**, ו-`invoiceReceipt` הוא item type (`lib/documents/actions.ts:112`). לכן במסמך 320 נכתבות שורות הטובין ו-`payload.payments` **נזרק בשקט** — אין שגיאה, אין לוג.
+- **אותו דפוס פעם שנייה:** `lib/documents/actions.ts:949` ו-**`:955`** — אותו `if`/`else if` בדיוק בפונקציית ההנפקה השנייה.
+- **הטופס כן מחזיק את הנתון:** `app/dashboard/documents/invoice-receipt/InvoiceReceiptFormClient.tsx:196` מנהל `payments` ב-state ו-`:305` קורא אותם בחזרה בעריכה — כלומר המשתמש רואה שדות שהוא מילא, והם לא נשמרו.
 - **המספרים מהמסד (קריאה בלבד, 9.8.2026):** 129 מסמכי `invoice_receipt`, מהם 107 `final`. **ל-57 יש שורת תקבול ול-50 אין.** כל 57 נכתבו על ידי `lib/billing/vow-billing/providers/internal-provider.ts:273`, שכן מסמן `payment_metadata.kind = "payment"` — כלומר מסלול החיוב הפנימי, לא הטופס. אף אחד מהם אינו מקושר ל-`billing_documents` או ל-`vow_billing_issued_documents`.
 - **למה זה חשוב מעבר ל-BKMV:** מסמך 320 הוא ראיה חשבונאית שהתקבל תשלום. אם אמצעי התשלום אינו נשמר, **הידיעה איך שולם קיימת רק ב-PDF ולא בנתונים** — לא ניתן לשאילתה, לא ניתן לביקורת, ולא ניתן לשחזור.
 - **מה זה עשה ל-BKMV:** רשומת `D120` נבנית רק למסמכים שיש להם שורות תקבול בפועל. 50 מסמכי 320 סופיים ייצאו בלי `D120`, וזה מדווח ב-`stats.docsWithoutPaymentLines`. לא הומצאה שורת תקבול ולא הוסקה מהסכום.
