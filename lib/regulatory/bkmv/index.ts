@@ -2,6 +2,8 @@ import "server-only";
 
 export { buildBkmvTxt } from "./build";
 export { buildIncomeZip } from "./zip";
+export { BKMV_A000_UNRESOLVED, bkmvExportDirectory, buildIniTxt } from "./ini";
+export type { BkmvA000PendingValues, BkmvIniInput, BkmvIniResult } from "./ini";
 export {
   BKMV_AMOUNT_SIGN,
   BKMV_DECLARED_VALUES,

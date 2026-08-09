@@ -54,6 +54,9 @@ export const BKMV_DECLARED_VALUES = {
   /** Field 1013, "סוג הנהח\"ש של התוכנה": 0 = not applicable. No bookkeeping module exists. */
   bookkeepingKind: "0",
 
+  /** Field 1032, "מטבע מוביל", `X(3)`. */
+  leadingCurrency: "ILS",
+
   /**
    * Field 1012, "נתיב מיקום שמירת הקבצים", `X(50)` and mandatory.
    *
