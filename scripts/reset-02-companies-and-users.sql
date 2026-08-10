@@ -17,11 +17,22 @@
 -- email at run time and the transaction aborts if either lookup comes back empty —
 -- a protection keyed to an id that has changed protects nothing.
 --
--- ── ⚠️ A NAME THAT DOES NOT MATCH ITS OWNER ─────────────────────────────────
--- public.companies for 4ae68334 still carries email = 'support@uxellent.com', while
--- its auth_user_id is itzikbab's. That is the state left by stage 1.5c, which moved
--- ownership without rewriting companies.email. So the surviving company is matched
--- BY ID, never by email — matching by email would keep the wrong row.
+-- ── THE SURVIVING COMPANY IS RESOLVED, NOT ASSUMED ──────────────────────────
+-- A hardcoded company id was the single point of failure in this reset: the guards
+-- below check that the surviving company is not in the delete set, but none of them
+-- would have noticed if the literal itself were wrong.
+--
+-- It is resolved from itzikbab@gmail.com through company_members, and five facts are
+-- asserted before anything is deleted: exactly one company resolves · its id is
+-- 4ae68334-15a0-4fa3-a9ba-fd77deccc95d · registration_number is 515960508 · it holds
+-- the documents (0 by the time stage 2 runs, 145 before stage 1) · and it is not in
+-- the delete set.
+--
+-- ⚠️ It cannot be resolved by companies.email. public.companies for 4ae68334 carries
+-- email = 'support@uxellent.com' while its owner is itzikbab — the state stage 1.5c
+-- left when it moved ownership without rewriting the column. Matching on
+-- companies.email would keep be2ed4f5, the empty husk, and delete the company with
+-- the history.
 --
 -- ── WHAT ELSE GOES, BY CASCADE FROM public.companies ────────────────────────
 -- company_members (10 of 11 rows) · document_sequences (7 of 12 rows, for the
@@ -47,12 +58,60 @@
 
 begin;
 
--- ── 1. snapshot the five sequence rows that must survive ────────────────────
+-- ── 1. resolve the surviving company from the account that owns it ──────────
+create temporary table _kept_company on commit drop as
+select
+  c.id,
+  c.company_name,
+  c.registration_number,
+  (select count(*) from public.documents d where d.company_id = c.id) as document_count
+from public.companies c
+join public.company_members m on m.company_id = c.id
+join auth.users u on u.id = m.user_id
+where lower(u.email) = 'itzikbab@gmail.com';
+
+do $$
+declare
+  v_n integer;
+  v_id uuid;
+  v_reg text;
+begin
+  select count(*) into v_n from _kept_company;
+  if v_n <> 1 then
+    raise exception
+      'resolved % company(ies) from itzikbab@gmail.com via company_members, expected exactly 1 — refusing to delete anything',
+      v_n;
+  end if;
+
+  select id, registration_number into v_id, v_reg from _kept_company;
+
+  if v_id <> '4ae68334-15a0-4fa3-a9ba-fd77deccc95d' then
+    raise exception 'resolved company is % — expected 4ae68334-15a0-4fa3-a9ba-fd77deccc95d', v_id;
+  end if;
+
+  if v_reg is distinct from '515960508' then
+    raise exception 'resolved company registration_number is % — expected 515960508', v_reg;
+  end if;
+
+  raise notice 'company resolved: % (%) · registration_number %',
+    v_id, (select company_name from _kept_company), v_reg;
+end $$;
+
+-- ── 2. snapshot the five sequence rows that must survive ────────────────────
 create temporary table _seq_before on commit drop as
 select * from public.document_sequences
-where company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d';
+where company_id = (select id from _kept_company);
 
--- ── 2. resolve the protected accounts, and refuse to proceed without them ───
+do $$
+declare v_n integer;
+begin
+  select count(*) into v_n from _seq_before;
+  if v_n <> 5 then
+    raise exception 'expected 5 sequence rows for the resolved company, found %', v_n;
+  end if;
+end $$;
+
+-- ── 3. resolve the protected accounts, and refuse to proceed without them ───
 create temporary table _protected on commit drop as
 select id, lower(email) as email
 from auth.users
@@ -79,11 +138,12 @@ begin
   raise notice 'protected: support=% · itzikbab=%', v_support, v_itzik;
 end $$;
 
--- ── 3. the delete set, and the guards on it ─────────────────────────────────
+-- ── 4. the delete set, and the guards on it ─────────────────────────────────
+-- Built by excluding the RESOLVED company, not a literal.
 create temporary table _companies_to_delete on commit drop as
 select id, company_name, email, auth_user_id
 from public.companies
-where id <> '4ae68334-15a0-4fa3-a9ba-fd77deccc95d';
+where id <> (select id from _kept_company);
 
 do $$
 declare
@@ -96,10 +156,11 @@ begin
     raise exception 'expected 11 companies in the delete set, found % — the estate has changed', v_n;
   end if;
 
-  -- Guard A: the surviving company must never be in the set.
+  -- Guard A / fact 5: the resolved company must never be in the set.
   if exists (select 1 from _companies_to_delete
-             where id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d') then
-    raise exception 'REFUSING: Bogo Media 4ae68334 is in the delete set';
+             where id = (select id from _kept_company)) then
+    raise exception 'REFUSING: the resolved company % is in the delete set',
+      (select id from _kept_company);
   end if;
 
   -- Guard B: no company owned by either protected account may be in the set.
@@ -122,7 +183,7 @@ begin
   raise notice 'guards passed: 11 companies to delete, none protected, 0 documents remaining';
 end $$;
 
--- ── 4. delete ───────────────────────────────────────────────────────────────
+-- ── 5. delete ───────────────────────────────────────────────────────────────
 -- By the pinned set, never by an open predicate. The count removed is checked
 -- against 11: 11 before, and exactly one company after.
 do $$
@@ -139,7 +200,7 @@ begin
   raise notice 'companies: 11 deleted';
 end $$;
 
--- ── 5. verify after ─────────────────────────────────────────────────────────
+-- ── 6. verify after ─────────────────────────────────────────────────────────
 do $$
 declare
   v_co integer; v_id uuid; v_members integer; v_seq integer; v_moved integer;
@@ -149,8 +210,9 @@ begin
   if v_co <> 1 then raise exception 'expected exactly 1 company remaining, found %', v_co; end if;
 
   select id into v_id from public.companies;
-  if v_id <> '4ae68334-15a0-4fa3-a9ba-fd77deccc95d' then
-    raise exception 'the surviving company is % — expected 4ae68334', v_id;
+  if v_id <> (select id from _kept_company) then
+    raise exception 'the surviving company is % — expected the resolved %',
+      v_id, (select id from _kept_company);
   end if;
 
   select count(*) into v_members from public.company_members;
@@ -161,8 +223,8 @@ begin
   if v_admins <> 1 then raise exception 'support@uxellent.com is no longer in system_admins'; end if;
 
   select count(*) into v_unlimited from public.unlimited_document_companies
-    where company_id = '4ae68334-15a0-4fa3-a9ba-fd77deccc95d';
-  if v_unlimited <> 1 then raise exception 'Bogo Media lost its unlimited_document_companies row'; end if;
+    where company_id = (select id from _kept_company);
+  if v_unlimited <> 1 then raise exception 'the surviving company lost its unlimited_document_companies row'; end if;
 
   -- Seven sequence rows fall by cascade; the five must be untouched, every column.
   select count(*) into v_seq from public.document_sequences;
@@ -182,7 +244,7 @@ end $$;
 
 commit;
 
--- ── 6. the auth users to delete, via the Admin API — NOT deleted here ───────
+-- ── 7. the auth users to delete, via the Admin API — NOT deleted here ───────
 -- Ten ids. The two protected accounts are excluded by the WHERE clause, and that
 -- exclusion must be repeated wherever this list is consumed.
 select u.id, u.email, u.created_at, u.last_sign_in_at
