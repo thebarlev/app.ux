@@ -13,7 +13,16 @@ export type AuditorBillingConfig = {
   publicBaseUrl: string | null
 }
 
-const envSchema = z.object({
+/**
+ * Exported for tests only. `tests/unit/auditor-billing-env.spec.ts` asserts the
+ * fail-closed behaviour of AUDITOR_BILLING_ACCOUNT_ID directly against this schema
+ * — a guard that has never been observed failing is an assumption, not a guard, and
+ * the whole point of removing its default was to stop assuming.
+ *
+ * Nothing in the application should import this. Use getAuditorBillingConfig() or
+ * getAuditorIssuerCompanyId().
+ */
+export const envSchema = z.object({
   AUDITOR_CARDCOM_TERMINAL_NUMBER: z.string().optional().default(""),
   AUDITOR_CARDCOM_API_USERNAME: z.string().optional().default(""),
   AUDITOR_CARDCOM_API_PASSWORD: z.string().optional().default(""),
