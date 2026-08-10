@@ -50,10 +50,18 @@
 -- match it. That path runs in bootstrap-company, which is currently blocked, so
 -- nothing depends on it today — but it is a behaviour change, not a no-op.
 --
--- ── auth.users IS NOT DELETED HERE ──────────────────────────────────────────
--- Deleting auth users belongs to the Supabase Admin API, not to SQL over public.
--- The ten ids to delete are printed at the end of this file. The two protected ids
--- must be excluded there too, and that exclusion is not enforced by this file.
+-- ── ⛔ auth.users IS NOT DELETED AT ALL ─────────────────────────────────────
+-- Decided, not deferred. The users stay; the companies go.
+--
+-- Deleting auth users would have been the one step in this reset with no automatic
+-- guard: it belongs to the Admin API rather than to SQL over public, so none of the
+-- assertions in this file could have protected it, and the file said as much. Ten
+-- accounts with no company are not a risk. A step that admits it cannot check itself
+-- is a step worth not taking.
+--
+-- Consequence, so it is not a surprise later: ten auth users remain with no company
+-- and no membership. Signing in with one lands on whatever the app does for a user
+-- without a company — which is the same state a brand-new signup is in.
 -- =====================================================================
 
 begin;
@@ -244,10 +252,8 @@ end $$;
 
 commit;
 
--- ── 7. the auth users to delete, via the Admin API — NOT deleted here ───────
--- Ten ids. The two protected accounts are excluded by the WHERE clause, and that
--- exclusion must be repeated wherever this list is consumed.
-select u.id, u.email, u.created_at, u.last_sign_in_at
-from auth.users u
-where lower(u.email) not in ('support@uxellent.com', 'itzikbab@gmail.com')
-order by u.created_at;
+-- ── nothing follows ─────────────────────────────────────────────────────────
+-- An earlier revision ended with a SELECT listing the ten auth users to delete via
+-- the Admin API. It is removed rather than commented out: a list of ids to delete,
+-- sitting at the bottom of an approved migration, is an invitation. The users are
+-- not being deleted.
