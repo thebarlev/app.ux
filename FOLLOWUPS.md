@@ -267,4 +267,16 @@
 - **למה נדחה:** שינוי `.eslintrc` / `.eslintignore` אינו בהיקף שלב 1, ומחיקת ה-worktree נוגעת בעץ שאינו שלי.
 - **מה מחזיר אותו לראש התור:** הוספת `.claude/` ל-ignore של eslint, או ניקוי ה-worktree הזנוח אחרי אישור שאין בו עבודה שלא נשמרה.
 
+## מחיקת לקוח שיש לו מסמכים תיכשל בשגיאת FK גולמית
+- **מה:** `documents.customer_id` מוגדר `references public.customers(id)` **בלי `on delete`**, כלומר **NO ACTION**. כל עוד `customer_id` ריק על כל המסמכים זה תיאורטי; ברגע שרגיסטר הלקוחות יתמלא (`scripts/124`), מחיקת לקוח שהונפק לו מסמך תיחסם במסד. `deleteCustomerAction` מחזיר את `error.message` כמו שהוא, כך שמה שהמשתמש יראה הוא `update or delete on table "customers" violates foreign key constraint`. זה ייקרא כקריסה, לא כ"ללקוח הזה יש מסמכים ולכן אי אפשר למחוק אותו".
+- **איפה:** `scripts/006-tenant-isolation-and-audit.sql:115` (הגדרת ה-FK) · `app/dashboard/customers/actions.ts:207-220` (`deleteCustomerAction`) · `app/dashboard/customers/CustomersListClient.tsx:49` (מציג את ההודעה)
+- **למה נדחה:** החסימה עצמה **נכונה** ואינה באג — מסמך שהונפק חייב לשמור על מי שהוא הונפק לו. מה שחסר הוא הודעה בעברית, ואפשר גם `status = 'inactive'` במקום מחיקה. שינוי התנהגות ב-UI אינו בהיקף של הרגיסטר.
+- **מה מחזיר אותו לראש התור:** היום שבו מסמך ראשון יישא `customer_id` בייצור. מאותו רגע זה תלוי בנתונים ולא בתיאוריה.
+
+## שתי גרסאות של מדיניות RLS על `customers`, ורק ב-delete הן נבדלות
+- **מה:** `007` ו-`014` שניהם מגדירים את אותם ארבעה שמות מדיניות על `public.customers` ב-`drop`+`create`, כך שהקובץ שרץ אחרון קובע. שלוש מהן זהות. ה-**delete** אינו: `007` דורש `company_id in (user_company_ids()) **and status != 'active'`, ו-`014` דורש רק `company_id in (...)`. כלומר לפי `007` אי אפשר למחוק לקוח פעיל, ולפי `014` אפשר. איזו מהן חיה בייצור לא נקבע — `pg_policies` אינו נראה מלקוח PostgREST.
+- **איפה:** `scripts/007-tenant-rls-policies.sql:72-77` מול `scripts/014-consolidate-customers-schema.sql:97-100`
+- **למה נדחה:** אינו חוסם את הרגיסטר: `select` ו-`insert` זהים בשתי הגרסאות, ו-`resolve_customer` נשען עליהן בלבד. זה עוד מופע של תלות-הסדר בין המיגרציות שרשומה כאן ממילא, ולא באג בפני עצמו.
+- **מה מחזיר אותו לראש התור:** קריאה אחת ב-SQL Editor — `select policyname, cmd, qual from pg_policies where tablename='customers'` — ואז החלטה מפורשת איזו מהשתיים היא הכוונה, בקובץ מיגרציה שקובע אותה.
+
 ---
