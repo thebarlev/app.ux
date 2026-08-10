@@ -123,8 +123,21 @@ begin
 end $$;
 
 -- ── 4. delete ───────────────────────────────────────────────────────────────
-delete from public.companies
-where id in (select id from _companies_to_delete);
+-- By the pinned set, never by an open predicate. The count removed is checked
+-- against 11: 11 before, and exactly one company after.
+do $$
+declare v_deleted integer;
+begin
+  delete from public.companies
+  where id in (select id from _companies_to_delete);
+
+  get diagnostics v_deleted = row_count;
+  if v_deleted <> 11 then
+    raise exception 'expected to delete 11 companies, deleted %', v_deleted;
+  end if;
+
+  raise notice 'companies: 11 deleted';
+end $$;
 
 -- ── 5. verify after ─────────────────────────────────────────────────────────
 do $$

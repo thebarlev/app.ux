@@ -23,14 +23,21 @@
 -- until COMMIT and is undone by ROLLBACK. There is no window in which another
 -- session can delete a finalised document.
 --
--- ── ⚠️ TWO TRIGGERS ON THIS TABLE HAVE NO KNOWN DEFINITION ──────────────────
--- trg_auditor_invoice_document_company_check and
--- trigger_enforce_document_number_integrity run in production and have no migration
--- in this repo, so it is NOT known whether either fires on DELETE. If one does, this
--- transaction will fail — which is the safe direction, but capture
---     select tgname, tgtype, pg_get_triggerdef(oid) from pg_trigger
---     where tgrelid = 'public.documents'::regclass and not tgisinternal;
--- before running, so a failure is diagnosable. See FOLLOWUPS, db-code drift.
+-- ── ONE TRIGGER FIRES ON DELETE, AND IT IS THE ONE SUSPENDED ────────────────
+-- Settled from pg_trigger against production rather than assumed. Six triggers sit
+-- on public.documents and only trigger_prevent_final_delete fires on DELETE:
+--
+--   before_invoice_receipt_insert                BEFORE INSERT              no
+--   trg_auditor_invoice_document_company_check   BEFORE UPDATE OF company_id  no
+--   trigger_enforce_document_immutability        BEFORE UPDATE              no
+--   trigger_enforce_document_number_integrity    BEFORE INSERT OR UPDATE    no
+--   trigger_log_document_event                   AFTER INSERT OR UPDATE     no
+--   trigger_prevent_final_delete                 BEFORE DELETE              YES
+--
+-- Suspending that one is therefore sufficient. The full table with definitions is
+-- in docs/RESET-2026-08-10.md. Note that two of the six still have no migration in
+-- this repo — that is unchanged and recorded in FOLLOWUPS under db-code drift; it is
+-- simply no longer a risk to THIS transaction.
 --
 -- ── WHAT DELETES ITSELF ─────────────────────────────────────────────────────
 -- CASCADE from documents: document_line_items (207), document_events (440),
@@ -62,12 +69,25 @@ begin
   end if;
 end $$;
 
+-- ── 1b. pin the deletion scope, by id ───────────────────────────────────────
+-- Every statement below deletes BY THIS SET and never by an open predicate. A
+-- statement without a WHERE has a blast radius that depends on a fact that was true
+-- when it was written; naming the rows makes the radius part of the statement.
+--
+-- The scope is every document, which is what was approved — so this table and
+-- public.documents hold the same 154 ids today. That is precisely why it is written
+-- down: if it is ever run against a narrower scope, the statements narrow with it
+-- instead of taking the table.
+create temporary table _documents_to_delete on commit drop as
+select id from public.documents;
+
 -- ── 2. preconditions ────────────────────────────────────────────────────────
 do $$
 declare
   v_docs integer;
   v_orig integer;
   v_restrict integer;
+  v_scope integer;
 begin
   select count(*) into v_docs from public.documents;
   if v_docs <> 154 then
@@ -81,19 +101,61 @@ begin
     raise exception 'expected 9 documents with original_issued_at, found %', v_orig;
   end if;
 
-  select count(*) into v_restrict from public.auditor_invoice_documents;
+  select count(*) into v_restrict from public.auditor_invoice_documents
+  where document_id in (select id from _documents_to_delete);
   if v_restrict <> 14 then
-    raise exception 'expected 14 auditor_invoice_documents rows, found %', v_restrict;
+    raise exception 'expected 14 auditor_invoice_documents rows in scope, found %', v_restrict;
   end if;
 
-  raise notice 'preconditions passed: 154 documents, 9 with an issued original, 14 RESTRICT rows';
+  select count(*) into v_scope from _documents_to_delete;
+  if v_scope <> 154 then
+    raise exception 'expected 154 documents in the deletion scope, found %', v_scope;
+  end if;
+
+  raise notice 'preconditions passed: 154 documents in scope, 9 with an issued original, 14 RESTRICT rows';
 end $$;
 
 -- ── 3. clear the RESTRICT references, then the documents ────────────────────
-delete from public.auditor_invoice_documents;
+-- auditor_invoice_documents is ON DELETE RESTRICT: it does not cascade, and it
+-- blocks the document delete until the reference is gone. Clearing the reference is
+-- the way past a RESTRICT; disabling the constraint would not be.
+--
+-- 14 before, 0 after, and the count of rows actually removed is checked against 14.
+do $$
+declare v_deleted integer;
+begin
+  delete from public.auditor_invoice_documents
+  where document_id in (select id from _documents_to_delete);
+
+  get diagnostics v_deleted = row_count;
+  if v_deleted <> 14 then
+    raise exception 'expected to delete 14 auditor_invoice_documents rows, deleted %', v_deleted;
+  end if;
+
+  if exists (select 1 from public.auditor_invoice_documents
+             where document_id in (select id from _documents_to_delete)) then
+    raise exception 'auditor_invoice_documents still references documents in scope';
+  end if;
+
+  raise notice 'auditor_invoice_documents: 14 deleted, 0 remaining in scope';
+end $$;
 
 alter table public.documents disable trigger trigger_prevent_final_delete;
-delete from public.documents;
+
+do $$
+declare v_deleted integer;
+begin
+  delete from public.documents
+  where id in (select id from _documents_to_delete);
+
+  get diagnostics v_deleted = row_count;
+  if v_deleted <> 154 then
+    raise exception 'expected to delete 154 documents, deleted %', v_deleted;
+  end if;
+
+  raise notice 'documents: 154 deleted';
+end $$;
+
 alter table public.documents enable trigger trigger_prevent_final_delete;
 
 -- ── 4. verify after ─────────────────────────────────────────────────────────
@@ -110,6 +172,8 @@ begin
   if v_docs <> 0 then raise exception 'documents should be 0, found %', v_docs; end if;
   if v_items <> 0 then raise exception 'document_line_items should be 0 by cascade, found %', v_items; end if;
   if v_events <> 0 then raise exception 'document_events should be 0 by cascade, found %', v_events; end if;
+  -- Both hold because the scope is every document; the scoped one is the assertion
+  -- that matters, the total is the corroboration.
   if v_aid <> 0 then raise exception 'auditor_invoice_documents should be 0, found %', v_aid; end if;
 
   -- The five sequence rows, every column, both directions.
