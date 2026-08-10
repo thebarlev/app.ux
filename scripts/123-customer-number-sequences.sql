@@ -145,11 +145,25 @@ before insert on public.customers
 for each row
 execute function public.assign_customer_number();
 
--- ── 3. the counter is not application-visible ───────────────────────────────
--- RLS on with no policies: every non-superuser client is denied, including
--- service_role's own reads. Nothing needs to read it — the trigger runs as the
--- definer and is the only thing that touches it. Following the grant style of
--- scripts/117:65-72.
+-- ── 3. the counter is not reachable by a tenant client ──────────────────────
+-- CORRECTION, 2026-08-10, after this file had already been applied: an earlier
+-- version of this comment claimed the table is denied to "every non-superuser
+-- client, including service_role's own reads". That is WRONG and the claim was
+-- never checked. Verified against production: a service_role client CAN select
+-- from public.customer_number_sequences.
+--
+-- The reason is in the statement below — it revokes from public, anon and
+-- authenticated, and NOT from service_role, which keeps the broad grant Supabase
+-- gives it and bypasses RLS regardless. The table is also listed in PostgREST's
+-- OpenAPI document, so it is visible over the API to a service-role caller.
+--
+-- What the statement DOES achieve, which is what matters: no tenant — no browser
+-- session, no anon caller — can read or move the counter. Only the definer trigger
+-- and the master key can. service_role reaching it is not a hole worth closing;
+-- overstating the protection in a comment is worth correcting, because the comment
+-- is what the next reader will trust.
+--
+-- Following the grant style of scripts/117:65-72.
 alter table public.customer_number_sequences enable row level security;
 revoke all on table public.customer_number_sequences from public, anon, authenticated;
 
