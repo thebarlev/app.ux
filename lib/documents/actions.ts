@@ -1022,6 +1022,8 @@ export async function issueDocumentAction(
       | "entry"
       | "after_validation"
       | "validation_failed_return"
+      | "resolve_customer"
+      | "resolve_customer_failed_return"
       | "draft_fetch_done"
       | "draft_fetch_error_return"
       | "draft_not_found_return"
@@ -1068,6 +1070,60 @@ export async function issueDocumentAction(
     // Recipient consent requirement disabled:
     // Business requirement: once a user is logged-in, consent is treated as granted.
     // We still keep the digital-signature flow enabled elsewhere.
+
+    // ── Customer register ────────────────────────────────────────────────
+    // Resolve the buyer to a customers row BEFORE the document number is
+    // reserved. The number is the point of no return in this flow: once it is
+    // taken it is never reused, so anything that can fail has to fail first.
+    //
+    // Both branches below need the result — the draft branch UPDATEs an existing
+    // row, the create branch INSERTs a new one — so it is resolved once here
+    // rather than twice inside them.
+    //
+    // An explicit payload.customerId wins and skips the resolver entirely. It
+    // only ever arrives from the chaining flow (DocumentsListClient.tsx:273),
+    // which copies customer_id off a source document — a stronger statement of
+    // identity than matching by name, and calling the resolver anyway could
+    // create a second row for a buyer we were already handed.
+    //
+    // p_email is null: this form has no customer email field. The type has
+    // customerDetails.email (lib/types/receipt.ts:115) but nothing populates it
+    // and the insert has no customer_email column, so match key 2 is simply
+    // unavailable here and the rule falls through to tax id or exact name. If an
+    // email field is ever added to the form, this is the line that uses it.
+    let resolvedCustomerId: string | null = payload.customerId || null;
+    if (!resolvedCustomerId) {
+      agentFlow.step = "resolve_customer";
+      const { data: customerIdData, error: resolveCustomerError } = await supabase.rpc("resolve_customer", {
+        p_company_id: companyId,
+        p_name: payload.customerName,
+        p_tax_id: payload.customerTaxId || null,
+        p_email: null,
+      });
+
+      if (resolveCustomerError || !customerIdData) {
+        // Fails closed. A document that carries no customer is a document that
+        // cannot go into the regulatory file, and the user can retry this action
+        // at no cost — no number has been reserved yet and nothing was written.
+        // The paid service paths make the opposite trade for the opposite reason.
+        agentFlow.step = "resolve_customer_failed_return";
+        agentFlow.ok = false;
+        agentFlow.note = "resolve_customer_failed";
+        console.error(`${logPrefix} resolve_customer failed`, {
+          error: resolveCustomerError?.message,
+          code: resolveCustomerError?.code,
+          companyId: companyId?.substring(0, 8),
+        });
+        tracker.fail("resolve_customer", new Error(resolveCustomerError?.message || "resolve_customer_returned_null"));
+        return stampError(
+          { ok: false as const, message: "לא הצלחנו לשמור את פרטי הלקוח. נסה שוב." },
+          "resolve_customer_failed"
+        );
+      }
+
+      resolvedCustomerId = String(customerIdData);
+      tracker.step("customer_resolved", { customer_id: resolvedCustomerId.substring(0, 8) });
+    }
 
     if (draftId) {
       const { data: existing, error: fetchError } = await supabase
@@ -1121,7 +1177,11 @@ export async function issueDocumentAction(
       });
 
       const baseUpdate = {
-        customer_id: payload.customerId || null,
+        // Resolved above, before the number was reserved. customer_name and
+        // customer_tax_id stay alongside it: they are the snapshot at issue time
+        // and must not become a join, or correcting a customer's details later
+        // would retroactively rewrite an issued document.
+        customer_id: resolvedCustomerId,
         customer_name: payload.customerName,
         customer_tax_id: payload.customerTaxId || null,
         issue_date: payload.documentDate,
@@ -1337,7 +1397,9 @@ export async function issueDocumentAction(
       document_status: "draft",
       document_number: null,
       template_version_id: templateVersionId,
-      customer_id: payload.customerId || null,
+      // Resolved above, before the number was reserved. See the note on the
+      // draft branch's baseUpdate for why the two snapshot columns stay.
+      customer_id: resolvedCustomerId,
       customer_name: payload.customerName,
       customer_tax_id: payload.customerTaxId || null,
       issue_date: payload.documentDate,

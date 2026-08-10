@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin"
 export type VowBillingFailureStage =
   | "vow_create_document_validation"
   | "vow_create_document_provider"
+  | "vow_create_document_resolve_customer"
   | "vow_create_document_finalize"
   | "vow_create_document_persist"
   | "vow_repair_missing_invoice"

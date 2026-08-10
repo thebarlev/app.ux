@@ -294,15 +294,28 @@ export function bkmvC100Values(params: {
     // populated, clarification 4 requires it POSITIVE, unlike a discount.
     /*
      * 1225 מפתח הלקוח אצל המוכר — mandatory-conditional for every document code in
-     * 100-710, which is all four this system issues, and **empty in practice**.
-     * It reads `customers.customer_number`, which is the right source; the table is
-     * empty across the whole system and every document carries a null customer_id,
-     * so nothing comes out.
+     * 100-710, which is all four this system issues. It reads
+     * `customers.customer_number` through `documents.customer_id`.
      *
-     * Deriving a key from the free-text customer name was measured and REJECTED:
-     * 64 of the 75 keys it produced served a single document, which makes it a
-     * key-per-document in all but name. The field stays empty until there is a real
-     * customer register. See FOLLOWUPS.
+     * THIS NOW FILLS. The customer register was built for this field:
+     *   · scripts/123 makes customer_number NOT NULL and allocates it from a
+     *     per-company counter inside the INSERT, so no customer can exist without
+     *     a key for this field to carry.
+     *   · scripts/124 adds resolve_customer(), which every issuance path calls to
+     *     attach a customers row to the document. Match order: tax id, then email,
+     *     then exact non-placeholder name; otherwise a new row every time.
+     *
+     * It stays EMPTY for documents issued before that wiring landed. Every one of
+     * the 154 documents that existed before the 2026-08-10 reset carried a null
+     * customer_id, so a file covering that period has this column blank and that
+     * is a fact about the data, not a defect in this mapping.
+     *
+     * Deriving a key from the free-text customer name was measured and REJECTED
+     * before the register existed: 64 of the 75 keys it produced served a single
+     * document, which makes it a key-per-document in all but name. Replaying the
+     * register's rule over the same period instead gives 83 customers for 129
+     * final documents — which is why the register was built rather than a
+     * derivation shipped.
      */
     1225: t(1225, d.customerNumber),
     // 1226 שדה התאמה — NO SOURCE. Left out: spaces.
