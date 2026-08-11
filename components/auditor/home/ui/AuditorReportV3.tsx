@@ -643,6 +643,47 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
             </p>
             {!teaser ? <HeroStats en={en} issuesCount={issuesCount} pages={pages} /> : null}
+            {/*
+              One button, and only one.
+
+              The spec styles a .hero-cta row with four .btn variants but never
+              uses the class in its hero, so there was nothing to copy — the label
+              and the destination are Itzik's. The gold variant is the primary on a
+              dark band, and it is the right one here for a reason beyond looks:
+              gold on this page already means "behind a plan" (it is the LockBand
+              fill), and this button goes to the plans. #231A05 on the gradient
+              measures 7.81 and 5.20 against its two stops.
+
+              No secondary button. The spec's pairing would send one to a contact
+              or lead anchor, and this report has none: the lead form is a separate
+              step the visitor has already passed by the time any of this renders,
+              and the only id in the component is the gauge's gradient. Rather than
+              mint an anchor to satisfy a button, there is one button.
+            */}
+            {!teaser ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
+                <a
+                  href="#plans"
+                  style={{
+                    border: 0,
+                    borderRadius: 12,
+                    padding: "14px 24px",
+                    fontFamily: "inherit",
+                    fontWeight: 800,
+                    fontSize: "var(--ar-prose)",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    background: "linear-gradient(180deg,#D9A73C,#B0872F)",
+                    color: "#231A05",
+                  }}
+                >
+                  {en ? "See the plans" : "לראות את המסלולים"}
+                </a>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
