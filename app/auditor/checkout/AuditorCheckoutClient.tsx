@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { isValidIsraeliId } from "@/lib/validation/israeli-id"
+import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
+import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 
 /**
  * The details form, and the last screen before money moves.
@@ -151,14 +153,37 @@ export default function AuditorCheckoutClient(props: Props) {
     n.toLocaleString("he-IL", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
 
   return (
-    <main className="min-h-svh bg-white px-4 py-10 sm:px-6 sm:py-16" dir="rtl">
-      <div className="mx-auto max-w-lg">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[17px] font-extrabold tracking-[.2px] text-[#1C2A46]" dir="ltr">
-            UX<span className="text-[#5389BB]">ellent</span>
-          </span>
-          <span className="rounded-full bg-[#EDF3F9] px-2.5 py-1 text-[11px] font-extrabold text-[#2C5679]">
-            הרשמה למנוי
+    <main className={`${AUDITOR_SCOPE} min-h-svh bg-white px-4 py-10 sm:px-6 sm:py-16`} dir="rtl">
+      <AuditorScaleStyles />
+      {/*
+        Two columns on a desktop, one on a phone, and the DOM order does both.
+
+        grid-template-columns: 1fr 340px in RTL puts the first child on the RIGHT and
+        the second on the LEFT — so the form is first in the DOM and lands in the main
+        right-hand column, and the trust rail is second and lands narrower on the
+        left. When the grid collapses on a phone, that same order stacks the rail
+        BELOW the form and below the button, which is the requirement: pushing the CTA
+        down on a phone is the fastest way to lose the sale.
+      */}
+      <div className="mx-auto grid max-w-5xl items-start gap-8 lg:grid-cols-[1fr_340px]">
+        <div className="max-w-lg">
+        {/*
+          The top bar. Same mark as the report's, at the same 17px / 800 with the
+          same brand-coloured second half — not a new version of it. Static text,
+          not a link: see the note at the top of this file.
+        */}
+        <div className="flex items-center justify-between gap-3 border-b border-[#E1E7F1] pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-[17px] font-extrabold tracking-[.2px] text-[#1C2A46]" dir="ltr">
+              UX<span className="text-[#5389BB]">ellent</span>
+            </span>
+            <span className="rounded-full bg-[#EDF3F9] px-2.5 py-1 text-[11px] font-extrabold text-[#2C5679]">
+              הרשמה למנוי
+            </span>
+          </div>
+          <span className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#3A465F]">
+            <span aria-hidden="true">🔒</span>
+            תשלום מאובטח
           </span>
         </div>
 
@@ -213,14 +238,62 @@ export default function AuditorCheckoutClient(props: Props) {
             {submitting ? "רגע…" : `לתשלום · ${money(props.grossAmount)} ₪`}
           </button>
 
+          {/* Itzik's wording, unchanged. It is also literally true: what is stored
+              is a Cardcom token, never a card number. */}
           <p className="text-center text-[12.5px] leading-relaxed text-[#78859B]">
-            התשלום מתבצע בעמוד המאובטח של קארדקום. פרטי הכרטיס אינם עוברים דרכנו ואינם נשמרים אצלנו.
+            התשלום מתבצע בעמוד המאובטח של קארדקום. פרטי הכרטיס אינם נשמרים אצלנו.
             <br />
             חשבונית מס קבלה תישלח לאימייל שהזנתם.
           </p>
         </form>
+        </div>
+
+        <TrustRail />
       </div>
     </main>
+  )
+}
+
+/**
+ * The trust rail. Left on a desktop, below the button on a phone.
+ *
+ * ── NAVY, AND NOT BY PREFERENCE ─────────────────────────────────────────────
+ * AuditorTestimonials is written for the report's closing block: its text colours
+ * are hard-coded #FFFFFF and #C4D3E6. Dropping it on a white column would render it
+ * invisible, and "the same two testimonials, same design" was the instruction — so
+ * the rail carries the navy the component already expects, and the component itself
+ * is reused untouched. Same quotes, same layout, same colours, zero edits.
+ *
+ * ── NOTHING HERE IS CLICKABLE ───────────────────────────────────────────────
+ * No <a>, no href, no target. A person who leaves a payment page mid-way does not
+ * come back, so the logo, the quotes and the sentence are all static text.
+ * AuditorTestimonials was checked for links before being reused: it has none.
+ *
+ * ── WHAT IS MISSING FROM THIS RAIL, AND WHY IT IS NOT INVENTED ──────────────
+ * The client-logo strip was asked for as "the same logos as the results page". There
+ * is no such strip on the results page: it belongs to the "מה שהשגנו ללקוחות שלנו"
+ * section, which exists in the v5 spec only and is one of the three sections
+ * deferred until after launch. Rather than pick logos, it is left out and reported.
+ */
+function TrustRail() {
+  return (
+    <aside
+      className="overflow-hidden rounded-2xl px-5 py-6"
+      style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)" }}
+    >
+      {/*
+        Itzik's sentence, to the character. Not re-punctuated, not split into two
+        lines to change its rhythm, not "improved". If it ever fails to fit a layout,
+        that gets reported rather than edited.
+      */}
+      <h2 className="text-[15px] font-extrabold leading-relaxed text-white">
+        מהרגע הזה אתם לא לבד. מומחים שדוחפים את העסק שלכם קדימה, חודש אחר חודש.
+      </h2>
+
+      <div className="mt-4 border-t border-white/15 pt-2">
+        <AuditorTestimonials locale="he" />
+      </div>
+    </aside>
   )
 }
 
