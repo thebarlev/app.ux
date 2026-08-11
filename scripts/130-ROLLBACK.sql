@@ -88,6 +88,12 @@ commit;
 
 select pg_notify('pgrst', 'reload schema');
 
+-- ── WHICH FILE JUST RAN ─────────────────────────────────────────────────────
+-- See the matching note in 130. These two files used to end identically, so the
+-- result pane could not tell them apart and this one got run by accident right
+-- after the migration. The marker below is the difference.
+select '⛔ 130 ROLLED BACK' as result;
+
 -- ============================================================================
 -- The test company, if Block C was run — MANUAL, and read this first
 -- ============================================================================

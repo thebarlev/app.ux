@@ -204,6 +204,16 @@ commit;
 
 select pg_notify('pgrst', 'reload schema');
 
+-- ── WHICH FILE JUST RAN ─────────────────────────────────────────────────────
+-- This migration and its rollback both ended with `commit;` followed by the same
+-- pg_notify, so their output was identical and there was no way to tell from the
+-- result pane which of the two had been executed. The rollback was then run by
+-- accident straight after the migration — twice, on two separate windows.
+--
+-- The last statement of each file now says which one it was. Keep this line last,
+-- and give any future migration the same pair.
+select '✅ 130 APPLIED' as result;
+
 -- ============================================================================
 -- BLOCK C · the test company — RUN SEPARATELY, AFTER Block A/B committed
 -- ============================================================================
