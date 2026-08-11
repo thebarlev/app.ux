@@ -164,23 +164,19 @@ export async function POST(req: Request) {
         contact_full_name: body.full_name.trim(),
         email,
         mobile_phone: body.phone,
-        registration_number: taxId,
         /*
-         * ⚠️ `address` is collected by the form and deliberately NOT written here.
-         *
-         * public.companies is created by no file in scripts/, and unlike
-         * company_name / contact_first_name / contact_full_name / email / mobile_phone
-         * / registration_number — all of which appear in register4's payload and are
-         * therefore known to exist — nothing in this repository shows an address
-         * column. An unknown column does not get ignored by an INSERT; it fails the
-         * whole statement, and failing it here means losing a sale at the last step.
-         *
-         * This is the same lesson as migration 130's block C, where the pre-flight
-         * caught two NOT NULL columns this repo could not declare. So the value is
-         * held rather than guessed at: one query names the column list, and the line
-         * goes in once it is confirmed. Until then the field is optional on the form
-         * and simply unused, which costs nothing.
+         * registration_number, not tax_id or company_number — all three exist on this
+         * table. This is the one register4 writes, and it is also the one the customer
+         * resolver reads first: scripts/129 loads the buyer as
+         * coalesce(c.registration_number, c.tax_id). Writing either of the others
+         * would leave resolve_customer matching on a fallback.
          */
+        registration_number: taxId,
+        // Confirmed to exist — text, nullable — by the column list, rather than
+        // assumed. It was held out of this insert until then: an unknown column does
+        // not get ignored, it fails the whole statement, and failing here loses a sale
+        // at the last step. Same lesson as migration 130's block C.
+        address: body.address?.trim() || null,
       } as any)
       .select("id")
       .single()

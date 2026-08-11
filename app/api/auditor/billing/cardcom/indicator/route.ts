@@ -2,6 +2,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
+import { isCheckoutEnabled } from "@/lib/auditor/billing/checkout-gate"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAuditorConfig } from "@/lib/auditor/env"
 
@@ -12,7 +13,15 @@ import { getAuditorConfig } from "@/lib/auditor/env"
 // code below to unreachable and re-reports the whole body, which fails the build
 // (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
 // security/auditor-block commits.
-const AUDITOR_BLOCKED: boolean = true
+/*
+ * Gated by the checkout gate, not by a literal.
+ *
+ * This route is called by Cardcom from the internet, so it cannot be behind auth —
+ * which makes the gate the only thing keeping it shut. isCheckoutEnabled() fails
+ * closed on an unset, empty or malformed flag, and keeps production closed even when
+ * the flag is on until AUDITOR_CHECKOUT_ALLOW_PRODUCTION says otherwise. Eleven tests
+ * observe those refusals.
+ */
 
 
 function getFirstSearchParam(url: URL, keys: string[]): string | null {
@@ -30,7 +39,7 @@ function getFirstSearchParam(url: URL, keys: string[]): string | null {
  */
 export async function GET(req: Request) {
   // AUDITOR BLOCKED — first statement executed in this handler.
-  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+  if (!isCheckoutEnabled()) return new NextResponse(null, { status: 404 })
 
   const t0 = Date.now()
   const url = new URL(req.url)
