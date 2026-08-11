@@ -97,8 +97,11 @@ where p.id = c.plan_id
 -- is a migration every single time a plan is ever added. Dropping it makes adding a
 -- plan an INSERT.
 --
--- The constraint name is discovered rather than assumed — it was created inline, so
--- PostgreSQL generated it.
+-- The constraint name is discovered rather than assumed. The BEFORE query has since
+-- confirmed it as `auditor_plans_id_check`, with the definition
+-- `CHECK ((id = ANY (ARRAY['basic'::text, 'pro'::text, 'premium'::text])))` — which
+-- the pattern below matches — but the lookup stays, because a name that happens to
+-- be right today is not a reason to hard-code it into a DROP.
 do $$
 declare
   v_conname text;
@@ -204,17 +207,27 @@ select pg_notify('pgrst', 'reload schema');
 -- ============================================================================
 -- BLOCK C · the test company — RUN SEPARATELY, AFTER Block A/B committed
 -- ============================================================================
--- Deliberately outside the transaction above.
+-- Deliberately outside the transaction above — and the BEFORE query proved why.
 --
 -- public.companies is not created by any file in scripts/, so its NOT NULL columns
--- cannot be read from this repository. If this INSERT hits a required column that is
--- not listed below it will fail — and if it were inside the transaction above, that
--- failure would roll back the schema changes too, costing the whole window for a row
--- that can be added at any time.
+-- could not be read from this repository. The pre-flight query returned them on
+-- 11.8.2026, and it caught two that this file had missed:
 --
--- Run the "before" verification query first: it prints the NOT NULL columns of
--- public.companies. If it lists anything not covered here, send it back before
--- running this block rather than guessing at a value.
+--   company_name         NOT NULL, no default    <- was already here
+--   contact_first_name   NOT NULL, no default    <- WAS MISSING
+--   contact_full_name    NOT NULL, no default    <- WAS MISSING
+--   email                NOT NULL, no default    <- was already here
+--   id, status, created_at, books_region         all defaulted, nothing to supply
+--
+-- Had this run inside the transaction above it would have failed on
+-- contact_first_name and rolled back every schema change with it. That is the whole
+-- argument for keeping it separate, and it is no longer hypothetical.
+--
+-- business_type is NOT in the NOT NULL list and is deliberately left unset: its
+-- allowed values are declared nowhere in this repository, and a CHECK this file
+-- cannot see is not worth guessing at for a column nothing here needs. Code that
+-- reads it treats anything other than 'osek_patur' as standard, so an unset value
+-- behaves correctly — see isExemptOsekPatur in lib/document-helpers.ts.
 --
 -- No auth user, on purpose. This company must not be signed into. If some other flow
 -- turns out to break on a null auth_user_id, that is a finding to report — not a
@@ -223,22 +236,27 @@ select pg_notify('pgrst', 'reload schema');
 
 -- insert into public.companies (
 --   company_name,
---   business_type,
+--   contact_first_name,
+--   contact_full_name,
 --   registration_number,
 --   email,
---   status,
 --   is_test
 -- )
 -- select
 --   'חברת בדיקה - אודיטור (TEST)',
---   'osek_murshe',
+--   'בדיקה',
+--   'חברת בדיקה אודיטור',
 --   '000000018',
 --   'billing-sandbox@uxellent.invalid',
---   'active',
 --   true
 -- where not exists (
 --   select 1 from public.companies where email = 'billing-sandbox@uxellent.invalid'
 -- );
+--
+-- Then confirm exactly one row, and that it is flagged:
+--
+--   select id, company_name, registration_number, email, is_test, status, books_region
+--   from public.companies where email = 'billing-sandbox@uxellent.invalid';
 --
 -- ח.פ 000000018 passes the Israeli checksum (verified against
 -- lib/validation/israeli-id.ts) and no real company carries it. Leading zeros
