@@ -18,11 +18,15 @@
  * here is --pl- / .pl- prefixed and declared on .pl, so nothing reaches the rest
  * of the page and nothing on the page reaches in.
  *
- * The three plan slugs are the identifiers the signup flow will read. They are
- * not rows in auditor_plans yet — the new rows land in stage 2 — so this section
- * hands the slug and the scan id to its caller and takes no view on how they are
- * redeemed. The old basic/pro/premium rows are unrelated and stay untouched;
- * 14 historical charges point at them.
+ * The three plan ids are the identifiers the signup flow reads, and they are real
+ * rows in auditor_plans as of migration 130. This section hands the id and the
+ * scan id to its caller and takes no view on how they are redeemed.
+ *
+ * Prices here are the pre-VAT figures, deliberately. auditor_plans.monthly_amount
+ * holds the VAT-inclusive amount — 118/295/590 — because that single number is
+ * what Cardcom charges and what the invoice divides by 1.18. The card shows the
+ * base because a business audience decides on the base; the two never disagree,
+ * since 100/250/500 are multiples of 50 and land on whole shekels either way.
  *
  * Hebrew only, deliberately. The spec has no English copy, and customer-facing
  * copy is not ours to invent — an English page renders no section rather than a
@@ -32,8 +36,16 @@
 
 import type { AuditorLocale } from "@/lib/auditor/locale"
 
-/** The slugs stage 2 will create in auditor_plans, and stage 3 will charge. */
-export type AuditorPlanSlug = "links_basic" | "links_plus" | "links_full"
+/**
+ * The plan ids in auditor_plans, and what stage 3 charges.
+ *
+ * These were going to be new `links_*` rows. Migration 130 took a different route:
+ * the three existing ids stay exactly as they are — four foreign keys point at
+ * them, and an id is a technical identifier, not a label — and only `name` and
+ * `monthly_amount` changed. So the ids read basic/pro/premium while the plans read
+ * בסיסי/מורחב/מלא, and this type has to match the column rather than the copy.
+ */
+export type AuditorPlanSlug = "basic" | "pro" | "premium"
 
 type Props = {
   locale: AuditorLocale
@@ -109,7 +121,7 @@ type Plan = {
  */
 const PLANS: Plan[] = [
   {
-    slug: "links_basic",
+    slug: "basic",
     name: "בסיסי",
     /*
      * 100, not 97, and the reason is arithmetic rather than taste: for x × 1.18
@@ -127,7 +139,7 @@ const PLANS: Plan[] = [
     extraBody: "ללא",
   },
   {
-    slug: "links_plus",
+    slug: "pro",
     name: "מורחב",
     price: "250",
     vat: "295 ₪ כולל מע״מ",
@@ -140,7 +152,7 @@ const PLANS: Plan[] = [
     top: true,
   },
   {
-    slug: "links_full",
+    slug: "premium",
     name: "מלא",
     price: "500",
     vat: "590 ₪ כולל מע״מ",
