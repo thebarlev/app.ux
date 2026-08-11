@@ -196,9 +196,6 @@ const SCORE_BAND_COPY = {
       title: "יש כאן עבודה, ואנחנו כאן בשבילה",
       body: "כרגע האתר לא ממצה את מה שהוא יכול לתת לכם, לא בבדיקות הטכניות ולא ביכולת להביא לקוחות חדשים. זו הזדמנות טובה להתחיל לבנות את זה נכון, ונשמח לעשות את זה איתכם.",
     },
-    always: "ציון גבוה חשוב, אבל הוא לא הכל. הצלחה אמיתית באינטרנט היא שילוב של אתר תקין ודרך נכונה להביא לקוחות. בזה אנחנו יכולים לעזור לכם.",
-    offer:
-      "הטבה מיוחדת ל-24 השעות הקרובות. פרטים אצל הסוכנים שלנו, החל מ-300 ₪ לחודש לקידום אורגני ב-SEO ובבינה מלאכותית (AI).",
   },
   /**
    * Written to read as English rather than as a translation of the Hebrew, and
@@ -219,16 +216,10 @@ const SCORE_BAND_COPY = {
       title: "There's work to do here, and that's what we're for",
       body: "Right now your site isn't giving you what it could — not in the technical checks, and not in bringing in new customers. This is a good opportunity to start building it properly, and we'd be glad to do it with you.",
     },
-    always:
-      "A high score matters, but it isn't everything. Real success online is a working site combined with the right way to bring in customers. That's where we can help.",
-    offer:
-      "Special offer for the next 24 hours. Details from our agents — from ₪300/month for organic SEO and AI visibility.",
   } as null | {
     high: { title: string; body: string }
     mid: { title: string; body: string }
     low: { title: string; body: string }
-    always: string
-    offer: string
   },
 } as const
 
@@ -269,37 +260,17 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
      * four that carries a fill, because it is the only one making a concrete
      * commercial promise and it is what the contact block below is for.
      */
-    <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14 }}>
+    /*
+      Centred, heading and body together.
+
+      The two lines are the page speaking in its own voice about the number just
+      above them, not a row in a report, and they now sit alone in this panel —
+      so the block is centred as one unit and the body is centred within its own
+      measure rather than being ragged against a left edge.
+    */
+    <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14, textAlign: "center" }}>
       <h3 style={{ fontSize: BAND_TYPE, fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
-      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
-
-      <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.line}` }}>
-        <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
-        {/*
-          White on the surface fill, not gold.
-
-          Gold on this page means "locked, pay to unlock" — it is the LockBand
-          fill, and two of those sit directly above this panel. An offer in the
-          same gold read as a third lock band rather than as an invitation to
-          talk to somebody, which is the opposite of what it is. Inverting the
-          figure/ground instead keeps it distinct using the page's own system,
-          where grouping comes from fill and nothing draws a border.
-        */}
-        <p
-          style={{
-            marginTop: 12,
-            background: "#fff",
-            color: C.ink,
-            borderRadius: 14,
-            padding: "12px 14px",
-            fontSize: BAND_TYPE,
-            fontWeight: 700,
-            textAlign: "center",
-          }}
-        >
-          {copy.offer}
-        </p>
-      </div>
+      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch", marginInline: "auto" }}>{band.body}</p>
     </div>
   )
 }
@@ -471,28 +442,35 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           the headline rather than the aside it is. The blue it needs is in the
           badge.
         */}
-        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "flex-start", gap: 11, marginBottom: 12 }}>
-          {/*
-            A rising line instead of a 46px filled tile with a ✦ in it. The tile
-            was the widest thing in the banner and said nothing; the chart says
-            what the sentence beside it promises. The line draws itself once on
-            mount and then holds — motion that reports, rather than loops.
-          */}
-          {/*
-            26px and on the first line of the heading, not 34px centred against
-            the whole block. Centring floated it into the middle of a five-line
-            column and the 18px gap beside it took a further chunk of a 334px
-            row, which is the crowding: the mark was reading as a third of the
-            banner rather than as a mark.
-          */}
-          <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand, marginTop: "calc((var(--ar-h3) * 1.25 - 26px) / 2)" }} aria-hidden="true">
-            <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
-              <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
-              <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div style={{ flex: 1 }}>
+        {/*
+          Centred: the mark and the heading on one line, the sub-line under it.
+
+          It was a left-aligned two-column row — mark in the first column, five
+          lines of text in the second. Centring the text inside that second
+          column would have centred it against the column rather than against the
+          banner, leaving it visibly off by the width of the mark and its gap. So
+          the banner is a centred column instead, and the mark moves onto the
+          heading's own line, which is also where it already claimed to be.
+        */}
+        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 11, flexWrap: "wrap" }}>
+            {/*
+              A rising line instead of a 46px filled tile with a ✦ in it. The tile
+              was the widest thing in the banner and said nothing; the chart says
+              what the sentence beside it promises. The line draws itself once on
+              mount and then holds — motion that reports, rather than loops.
+
+              No marginTop now: it was offsetting the mark down to meet the first
+              line of a heading in a flex-start row. On a centred row alignItems
+              does that, and the old calc would push it below the text.
+            */}
+            <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand }} aria-hidden="true">
+              <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
+                <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
+                <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             {/*
               Nobody is working on this site yet. The service starts after an
               approval, a connection and a payment, so "already working on your
@@ -508,12 +486,12 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
             <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800 }}>
               {en ? "We'll bring your business new customers" : "נביא לעסק שלך לקוחות חדשים"}
             </b>
-            <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2 }}>
-              {en
-                ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
-                : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
-            </p>
           </div>
+          <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2, maxWidth: "62ch" }}>
+            {en
+              ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
+              : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
+          </p>
         </div>
 
         {/*
@@ -599,7 +577,7 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
                   </div>
                   <div className="ar-tile-meter" style={{ display: "flex", alignItems: "center", height: 26 }}>
                     <span style={{ fontSize: "var(--ar-meta)", color: C.gold, fontWeight: 700 }}>
-                      {en ? "Opens on the Plus plan" : "נפתח במסלול מורחב"}
+                      {en ? "Opens on a subscription plan" : "נפתח במסלול מנוי"}
                     </span>
                   </div>
                 </>
@@ -653,7 +631,7 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
               <LockBand
                 title={en ? `${issuesCount - 2} more findings in a subscription` : `ועוד ${issuesCount - 2} ממצאים במסלול מנוי`}
                 body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הממצאים עבורך."}
-                cta={en ? "See the plans" : "לצפייה במסלולים"}
+                cta={en ? "Unlock access" : "פתחו גישה"}
                 href="#plans"
               />
             ) : null}
@@ -673,7 +651,7 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
               <LockBand
                 title={en ? "More categories in a subscription" : "ועוד קטגוריות במסלול מנוי"}
                 body={en ? "Exactly where you lose traffic, and what we close first." : "בדיוק איפה אתה מפסיד תנועה, ומה נסגור קודם."}
-                cta={en ? "See the plans" : "לצפייה במסלולים"}
+                cta={en ? "Unlock access" : "פתחו גישה"}
                 href="#plans"
               />
             ) : null}

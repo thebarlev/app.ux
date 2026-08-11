@@ -111,8 +111,14 @@ const PLANS: Plan[] = [
   {
     slug: "links_basic",
     name: "בסיסי",
-    price: "97",
-    vat: "114 ₪ כולל מע״מ",
+    /*
+     * 100, not 97, and the reason is arithmetic rather than taste: for x × 1.18
+     * to land on a whole shekel, x has to be a multiple of 50. 250 and 500 are;
+     * 97 never can be — it gives 114.46, so the card would have promised 114
+     * while the invoice said 114.46. 100 gives exactly 118.
+     */
+    price: "100",
+    vat: "118 ₪ כולל מע״מ",
     linkTitle: "קישור כל 6 חודשים",
     linkNote: "שני קישורים בשנה",
     expertTitle: "מומחה במייל",
