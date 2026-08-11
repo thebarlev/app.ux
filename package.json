@@ -9,7 +9,8 @@
     "postinstall": "node scripts/playwright-install.mjs",
     "start": "next start",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
-    "vercel-build": "npx playwright install chromium --with-deps && next build"
+    "vercel-build": "npx playwright install chromium --with-deps && next build",
+    "test:unit": "node node_modules/@playwright/test/cli.js test --config=playwright.unit.config.ts"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
