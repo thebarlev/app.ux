@@ -42,6 +42,16 @@ export function AuditorScaleStyles() {
   --ar-h1:23px; --ar-h2:17px; --ar-h3:16px; --ar-cta:20px; --ar-score:40px;
   --ar-lede:14.5px; --ar-prose:13.5px; --ar-label:13px; --ar-meta:12.5px; --ar-caption:11px; --ar-val:30px; --ar-peek:19px;
   --ar-page:22px 16px 40px; --ar-panel:22px 24px; --ar-panel-lg:26px 30px; --ar-panel-sm:15px 16px;
+  /*
+    --ar-page split into its three parts.
+
+    The hero is a full-bleed dark band, so it has to escape the horizontal
+    padding that used to sit on the page root. The root now carries the vertical
+    halves only and each content container carries --ar-gutter itself, which
+    leaves the band free to run edge to edge while everything else stays aligned
+    to the same measure. Same numbers as the shorthand above, just addressable.
+  */
+  --ar-page-top:22px; --ar-gutter:16px; --ar-page-bottom:40px;
   --ar-btn:13px 20px; --ar-gap:16px; --ar-check:15px; --ar-testi-top:34px;
 }
 /*
@@ -75,6 +85,7 @@ export function AuditorScaleStyles() {
     --ar-h1:26px; --ar-h2:21px; --ar-h3:20px; --ar-cta:24px; --ar-score:46px;
     --ar-lede:20px; --ar-prose:20px; --ar-label:19px; --ar-meta:18px; --ar-caption:18px; --ar-val:34px; --ar-peek:24px;
     --ar-page:16px 8px 32px; --ar-panel:18px 14px; --ar-panel-lg:20px 16px; --ar-panel-sm:16px 14px;
+    --ar-page-top:16px; --ar-gutter:8px; --ar-page-bottom:32px;
     --ar-btn:15px 20px; --ar-gap:12px; --ar-check:22px; --ar-testi-top:38px;
   }
   .${AUDITOR_SCOPE} .ar-tile{

@@ -81,6 +81,18 @@ const C = {
    * have to agree and this is the second of them.
    */
   onNavyDim: "#C4D3E6",
+  /*
+   * The hero band. Values are the spec's --navy0/--navy1 and its three text
+   * tints; onNavyDim above is the closing block's own and stays as it is, because
+   * that block and AuditorTestimonials have to agree with each other.
+   */
+  navy0: "#0A0F1A",
+  navy1: "#0D1526",
+  onNavy: "#F4F6FA",
+  onNavyBandDim: "#BCD3E8",
+  onNavyMute: "#8FA3BE",
+  /** The one warm accent inside the band, for a count that wants attention. */
+  statWarm: "#F0B65A",
 } as const
 
 function toneFor(v: number | null): { text: string; fill: string } {
@@ -223,6 +235,66 @@ const SCORE_BAND_COPY = {
   },
 } as const
 
+/**
+ * The stats strip in the hero band.
+ *
+ * The spec shows four boxes: open findings, criticals, pages scanned, and a
+ * locked improvement potential. Three are built here. **"קריטיים" is not**, and
+ * that is deliberate: /api/auditor/status publishes issues_overview as plain
+ * strings and issues_count as a total, with no severity anywhere, so a critical
+ * count could only be guessed. This page already refuses to do that — two of the
+ * category tiles are locked rather than filled with a plausible number, for the
+ * same reason — so the box is left out rather than invented. It comes back the
+ * day the status route publishes severity.
+ *
+ * The fourth box is locked, so it needs no data: it says a figure exists behind a
+ * plan, which is true, and the lock is the whole content.
+ */
+function HeroStats({ en, issuesCount, pages }: { en: boolean; issuesCount: number; pages: number | null }) {
+  const items: Array<{ value: string; label: string; tone?: "warm" | "locked" }> = []
+
+  if (issuesCount > 0) {
+    items.push({ value: String(issuesCount), label: en ? "open findings" : "ממצאים פתוחים", tone: "warm" })
+  }
+  if (pages !== null && pages > 0) {
+    items.push({ value: String(pages), label: en ? (pages === 1 ? "page scanned" : "pages scanned") : pages === 1 ? "עמוד נסרק" : "עמודים נסרקו" })
+  }
+  items.push({ value: en ? "Improvement potential" : "פוטנציאל שיפור", label: en ? "on a subscription plan" : "במסלול מנוי", tone: "locked" })
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 9, marginTop: 20 }}>
+      {items.map((s) => (
+        <div
+          key={s.label}
+          style={{
+            background: "rgba(255,255,255,.06)",
+            border: "1px solid rgba(255,255,255,.10)",
+            borderRadius: 12,
+            padding: "10px 14px",
+            minWidth: 104,
+          }}
+        >
+          <b
+            style={{
+              display: s.tone === "locked" ? "flex" : "block",
+              alignItems: "center",
+              gap: 6,
+              fontSize: s.tone === "locked" ? "var(--ar-label)" : 20,
+              fontWeight: 800,
+              lineHeight: 1.15,
+              color: s.tone === "warm" ? C.statWarm : s.tone === "locked" ? C.gold : C.onNavy,
+            }}
+          >
+            {s.tone === "locked" ? <span style={{ fontSize: 13 }} aria-hidden="true">🔒</span> : null}
+            <bdi dir="ltr">{s.value}</bdi>
+          </b>
+          <span style={{ fontSize: "var(--ar-meta)", color: C.onNavyMute, fontWeight: 600 }}>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function scoreBand(total: number): "high" | "mid" | "low" {
   if (total > 70) return "high"
   if (total >= 50) return "mid"
@@ -347,9 +419,18 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
   const gaugeTone = toneFor(total)
 
   return (
-    <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "var(--ar-page)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
+    /*
+      Vertical padding on the root, horizontal on each container.
+
+      The hero is a full-bleed band now, and it cannot bleed past padding on its
+      own ancestor. So the root keeps --ar-page-top / --ar-page-bottom and the
+      side gutter moves to the containers, which is why there are three of them
+      below: masthead, then the band, then the rest of the report. All three sit
+      on the same 1040 measure, so nothing shifts horizontally.
+    */
+    <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, paddingTop: "var(--ar-page-top)", paddingBottom: "var(--ar-page-bottom)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
       <AuditorScaleStyles />
-      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)" }}>
         {/*
           The masthead. It used to be one unstyled line of bold text with a dot
           and a hostname, sitting under a block of empty page — the only part of
@@ -361,9 +442,20 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           head of the page has an edge to sit on.
         */}
         <div style={{ marginTop: 0, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
-            {en ? "Ranking report" : "דוח דירוג"}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            {/*
+              The mark, set as type rather than fetched as an asset: the spec's
+              top bar carries `UX` with `ellent` in the brand colour, and this is
+              a light bar, so the white SVG used on the navy closing block cannot
+              serve here. Two spans need no request and no second colourway.
+            */}
+            <span style={{ fontWeight: 800, fontSize: "var(--ar-h3)", letterSpacing: ".2px", color: C.ink }} dir="ltr">
+              UX<span style={{ color: C.brand }}>ellent</span>
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
+              {en ? "Ranking report" : "דוח דירוג"}
+            </span>
           </div>
           {!teaser && host ? (
             <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)", color: C.ink, marginTop: 3, wordBreak: "break-word" }} dir="ltr">
@@ -372,18 +464,63 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           ) : null}
         </div>
 
-        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
+      </div>
 
-        {/* hero */}
-        <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: "var(--ar-label)", fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
-              {en ? "Search & AI readiness" : "מוכנות לחיפוש ול-AI"}
+      {/*
+        The hero, as a full-bleed dark band.
+
+        It was a light panel on the same surface fill as every other block, inside
+        the 1040 measure — so the head of the report carried no more weight than a
+        findings card. The band is the shape the design asks for: the score is the
+        one thing on this page that should stop somebody, and a dark field running
+        edge to edge is what makes it read that way.
+
+        The gauge keeps its semantic colour rather than the spec's blue gradient.
+        Measured against both navy stops, the three tones clear the 3:1 that WCAG
+        1.4.11 asks of a graphical object with room to spare — red 4.88, green
+        5.32, amber 6.13 at the worst stop — and a red ring at 40 sells the
+        problem in a way a blue one cannot.
+      */}
+      <div
+        style={{
+          background:
+            "radial-gradient(900px 420px at 78% 8%, rgba(83,137,187,.20), transparent 60%)," +
+            "radial-gradient(700px 500px at 18% 85%, rgba(83,137,187,.10), transparent 60%)," +
+            `linear-gradient(${C.navy0} 0%, ${C.navy1} 100%)`,
+          color: C.onNavy,
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)", paddingBlock: "var(--ar-panel-lg)", display: "flex", alignItems: "center", gap: 38, flexWrap: "wrap" }}>
+          {/*
+            Gauge first in the DOM, so in RTL it sits on the right — the order the
+            spec's `grid-template-columns: auto 1fr` produces. It was text-first,
+            which put the dial on the wrong side of the band.
+          */}
+          <div style={{ flexShrink: 0, width: 222, height: 222, position: "relative", display: "grid", placeItems: "center" }}>
+            <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+              {/* Track is now a wash of the band's own light, not the light-page #E4E9F3. */}
+              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.10)" strokeWidth="11" />
+              <circle cx="60" cy="60" r="52" fill="none" stroke={teaser ? "rgba(255,255,255,.18)" : gaugeTone.fill} strokeWidth="11" strokeLinecap="round" strokeDasharray={dash} strokeDashoffset={teaser ? dash * 0.45 : offset} />
+            </svg>
+            <div style={{ textAlign: "center", position: "relative", zIndex: 2 }}>
+              {teaser ? (
+                <div style={{ height: 38, width: 62, borderRadius: 8, background: "rgba(255,255,255,.14)" }} />
+              ) : (
+                <div style={{ fontSize: "var(--ar-score)", fontWeight: 800, lineHeight: 1, color: C.onNavy }}>{total === null ? "—" : total}</div>
+              )}
+              <div style={{ fontSize: "var(--ar-meta)", color: C.onNavyMute, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
             </div>
-            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 8, color: C.ink }}>
+          </div>
+
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div style={{ fontSize: "var(--ar-label)", fontWeight: 800, letterSpacing: ".06em", color: C.brand, marginBottom: 10 }}>
+              {en ? "Search & AI readiness" : "מוכנות לחיפוש ולמנועי AI"}
+            </div>
+            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 10, color: C.onNavy, lineHeight: 1.2 }}>
               {en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"}
             </h1>
-            <p style={{ color: C.ink2, fontSize: "var(--ar-lede)", maxWidth: "52ch" }}>
+            <p style={{ color: C.onNavyDim, fontSize: "var(--ar-lede)", maxWidth: "54ch" }}>
               {teaser
                 ? en
                   ? "Where you stand in Google and AI search, and what is holding you back."
@@ -396,27 +533,18 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
                     ? "No major findings in the initial scan."
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
             </p>
-            {!teaser && total !== null ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 14, background: C.amberBg, color: C.amber, fontWeight: 700, fontSize: "var(--ar-label)", padding: "6px 13px", borderRadius: 999 }}>
-                ● {en ? "Room to improve" : "פוטנציאל שיפור גבוה"}
-              </span>
-            ) : null}
-          </div>
-          <div style={{ flexShrink: 0, width: 132, height: 132, position: "relative", display: "grid", placeItems: "center" }}>
-            <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-              <circle cx="60" cy="60" r="52" fill="none" stroke={C.track} strokeWidth="11" />
-              <circle cx="60" cy="60" r="52" fill="none" stroke={teaser ? "#00000018" : gaugeTone.fill} strokeWidth="11" strokeLinecap="round" strokeDasharray={dash} strokeDashoffset={teaser ? dash * 0.45 : offset} />
-            </svg>
-            <div style={{ textAlign: "center" }}>
-              {teaser ? (
-                <div style={{ height: 38, width: 62, borderRadius: 8, background: "#0000001a" }} />
-              ) : (
-                <div style={{ fontSize: "var(--ar-score)", fontWeight: 800, lineHeight: 1 }}>{total === null ? "—" : total}</div>
-              )}
-              <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
-            </div>
+            {!teaser ? <HeroStats en={en} issuesCount={issuesCount} pages={pages} /> : null}
           </div>
         </div>
+      </div>
+
+      <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)" }}>
+        {/*
+          Moved below the band. It used to sit between the masthead and the hero,
+          which put a block about what happens next ahead of the number it is a
+          reaction to.
+        */}
+        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
 
         {/*
           Directly under the gauge, because it is the reading of that number.
