@@ -71,6 +71,38 @@ const bodySchema = z
   // an `amount` in the body becomes a 400 instead of a thing to remember to ignore.
   .strict()
 
+/**
+ * The base URL Cardcom will be told to call back on.
+ *
+ * Production is unchanged: PUBLIC_BASE_URL, the canonical domain, and nothing else.
+ * The preview branch exists because Cardcom cannot reach a preview through a
+ * production domain, and a preview is where the whole flow is tested.
+ *
+ * The condition is `VERCEL_ENV === "preview"` explicitly, and NOT "if
+ * VERCEL_BRANCH_URL happens to be set". Those are different tests: the second one
+ * would quietly change production behaviour the day Vercel starts exposing that
+ * variable more widely, and a callback URL is not something to leave to a coincidence
+ * of what is defined.
+ *
+ * A missing VERCEL_BRANCH_URL on a preview falls back to PUBLIC_BASE_URL with a
+ * warning rather than to an empty string — a broken-but-known address is diagnosable,
+ * and an empty one produces callbacks to nowhere.
+ */
+function resolveCallbackBaseUrl(req: Request): string {
+  const strip = (s: string) => s.trim().replace(/\/+$/, "")
+
+  if (String(process.env.VERCEL_ENV || "").trim().toLowerCase() === "preview") {
+    const branchUrl = String(process.env.VERCEL_BRANCH_URL || "").trim()
+    if (branchUrl) return strip(branchUrl.startsWith("http") ? branchUrl : `https://${branchUrl}`)
+    console.warn(
+      "[AUDITOR_CHECKOUT] VERCEL_BRANCH_URL missing on a preview — falling back to PUBLIC_BASE_URL. " +
+        "Cardcom callbacks will point at production and will 404 there."
+    )
+  }
+
+  return getPublicBaseUrl(req)
+}
+
 /** 10 attempts per IP and 5 per email, per 10 minutes. */
 const IP_LIMIT = 10
 const EMAIL_LIMIT = 5
@@ -195,8 +227,28 @@ export async function POST(req: Request) {
     }
   }
 
-  /* ── 4 · callback URLs, validated for this request's origin ── */
-  const publicBaseUrl = getPublicBaseUrl(req)
+  /* ── 4 · callback URLs, pointed at the environment actually running ── */
+  //
+  // ⚠️ getPublicBaseUrl() prefers PUBLIC_BASE_URL over the request origin, and
+  // PUBLIC_BASE_URL is https://app.uxellent.com in every scope including preview. So
+  // on a preview it handed Cardcom three production URLs, and Cardcom obediently used
+  // them: the success redirect 404'd, and — far worse — so did the IndicatorUrl, which
+  // is how Cardcom reports the payment. A real ₪118 transaction went through on
+  // 2026-08-11 and left no trace on our side at all. Cardcom recorded our own failure
+  // for us: CallIndicatorResponse=404.
+  //
+  // This is the same trap already documented for SHAAM — "the address is not decided
+  // by the variable, it is derived from PUBLIC_BASE_URL" — a different variable and a
+  // different product, two weeks apart.
+  //
+  // Fixed here rather than in getPublicBaseUrl, which is shared with the VOW billing
+  // paths: a helper used by two products does not get changed for one product's need.
+  //
+  // VERCEL_BRANCH_URL rather than VERCEL_URL: the branch alias always resolves to the
+  // latest deployment of the branch, while a per-deployment URL stops being the one
+  // we are watching the moment anybody pushes. Cardcom reports back after the buyer
+  // has finished, so the address has to survive that gap.
+  const publicBaseUrl = resolveCallbackBaseUrl(req)
   try {
     requirePublicCallbackUrl(req, publicBaseUrl)
   } catch (e: any) {
