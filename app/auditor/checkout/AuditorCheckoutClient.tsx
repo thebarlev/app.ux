@@ -4,6 +4,7 @@ import { useState } from "react"
 import { isValidIsraeliId } from "@/lib/validation/israeli-id"
 import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
+import { CheckoutHero } from "./CheckoutHero"
 
 /**
  * The details form, and the last screen before money moves.
@@ -57,6 +58,19 @@ type Fields = {
 }
 
 const EMPTY: Fields = { fullName: "", email: "", phone: "", businessName: "", taxId: "", address: "" }
+
+/**
+ * Itzik's sentence, approved word for word — not re-punctuated, not re-broken, not
+ * "improved". It lives in exactly one constant so it cannot drift between the two
+ * places it was asked for.
+ *
+ * It is in the hero and NOT in the trust rail. It was approved as the rail's heading
+ * first and as the hero's line second; rendering it twice on one page would weaken
+ * it in both spots, so it moved up to the more prominent of the two. Say the word and
+ * it goes back to the rail as well.
+ */
+const HERO_SENTENCE =
+  "מהרגע הזה אתם לא לבד. מומחים שדוחפים את העסק שלכם קדימה, חודש אחר חודש."
 
 /** The same shape the rest of the app uses — see AuditorRegisterClient and forgot-password. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -153,8 +167,10 @@ export default function AuditorCheckoutClient(props: Props) {
     n.toLocaleString("he-IL", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
 
   return (
-    <main className={`${AUDITOR_SCOPE} min-h-svh bg-white px-4 py-10 sm:px-6 sm:py-16`} dir="rtl">
+    <main className={`${AUDITOR_SCOPE} min-h-svh bg-white`} dir="rtl">
       <AuditorScaleStyles />
+      <CheckoutHero sentence={HERO_SENTENCE} />
+      <div className="px-4 py-7 sm:px-6 sm:py-10">
       {/*
         Two columns on a desktop, one on a phone, and the DOM order does both.
 
@@ -250,6 +266,7 @@ export default function AuditorCheckoutClient(props: Props) {
 
         <TrustRail />
       </div>
+      </div>
     </main>
   )
 }
@@ -282,17 +299,12 @@ function TrustRail() {
       style={{ background: "linear-gradient(135deg,#1B3453,#2C577F)" }}
     >
       {/*
-        Itzik's sentence, to the character. Not re-punctuated, not split into two
-        lines to change its rhythm, not "improved". If it ever fails to fit a layout,
-        that gets reported rather than edited.
+        No heading here any more — the approved sentence moved to the hero, where it
+        is the first thing on the page rather than the fourth. Repeating it in both
+        places would have blunted it in both. AuditorTestimonials brings its own
+        heading.
       */}
-      <h2 className="text-[15px] font-extrabold leading-relaxed text-white">
-        מהרגע הזה אתם לא לבד. מומחים שדוחפים את העסק שלכם קדימה, חודש אחר חודש.
-      </h2>
-
-      <div className="mt-4 border-t border-white/15 pt-2">
-        <AuditorTestimonials locale="he" />
-      </div>
+      <AuditorTestimonials locale="he" />
     </aside>
   )
 }
