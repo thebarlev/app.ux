@@ -133,7 +133,31 @@ export function AuditorScaleStyles() {
 }
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
-@media (prefers-reduced-motion:reduce){ .${AUDITOR_SCOPE} svg *{ animation:none !important } }
+/*
+  The kick's pulse, carried from the spec: a dot that breathes a ring outward.
+  Box-shadow rather than a transform so it cannot shift the text beside it.
+*/
+@keyframes ar-pulse{
+  0%{ box-shadow:0 0 0 0 rgba(83,137,187,.55) }
+  70%{ box-shadow:0 0 0 11px rgba(83,137,187,0) }
+  100%{ box-shadow:0 0 0 0 rgba(83,137,187,0) }
+}
+.${AUDITOR_SCOPE} .ar-pulse{
+  width:7px; height:7px; border-radius:50%; background:#5389BB; flex-shrink:0;
+  animation:ar-pulse 2.4s infinite;
+}
+/*
+  The gauge draws itself once. The target offset depends on the score, so it
+  cannot be a keyframe — the arc renders empty and the offset is set after mount,
+  and this transition is what makes that a sweep rather than a jump.
+*/
+.${AUDITOR_SCOPE} .ar-gauge-arc{ transition:stroke-dashoffset .9s ease-out }
+@media (prefers-reduced-motion:reduce){
+  .${AUDITOR_SCOPE} svg *{ animation:none !important }
+  /* The arc's motion is a transition, not an animation, so it needs saying too. */
+  .${AUDITOR_SCOPE} .ar-gauge-arc{ transition:none !important }
+  .${AUDITOR_SCOPE} .ar-pulse{ animation:none !important }
+}
 `.trim(),
       }}
     />

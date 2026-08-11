@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
 import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
@@ -236,6 +237,60 @@ const SCORE_BAND_COPY = {
 } as const
 
 /**
+ * The headline in the band, one per score band.
+ *
+ * The Hebrew is the spec's own three strings. The English is written to read as
+ * English rather than as a translation of them, the same way SCORE_BAND_COPY.en
+ * was — the spec has no English at all, so there was nothing to copy.
+ */
+const HERO_HEADLINE = {
+  he: {
+    low: "האתר שלכם כמעט לא נמצא בחיפוש",
+    mid: "האתר תקין. השאלה היא כמה אנשים מגיעים אליו",
+    high: "האתר שלכם עשה את שלו",
+  },
+  en: {
+    low: "Your site is barely showing up in search",
+    mid: "The site works. The question is how many people reach it",
+    high: "Your site has done its part",
+  },
+} as const
+
+/**
+ * The word for the score, next to the number.
+ *
+ * Values are the spec's three [background, foreground, label] triples. Each pair
+ * clears 4.5:1 as measured — 4.96, 4.79 and 5.33 — so the pill is readable as
+ * body text, which matters because it is the one place the score's own colour
+ * still speaks now that the arc carries the spec's blue gradient instead.
+ */
+const GRADE = {
+  low: { bg: "#FBE7E4", fg: "#B33A2C", he: "חלש", en: "Weak" },
+  mid: { bg: "#FBF3E0", fg: "#8A6521", he: "סביר", en: "Fair" },
+  high: { bg: "#E4F3EA", fg: "#127048", he: "מצוין", en: "Excellent" },
+} as const
+
+function GradeBadge({ total, en }: { total: number; en: boolean }) {
+  const g = GRADE[scoreBand(total)]
+  return (
+    <span
+      style={{
+        marginTop: 9,
+        display: "inline-block",
+        fontSize: "var(--ar-caption)",
+        fontWeight: 800,
+        padding: "4px 12px",
+        borderRadius: 999,
+        background: g.bg,
+        color: g.fg,
+      }}
+    >
+      {en ? g.en : g.he}
+    </span>
+  )
+}
+
+/**
  * The stats strip in the hero band.
  *
  * The spec shows four boxes: open findings, criticals, pages scanned, and a
@@ -414,9 +469,29 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
     { label: en ? "Traffic tracking" : "מעקב תנועה", value: num(cats.tracking) },
   ]
 
+  /*
+   * The gauge draws itself once, on mount.
+   *
+   * The target offset depends on the score, so this cannot be a keyframe. The arc
+   * renders empty on the first paint and the real offset is set on the next frame;
+   * .ar-gauge-arc supplies the transition between the two, and drops it under
+   * prefers-reduced-motion. requestAnimationFrame rather than a timeout so the
+   * empty state is committed before the value changes — set in the same frame, the
+   * browser coalesces both and there is nothing to animate from.
+   */
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setDrawn(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
   const dash = 326.7
   const offset = total === null ? dash : dash * (1 - Math.max(0, Math.min(100, total)) / 100)
-  const gaugeTone = toneFor(total)
+  /*
+   * No gaugeTone any more: the arc takes the spec's blue gradient, so the score's
+   * colour is not read off it. toneFor still serves the category meters and
+   * figures, and the score's own colour now lives in the grade pill.
+   */
 
   return (
     /*
@@ -441,26 +516,26 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           thing the visitor actually wants confirmed. Hairline under it so the
           head of the page has an edge to sit on.
         */}
-        <div style={{ marginTop: 0, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            {/*
-              The mark, set as type rather than fetched as an asset: the spec's
-              top bar carries `UX` with `ellent` in the brand colour, and this is
-              a light bar, so the white SVG used on the navy closing block cannot
-              serve here. Two spans need no request and no second colourway.
-            */}
-            <span style={{ fontWeight: 800, fontSize: "var(--ar-h3)", letterSpacing: ".2px", color: C.ink }} dir="ltr">
-              UX<span style={{ color: C.brand }}>ellent</span>
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
-              {en ? "Ranking report" : "דוח דירוג"}
-            </span>
-          </div>
+        {/*
+          The top bar, per the spec: one 62px row, white, hairline under it —
+          mark, then what this document is, then the hostname pushed to the far
+          end. It was a two-row block with the host stacked under an eyebrow.
+
+          The mark is set as type rather than fetched as an asset. This is a light
+          bar, so the white SVG the navy closing block uses cannot serve here, and
+          two spans need no request and no second colourway.
+        */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, minHeight: 62, marginBottom: 14, borderBottom: `1px solid ${C.line}`, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: ".2px", color: C.ink }} dir="ltr">
+            UX<span style={{ color: C.brand }}>ellent</span>
+          </span>
+          <span style={{ fontSize: "var(--ar-caption)", fontWeight: 800, color: C.brandInk, background: "#EDF3F9", padding: "4px 11px", borderRadius: 999 }}>
+            {en ? "Ranking report" : "דוח דירוג"}
+          </span>
           {!teaser && host ? (
-            <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)", color: C.ink, marginTop: 3, wordBreak: "break-word" }} dir="ltr">
+            <span style={{ marginInlineStart: "auto", fontSize: "var(--ar-label)", color: C.muted, fontWeight: 600, wordBreak: "break-word" }} dir="ltr">
               {host}
-            </div>
+            </span>
           ) : null}
         </div>
 
@@ -499,26 +574,60 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           */}
           <div style={{ flexShrink: 0, width: 222, height: 222, position: "relative", display: "grid", placeItems: "center" }}>
             <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-              {/* Track is now a wash of the band's own light, not the light-page #E4E9F3. */}
-              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.10)" strokeWidth="11" />
-              <circle cx="60" cy="60" r="52" fill="none" stroke={teaser ? "rgba(255,255,255,.18)" : gaugeTone.fill} strokeWidth="11" strokeLinecap="round" strokeDasharray={dash} strokeDashoffset={teaser ? dash * 0.45 : offset} />
+              <defs>
+                <linearGradient id="ar-gauge-gr" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#7FB0DC" />
+                  <stop offset="100%" stopColor="#3A6D9A" />
+                </linearGradient>
+              </defs>
+              {/* Track is a wash of the band's own light, not the light-page #E4E9F3. */}
+              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.10)" strokeWidth="10" />
+              {/*
+                The spec's blue gradient, replacing the score-coloured arc. Both
+                stops clear WCAG 1.4.11's 3:1 for a graphical object against the
+                band — #7FB0DC at 7.94 and #3A6D9A at 3.33 against the darker navy
+                stop — so nothing here is unreadable, and the score's own colour
+                still speaks through the grade pill below the number.
+
+                strokeDashoffset starts at `dash` (an empty ring) and moves to the
+                real offset once mounted; .ar-gauge-arc carries the transition that
+                turns that into a sweep, and honours prefers-reduced-motion.
+              */}
+              <circle
+                className="ar-gauge-arc"
+                cx="60" cy="60" r="52" fill="none"
+                stroke={teaser ? "rgba(255,255,255,.18)" : "url(#ar-gauge-gr)"}
+                strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={dash}
+                strokeDashoffset={teaser ? dash * 0.45 : drawn ? offset : dash}
+              />
             </svg>
             <div style={{ textAlign: "center", position: "relative", zIndex: 2 }}>
               {teaser ? (
                 <div style={{ height: 38, width: 62, borderRadius: 8, background: "rgba(255,255,255,.14)" }} />
               ) : (
-                <div style={{ fontSize: "var(--ar-score)", fontWeight: 800, lineHeight: 1, color: C.onNavy }}>{total === null ? "—" : total}</div>
+                <div style={{ fontSize: 58, fontWeight: 800, lineHeight: 1, letterSpacing: "-1px", color: C.onNavy }}>{total === null ? "—" : total}</div>
               )}
               <div style={{ fontSize: "var(--ar-meta)", color: C.onNavyMute, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
+              {!teaser && total !== null ? <GradeBadge total={total} en={en} /> : null}
             </div>
           </div>
 
           <div style={{ flex: 1, minWidth: 260 }}>
-            <div style={{ fontSize: "var(--ar-label)", fontWeight: 800, letterSpacing: ".06em", color: C.brand, marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--ar-label)", fontWeight: 800, letterSpacing: ".06em", color: C.brand, marginBottom: 10 }}>
+              <span className="ar-pulse" aria-hidden="true" />
               {en ? "Search & AI readiness" : "מוכנות לחיפוש ולמנועי AI"}
             </div>
+            {/*
+              The headline reads the score rather than announcing itself. It was
+              the fixed "הציון הנוכחי של האתר שלך", which named the page instead of
+              telling the visitor anything; the three band headlines are the spec's
+              own strings.
+            */}
             <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 10, color: C.onNavy, lineHeight: 1.2 }}>
-              {en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"}
+              {teaser || total === null
+                ? en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"
+                : HERO_HEADLINE[en ? "en" : "he"][scoreBand(total)]}
             </h1>
             <p style={{ color: C.onNavyDim, fontSize: "var(--ar-lede)", maxWidth: "54ch" }}>
               {teaser
