@@ -5,6 +5,7 @@ import type { StatusResponse } from "@/components/auditor/home/logic/auditor-hom
 import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
 import { WhatsAppMark } from "@/components/auditor/home/ui/WhatsAppMark"
 import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
+import { AuditorPlans, type AuditorPlanSlug } from "@/components/auditor/home/ui/AuditorPlans"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 
 /**
@@ -25,7 +26,14 @@ type Props = {
   locale: AuditorLocale
   status: StatusResponse | null
   teaser?: boolean
-  onUnlock?: () => void
+  /**
+   * The scan on screen, handed to the plans section so a chosen plan can be tied
+   * back to the report that sold it. Not on StatusResponse — the status route
+   * does not publish the id it was queried with — so it comes from the caller.
+   */
+  scanId?: string | null
+  /** See AuditorPlans: the plan slug and the scan it was chosen from. */
+  onSelectPlan?: (plan: AuditorPlanSlug, scanId: string | null) => void
   whatsappUrl?: string
   phone?: string
   emailCopy?: boolean
@@ -296,8 +304,15 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
   )
 }
 
-/** The gold "and more — in premium" band from the mockup. */
-function LockBand({ title, body, cta, onUnlock }: { title: string; body: string; cta: string; onUnlock?: () => void }) {
+/**
+ * The gold "and more — in a subscription plan" band from the mockup.
+ *
+ * The action is an anchor to a section on this page, not a callback. It used to
+ * call onUnlock, which started checkout against a billing route that the auditor
+ * block hard-404s; the plans section below is now the thing these bands are
+ * asking the visitor to look at, so they scroll to it.
+ */
+function LockBand({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
   return (
     /*
      * The row wraps, and the text column has a floor.
@@ -318,14 +333,14 @@ function LockBand({ title, body, cta, onUnlock }: { title: string; body: string;
         <b style={{ fontSize: "var(--ar-prose)", color: C.ink }}>{title}</b>
         <p style={{ fontSize: "var(--ar-meta)", color: C.ink2, marginTop: 1 }}>{body}</p>
       </div>
-      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-meta)", cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto" }}>
+      <a href={href} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-meta)", cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
         {cta}
-      </button>
+      </a>
     </div>
   )
 }
 
-export function AuditorReportV3({ locale, status, teaser = false, onUnlock, whatsappUrl, phone = "0545215193", emailCopy = false }: Props) {
+export function AuditorReportV3({ locale, status, teaser = false, scanId = null, onSelectPlan, whatsappUrl, phone = "0545215193", emailCopy = false }: Props) {
   const en = locale === "en"
   const ok = status && status.ok === true ? status : null
   const cats = (ok?.category_scores || {}) as Record<string, number>
@@ -528,7 +543,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </span>
           <span style={{ color: C.muted }}>·</span>
           <span style={{ color: C.gold, fontWeight: 700, lineHeight: 1.25 }}>
-            {en ? "Premium customers get a deep scan across dozens of pages ↗" : "לקוחות פרימיום מקבלים סריקה עמוקה בעשרות עמודים ↗"}
+            {/*
+              The promise is kept by the expert with their own tools, not by this
+              scanner. Said that way, it is also true — the full-site pass is
+              manual work in the monthly report, which is why a missing
+              AUDITOR_SERPER_API_KEY does not block any of this.
+            */}
+            {en ? "On our subscription plans an expert reviews the whole site ↗" : "במסלולי המנוי המומחה שלנו עובר על האתר המלא ↗"}
           </span>
         </div>
 
@@ -578,7 +599,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                   </div>
                   <div className="ar-tile-meter" style={{ display: "flex", alignItems: "center", height: 26 }}>
                     <span style={{ fontSize: "var(--ar-meta)", color: C.gold, fontWeight: 700 }}>
-                      {en ? "Opens with premium" : "נפתח בפרימיום"}
+                      {en ? "Opens on the Plus plan" : "נפתח במסלול מורחב"}
                     </span>
                   </div>
                 </>
@@ -630,10 +651,10 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             )}
             {!teaser && issuesCount > 2 ? (
               <LockBand
-                title={en ? `${issuesCount - 2} more findings in premium` : `ועוד ${issuesCount - 2} ממצאים בפרימיום`}
+                title={en ? `${issuesCount - 2} more findings in a subscription` : `ועוד ${issuesCount - 2} ממצאים במסלול מנוי`}
                 body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הממצאים עבורך."}
-                cta={en ? "Unlock access" : "פתחו גישה"}
-                onUnlock={onUnlock}
+                cta={en ? "See the plans" : "לצפייה במסלולים"}
+                href="#plans"
               />
             ) : null}
           </Card>
@@ -650,14 +671,33 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             ))}
             {!teaser ? (
               <LockBand
-                title={en ? "More categories in premium" : "ועוד קטגוריות בפרימיום"}
+                title={en ? "More categories in a subscription" : "ועוד קטגוריות במסלול מנוי"}
                 body={en ? "Exactly where you lose traffic, and what we close first." : "בדיוק איפה אתה מפסיד תנועה, ומה נסגור קודם."}
-                cta={en ? "Unlock access" : "פתחו גישה"}
-                onUnlock={onUnlock}
+                cta={en ? "See the plans" : "לצפייה במסלולים"}
+                href="#plans"
               />
             ) : null}
           </Card>
         </div>
+
+        {/*
+          The subscription section.
+
+          It sits after the last measurement and before the closing block, which
+          is the position the work order describes — "between the keyword section
+          and the customers section" — mapped onto the page as it actually is.
+          Neither of those two sections exists in this component: the keyword
+          strip and the competitor card are in the v5 spec only, and the customer
+          case studies are not in the report at all. What is real here is the
+          seam between the findings and the closing testimonials, and the offer
+          belongs in it: after the visitor has seen what is wrong, before we
+          close.
+
+          Not in the teaser, for the same reason the closing block is not: the
+          teaser is a shape glimpsed behind a form, and a blurred price list is
+          noise there.
+        */}
+        {!teaser ? <AuditorPlans locale={locale} scanId={scanId} onSelectPlan={onSelectPlan} /> : null}
 
         {/*
           The closing block: what other customers say, and then us saying we have

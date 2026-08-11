@@ -95,7 +95,28 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           status={controller.status}
           whatsappUrl={WHATSAPP_URL}
           emailCopy={controller.leadEmailCopy}
-          onUnlock={controller.startCheckout}
+          scanId={controller.scanId}
+          /*
+           * Where a chosen plan goes.
+           *
+           * Nowhere yet, on purpose. The three link_* plans are not rows in
+           * auditor_plans until stage 2, and /auditor/checkout is hard-404'd by
+           * the auditor block, so there is no flow to hand them to. What this
+           * does is record the choice in the URL, which costs nothing, breaks
+           * nothing, and means the two values stage 3 needs — which plan, which
+           * scan — are already where it will look for them.
+           *
+           * replaceState rather than a router push: the visitor stays on their
+           * report, and the choice should not become a history entry they have
+           * to press back through.
+           */
+          onSelectPlan={(plan, scanId) => {
+            if (typeof window === "undefined") return
+            const url = new URL(window.location.href)
+            url.searchParams.set("plan", plan)
+            if (scanId) url.searchParams.set("scanId", scanId)
+            window.history.replaceState(null, "", url.toString())
+          }}
         />
       ) : null}
 
