@@ -1,49 +1,25 @@
-import { createClient } from "@/lib/supabase/server"
-import { redirect, notFound } from "next/navigation"
-import AuditorCheckoutClient from "@/app/auditor/checkout/AuditorCheckoutClient"
+import { notFound } from "next/navigation"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-// ── AUDITOR BLOCKED ───────────────────────────────────────────────────────────
-// Hard-coded, not configurable. An env-var gate that is unset fails open, which
-// is exactly the failure mode fixed in S1.3, so the value is a literal here.
-// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
-// code below to unreachable and re-reports the whole body, which fails the build
-// (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
-// security/auditor-block commits.
-const AUDITOR_BLOCKED: boolean = true
-
-
-export default async function EnAuditorCheckoutPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ link_id?: string; checkout?: string; scanId?: string; token?: string }>
-}) {
-  // AUDITOR BLOCKED — first statement executed in this component.
-  if (AUDITOR_BLOCKED) notFound()
-
-  const sp = await searchParams
-  const linkId = typeof sp?.link_id === "string" ? sp.link_id.trim() : ""
-  const checkout = typeof sp?.checkout === "string" ? sp.checkout.trim() : ""
-  const scanId = typeof sp?.scanId === "string" ? sp.scanId.trim() : ""
-  const token = typeof sp?.token === "string" ? sp.token.trim() : ""
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    // Redirect to register (sign up) so user can create account, then proceed to checkout.
-    // Do NOT redirect to login - login is only required after payment or during account creation.
-    const params = new URLSearchParams()
-    if (linkId) params.set("link_id", linkId)
-    if (scanId) params.set("scanId", scanId)
-    if (token) params.set("token", token)
-    const qs = params.toString()
-    redirect(qs ? `/en/auditor/register?${qs}` : "/en/auditor/register")
-  }
-
-  return <AuditorCheckoutClient linkId={linkId} checkout={checkout} scanId={scanId} token={token} basePath="/en/auditor" />
+/**
+ * The English checkout does not exist, and this route says so.
+ *
+ * It used to render the Hebrew AuditorCheckoutClient with a basePath prop, behind
+ * `AUDITOR_BLOCKED = true` — so the render was already unreachable, and it was
+ * reaching for a component whose props have since changed shape entirely.
+ *
+ * It stays a 404, which is exactly what it returned before. What changed is that the
+ * dead branch is gone instead of being kept alive against a component it no longer
+ * matches.
+ *
+ * Why not port it: the subscription flow is Hebrew-only by decision. The spec carries
+ * no English copy, AuditorPlans renders nothing on an English page rather than show a
+ * machine-translated price list, and inventing English copy for a payment screen is
+ * not a call to make while porting a file. When an English flow is wanted it gets its
+ * own copy, reviewed, and this route is written then.
+ */
+export default async function EnAuditorCheckoutPage() {
+  notFound()
 }

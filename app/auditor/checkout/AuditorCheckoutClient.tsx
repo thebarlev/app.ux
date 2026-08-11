@@ -1,146 +1,268 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
-import { normalizeTrackedPlan } from "@/lib/tracking/events"
-import { saveAuditorCheckoutTrackingContext } from "@/lib/tracking/purchase"
+import { useState } from "react"
+import { isValidIsraeliId } from "@/lib/validation/israeli-id"
 
-export default function AuditorCheckoutClient(props: {
-  linkId: string
-  checkout: string
+/**
+ * The details form, and the last screen before money moves.
+ *
+ * Five required fields and one optional. No sixth was added: the list is Itzik's and
+ * every field on a payment form costs conversion, so anything else has to be asked
+ * for rather than assumed.
+ *
+ * ── THE ONE IDENTIFIER FIELD ────────────────────────────────────────────────
+ * Labelled ח.פ / ע.מ / ת״ז because it accepts all three, and it accepts all three
+ * because in Israel all three are nine digits sharing one check digit — so the
+ * existing, already-tested isValidIsraeliId covers them with no extra code.
+ *
+ * It is required, and that is a deliberate trade. A tax invoice without the buyer's
+ * identifier cannot be used to reclaim VAT, and a credit note (330) is blocked
+ * system-wide — so an invoice issued without one cannot be corrected afterwards.
+ * Requiring a company number instead would have been the obvious version of this and
+ * the wrong one: it locks out עוסק פטור, a sole עוסק מורשה, and any private
+ * individual. One field that takes any of the three costs nobody anything.
+ *
+ * ── WHAT THIS COMPONENT DOES NOT DO ─────────────────────────────────────────
+ * It never sends an amount. The plan id goes up and the price is read from
+ * auditor_plans on the server, twice — here for display, and again in the start
+ * route that talks to Cardcom. A price in the request body would be a hole.
+ *
+ * It also has no card fields, and never will: the card is entered on Cardcom's own
+ * Low Profile page. Nothing in this repository should ever be in a position to read
+ * a card number.
+ */
+
+type Props = {
+  planId: string
+  planName: string
+  /** VAT-inclusive — the figure that will be charged. See migration 130. */
+  grossAmount: number
+  netAmount: number
+  vatAmount: number
+  currency: string
   scanId: string
   token: string
-  basePath?: string
-}) {
-  const router = useRouter()
-  const basePath = props.basePath ?? "/auditor"
-  const [error, setError] = useState<string | null>(null)
-  const [isWorking, setIsWorking] = useState(true)
+  host: string
+}
 
-  const linkId = useMemo(() => String(props.linkId || "").trim(), [props.linkId])
-  const scanId = useMemo(() => String(props.scanId || "").trim(), [props.scanId])
-  const token = useMemo(() => String(props.token || "").trim(), [props.token])
+type Fields = {
+  fullName: string
+  email: string
+  phone: string
+  businessName: string
+  taxId: string
+  address: string
+}
 
-  useEffect(() => {
-    let cancelled = false
+const EMPTY: Fields = { fullName: "", email: "", phone: "", businessName: "", taxId: "", address: "" }
 
-    const run = async () => {
-      setIsWorking(true)
-      setError(null)
+/** The same shape the rest of the app uses — see AuditorRegisterClient and forgot-password. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-      // If already subscribed: go to dashboard.
-      try {
-        const r = await fetch("/api/auditor/billing/subscription/status", { method: "GET" })
-        const j = await r.json().catch(() => null)
-        if (r.ok && j?.ok === true && j?.has_subscription === true) {
-          const status = String(j?.status || "")
-          if (status === "active") {
-            router.replace(`${basePath}/dashboard`)
-            return
-          }
-        }
-      } catch {
-        // ignore and continue to checkout start
-      }
+/**
+ * Israeli mobile and landline, digits only after normalising. Deliberately loose on
+ * formatting and strict on length: people type spaces, hyphens and a leading +972,
+ * and rejecting a correct number because of a hyphen is the most annoying possible
+ * way to lose a sale.
+ */
+function normalisePhone(raw: string): string {
+  const digits = String(raw || "").replace(/[^\d]/g, "")
+  if (digits.startsWith("972")) return "0" + digits.slice(3)
+  return digits
+}
 
-      if (!linkId) {
-        setError(props.basePath?.startsWith("/en") ? "Missing link_id. Return to the purchase link." : "חסר link_id. חזרו ללינק הרכישה מהאתר.")
-        setIsWorking(false)
+function validate(f: Fields): Partial<Record<keyof Fields, string>> {
+  const errors: Partial<Record<keyof Fields, string>> = {}
+
+  if (!f.fullName.trim()) errors.fullName = "נדרש שם מלא"
+  if (!EMAIL_RE.test(f.email.trim())) errors.email = "כתובת אימייל לא תקינה"
+
+  const phone = normalisePhone(f.phone)
+  if (phone.length < 9 || phone.length > 10) errors.phone = "מספר טלפון לא תקין"
+
+  if (!f.businessName.trim()) errors.businessName = "נדרש שם חברה או עסק"
+
+  // One checksum for all three identifier types — see the note at the top.
+  if (!isValidIsraeliId(f.taxId)) errors.taxId = "מספר לא תקין. ח.פ, ע.מ או ת״ז — תשע ספרות"
+
+  return errors
+}
+
+export default function AuditorCheckoutClient(props: Props) {
+  const [fields, setFields] = useState<Fields>(EMPTY)
+  const [errors, setErrors] = useState<Partial<Record<keyof Fields, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
+
+  const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFields((prev) => ({ ...prev, [k]: e.target.value }))
+    // Clear this field's error as soon as it is touched: an error that stays on
+    // screen while the visitor fixes it reads as "still wrong".
+    if (errors[k]) setErrors((prev) => ({ ...prev, [k]: undefined }))
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setServerError(null)
+
+    const found = validate(fields)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/auditor/billing/checkout/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          // No amount. See the note at the top of this file.
+          plan_id: props.planId,
+          scanId: props.scanId,
+          token: props.token,
+          full_name: fields.fullName.trim(),
+          email: fields.email.trim().toLowerCase(),
+          phone: normalisePhone(fields.phone),
+          business_name: fields.businessName.trim(),
+          tax_id: String(fields.taxId || "").replace(/[\s-]/g, ""),
+          address: fields.address.trim() || undefined,
+        }),
+      })
+      const json = (await res.json().catch(() => null)) as any
+
+      if (!res.ok || !json?.ok || !json?.redirect_url) {
+        setServerError(
+          json?.error === "rate_limited"
+            ? "יותר מדי נסיונות. נסו שוב בעוד דקה."
+            : "לא הצלחנו לפתוח את עמוד התשלום. נסו שוב בעוד רגע."
+        )
+        setSubmitting(false)
         return
       }
 
-      try {
-        const origin = typeof window !== "undefined" ? window.location.origin : ""
-        const successUrl = `${origin}${basePath}/success`
-        const errorParams = new URLSearchParams({ checkout: "error" })
-        if (linkId) errorParams.set("link_id", linkId)
-        if (scanId) errorParams.set("scanId", scanId)
-        if (token) errorParams.set("token", token)
-        const body = {
-          link_id: linkId,
-          created_from_url: typeof window !== "undefined" ? window.location.href : null,
-          success_url: successUrl,
-          error_url: `${origin}${basePath}/checkout?${errorParams.toString()}`,
-        }
-
-        const r = await fetch("/api/auditor/billing/checkout/start", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-        })
-        const j = await r.json().catch(() => null)
-        if (!r.ok) throw new Error(String(j?.error || `Failed (${r.status})`))
-
-        const redirectUrl = String(j?.redirect_url || "").trim()
-        if (!redirectUrl) throw new Error("Missing redirect_url")
-        const trackedPlan = normalizeTrackedPlan(j?.plan_id)
-        const trackedValue = Number(j?.amount)
-        const trackedCurrency = String(j?.currency || "").trim() || "USD"
-        const checkoutSessionId = String(j?.checkout_session_id || "").trim()
-
-        if (trackedPlan && Number.isFinite(trackedValue) && checkoutSessionId) {
-          saveAuditorCheckoutTrackingContext({
-            checkout_session_id: checkoutSessionId,
-            plan: trackedPlan,
-            value: trackedValue,
-            currency: trackedCurrency,
-            created_at: Date.now(),
-          })
-        }
-
-        if (!cancelled) window.location.href = redirectUrl
-      } catch (e: any) {
-        if (cancelled) return
-        setError(String(e?.message || e))
-        setIsWorking(false)
-      }
+      // Cardcom's own page. Full navigation, not a fetch — the card is entered there.
+      window.location.href = String(json.redirect_url)
+    } catch {
+      setServerError("לא הצלחנו לפתוח את עמוד התשלום. נסו שוב בעוד רגע.")
+      setSubmitting(false)
     }
+  }
 
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [linkId, scanId, token, router])
+  const money = (n: number) =>
+    n.toLocaleString("he-IL", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
 
-  const isEn = basePath.startsWith("/en")
   return (
-    <main className="min-h-svh bg-[#F7F3EE] px-6 py-16">
-      <div className={`mx-auto max-w-xl space-y-4 ${isEn ? "text-left" : "text-right"}`}>
-        <h1 className="text-2xl font-semibold">{isEn ? "Opening checkout…" : "פותחים סליקה…"}</h1>
-
-        <p className="text-sm text-muted-foreground">
-          {isEn ? "Redirecting to secure payment. If it takes more than a few seconds, try again." : "אנחנו מעבירים אותך לדף תשלום מאובטח. אם זה לוקח יותר מכמה שניות, אפשר לנסות שוב."}
-        </p>
-
-        {props.checkout === "error" ? (
-          <div className="rounded-ui border border-danger/30 bg-danger/5 p-3 text-sm text-danger">
-            {isEn ? "Payment not completed. You can try again." : "התשלום לא הושלם. אפשר לנסות שוב."}
-          </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-ui border border-danger/30 bg-danger/5 p-3 text-sm text-danger">{error}</div>
-        ) : null}
-
-        <div className={`flex gap-3 ${isEn ? "justify-start" : "justify-end"}`}>
-          {isWorking ? (
-            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {isEn ? "Preparing payment…" : "מכינים תשלום…"}
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="rounded-ui bg-black px-4 py-2 text-white text-sm font-medium"
-              onClick={() => router.refresh()}
-            >
-              {isEn ? "Try again" : "נסו שוב"}
-            </button>
-          )}
+    <main className="min-h-svh bg-white px-4 py-10 sm:px-6 sm:py-16" dir="rtl">
+      <div className="mx-auto max-w-lg">
+        <div className="flex items-center gap-2.5">
+          <span className="text-[17px] font-extrabold tracking-[.2px] text-[#1C2A46]" dir="ltr">
+            UX<span className="text-[#5389BB]">ellent</span>
+          </span>
+          <span className="rounded-full bg-[#EDF3F9] px-2.5 py-1 text-[11px] font-extrabold text-[#2C5679]">
+            הרשמה למנוי
+          </span>
         </div>
+
+        {/* What is being bought, before what is being asked. */}
+        <div className="mt-5 rounded-2xl bg-[#F6F8FC] p-5">
+          <div className="text-[12.5px] font-extrabold tracking-[.14em] text-[#78859B]">
+            {props.planName}
+          </div>
+          <div className="mt-2 flex items-end justify-start gap-2.5">
+            <b className="text-[44px] font-extrabold leading-[.92] tracking-[-.035em] text-[#101B31]">
+              {money(props.netAmount)}
+            </b>
+            <em className="pb-1.5 text-sm font-bold not-italic text-[#78859B]">₪ לחודש</em>
+          </div>
+          <div className="mt-1.5 text-[12.5px] font-semibold text-[#78859B]">
+            {money(props.grossAmount)} ₪ כולל מע״מ · חיוב חודשי, בלי התחייבות
+          </div>
+          {props.host ? (
+            <div className="mt-3 border-t border-[#E1E7F1] pt-3 text-[12.5px] text-[#3A465F]">
+              עבור <span dir="ltr" className="font-bold">{props.host}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
+          <Field label="שם מלא" value={fields.fullName} onChange={set("fullName")} error={errors.fullName} autoComplete="name" />
+          <Field label="אימייל" value={fields.email} onChange={set("email")} error={errors.email} type="email" autoComplete="email" dir="ltr" />
+          <Field label="טלפון" value={fields.phone} onChange={set("phone")} error={errors.phone} type="tel" autoComplete="tel" dir="ltr" />
+          <Field label="שם חברה / עסק" value={fields.businessName} onChange={set("businessName")} error={errors.businessName} autoComplete="organization" />
+          <Field
+            label="ח.פ / ע.מ / ת״ז"
+            value={fields.taxId}
+            onChange={set("taxId")}
+            error={errors.taxId}
+            hint="תשע ספרות. נדרש לחשבונית מס קבלה."
+            inputMode="numeric"
+            dir="ltr"
+          />
+          <Field label="כתובת" value={fields.address} onChange={set("address")} error={undefined} optional autoComplete="street-address" />
+
+          {serverError ? (
+            <p role="alert" className="rounded-xl bg-[#FBE7E4] px-4 py-3 text-sm font-semibold text-[#B33A2C]">
+              {serverError}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="mt-1 inline-flex h-[54px] items-center justify-center rounded-xl bg-gradient-to-b from-[#5389BB] to-[#3A6D9A] text-base font-extrabold text-white transition disabled:opacity-60"
+          >
+            {submitting ? "רגע…" : `לתשלום · ${money(props.grossAmount)} ₪`}
+          </button>
+
+          <p className="text-center text-[12.5px] leading-relaxed text-[#78859B]">
+            התשלום מתבצע בעמוד המאובטח של קארדקום. פרטי הכרטיס אינם עוברים דרכנו ואינם נשמרים אצלנו.
+            <br />
+            חשבונית מס קבלה תישלח לאימייל שהזנתם.
+          </p>
+        </form>
       </div>
     </main>
   )
 }
 
+function Field({
+  label,
+  value,
+  onChange,
+  error,
+  hint,
+  optional,
+  type = "text",
+  ...rest
+}: {
+  label: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  error?: string
+  hint?: string
+  optional?: boolean
+  type?: string
+} & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[13px] font-bold text-[#3A465F]">
+        {label}
+        {optional ? <span className="font-semibold text-[#78859B]"> · אופציונלי</span> : null}
+      </span>
+      <input
+        {...rest}
+        type={type}
+        value={value}
+        onChange={onChange}
+        aria-invalid={error ? true : undefined}
+        className={`h-12 rounded-none border-0 border-b bg-transparent px-0.5 text-base text-[#101B31] outline-none transition ${
+          error ? "border-b-2 border-[#B33A2C]" : "border-[#5C6473] focus:border-b-2 focus:border-[#3F76AC]"
+        }`}
+      />
+      {error ? (
+        <span className="text-[12.5px] font-semibold text-[#B33A2C]">{error}</span>
+      ) : hint ? (
+        <span className="text-[12.5px] text-[#78859B]">{hint}</span>
+      ) : null}
+    </label>
+  )
+}
