@@ -29,9 +29,21 @@ export const dynamic = "force-dynamic"
  * auditor_scans.scan_access_token — the same comparison /api/auditor/status makes at
  * line 49 — before anything is rendered.
  *
- * A bad pair is 403, not 404. 404 would say "no such thing" about a scan that
- * exists, which is a lie that also hides a misconfigured link from whoever has to
- * debug it. 403 says the pair is wrong, which is true and diagnosable.
+ * ── WHAT A BAD PAIR ACTUALLY RETURNS HERE: 200, NOT 403 ─────────────────────
+ * An earlier version of this comment claimed 403, and the code never did that. A
+ * page component in the App Router cannot set an arbitrary status: the choices are
+ * notFound() — which is 404 — or an ordinary render. So a bad pair renders the
+ * refusal below at 200, and that is the approved behaviour rather than a compromise:
+ * whoever is holding a stale link is a person who needs a sentence they can act on,
+ * and a bare 404 tells them nothing.
+ *
+ * 403 lives where it is both enforceable and meaningful — /api/auditor/billing/
+ * checkout/start, which is what a script would be hitting. No middleware was added
+ * to manufacture a status here; a third layer to change one number is not worth its
+ * own failure mode.
+ *
+ * Nothing is disclosed either way. The refusal never says which of scanId or token
+ * was wrong — that distinction belongs in the log, not on the screen.
  *
  * ── AND THE PRICE IS NEVER READ FROM THE URL ────────────────────────────────
  * Only `plan` travels. The amount is loaded from auditor_plans here and again in the
