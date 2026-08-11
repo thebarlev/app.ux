@@ -1,10 +1,12 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import type { AuditorLocale } from "@/lib/auditor/locale"
 import type { StatusResponse } from "@/components/auditor/home/logic/auditor-home-types"
 import { AuditorWhatHappensNext } from "@/components/auditor/home/ui/AuditorWhatHappensNext"
 import { WhatsAppMark } from "@/components/auditor/home/ui/WhatsAppMark"
 import { AuditorTestimonials } from "@/components/auditor/home/ui/AuditorTestimonials"
+import { AuditorPlans, type AuditorPlanSlug } from "@/components/auditor/home/ui/AuditorPlans"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 
 /**
@@ -25,7 +27,14 @@ type Props = {
   locale: AuditorLocale
   status: StatusResponse | null
   teaser?: boolean
-  onUnlock?: () => void
+  /**
+   * The scan on screen, handed to the plans section so a chosen plan can be tied
+   * back to the report that sold it. Not on StatusResponse — the status route
+   * does not publish the id it was queried with — so it comes from the caller.
+   */
+  scanId?: string | null
+  /** See AuditorPlans: the plan slug and the scan it was chosen from. */
+  onSelectPlan?: (plan: AuditorPlanSlug, scanId: string | null) => void
   whatsappUrl?: string
   phone?: string
   emailCopy?: boolean
@@ -73,6 +82,18 @@ const C = {
    * have to agree and this is the second of them.
    */
   onNavyDim: "#C4D3E6",
+  /*
+   * The hero band. Values are the spec's --navy0/--navy1 and its three text
+   * tints; onNavyDim above is the closing block's own and stays as it is, because
+   * that block and AuditorTestimonials have to agree with each other.
+   */
+  navy0: "#0A0F1A",
+  navy1: "#0D1526",
+  onNavy: "#F4F6FA",
+  onNavyBandDim: "#BCD3E8",
+  onNavyMute: "#8FA3BE",
+  /** The one warm accent inside the band, for a count that wants attention. */
+  statWarm: "#F0B65A",
 } as const
 
 function toneFor(v: number | null): { text: string; fill: string } {
@@ -188,9 +209,6 @@ const SCORE_BAND_COPY = {
       title: "יש כאן עבודה, ואנחנו כאן בשבילה",
       body: "כרגע האתר לא ממצה את מה שהוא יכול לתת לכם, לא בבדיקות הטכניות ולא ביכולת להביא לקוחות חדשים. זו הזדמנות טובה להתחיל לבנות את זה נכון, ונשמח לעשות את זה איתכם.",
     },
-    always: "ציון גבוה חשוב, אבל הוא לא הכל. הצלחה אמיתית באינטרנט היא שילוב של אתר תקין ודרך נכונה להביא לקוחות. בזה אנחנו יכולים לעזור לכם.",
-    offer:
-      "הטבה מיוחדת ל-24 השעות הקרובות. פרטים אצל הסוכנים שלנו, החל מ-300 ₪ לחודש לקידום אורגני ב-SEO ובבינה מלאכותית (AI).",
   },
   /**
    * Written to read as English rather than as a translation of the Hebrew, and
@@ -211,18 +229,126 @@ const SCORE_BAND_COPY = {
       title: "There's work to do here, and that's what we're for",
       body: "Right now your site isn't giving you what it could — not in the technical checks, and not in bringing in new customers. This is a good opportunity to start building it properly, and we'd be glad to do it with you.",
     },
-    always:
-      "A high score matters, but it isn't everything. Real success online is a working site combined with the right way to bring in customers. That's where we can help.",
-    offer:
-      "Special offer for the next 24 hours. Details from our agents — from ₪300/month for organic SEO and AI visibility.",
   } as null | {
     high: { title: string; body: string }
     mid: { title: string; body: string }
     low: { title: string; body: string }
-    always: string
-    offer: string
   },
 } as const
+
+/**
+ * The headline in the band, one per score band.
+ *
+ * The Hebrew is the spec's own three strings. The English is written to read as
+ * English rather than as a translation of them, the same way SCORE_BAND_COPY.en
+ * was — the spec has no English at all, so there was nothing to copy.
+ */
+const HERO_HEADLINE = {
+  he: {
+    low: "האתר שלכם כמעט לא נמצא בחיפוש",
+    mid: "האתר תקין. השאלה היא כמה אנשים מגיעים אליו",
+    high: "האתר שלכם עשה את שלו",
+  },
+  en: {
+    low: "Your site is barely showing up in search",
+    mid: "The site works. The question is how many people reach it",
+    high: "Your site has done its part",
+  },
+} as const
+
+/**
+ * The word for the score, next to the number.
+ *
+ * Values are the spec's three [background, foreground, label] triples. Each pair
+ * clears 4.5:1 as measured — 4.96, 4.79 and 5.33 — so the pill is readable as
+ * body text, which matters because it is the one place the score's own colour
+ * still speaks now that the arc carries the spec's blue gradient instead.
+ */
+const GRADE = {
+  low: { bg: "#FBE7E4", fg: "#B33A2C", he: "חלש", en: "Weak" },
+  mid: { bg: "#FBF3E0", fg: "#8A6521", he: "סביר", en: "Fair" },
+  high: { bg: "#E4F3EA", fg: "#127048", he: "מצוין", en: "Excellent" },
+} as const
+
+function GradeBadge({ total, en }: { total: number; en: boolean }) {
+  const g = GRADE[scoreBand(total)]
+  return (
+    <span
+      style={{
+        marginTop: 9,
+        display: "inline-block",
+        fontSize: "var(--ar-caption)",
+        fontWeight: 800,
+        padding: "4px 12px",
+        borderRadius: 999,
+        background: g.bg,
+        color: g.fg,
+      }}
+    >
+      {en ? g.en : g.he}
+    </span>
+  )
+}
+
+/**
+ * The stats strip in the hero band.
+ *
+ * The spec shows four boxes: open findings, criticals, pages scanned, and a
+ * locked improvement potential. Three are built here. **"קריטיים" is not**, and
+ * that is deliberate: /api/auditor/status publishes issues_overview as plain
+ * strings and issues_count as a total, with no severity anywhere, so a critical
+ * count could only be guessed. This page already refuses to do that — two of the
+ * category tiles are locked rather than filled with a plausible number, for the
+ * same reason — so the box is left out rather than invented. It comes back the
+ * day the status route publishes severity.
+ *
+ * The fourth box is locked, so it needs no data: it says a figure exists behind a
+ * plan, which is true, and the lock is the whole content.
+ */
+function HeroStats({ en, issuesCount, pages }: { en: boolean; issuesCount: number; pages: number | null }) {
+  const items: Array<{ value: string; label: string; tone?: "warm" | "locked" }> = []
+
+  if (issuesCount > 0) {
+    items.push({ value: String(issuesCount), label: en ? "open findings" : "ממצאים פתוחים", tone: "warm" })
+  }
+  if (pages !== null && pages > 0) {
+    items.push({ value: String(pages), label: en ? (pages === 1 ? "page scanned" : "pages scanned") : pages === 1 ? "עמוד נסרק" : "עמודים נסרקו" })
+  }
+  items.push({ value: en ? "Improvement potential" : "פוטנציאל שיפור", label: en ? "on a subscription plan" : "במסלול מנוי", tone: "locked" })
+
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 9, marginTop: 20 }}>
+      {items.map((s) => (
+        <div
+          key={s.label}
+          style={{
+            background: "rgba(255,255,255,.06)",
+            border: "1px solid rgba(255,255,255,.10)",
+            borderRadius: 12,
+            padding: "10px 14px",
+            minWidth: 104,
+          }}
+        >
+          <b
+            style={{
+              display: s.tone === "locked" ? "flex" : "block",
+              alignItems: "center",
+              gap: 6,
+              fontSize: s.tone === "locked" ? "var(--ar-label)" : 20,
+              fontWeight: 800,
+              lineHeight: 1.15,
+              color: s.tone === "warm" ? C.statWarm : s.tone === "locked" ? C.gold : C.onNavy,
+            }}
+          >
+            {s.tone === "locked" ? <span style={{ fontSize: 13 }} aria-hidden="true">🔒</span> : null}
+            <bdi dir="ltr">{s.value}</bdi>
+          </b>
+          <span style={{ fontSize: "var(--ar-meta)", color: C.onNavyMute, fontWeight: 600 }}>{s.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function scoreBand(total: number): "high" | "mid" | "low" {
   if (total > 70) return "high"
@@ -261,43 +387,30 @@ function ScoreBandCopy({ locale, total }: { locale: AuditorLocale; total: number
      * four that carries a fill, because it is the only one making a concrete
      * commercial promise and it is what the contact block below is for.
      */
-    <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14 }}>
+    /*
+      Centred, heading and body together.
+
+      The two lines are the page speaking in its own voice about the number just
+      above them, not a row in a report, and they now sit alone in this panel —
+      so the block is centred as one unit and the body is centred within its own
+      measure rather than being ragged against a left edge.
+    */
+    <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", marginTop: 14, textAlign: "center" }}>
       <h3 style={{ fontSize: BAND_TYPE, fontWeight: 800, color: C.ink, marginBottom: 8 }}>{band.title}</h3>
-      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{band.body}</p>
-
-      <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.line}` }}>
-        <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch" }}>{copy.always}</p>
-        {/*
-          White on the surface fill, not gold.
-
-          Gold on this page means "locked, pay to unlock" — it is the LockBand
-          fill, and two of those sit directly above this panel. An offer in the
-          same gold read as a third lock band rather than as an invitation to
-          talk to somebody, which is the opposite of what it is. Inverting the
-          figure/ground instead keeps it distinct using the page's own system,
-          where grouping comes from fill and nothing draws a border.
-        */}
-        <p
-          style={{
-            marginTop: 12,
-            background: "#fff",
-            color: C.ink,
-            borderRadius: 14,
-            padding: "12px 14px",
-            fontSize: BAND_TYPE,
-            fontWeight: 700,
-            textAlign: "center",
-          }}
-        >
-          {copy.offer}
-        </p>
-      </div>
+      <p style={{ fontSize: BAND_TYPE, color: C.ink2, maxWidth: "62ch", marginInline: "auto" }}>{band.body}</p>
     </div>
   )
 }
 
-/** The gold "and more — in premium" band from the mockup. */
-function LockBand({ title, body, cta, onUnlock }: { title: string; body: string; cta: string; onUnlock?: () => void }) {
+/**
+ * The gold "and more — in a subscription plan" band from the mockup.
+ *
+ * The action is an anchor to a section on this page, not a callback. It used to
+ * call onUnlock, which started checkout against a billing route that the auditor
+ * block hard-404s; the plans section below is now the thing these bands are
+ * asking the visitor to look at, so they scroll to it.
+ */
+function LockBand({ title, body, cta, href }: { title: string; body: string; cta: string; href: string }) {
   return (
     /*
      * The row wraps, and the text column has a floor.
@@ -318,14 +431,14 @@ function LockBand({ title, body, cta, onUnlock }: { title: string; body: string;
         <b style={{ fontSize: "var(--ar-prose)", color: C.ink }}>{title}</b>
         <p style={{ fontSize: "var(--ar-meta)", color: C.ink2, marginTop: 1 }}>{body}</p>
       </div>
-      <button type="button" onClick={onUnlock} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-meta)", cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto" }}>
+      <a href={href} style={{ background: C.gold, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontWeight: 800, fontSize: "var(--ar-meta)", cursor: "pointer", flexShrink: 0, fontFamily: "inherit", marginInlineStart: "auto", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
         {cta}
-      </button>
+      </a>
     </div>
   )
 }
 
-export function AuditorReportV3({ locale, status, teaser = false, onUnlock, whatsappUrl, phone = "0545215193", emailCopy = false }: Props) {
+export function AuditorReportV3({ locale, status, teaser = false, scanId = null, onSelectPlan, whatsappUrl, phone = "0545215193", emailCopy = false }: Props) {
   const en = locale === "en"
   const ok = status && status.ok === true ? status : null
   const cats = (ok?.category_scores || {}) as Record<string, number>
@@ -356,14 +469,43 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
     { label: en ? "Traffic tracking" : "מעקב תנועה", value: num(cats.tracking) },
   ]
 
+  /*
+   * The gauge draws itself once, on mount.
+   *
+   * The target offset depends on the score, so this cannot be a keyframe. The arc
+   * renders empty on the first paint and the real offset is set on the next frame;
+   * .ar-gauge-arc supplies the transition between the two, and drops it under
+   * prefers-reduced-motion. requestAnimationFrame rather than a timeout so the
+   * empty state is committed before the value changes — set in the same frame, the
+   * browser coalesces both and there is nothing to animate from.
+   */
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setDrawn(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
   const dash = 326.7
   const offset = total === null ? dash : dash * (1 - Math.max(0, Math.min(100, total)) / 100)
-  const gaugeTone = toneFor(total)
+  /*
+   * No gaugeTone any more: the arc takes the spec's blue gradient, so the score's
+   * colour is not read off it. toneFor still serves the category meters and
+   * figures, and the score's own colour now lives in the grade pill.
+   */
 
   return (
-    <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, padding: "var(--ar-page)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
+    /*
+      Vertical padding on the root, horizontal on each container.
+
+      The hero is a full-bleed band now, and it cannot bleed past padding on its
+      own ancestor. So the root keeps --ar-page-top / --ar-page-bottom and the
+      side gutter moves to the containers, which is why there are three of them
+      below: masthead, then the band, then the rest of the report. All three sit
+      on the same 1040 measure, so nothing shifts horizontally.
+    */
+    <div className={AUDITOR_SCOPE} dir={en ? "ltr" : "rtl"} style={{ background: "#fff", color: C.ink, paddingTop: "var(--ar-page-top)", paddingBottom: "var(--ar-page-bottom)", fontFamily: "'Assistant',system-ui,Arial,sans-serif" }}>
       <AuditorScaleStyles />
-      <div style={{ maxWidth: 1040, margin: "0 auto" }}>
+      <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)" }}>
         {/*
           The masthead. It used to be one unstyled line of bold text with a dot
           and a hostname, sitting under a block of empty page — the only part of
@@ -374,30 +516,120 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           thing the visitor actually wants confirmed. Hairline under it so the
           head of the page has an edge to sit on.
         */}
-        <div style={{ marginTop: 0, marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${C.line}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: "var(--ar-meta)", fontWeight: 800, color: C.brandInk, letterSpacing: ".02em" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.brand, flexShrink: 0 }} />
+        {/*
+          The top bar, per the spec: one 62px row, white, hairline under it —
+          mark, then what this document is, then the hostname pushed to the far
+          end. It was a two-row block with the host stacked under an eyebrow.
+
+          The mark is set as type rather than fetched as an asset. This is a light
+          bar, so the white SVG the navy closing block uses cannot serve here, and
+          two spans need no request and no second colourway.
+        */}
+        <div style={{ display: "flex", alignItems: "center", gap: 14, minHeight: 62, marginBottom: 14, borderBottom: `1px solid ${C.line}`, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: ".2px", color: C.ink }} dir="ltr">
+            UX<span style={{ color: C.brand }}>ellent</span>
+          </span>
+          <span style={{ fontSize: "var(--ar-caption)", fontWeight: 800, color: C.brandInk, background: "#EDF3F9", padding: "4px 11px", borderRadius: 999 }}>
             {en ? "Ranking report" : "דוח דירוג"}
-          </div>
+          </span>
           {!teaser && host ? (
-            <div style={{ fontWeight: 800, fontSize: "var(--ar-h3)", color: C.ink, marginTop: 3, wordBreak: "break-word" }} dir="ltr">
+            <span style={{ marginInlineStart: "auto", fontSize: "var(--ar-label)", color: C.muted, fontWeight: 600, wordBreak: "break-word" }} dir="ltr">
               {host}
-            </div>
+            </span>
           ) : null}
         </div>
 
-        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
+      </div>
 
-        {/* hero */}
-        <div style={{ background: C.surface, borderRadius: 20, padding: "var(--ar-panel-lg)", display: "flex", alignItems: "center", gap: 28, marginBottom: 14, flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontSize: "var(--ar-label)", fontWeight: 700, color: C.brandInk, marginBottom: 6 }}>
-              {en ? "Search & AI readiness" : "מוכנות לחיפוש ול-AI"}
+      {/*
+        The hero, as a full-bleed dark band.
+
+        It was a light panel on the same surface fill as every other block, inside
+        the 1040 measure — so the head of the report carried no more weight than a
+        findings card. The band is the shape the design asks for: the score is the
+        one thing on this page that should stop somebody, and a dark field running
+        edge to edge is what makes it read that way.
+
+        The gauge keeps its semantic colour rather than the spec's blue gradient.
+        Measured against both navy stops, the three tones clear the 3:1 that WCAG
+        1.4.11 asks of a graphical object with room to spare — red 4.88, green
+        5.32, amber 6.13 at the worst stop — and a red ring at 40 sells the
+        problem in a way a blue one cannot.
+      */}
+      <div
+        style={{
+          background:
+            "radial-gradient(900px 420px at 78% 8%, rgba(83,137,187,.20), transparent 60%)," +
+            "radial-gradient(700px 500px at 18% 85%, rgba(83,137,187,.10), transparent 60%)," +
+            `linear-gradient(${C.navy0} 0%, ${C.navy1} 100%)`,
+          color: C.onNavy,
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)", paddingBlock: "var(--ar-panel-lg)", display: "flex", alignItems: "center", gap: 38, flexWrap: "wrap" }}>
+          {/*
+            Gauge first in the DOM, so in RTL it sits on the right — the order the
+            spec's `grid-template-columns: auto 1fr` produces. It was text-first,
+            which put the dial on the wrong side of the band.
+          */}
+          <div style={{ flexShrink: 0, width: 222, height: 222, position: "relative", display: "grid", placeItems: "center" }}>
+            <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+              <defs>
+                <linearGradient id="ar-gauge-gr" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#7FB0DC" />
+                  <stop offset="100%" stopColor="#3A6D9A" />
+                </linearGradient>
+              </defs>
+              {/* Track is a wash of the band's own light, not the light-page #E4E9F3. */}
+              <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.10)" strokeWidth="10" />
+              {/*
+                The spec's blue gradient, replacing the score-coloured arc. Both
+                stops clear WCAG 1.4.11's 3:1 for a graphical object against the
+                band — #7FB0DC at 7.94 and #3A6D9A at 3.33 against the darker navy
+                stop — so nothing here is unreadable, and the score's own colour
+                still speaks through the grade pill below the number.
+
+                strokeDashoffset starts at `dash` (an empty ring) and moves to the
+                real offset once mounted; .ar-gauge-arc carries the transition that
+                turns that into a sweep, and honours prefers-reduced-motion.
+              */}
+              <circle
+                className="ar-gauge-arc"
+                cx="60" cy="60" r="52" fill="none"
+                stroke={teaser ? "rgba(255,255,255,.18)" : "url(#ar-gauge-gr)"}
+                strokeWidth="10" strokeLinecap="round"
+                strokeDasharray={dash}
+                strokeDashoffset={teaser ? dash * 0.45 : drawn ? offset : dash}
+              />
+            </svg>
+            <div style={{ textAlign: "center", position: "relative", zIndex: 2 }}>
+              {teaser ? (
+                <div style={{ height: 38, width: 62, borderRadius: 8, background: "rgba(255,255,255,.14)" }} />
+              ) : (
+                <div style={{ fontSize: 58, fontWeight: 800, lineHeight: 1, letterSpacing: "-1px", color: C.onNavy }}>{total === null ? "—" : total}</div>
+              )}
+              <div style={{ fontSize: "var(--ar-meta)", color: C.onNavyMute, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
+              {!teaser && total !== null ? <GradeBadge total={total} en={en} /> : null}
             </div>
-            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 8, color: C.ink }}>
-              {en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: "var(--ar-label)", fontWeight: 800, letterSpacing: ".06em", color: C.brand, marginBottom: 10 }}>
+              <span className="ar-pulse" aria-hidden="true" />
+              {en ? "Search & AI readiness" : "מוכנות לחיפוש ולמנועי AI"}
+            </div>
+            {/*
+              The headline reads the score rather than announcing itself. It was
+              the fixed "הציון הנוכחי של האתר שלך", which named the page instead of
+              telling the visitor anything; the three band headlines are the spec's
+              own strings.
+            */}
+            <h1 style={{ fontSize: "var(--ar-h1)", fontWeight: 800, marginBottom: 10, color: C.onNavy, lineHeight: 1.2 }}>
+              {teaser || total === null
+                ? en ? "Your site's current score" : "הציון הנוכחי של האתר שלך"
+                : HERO_HEADLINE[en ? "en" : "he"][scoreBand(total)]}
             </h1>
-            <p style={{ color: C.ink2, fontSize: "var(--ar-lede)", maxWidth: "52ch" }}>
+            <p style={{ color: C.onNavyDim, fontSize: "var(--ar-lede)", maxWidth: "54ch" }}>
               {teaser
                 ? en
                   ? "Where you stand in Google and AI search, and what is holding you back."
@@ -410,27 +642,59 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                     ? "No major findings in the initial scan."
                     : "לא נמצאו ממצאים מהותיים בסריקה הראשונית."}
             </p>
-            {!teaser && total !== null ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 14, background: C.amberBg, color: C.amber, fontWeight: 700, fontSize: "var(--ar-label)", padding: "6px 13px", borderRadius: 999 }}>
-                ● {en ? "Room to improve" : "פוטנציאל שיפור גבוה"}
-              </span>
+            {!teaser ? <HeroStats en={en} issuesCount={issuesCount} pages={pages} /> : null}
+            {/*
+              One button, and only one.
+
+              The spec styles a .hero-cta row with four .btn variants but never
+              uses the class in its hero, so there was nothing to copy — the label
+              and the destination are Itzik's. The gold variant is the primary on a
+              dark band, and it is the right one here for a reason beyond looks:
+              gold on this page already means "behind a plan" (it is the LockBand
+              fill), and this button goes to the plans. #231A05 on the gradient
+              measures 7.81 and 5.20 against its two stops.
+
+              No secondary button. The spec's pairing would send one to a contact
+              or lead anchor, and this report has none: the lead form is a separate
+              step the visitor has already passed by the time any of this renders,
+              and the only id in the component is the gauge's gradient. Rather than
+              mint an anchor to satisfy a button, there is one button.
+            */}
+            {!teaser ? (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
+                <a
+                  href="#plans"
+                  style={{
+                    border: 0,
+                    borderRadius: 12,
+                    padding: "14px 24px",
+                    fontFamily: "inherit",
+                    fontWeight: 800,
+                    fontSize: "var(--ar-prose)",
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    background: "linear-gradient(180deg,#D9A73C,#B0872F)",
+                    color: "#231A05",
+                  }}
+                >
+                  {en ? "See the plans" : "לראות את המסלולים"}
+                </a>
+              </div>
             ) : null}
           </div>
-          <div style={{ flexShrink: 0, width: 132, height: 132, position: "relative", display: "grid", placeItems: "center" }}>
-            <svg viewBox="0 0 120 120" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-              <circle cx="60" cy="60" r="52" fill="none" stroke={C.track} strokeWidth="11" />
-              <circle cx="60" cy="60" r="52" fill="none" stroke={teaser ? "#00000018" : gaugeTone.fill} strokeWidth="11" strokeLinecap="round" strokeDasharray={dash} strokeDashoffset={teaser ? dash * 0.45 : offset} />
-            </svg>
-            <div style={{ textAlign: "center" }}>
-              {teaser ? (
-                <div style={{ height: 38, width: 62, borderRadius: 8, background: "#0000001a" }} />
-              ) : (
-                <div style={{ fontSize: "var(--ar-score)", fontWeight: 800, lineHeight: 1 }}>{total === null ? "—" : total}</div>
-              )}
-              <div style={{ fontSize: "var(--ar-meta)", color: C.muted, fontWeight: 600, marginTop: 2 }}>{en ? "out of 100" : "מתוך 100"}</div>
-            </div>
-          </div>
         </div>
+      </div>
+
+      <div style={{ maxWidth: 1040, margin: "0 auto", paddingInline: "var(--ar-gutter)" }}>
+        {/*
+          Moved below the band. It used to sit between the masthead and the hero,
+          which put a block about what happens next ahead of the number it is a
+          reaction to.
+        */}
+        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
 
         {/*
           Directly under the gauge, because it is the reading of that number.
@@ -456,28 +720,35 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           the headline rather than the aside it is. The blue it needs is in the
           badge.
         */}
-        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", alignItems: "flex-start", gap: 11, marginBottom: 12 }}>
-          {/*
-            A rising line instead of a 46px filled tile with a ✦ in it. The tile
-            was the widest thing in the banner and said nothing; the chart says
-            what the sentence beside it promises. The line draws itself once on
-            mount and then holds — motion that reports, rather than loops.
-          */}
-          {/*
-            26px and on the first line of the heading, not 34px centred against
-            the whole block. Centring floated it into the middle of a five-line
-            column and the 18px gap beside it took a further chunk of a 334px
-            row, which is the crowding: the mark was reading as a third of the
-            banner rather than as a mark.
-          */}
-          <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand, marginTop: "calc((var(--ar-h3) * 1.25 - 26px) / 2)" }} aria-hidden="true">
-            <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
-              <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
-                    style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
-              <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-          <div style={{ flex: 1 }}>
+        {/*
+          Centred: the mark and the heading on one line, the sub-line under it.
+
+          It was a left-aligned two-column row — mark in the first column, five
+          lines of text in the second. Centring the text inside that second
+          column would have centred it against the column rather than against the
+          banner, leaving it visibly off by the width of the mark and its gap. So
+          the banner is a centred column instead, and the mark moves onto the
+          heading's own line, which is also where it already claimed to be.
+        */}
+        <div style={{ background: C.surface, borderRadius: 18, padding: "var(--ar-panel)", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 11, flexWrap: "wrap" }}>
+            {/*
+              A rising line instead of a 46px filled tile with a ✦ in it. The tile
+              was the widest thing in the banner and said nothing; the chart says
+              what the sentence beside it promises. The line draws itself once on
+              mount and then holds — motion that reports, rather than loops.
+
+              No marginTop now: it was offsetting the mark down to meet the first
+              line of a heading in a flex-start row. On a centred row alignItems
+              does that, and the old calc would push it below the text.
+            */}
+            <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand }} aria-hidden="true">
+              <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
+                <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
+                <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             {/*
               Nobody is working on this site yet. The service starts after an
               approval, a connection and a payment, so "already working on your
@@ -493,12 +764,12 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             <b style={{ fontSize: "var(--ar-h3)", fontWeight: 800 }}>
               {en ? "We'll bring your business new customers" : "נביא לעסק שלך לקוחות חדשים"}
             </b>
-            <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2 }}>
-              {en
-                ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
-                : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
-            </p>
           </div>
+          <p style={{ fontSize: "var(--ar-prose)", color: C.ink2, marginTop: 2, maxWidth: "62ch" }}>
+            {en
+              ? "Our specialists do the groundwork that gets you there: links to your site, articles and more. It starts the moment you give us the go-ahead."
+              : "המומחים שלנו עושים את העבודה היסודית שמביאה לזה: קישורים לאתר, מאמרים ועוד. מתחילים ברגע שתאשרו."}
+          </p>
         </div>
 
         {/*
@@ -528,7 +799,13 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
           </span>
           <span style={{ color: C.muted }}>·</span>
           <span style={{ color: C.gold, fontWeight: 700, lineHeight: 1.25 }}>
-            {en ? "Premium customers get a deep scan across dozens of pages ↗" : "לקוחות פרימיום מקבלים סריקה עמוקה בעשרות עמודים ↗"}
+            {/*
+              The promise is kept by the expert with their own tools, not by this
+              scanner. Said that way, it is also true — the full-site pass is
+              manual work in the monthly report, which is why a missing
+              AUDITOR_SERPER_API_KEY does not block any of this.
+            */}
+            {en ? "On our subscription plans an expert reviews the whole site ↗" : "במסלולי המנוי המומחה שלנו עובר על האתר המלא ↗"}
           </span>
         </div>
 
@@ -578,7 +855,7 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
                   </div>
                   <div className="ar-tile-meter" style={{ display: "flex", alignItems: "center", height: 26 }}>
                     <span style={{ fontSize: "var(--ar-meta)", color: C.gold, fontWeight: 700 }}>
-                      {en ? "Opens with premium" : "נפתח בפרימיום"}
+                      {en ? "Opens on a subscription plan" : "נפתח במסלול מנוי"}
                     </span>
                   </div>
                 </>
@@ -630,10 +907,10 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             )}
             {!teaser && issuesCount > 2 ? (
               <LockBand
-                title={en ? `${issuesCount - 2} more findings in premium` : `ועוד ${issuesCount - 2} ממצאים בפרימיום`}
+                title={en ? `${issuesCount - 2} more findings in a subscription` : `ועוד ${issuesCount - 2} ממצאים במסלול מנוי`}
                 body={en ? "Our experts will find and fix all of them for you." : "המומחים שלנו יזהו ויטפלו בכל הממצאים עבורך."}
                 cta={en ? "Unlock access" : "פתחו גישה"}
-                onUnlock={onUnlock}
+                href="#plans"
               />
             ) : null}
           </Card>
@@ -650,14 +927,33 @@ export function AuditorReportV3({ locale, status, teaser = false, onUnlock, what
             ))}
             {!teaser ? (
               <LockBand
-                title={en ? "More categories in premium" : "ועוד קטגוריות בפרימיום"}
+                title={en ? "More categories in a subscription" : "ועוד קטגוריות במסלול מנוי"}
                 body={en ? "Exactly where you lose traffic, and what we close first." : "בדיוק איפה אתה מפסיד תנועה, ומה נסגור קודם."}
                 cta={en ? "Unlock access" : "פתחו גישה"}
-                onUnlock={onUnlock}
+                href="#plans"
               />
             ) : null}
           </Card>
         </div>
+
+        {/*
+          The subscription section.
+
+          It sits after the last measurement and before the closing block, which
+          is the position the work order describes — "between the keyword section
+          and the customers section" — mapped onto the page as it actually is.
+          Neither of those two sections exists in this component: the keyword
+          strip and the competitor card are in the v5 spec only, and the customer
+          case studies are not in the report at all. What is real here is the
+          seam between the findings and the closing testimonials, and the offer
+          belongs in it: after the visitor has seen what is wrong, before we
+          close.
+
+          Not in the teaser, for the same reason the closing block is not: the
+          teaser is a shape glimpsed behind a form, and a blurred price list is
+          noise there.
+        */}
+        {!teaser ? <AuditorPlans locale={locale} scanId={scanId} onSelectPlan={onSelectPlan} /> : null}
 
         {/*
           The closing block: what other customers say, and then us saying we have

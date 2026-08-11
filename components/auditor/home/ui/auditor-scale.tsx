@@ -42,6 +42,16 @@ export function AuditorScaleStyles() {
   --ar-h1:23px; --ar-h2:17px; --ar-h3:16px; --ar-cta:20px; --ar-score:40px;
   --ar-lede:14.5px; --ar-prose:13.5px; --ar-label:13px; --ar-meta:12.5px; --ar-caption:11px; --ar-val:30px; --ar-peek:19px;
   --ar-page:22px 16px 40px; --ar-panel:22px 24px; --ar-panel-lg:26px 30px; --ar-panel-sm:15px 16px;
+  /*
+    --ar-page split into its three parts.
+
+    The hero is a full-bleed dark band, so it has to escape the horizontal
+    padding that used to sit on the page root. The root now carries the vertical
+    halves only and each content container carries --ar-gutter itself, which
+    leaves the band free to run edge to edge while everything else stays aligned
+    to the same measure. Same numbers as the shorthand above, just addressable.
+  */
+  --ar-page-top:22px; --ar-gutter:16px; --ar-page-bottom:40px;
   --ar-btn:13px 20px; --ar-gap:16px; --ar-check:15px; --ar-testi-top:34px;
 }
 /*
@@ -75,6 +85,7 @@ export function AuditorScaleStyles() {
     --ar-h1:26px; --ar-h2:21px; --ar-h3:20px; --ar-cta:24px; --ar-score:46px;
     --ar-lede:20px; --ar-prose:20px; --ar-label:19px; --ar-meta:18px; --ar-caption:18px; --ar-val:34px; --ar-peek:24px;
     --ar-page:16px 8px 32px; --ar-panel:18px 14px; --ar-panel-lg:20px 16px; --ar-panel-sm:16px 14px;
+    --ar-page-top:16px; --ar-gutter:8px; --ar-page-bottom:32px;
     --ar-btn:15px 20px; --ar-gap:12px; --ar-check:22px; --ar-testi-top:38px;
   }
   .${AUDITOR_SCOPE} .ar-tile{
@@ -122,7 +133,31 @@ export function AuditorScaleStyles() {
 }
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
-@media (prefers-reduced-motion:reduce){ .${AUDITOR_SCOPE} svg *{ animation:none !important } }
+/*
+  The kick's pulse, carried from the spec: a dot that breathes a ring outward.
+  Box-shadow rather than a transform so it cannot shift the text beside it.
+*/
+@keyframes ar-pulse{
+  0%{ box-shadow:0 0 0 0 rgba(83,137,187,.55) }
+  70%{ box-shadow:0 0 0 11px rgba(83,137,187,0) }
+  100%{ box-shadow:0 0 0 0 rgba(83,137,187,0) }
+}
+.${AUDITOR_SCOPE} .ar-pulse{
+  width:7px; height:7px; border-radius:50%; background:#5389BB; flex-shrink:0;
+  animation:ar-pulse 2.4s infinite;
+}
+/*
+  The gauge draws itself once. The target offset depends on the score, so it
+  cannot be a keyframe — the arc renders empty and the offset is set after mount,
+  and this transition is what makes that a sweep rather than a jump.
+*/
+.${AUDITOR_SCOPE} .ar-gauge-arc{ transition:stroke-dashoffset .9s ease-out }
+@media (prefers-reduced-motion:reduce){
+  .${AUDITOR_SCOPE} svg *{ animation:none !important }
+  /* The arc's motion is a transition, not an animation, so it needs saying too. */
+  .${AUDITOR_SCOPE} .ar-gauge-arc{ transition:none !important }
+  .${AUDITOR_SCOPE} .ar-pulse{ animation:none !important }
+}
 `.trim(),
       }}
     />

@@ -11,6 +11,16 @@ import type { AuditorHomeProps } from "@/components/auditor/home/logic/auditor-h
 const WHATSAPP_PHONE = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_AUDITOR_WHATSAPP_PHONE) || "972545215193"
 const WHATSAPP_URL = `https://wa.me/${String(WHATSAPP_PHONE).replace(/^0+/, "")}`
 
+/**
+ * The page measure, moved here from app/auditor/page.tsx.
+ *
+ * Same three classes and the same values as the wrapper that used to hold the
+ * whole flow, applied per block instead. Every step keeps the layout it had; the
+ * report is the one thing deliberately left outside it, so its hero can run a
+ * full-bleed band to the edges of the viewport.
+ */
+const MEASURE = "mx-auto max-w-5xl px-4 sm:px-6"
+
 export default function AuditorHomeClient(props?: AuditorHomeProps) {
   const locale = props?.locale ?? "he"
   const basePath = props?.basePath ?? "/auditor"
@@ -19,18 +29,18 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
   return (
     <div dir={locale === "en" ? "ltr" : "rtl"} className="space-y-6">
       {controller.error ? (
-        <div className="rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger text-start">{controller.error}</div>
+        <div className={MEASURE}><div className="rounded-ui border border-danger/40 bg-danger/5 p-3 text-sm text-danger text-start">{controller.error}</div></div>
       ) : null}
 
       {controller.step === 1 ? (
-        <AuditorStepOne
+        <div className={MEASURE}><AuditorStepOne
           locale={locale}
           siteUrl={controller.siteUrl}
           setSiteUrl={controller.setSiteUrl}
           canGoToDetails={controller.canGoToDetails}
           isSubmitting={controller.isSubmitting}
           onStart={controller.onStart}
-        />
+        /></div>
       ) : null}
 
       {/*
@@ -43,23 +53,23 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
         before details and the block below after them.
       */}
       {controller.step === 2 ? (
-        <AuditorStepTwo
+        <div className={MEASURE}><AuditorStepTwo
           locale={locale}
           status={controller.status}
           step2IsWorking={controller.step2IsWorking}
           siteUrl={controller.siteUrl}
-        />
+        /></div>
       ) : null}
 
       {controller.step === "gate" ? (
-        <AuditorLeadGate
+        <div className={MEASURE}><AuditorLeadGate
           locale={locale}
           isSubmitting={controller.isSubmittingLead}
           pagesScanned={controller.pagesScanned}
           issuesCount={controller.issuesCount}
           noScore={controller.scanEndedWithoutScore}
           onSubmit={controller.submitLead}
-        />
+        /></div>
       ) : null}
 
       {/*
@@ -69,8 +79,13 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
         an apology, and still offers another address for anyone who would rather
         not wait.
       */}
+      {/*
+        Its own measure, not MEASURE: this card is max-w-md, and putting both
+        max-w-md and MEASURE's max-w-5xl in one class list leaves which one wins
+        to stylesheet order rather than to intent.
+      */}
       {controller.step === 3 && controller.leadWithoutScore ? (
-        <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-6 text-center">
+        <div className="mx-auto max-w-md px-4 sm:px-6"><div className="rounded-2xl border border-border bg-card p-6 text-center">
           <h2 className="text-lg font-semibold">
             {locale === "en" ? "We couldn't scan this site" : "יש תקלה בסריקת האתר"}
           </h2>
@@ -86,7 +101,7 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           >
             {locale === "en" ? "Scan another address" : "לסרוק כתובת אחרת"}
           </button>
-        </div>
+        </div></div>
       ) : null}
 
       {controller.step === 3 && !controller.leadWithoutScore ? (
@@ -95,7 +110,28 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           status={controller.status}
           whatsappUrl={WHATSAPP_URL}
           emailCopy={controller.leadEmailCopy}
-          onUnlock={controller.startCheckout}
+          scanId={controller.scanId}
+          /*
+           * Where a chosen plan goes.
+           *
+           * Nowhere yet, on purpose. The three link_* plans are not rows in
+           * auditor_plans until stage 2, and /auditor/checkout is hard-404'd by
+           * the auditor block, so there is no flow to hand them to. What this
+           * does is record the choice in the URL, which costs nothing, breaks
+           * nothing, and means the two values stage 3 needs — which plan, which
+           * scan — are already where it will look for them.
+           *
+           * replaceState rather than a router push: the visitor stays on their
+           * report, and the choice should not become a history entry they have
+           * to press back through.
+           */
+          onSelectPlan={(plan, scanId) => {
+            if (typeof window === "undefined") return
+            const url = new URL(window.location.href)
+            url.searchParams.set("plan", plan)
+            if (scanId) url.searchParams.set("scanId", scanId)
+            window.history.replaceState(null, "", url.toString())
+          }}
         />
       ) : null}
 
