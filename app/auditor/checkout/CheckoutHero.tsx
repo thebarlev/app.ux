@@ -37,14 +37,35 @@ export function CheckoutHero({ sentence }: { sentence: string }) {
         // eslint-disable-next-line react/no-danger
         dangerouslySetInnerHTML={{
           __html: `
-@keyframes co-draw{ from{ stroke-dashoffset:var(--co-len) } to{ stroke-dashoffset:0 } }
+/*
+  Motion copied from the uxellent.com home hero, not chosen here.
+
+  Read off the live site's NewHero module, which is the same vocabulary throughout:
+
+    nhDraw      @keyframes { to { stroke-dashoffset: 0 } }
+                animation: 3.2s .4s forwards
+    nhMockEnter animation: .55s cubic-bezier(.2,.7,.2,1) both
+    nhMioPop    animation: .7s  cubic-bezier(.2,.8,.2,1) 3.7s forwards
+    nhTagconf   animation: 1.4s ease-out .15s both
+
+  Three things carried across verbatim: the easing cubic-bezier(.2,.7,.2,1), the
+  to-only keyframe shape, and the both/forwards fill so a run holds its last frame
+  instead of snapping back. Same reasoning as the navy gradient — two sites have to
+  look like one company, so values come from the source rather than being re-picked.
+
+  The draw runs shorter than the home page's 3.2s: that hero is the whole screen and
+  has time, this one sits above a payment form and must finish while somebody is
+  still reading the sentence.
+*/
+@keyframes co-draw{ to{ stroke-dashoffset:0 } }
 @keyframes co-dot{ from{ opacity:0; transform:scale(.4) } to{ opacity:1; transform:scale(1) } }
-.co-curve{ stroke-dasharray:var(--co-len); animation:co-draw 1.15s cubic-bezier(.22,.7,.24,1) both }
-.co-dot{ transform-box:fill-box; transform-origin:center; animation:co-dot .5s ease-out both }
-.co-dot-1{ animation-delay:.55s } .co-dot-2{ animation-delay:.8s } .co-dot-3{ animation-delay:1.05s }
+.co-curve{ stroke-dasharray:var(--co-len); stroke-dashoffset:var(--co-len); animation:1.2s cubic-bezier(.2,.7,.2,1) .1s forwards co-draw }
+.co-dot{ transform-box:fill-box; transform-origin:center; opacity:0; animation:.55s cubic-bezier(.2,.8,.2,1) forwards co-dot }
+.co-dot-1{ animation-delay:.7s } .co-dot-2{ animation-delay:.95s } .co-dot-3{ animation-delay:1.2s }
 @media (prefers-reduced-motion:reduce){
   .co-curve,.co-dot{ animation:none !important }
   .co-curve{ stroke-dashoffset:0 }
+  .co-dot{ opacity:1 }
 }
 `.trim(),
         }}
@@ -60,9 +81,27 @@ export function CheckoutHero({ sentence }: { sentence: string }) {
         }}
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-5 sm:px-6 sm:py-7">
+          {/*
+            ⚠️ colour and size are stated inline, not inherited.
+
+            app/globals.css carries an UNLAYERED `h1 { font-size:56px; color:var(--fg) }`
+            rule. An unlayered element rule is a declaration on the element, and a
+            declaration always beats an inherited value — so this section's
+            color:#F4F6FA never reached the heading, and it rendered in the app's dark
+            foreground on the dark navy band at a measured contrast of 1.13:1. Against
+            the 4.5 it needed, the sentence was effectively invisible.
+
+            The same trap is documented in AuditorReportV3, which fixed two headings
+            for exactly this reason — and I read that comment in this same session and
+            still walked into it. Stating both properties here is what the rest of this
+            flow already does.
+
+            Measured after: #F4F6FA on #0D1526 = 16.84:1.
+          */}
           <h1
             id="co-hero-line"
-            className="max-w-[42ch] text-[15px] font-extrabold leading-[1.45] sm:text-[19px] sm:leading-[1.4]"
+            className="max-w-[42ch] font-extrabold leading-[1.45] sm:leading-[1.4]"
+            style={{ color: "#F4F6FA", fontSize: "clamp(15px, 1.5vw, 19px)", marginBottom: 0 }}
           >
             {sentence}
           </h1>

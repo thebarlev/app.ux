@@ -169,6 +169,34 @@ export default function AuditorCheckoutClient(props: Props) {
   return (
     <main className={`${AUDITOR_SCOPE} min-h-svh bg-white`} dir="rtl">
       <AuditorScaleStyles />
+      <style
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{
+          __html: `
+/*
+  The two quotes stack in the rail, at every width.
+
+  AuditorTestimonials lays them 2-up via .ar-testi-grid, which is right in the report's
+  full-width closing block and wrong in a 340px rail: measured, each blockquote came out
+  76px and 52px wide, so the text broke to one word per line. Only the layout changes —
+  the quotes, avatars, colours and the rule between them are untouched.
+
+  Specificity: auditor-scale.tsx sets .ar-scope .ar-testi-grid (0-2-0), so this needs
+  .ar-scope aside .ar-testi-grid (0-2-1) to win. A plain \`aside .ar-testi-grid\` would
+  have lost and looked like it did nothing.
+
+  The rule follows the axis it separates, same as the phone breakpoint already does:
+  between stacked quotes it is a short horizontal mark, not a vertical edge.
+*/
+.${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
+.${AUDITOR_SCOPE} aside .ar-testi-item + .ar-testi-item{ margin-top:18px }
+.${AUDITOR_SCOPE} aside .ar-testi-rule{
+  inset-inline-start:50%; transform:translateX(50%);
+  top:0; width:64px; height:1px;
+}
+`.trim(),
+        }}
+      />
       <CheckoutHero sentence={HERO_SENTENCE} />
       <div className="px-4 py-7 sm:px-6 sm:py-10">
       {/*
@@ -339,7 +367,15 @@ function Field({
         value={value}
         onChange={onChange}
         aria-invalid={error ? true : undefined}
-        className={`h-12 rounded-none border-0 border-b bg-transparent px-0.5 text-base text-[#101B31] outline-none transition ${
+        /*
+          Height stated inline, for the same cascade reason as the hero heading.
+          globals.css defines --field-height: 60px and applies it to inputs outside any
+          layer, which beat the h-12 utility — the field measured 60px instead of 48 and
+          the label read as detached from it. The 6px label-to-field gap measured
+          correct and is deliberately untouched.
+        */
+        style={{ height: 48 }}
+        className={`rounded-none border-0 border-b bg-transparent px-0.5 text-base text-[#101B31] outline-none transition ${
           error ? "border-b-2 border-[#B33A2C]" : "border-[#5C6473] focus:border-b-2 focus:border-[#3F76AC]"
         }`}
       />
