@@ -294,10 +294,12 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
               look at any one thing in the flow — and it was the only one still showing the
               brand as two spans with no starburst.
               
-              22px of height, matching the checkout bar rather than the report masthead's
-              150px width: this is a compact status card, not a page header.
+              150px wide, matching the report masthead rather than the checkout bar's 22px
+              height. This screen is a full step a visitor sits on, not a strip above a
+              form — at 22px the mark came out smaller than the status text beside it.
+              Height auto, so the ratio is the file's.
             */}
-            <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
+            <img src="/brand/black.svg" alt="UXellent" style={{ width: 150, height: "auto", display: "block" }} />
             {domain ? (
               <div
                 style={{

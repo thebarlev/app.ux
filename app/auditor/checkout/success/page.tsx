@@ -259,6 +259,45 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
           )}
         </section>
 
+        {/*
+          ⛔ WHATSAPP, AND ON THIS PAGE ONLY.
+          
+          Not the lead gate, not the checkout, not the report. On the checkout it would be
+          an exit route from a payment a visitor is halfway through — the one page where
+          leaving costs the sale. Here the money has already moved, so a way to reach a
+          person is a service rather than a leak.
+          
+          It also sits directly under the invoice block and above "חזרה לדוח" on purpose:
+          the two things a buyer wants next are their document and a human, in that order,
+          and the button that leaves the page comes last.
+          
+          The number is BOTH readable text and the link. A bare "WhatsApp" button is
+          useless to someone who wants to phone instead, or who is reading on a desktop
+          with no WhatsApp installed — so 054-5215193 is written out, in a tel-friendly
+          form, and the whole block is the tap target.
+          
+          target="_blank" with rel="noopener": this is the only outbound link in the entire
+          checkout flow, and a new tab keeps the confirmation — with the invoice number on
+          it — where the buyer can get back to it.
+        */}
+        <a
+          href="https://wa.me/972545215193"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-[#F1F8F3] p-4 text-start no-underline shadow-[inset_0_0_0_1.5px_#CBE5D3]"
+        >
+          <span className="flex flex-col gap-1">
+            <span className="text-sm font-extrabold leading-snug text-[#101B31]">
+              המומחים שלנו מחכים לכם — להפוך את העסק ראשון בחיפושים
+            </span>
+            <span dir="ltr" className="text-[15px] font-extrabold text-[#127048]">
+              054-5215193
+            </span>
+          </span>
+          {/* Decorative: the sentence and the number already say what this is. */}
+          <span aria-hidden="true" className="shrink-0 text-2xl">💬</span>
+        </a>
+
         <p className="mt-4 text-center text-[12.5px] leading-relaxed text-[#78859B]">
           הגישה לאזור האישי תיפתח בקרוב, ותקבלו קישור להגדרת סיסמה.
         </p>
