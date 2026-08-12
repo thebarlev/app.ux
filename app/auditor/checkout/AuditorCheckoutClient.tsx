@@ -174,10 +174,33 @@ export default function AuditorCheckoutClient(props: Props) {
       const json = (await res.json().catch(() => null)) as any
 
       if (!res.ok || !json?.ok || !json?.redirect_url) {
+        /*
+         * ⛔ "נסו שוב בעוד רגע" WAS A LIE, AND IT COST A WHOLE ROUND.
+         *
+         * Every failure said the same thing: try again in a moment. The failure that
+         * actually happened was a 400 the server would return forever — the client and
+         * server disagreed about which fields were required — and the message sent the
+         * person to press the button again, which could never work. "Try again" is only
+         * honest when trying again might succeed.
+         *
+         * So the split is by KIND of failure, not by detail:
+         *
+         *   429  a real wait, and a stated one
+         *   4xx  something in the form is wrong. Permanent until it changes, so say so
+         *   5xx / network  ours, and plausibly transient. Now the message is true
+         *
+         * ⛔ Still no field names in the response. The route returns a bare
+         * "invalid_request" on purpose — naming the offending field hands a schema map to
+         * anyone probing the endpoint. The visitor is told a category, not a diagnosis,
+         * and the per-field errors they CAN act on come from the client's own validate().
+         */
+        const isClientFault = res.status >= 400 && res.status < 500 && res.status !== 429
         setServerError(
-          json?.error === "rate_limited"
+          json?.error === "rate_limited" || res.status === 429
             ? "יותר מדי נסיונות. נסו שוב בעוד דקה."
-            : "לא הצלחנו לפתוח את עמוד התשלום. נסו שוב בעוד רגע."
+            : isClientFault
+              ? "משהו בפרטים שמילאתם לא עבר אימות. בדקו את השדות ונסו לשלוח שוב."
+              : "לא הצלחנו לפתוח את עמוד התשלום. נסו שוב בעוד רגע."
         )
         setSubmitting(false)
         return
@@ -186,6 +209,8 @@ export default function AuditorCheckoutClient(props: Props) {
       // Cardcom's own page. Full navigation, not a fetch — the card is entered there.
       window.location.href = String(json.redirect_url)
     } catch {
+      // A thrown fetch is a network failure, never a validation one — the only branch
+      // where "try again in a moment" is unambiguously true.
       setServerError("לא הצלחנו לפתוח את עמוד התשלום. נסו שוב בעוד רגע.")
       setSubmitting(false)
     }

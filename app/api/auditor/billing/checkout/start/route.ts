@@ -63,8 +63,21 @@ const bodySchema = z
     full_name: z.string().min(1).max(120),
     email: z.string().email().max(320),
     phone: z.string().min(9).max(20),
-    business_name: z.string().min(1).max(160),
-    tax_id: z.string().min(5).max(20),
+    /*
+     * ⛔ OPTIONAL, AND THIS IS THE LINE THAT BROKE THE CHECKOUT.
+     *
+     * These were min(1) and min(5) while the client had already made both fields
+     * optional. The client sent empty strings, zod rejected them, and every payment
+     * failed with "לא הצלחנו לפתוח את עמוד התשלום" — Cardcom was never even contacted.
+     * Two schemas describing one form, and nobody knew they had diverged until a payment
+     * could not be made. tests/unit/auditor-checkout-schema-agreement.spec.ts now fails if
+     * they diverge again.
+     *
+     * A tax document needs the ISSUER's registration number, not the buyer's. The buyer's
+     * matters for one thing — reclaiming VAT — so it is offered, not demanded.
+     */
+    business_name: z.string().max(160).optional(),
+    tax_id: z.string().max(20).optional(),
     address: z.string().max(300).optional(),
   })
   // Unknown keys are rejected rather than stripped. See the note above: this is how
@@ -137,11 +150,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429, headers: rateLimitHeaders(byEmail) })
   }
 
-  // One identifier field covers ח.פ, ע.מ and ת״ז — nine digits, one check digit.
-  const taxId = normalizeIsraeliIdInput(body.tax_id)
-  if (!isValidIsraeliId(taxId)) {
+  /*
+   * One identifier field covers ח.פ, ע.מ and ת״ז — nine digits, one check digit.
+   *
+   * ⚠️ The checksum runs only on a value that is actually there. Empty is allowed; wrong
+   * is not. Nine digits that fail the check would put a number belonging to nobody on a
+   * tax document, which is worse than leaving the field blank — so a supplied value is
+   * still held to the same standard it always was.
+   */
+  const taxIdRaw = String(body.tax_id ?? "").trim()
+  const taxId = taxIdRaw ? normalizeIsraeliIdInput(taxIdRaw) : ""
+  if (taxIdRaw && !isValidIsraeliId(taxId)) {
     return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 })
   }
+
+  /*
+   * ── WHAT GOES ON THE COMPANY ROW WHEN THE BUYER LEFT IT BLANK ─────────────
+   *
+   * company_name falls back to the full name, which is a required field, so there is no
+   * case where this is empty. The scanned domain was considered and rejected: a hostname
+   * is not a legal entity, and null would leave a tax document with no "לכבוד" — the one
+   * line a document cannot do without.
+   *
+   * registration_number stays null rather than an empty string. Null means "not given";
+   * '' would satisfy scripts/129's coalesce(c.registration_number, c.tax_id) and win over
+   * a real number stored in the neighbouring column.
+   */
+  const buyerCompanyName = String(body.business_name ?? "").trim() || body.full_name.trim()
+  const buyerRegistrationNumber = taxId || null
 
   const admin = createServiceRoleClient()
 
@@ -205,7 +241,7 @@ export async function POST(req: Request) {
     const { data: created, error: createErr } = await admin
       .from("companies")
       .insert({
-        company_name: body.business_name.trim(),
+        company_name: buyerCompanyName,
         contact_first_name: body.full_name.trim().split(/\s+/)[0] || body.full_name.trim(),
         contact_full_name: body.full_name.trim(),
         email,
@@ -217,7 +253,7 @@ export async function POST(req: Request) {
          * coalesce(c.registration_number, c.tax_id). Writing either of the others
          * would leave resolve_customer matching on a fallback.
          */
-        registration_number: taxId,
+        registration_number: buyerRegistrationNumber,
         /*
          * ⛔ A company created by a preview checkout is a test company.
          *
