@@ -22,7 +22,7 @@ export async function sendAdminNotification({ subject, html }: { subject: string
     to: [ADMIN_TO],
     subject,
     html,
-    senderName: "VOW Auditor",
+    senderName: "UXellent",
     label: "admin notification",
   })
 }

@@ -132,7 +132,7 @@ export async function sendAuditorInvoiceToCustomer(params: {
       to: [to],
       subject: invoiceSubject(params.isTest, params.invoiceNumber),
       html: buildInvoiceEmailHtml(params),
-      senderName: "VOW Auditor",
+      senderName: "UXellent",
       label: "auditor customer invoice",
       attachment: { name: `${params.invoiceNumber}.pdf`, contentBase64: params.pdfBase64 },
     })

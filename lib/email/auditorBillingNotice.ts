@@ -187,7 +187,7 @@ export async function sendAuditorSubscriptionNotice(params: {
       to: [to],
       subject: subjectFor(params.isTest, `מנוי חדש — ${params.companyName || params.email || "לא ידוע"}`),
       html,
-      senderName: "VOW Auditor",
+      senderName: "UXellent",
       label: "auditor subscription notice",
     })
 
@@ -240,7 +240,7 @@ export async function sendAuditorIssuanceErrorNotice(params: {
       to: [to],
       subject: subjectFor(params.isTest, `⛔ הנפקת חשבונית נכשלה — חיוב ${params.chargeId || "לא ידוע"}`),
       html,
-      senderName: "VOW Auditor",
+      senderName: "UXellent",
       label: "auditor issuance error notice",
     })
 
