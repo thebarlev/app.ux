@@ -120,9 +120,33 @@ const SWEEP_WINDOW_DAYS = 3
 /** Per-run cap. PDF generation is the heaviest thing in this route; the cron is every 5 min. */
 const SWEEP_MAX_PER_RUN = 5
 
-type SweepResult = { document_id: string; document_number: string | null; sent: boolean; reason?: string }
+type SweepResult = {
+  document_id: string
+  document_number: string | null
+  sent: boolean
+  reason?: string
+  /*
+   * Returned so a staged run can be checked without database access. issue_date is the
+   * value the PDF actually renders from — every date in the template is built from
+   * doc.issue_date — so comparing it against created_at answers "does the regenerated
+   * file agree with its own document row" from the response alone.
+   */
+  issue_date?: string | null
+  created_at?: string | null
+  pdf_bytes?: number | null
+}
 
-async function sweepUnsentInvoices(admin: ReturnType<typeof createAdminClient>): Promise<SweepResult[]> {
+/**
+ * @param onlyDocumentId when set, the sweep attempts exactly that document and nothing
+ *   else. Added for staged rollout: the first recovery render had to be checked on one
+ *   test-company invoice before being let loose on the rest, and a run capped at N would
+ *   have picked whichever charge happened to be oldest instead. The route is already
+ *   behind the cron secret, so this adds no new surface.
+ */
+async function sweepUnsentInvoices(
+  admin: ReturnType<typeof createAdminClient>,
+  onlyDocumentId?: string
+): Promise<SweepResult[]> {
   const out: SweepResult[] = []
   try {
     const since = new Date(Date.now() - SWEEP_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString()
@@ -163,7 +187,11 @@ async function sweepUnsentInvoices(admin: ReturnType<typeof createAdminClient>):
     }
 
     const alreadyEmailed = new Set(((emailedRows as any[]) || []).map((r) => String(r.document_id)))
-    const queue = rows.filter((r) => !alreadyEmailed.has(String(r.issued_invoice_id)))
+    let queue = rows.filter((r) => !alreadyEmailed.has(String(r.issued_invoice_id)))
+    if (onlyDocumentId) {
+      queue = queue.filter((r) => String(r.issued_invoice_id) === onlyDocumentId)
+      console.log("[AUDITOR_SWEEP] restricted to a single document", { onlyDocumentId, matched: queue.length })
+    }
     if (queue.length === 0) return out
 
     console.log("[AUDITOR_SWEEP] invoices with no emailed event", {
@@ -179,7 +207,7 @@ async function sweepUnsentInvoices(admin: ReturnType<typeof createAdminClient>):
 
       const { data: doc } = await admin
         .from("documents")
-        .select("document_number, company_id")
+        .select("document_number, company_id, issue_date, created_at")
         .eq("id", documentId)
         .maybeSingle()
 
@@ -227,7 +255,15 @@ async function sweepUnsentInvoices(admin: ReturnType<typeof createAdminClient>):
         issuerCompanyId: String((doc as any)?.company_id || getAuditorBillingConfig().billingAccountId),
       })
 
-      out.push({ document_id: documentId, document_number: documentNumber, sent: r.sent, reason: r.reason })
+      out.push({
+        document_id: documentId,
+        document_number: documentNumber,
+        sent: r.sent,
+        reason: r.reason,
+        issue_date: (doc as any)?.issue_date ?? null,
+        created_at: (doc as any)?.created_at ?? null,
+        pdf_bytes: r.pdfBytes ?? null,
+      })
     }
   } catch (e: any) {
     // The sweep is a best-effort tail. It must never take down event processing, which is
@@ -285,7 +321,8 @@ async function handler(req: Request) {
    * a subscription; the sweep only chases a tail. If the cap or the window drops
    * something it is logged above rather than silently omitted.
    */
-  const swept = await sweepUnsentInvoices(admin)
+  const onlyDocumentId = new URL(req.url).searchParams.get("documentId")?.trim() || undefined
+  const swept = await sweepUnsentInvoices(admin, onlyDocumentId)
 
   return NextResponse.json({
     ok: true,

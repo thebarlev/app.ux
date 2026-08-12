@@ -24,7 +24,12 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { sendAuditorInvoiceToCustomer } from "@/lib/email/auditorInvoiceEmail"
 import { generateDocumentPDF } from "@/lib/pdf-service"
 
-export type DeliverResult = { sent: boolean; reason?: string }
+export type DeliverResult = {
+  sent: boolean
+  reason?: string
+  /** Size of the generated PDF. Reported so a staged run can prove a file was produced. */
+  pdfBytes?: number | null
+}
 
 export async function deliverAuditorInvoiceEmail(
   admin: SupabaseClient,
@@ -46,16 +51,59 @@ export async function deliverAuditorInvoiceEmail(
     let pdfBase64: string | null = null
 
     /*
-     * ⛔ `mode: "final"`, and this is the line that failed on invoice 1003.
+     * ⛔⛔ `mode: "recovery"` IS THE NORMAL PATH HERE. DO NOT "FIX" IT BACK TO "final".
      *
-     * pdf-service reads `options?.mode || "preview"`, so omitting mode asks for a DRAFT
-     * render and the guard beneath it correctly refuses to write a preview into storage
-     * (PREVIEW_MUST_USE_GENERATE_PREVIEW). `context` is derived FROM mode, so passing
-     * context:"issue" alone was handing over the output of the mapping instead of its
-     * input. The guard was right; the call was wrong.
+     * That change looks like a correction and breaks everything silently, so here is why
+     * it is wrong, in order:
+     *
+     *   1. `mode: "preview"` (the default when mode is omitted) refuses outright:
+     *      PREVIEW_MUST_USE_GENERATE_PREVIEW. That was the first failure, on invoice 1003.
+     *
+     *   2. `mode: "final"` does not GENERATE — it fetches a PDF that finalization is
+     *      assumed to have already written, and returns PDF_MISSING_BUT_EXPECTED when the
+     *      file is absent. That was the second failure, on all four invoices.
+     *
+     *   3. And it can never be right here, in any scenario. The issuance RPC marks the
+     *      document `final` in SQL, in the same statement that creates it, before any
+     *      TypeScript runs. So by the time this line executes — even on the very first
+     *      attempt, milliseconds after issuance — the document is already final and its
+     *      PDF has never existed. There is no ordering in which `final` finds a file.
+     *
+     * pdf-service says so itself, at the flag that allows this:
+     *
+     *     // Recovery mode: if storage is missing but PDF is "expected", we still want to
+     *     // regenerate it. This is needed for auto-issued documents that were finalized
+     *     // without generating/uploading PDFs.
+     *     const allowRecoveryRegenerate = pdfMode === "recovery" && options?.isIssuance === true
+     *
+     * "auto-issued documents that were finalized without generating PDFs" is exactly what
+     * every auditor invoice is. So `recovery` is not an emergency route we fell back to;
+     * it is the only route that describes this flow, and `isIssuance: true` is required
+     * alongside it or the flag stays false.
+     *
+     * ── WHY THIS CANNOT STAMP TODAY'S DATE ON AN OLD INVOICE ──────────────────
+     * Verified before this was ever run against a real document, because a file that
+     * disagrees with its own document row is worse than a missing file.
+     *
+     * Every date the template renders comes from the stored column, not from the clock:
+     * pdf-service builds `issue_date`, `document_date`, `formatted_date`, `Datecreation`
+     * and `DATE` all from `doc.issue_date`, and the template reads
+     * `{{document.issue_date}}`. The two `new Date()` calls in that file are fallbacks of
+     * the shape `iso ? new Date(iso) : new Date()` — reached only when the stored value is
+     * empty.
+     *
+     * And it is not empty: the issuance function writes it, at scripts/133 line 326-327,
+     * `v_cols := 'issue_date'` with `v_vals := 'current_date'` — evaluated once, at
+     * issuance, and never again. The document number is likewise drawn from
+     * document_sequences at issuance and stored.
+     *
+     * So a recovery render three days later produces the original date and the original
+     * number, because both are read from the row rather than recomputed. The failure mode
+     * to watch for is a document whose issue_date is NULL — then, and only then, the
+     * fallback would use today. Nothing in this flow creates such a row.
      */
     const pdf = await generateDocumentPDF(documentId, {
-      mode: "final",
+      mode: "recovery",
       context: "issue",
       isIssuance: true,
     })
@@ -69,6 +117,34 @@ export async function deliverAuditorInvoiceEmail(
         documentNumber,
         error: (pdf as any)?.error || "no buffer",
       })
+    }
+
+    /*
+     * ⛔ A reserved-TLD address is skipped, not attempted.
+     *
+     * `.invalid` is reserved by RFC 2606 precisely so that it can never resolve. Mailing
+     * it is not a delivery that might work — it is a guaranteed bounce, retried every
+     * five minutes until the sweep window closes.
+     *
+     * ⚠️ Deliberately narrow: ONLY the reserved TLDs, never a guess about which real
+     * addresses look plausible. test@sf.com is left to fail on its own, because logic
+     * that decides who is "really" a customer is a worse bug than a few bounces.
+     *
+     * Placed AFTER the PDF is generated on purpose. The missing file is a defect in its
+     * own right — every issued document should have one — and recovery mode WRITES it to
+     * storage, so the next pass finds the file instead of regenerating it. Skipping
+     * before this line would leave the document permanently without its PDF.
+     */
+    const RESERVED_TLDS = [".invalid", ".test", ".example", ".localhost"]
+    const addr = String(params.to || "").trim().toLowerCase()
+    if (RESERVED_TLDS.some((t) => addr.endsWith(t))) {
+      console.warn("[AUDITOR_INVOICE_SKIPPED] reserved-TLD address, not deliverable", {
+        documentId,
+        documentNumber,
+        to: params.to,
+        pdfGenerated: Boolean(pdfBase64),
+      })
+      return { sent: false, reason: "skipped_undeliverable", pdfBytes: pdf?.buffer?.length ?? null }
     }
 
     const email = await sendAuditorInvoiceToCustomer({
@@ -88,7 +164,7 @@ export async function deliverAuditorInvoiceEmail(
         to: params.to,
         reason: email.reason,
       })
-      return { sent: false, reason: email.reason }
+      return { sent: false, reason: email.reason, pdfBytes: pdf?.buffer?.length ?? null }
     }
 
     /*
@@ -135,7 +211,7 @@ export async function deliverAuditorInvoiceEmail(
     }
 
     console.log("[AUDITOR_INVOICE_EMAILED]", { documentId, documentNumber, isTest: params.isTest })
-    return { sent: true }
+    return { sent: true, pdfBytes: pdf?.buffer?.length ?? null }
   } catch (e: any) {
     // Cannot propagate. The caller may be mid-issuance with a charge, a subscription and
     // a tax document already committed, none of which an email may undo.
