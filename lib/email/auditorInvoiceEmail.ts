@@ -37,7 +37,7 @@
  * document that was issued but not delivered is recoverable from the log alone.
  */
 
-import { sendBrevoEmail } from "@/lib/email/brevo"
+import { isBrevoBlocked, sendBrevoEmail } from "@/lib/email/brevo"
 
 const FAIL_PREFIX = "[AUDITOR_NOTICE_FAILED]"
 
@@ -126,6 +126,24 @@ export async function sendAuditorInvoiceToCustomer(params: {
         isTest: params.isTest,
       })
       return { sent: false, reason: "pdf_missing" }
+    }
+
+    /*
+     * ⛔ Asked before sending, because a false sent:true is the worst outcome here.
+     *
+     * It would write an 'emailed' event, drop the document out of the completion sweep's
+     * queue for good, and tell the customer their invoice was sent. Reporting
+     * recipient_blocked instead leaves the document IN the queue, so the moment the
+     * address is unblocked the next pass delivers it.
+     */
+    const blocked = await isBrevoBlocked(to)
+    if (blocked.blocked) {
+      console.error(`${FAIL_PREFIX} invoice, the recipient is blocked at Brevo`, {
+        invoiceNumber: params.invoiceNumber,
+        to,
+        isTest: params.isTest,
+      })
+      return { sent: false, reason: "recipient_blocked" }
     }
 
     const res = await sendBrevoEmail({

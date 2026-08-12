@@ -45,6 +45,8 @@ type Props = {
   currency: string
   scanId: string
   token: string
+  /** Name, email and phone as given at the lead gate. Defaults only; all editable. */
+  prefill?: { fullName: string; email: string; phone: string }
   host: string
 }
 
@@ -105,7 +107,17 @@ function validate(f: Fields): Partial<Record<keyof Fields, string>> {
 }
 
 export default function AuditorCheckoutClient(props: Props) {
-  const [fields, setFields] = useState<Fields>(EMPTY)
+  /*
+   * Seeded from the lead rather than starting empty. EMPTY is still the fallback for a
+   * visitor whose lead row carries nothing, and every field remains editable — see the
+   * note on the server side about invoices legitimately needing different details.
+   */
+  const [fields, setFields] = useState<Fields>({
+    ...EMPTY,
+    fullName: props.prefill?.fullName || "",
+    email: props.prefill?.email || "",
+    phone: props.prefill?.phone || "",
+  })
   const [errors, setErrors] = useState<Partial<Record<keyof Fields, string>>>({})
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
@@ -252,7 +264,20 @@ export default function AuditorCheckoutClient(props: Props) {
           ) : null}
         </div>
 
-        <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4" noValidate>
+        {/*
+          ⛔ The heading says what the details are FOR.
+          
+          Without it, a visitor who already gave their name and phone at the gate reads
+          this block as the same request repeated, and repetition reads as a broken form.
+          Naming it "פרטים לחשבונית" makes the ask legible: these are the details that go
+          on the tax document, which is also why they are editable rather than fixed.
+        */}
+        <h2 className="mt-6 text-[15px] font-extrabold text-[#101B31]">פרטים לחשבונית</h2>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-[#78859B]">
+          מילאנו את מה שכבר מסרתם. אם החשבונית צריכה להיות על פרטים אחרים — אפשר לשנות.
+        </p>
+
+        <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4" noValidate>
           <Field label="שם מלא" value={fields.fullName} onChange={set("fullName")} error={errors.fullName} autoComplete="name" />
           <Field label="אימייל" value={fields.email} onChange={set("email")} error={errors.email} type="email" autoComplete="email" dir="ltr" />
           <Field label="טלפון" value={fields.phone} onChange={set("phone")} error={errors.phone} type="tel" autoComplete="tel" dir="ltr" />

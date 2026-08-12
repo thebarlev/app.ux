@@ -22,6 +22,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { sendAuditorInvoiceToCustomer } from "@/lib/email/auditorInvoiceEmail"
+import { sendAuditorInvoiceBlockedNotice } from "@/lib/email/auditorBillingNotice"
 import { generateDocumentPDF } from "@/lib/pdf-service"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 
@@ -218,6 +219,19 @@ export async function deliverAuditorInvoiceEmail(
       currency: params.currency,
       pdfBase64,
     })
+
+    if (!email.sent && email.reason === "recipient_blocked") {
+      /*
+       * A blocked address needs a person, and it needs the RIGHT person told the right
+       * thing: the document is fine, only delivery failed, and no manual resend is
+       * required because the document stays in the sweep's queue.
+       */
+      await sendAuditorInvoiceBlockedNotice({
+        isTest: params.isTest,
+        invoiceNumber: documentNumber,
+        blockedAddress: params.to,
+      })
+    }
 
     if (!email.sent) {
       console.error("[AUDITOR_NOTICE_FAILED] the customer did not get their invoice", {

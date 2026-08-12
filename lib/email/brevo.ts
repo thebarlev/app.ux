@@ -73,3 +73,45 @@ export async function sendBrevoEmail(params: {
     return { sent: false, reason: "request_failed" }
   }
 }
+
+/**
+ * Is this address on Brevo's blocked list?
+ *
+ * ⛔ WHY THIS IS ASKED BEFORE SENDING, NOT INFERRED AFTER.
+ *
+ * sendBrevoEmail reports the HTTP status faithfully, so a 4xx becomes {sent:false}. The
+ * uncertainty was the other branch: if Brevo accepts a blocked contact with a 201 and
+ * suppresses delivery silently, we would record sent:true for an email nobody received —
+ * and for an invoice, that writes an 'emailed' event, removes the document from the
+ * completion sweep's queue permanently, and tells the customer on the thank-you page that
+ * their invoice was sent. A false positive here is the worst failure in the whole chain.
+ *
+ * Rather than guess which Brevo does, the list is queried first. GET
+ * /v3/smtp/blockedContacts/{email} answers 200 when the address is blocked and 404 when it
+ * is not, so the question has a direct answer and no inference is involved.
+ *
+ * ⚠️ Fails OPEN, on purpose, and this is the one place in this codebase that does. If the
+ * check itself errors we do not know the address is blocked — and refusing to send an
+ * invoice because a diagnostic call timed out would withhold a tax document from someone
+ * who paid. The sweep would retry, but the customer waits. Being unable to check is not
+ * evidence of a block; every other guard here refuses on uncertainty because the harm runs
+ * the other way.
+ */
+export async function isBrevoBlocked(email: string): Promise<{ blocked: boolean; checked: boolean }> {
+  const key = process.env.BREVO_API_KEY
+  const addr = String(email || "").trim()
+  if (!key || !addr) return { blocked: false, checked: false }
+  try {
+    const res = await fetch(`https://api.brevo.com/v3/smtp/blockedContacts/${encodeURIComponent(addr)}`, {
+      method: "GET",
+      headers: { accept: "application/json", "api-key": key },
+    })
+    if (res.status === 200) return { blocked: true, checked: true }
+    if (res.status === 404) return { blocked: false, checked: true }
+    console.warn("[EMAIL] blocked-contact check returned an unexpected status", { status: res.status })
+    return { blocked: false, checked: false }
+  } catch (err) {
+    console.warn("[EMAIL] blocked-contact check failed", { error: String((err as any)?.message || err) })
+    return { blocked: false, checked: false }
+  }
+}

@@ -83,6 +83,38 @@ export default async function AuditorCheckoutPage({ searchParams }: { searchPara
     return <CheckoutRefusal reason="bad_pair" />
   }
 
+  /*
+   * ⛔ THE LEAD'S DETAILS, SO NOBODY IS ASKED TWICE.
+   *
+   * Name, email and phone were already collected at the gate — that is what unlocked the
+   * report this visitor just came from. Asking for them again on the payment step is the
+   * single most reliable way to lose a sale that was already won, and it is a commercial
+   * defect rather than a cosmetic one.
+   *
+   * Read through the scan's lead_id, which the pair check above already verified, so this
+   * discloses nothing a holder of the scanId+token pair did not already have.
+   *
+   * ⚠️ Prefilled, never locked. The invoice may legitimately need different details from
+   * the person who ran the scan — an accountant's address, a company contact rather than
+   * the individual. Every field stays editable; the section just no longer starts empty.
+   */
+  const leadId = (scan as any)?.lead_id ? String((scan as any).lead_id) : ""
+  let prefill = { fullName: "", email: "", phone: "" }
+  if (leadId) {
+    const { data: lead } = await admin
+      .from("auditor_leads")
+      .select("full_name, email, phone")
+      .eq("id", leadId)
+      .maybeSingle()
+    if (lead) {
+      prefill = {
+        fullName: String((lead as any).full_name || ""),
+        email: String((lead as any).email || ""),
+        phone: String((lead as any).phone || ""),
+      }
+    }
+  }
+
   const { data: plan } = await admin
     .from("auditor_plans")
     .select("id, name, monthly_amount, currency, is_active")
@@ -114,6 +146,7 @@ export default async function AuditorCheckoutPage({ searchParams }: { searchPara
       currency={String((plan as any).currency || "ILS")}
       scanId={scanId}
       token={token}
+      prefill={prefill}
       host={String((scan as any).normalized_host || (scan as any).hostname || "")}
     />
   )

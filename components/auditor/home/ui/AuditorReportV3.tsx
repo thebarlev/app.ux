@@ -104,6 +104,16 @@ function toneFor(v: number | null): { text: string; fill: string } {
 }
 
 /**
+ * The single decoy value every teaser slot shows.
+ *
+ * One constant rather than per-slot variety: varied fake numbers would read as a real
+ * report to anyone who looked closely, and the point is that it is legible as content
+ * without being anybody's data. Two digits so it occupies the same width a real score
+ * does and the layout behind the blur is honest about its own shape.
+ */
+const TEASER_DECOY = 72
+
+/**
  * A number in the report, or an anonymous block in the teaser.
  *
  * `size` stays a number because the teaser block is a rectangle sized off it.
@@ -112,7 +122,44 @@ function toneFor(v: number | null): { text: string; fill: string } {
  * pixels.
  */
 function Val({ v, teaser, size = 30 }: { v: number | null; teaser: boolean; size?: number }) {
-  if (teaser) return <div style={{ height: size * 0.9, width: size * 1.7, borderRadius: 8, background: "#0000001a" }} />
+  if (teaser) {
+    /*
+     * ⛔ A DECOY NUMBER, NOT THE VISITOR'S NUMBER, AND NOT A GREY BOX.
+     *
+     * This used to render a flat rectangle at #0000001a. Behind the gate's blur-[6px] at
+     * 40% opacity, a page full of grey rectangles reads as "failed to load" rather than
+     * "there is a report here" — and a teaser only works if you can see there is
+     * something behind it. That was the reported defect.
+     *
+     * ⚠️ The obvious fix is wrong: putting the REAL scores here would defeat the lead
+     * gate completely. This component's own header says the values in teaser mode "are
+     * not merely hidden", and the gate says why — "a blur is not a security boundary:
+     * filter: blur() over a real value still ships the value". Anyone could read their
+     * scores out of the DOM without ever filling the form.
+     *
+     * So the DOM carries FICTION. These digits are fixed decoration, identical for every
+     * visitor, derived from nothing. The gate holds because the real numbers are still
+     * absent, and the teaser works because the shape of a report is visible.
+     *
+     * aria-hidden and a decorative role: a screen reader must never announce these as
+     * anybody's score. The real report, past the gate, is where the values live.
+     */
+    return (
+      <span
+        aria-hidden="true"
+        style={{
+          fontSize: size,
+          fontWeight: 800,
+          lineHeight: 0.92,
+          letterSpacing: "-.03em",
+          color: "#101B31",
+          opacity: 0.55,
+        }}
+      >
+        {TEASER_DECOY}
+      </span>
+    )
+  }
   const tone = toneFor(v)
   return (
     <div style={{ fontSize: "var(--ar-val)", fontWeight: 800, lineHeight: 1.1, color: tone.text }}>{v === null ? "—" : v}</div>

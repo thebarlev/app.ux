@@ -268,3 +268,67 @@ export async function sendAuditorIssuanceErrorNotice(params: {
     return { sent: false, reason: "threw" }
   }
 }
+
+/**
+ * C · the invoice could not be delivered because the address is blocked at Brevo.
+ *
+ * Its own notice rather than reusing B, because B's subject says the ISSUANCE failed and
+ * that would be false: the document exists and is correct. What failed is delivery, and
+ * the action it needs is different — unblock the address, or ask the customer for another
+ * one. A notice that misnames the problem sends someone to the wrong place.
+ *
+ * The document stays in the completion sweep's queue, so once the address is unblocked
+ * the next pass delivers it with no further intervention. That is worth saying in the
+ * email, so nobody goes looking for a manual resend that is not needed.
+ */
+export async function sendAuditorInvoiceBlockedNotice(params: {
+  to?: string
+  isTest: boolean
+  invoiceNumber: string
+  blockedAddress: string
+}): Promise<NoticeResult> {
+  const to = params.to || AUDITOR_BILLING_NOTICE_TO
+  try {
+    const html =
+      `<div dir="rtl" style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.8">` +
+      (params.isTest
+        ? `<p style="background:#fff4d6;border:1px solid #e0b64a;padding:10px;margin:0 0 14px">` +
+          `<strong>זו הודעת בדיקה.</strong></p>`
+        : "") +
+      `<h2 style="margin:0 0 12px">החשבונית לא נמסרה — הנמען חסום ב-Brevo</h2>` +
+      `<p style="background:#fdecec;border:1px solid #d98b8b;padding:10px;margin:0 0 14px">` +
+      `המסמך <strong>קיים ותקין</strong>. מה שנכשל הוא המסירה בלבד.</p>` +
+      `<table cellpadding="6" cellspacing="0" border="0">` +
+      `<tr><td><strong>מספר חשבונית</strong></td><td dir="ltr">${esc(params.invoiceNumber)}</td></tr>` +
+      `<tr><td><strong>כתובת חסומה</strong></td><td dir="ltr">${esc(params.blockedAddress)}</td></tr>` +
+      `</table>` +
+      `<p style="margin:14px 0 0">שחררו את הכתובת ב-Brevo, או קבלו כתובת אחרת מהלקוח. ` +
+      `<strong>אין צורך בשליחה ידנית</strong> — המסמך נשאר בתור, והמעבר הבא ישלח אותו מעצמו.</p>` +
+      `</div>`
+
+    const res = await sendBrevoEmail({
+      to: [to],
+      subject: subjectFor(params.isTest, `⛔ חשבונית ${params.invoiceNumber} לא נמסרה — נמען חסום`),
+      html,
+      senderName: "UXellent",
+      label: "auditor invoice blocked notice",
+    })
+
+    if (!res?.sent) {
+      console.error(`${FAIL_PREFIX} invoice_blocked`, {
+        reason: res?.reason || "unknown",
+        to,
+        invoiceNumber: params.invoiceNumber,
+        blockedAddress: params.blockedAddress,
+      })
+      return { sent: false, reason: res?.reason || "unknown" }
+    }
+    return { sent: true }
+  } catch (e: any) {
+    console.error(`${FAIL_PREFIX} invoice_blocked threw`, {
+      error: String(e?.message || e),
+      invoiceNumber: params.invoiceNumber,
+    })
+    return { sent: false, reason: "threw" }
+  }
+}
