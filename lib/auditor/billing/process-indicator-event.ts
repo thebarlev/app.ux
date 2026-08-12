@@ -354,9 +354,11 @@ export async function processCardcomIndicatorEvent(
           } catch (err) {
             console.error("[AUDITOR_PROCESS] registration log failed", err)
           }
-          // Admin notification email (fire-and-forget — must not break payment flow)
+          // Must not break the payment flow — but a non-delivery is logged. Same reason
+          // as bootstrap-company: the catch alone could never fire, because
+          // sendBrevoEmail returns {sent, reason} rather than throwing.
           try {
-            await sendAdminNotification({
+            const notice = await sendAdminNotification({
               subject: "New Auditor Registration",
               html: `<p><strong>New Auditor user registered (via payment)</strong></p>
 <ul>
@@ -367,8 +369,15 @@ export async function processCardcomIndicatorEvent(
   <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
 </ul>`,
             })
+            if (!notice?.sent) {
+              console.error("[AUDITOR_NOTICE_FAILED] auditor registration via payment, nobody was told", {
+                reason: notice?.reason || "unknown",
+                leadEmail,
+                normalizedHost,
+              })
+            }
           } catch (err) {
-            console.error("[AUDITOR_PROCESS] Admin email notification failed", err)
+            console.error("[AUDITOR_NOTICE_FAILED] auditor registration via payment threw", err)
           }
         }
       } catch (invErr: any) {

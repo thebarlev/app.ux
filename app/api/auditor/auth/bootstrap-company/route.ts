@@ -193,9 +193,12 @@ export async function POST(req: Request) {
     console.error("[AUDITOR_BOOTSTRAP] registration log failed", err)
   }
 
-  // Admin notification email (fire-and-forget — must not break signup)
+  // Must not break signup — but a non-delivery is logged, not swallowed. The try/catch
+  // below could never fire on its own: sendBrevoEmail returns {sent, reason} instead of
+  // throwing, so for as long as this only wrapped the call, a rejected registration
+  // notice was invisible here.
   try {
-    await sendAdminNotification({
+    const notice = await sendAdminNotification({
       subject: "New Auditor Registration",
       html: `<p><strong>New Auditor user registered</strong></p>
 <ul>
@@ -206,8 +209,15 @@ export async function POST(req: Request) {
   <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
 </ul>`,
     })
+    if (!notice?.sent) {
+      console.error("[AUDITOR_NOTICE_FAILED] auditor registration, nobody was told", {
+        reason: notice?.reason || "unknown",
+        email,
+        companyName,
+      })
+    }
   } catch (err) {
-    console.error("[AUDITOR_BOOTSTRAP] Admin email notification failed", err)
+    console.error("[AUDITOR_NOTICE_FAILED] auditor registration threw", err)
   }
 
   // Ensure membership exists (best-effort; schema may vary)
