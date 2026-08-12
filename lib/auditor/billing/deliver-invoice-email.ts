@@ -23,6 +23,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { sendAuditorInvoiceToCustomer } from "@/lib/email/auditorInvoiceEmail"
 import { generateDocumentPDF } from "@/lib/pdf-service"
+import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 
 export type DeliverResult = {
   sent: boolean
@@ -111,11 +112,72 @@ export async function deliverAuditorInvoiceEmail(
     if (pdf?.success && pdf.buffer) {
       // pdf.buffer is already a Buffer (lib/types/template.ts) — no re-wrapping.
       pdfBase64 = pdf.buffer.toString("base64")
+    } else if (pdf?.success && !pdf.buffer && (pdf as any)?.storageKey) {
+      /*
+       * ⛔ SUCCESS WITH NO BUFFER MEANS THE FILE ALREADY EXISTS — NOT THAT IT FAILED.
+       *
+       * pdf-service short-circuits when the PDF is already in storage:
+       *
+       *     console.log("PDF already exists for document …, returning existing")
+       *     return { success: true, path: storageKey, storageKey, buffer: undefined }
+       *
+       * The first version of this treated that as a failure, which broke the sweep in
+       * exactly the case it exists for: attempt one generates the file and the email
+       * fails, then every later attempt gets success-with-no-buffer, is read as "could
+       * not be generated", and never sends. Invoice 1000 demonstrated it — 98,767 bytes
+       * on the first pass, `null` and "no buffer" on the second.
+       *
+       * It did not show up on 1001/1002/1003 because those sent on their first attempt,
+       * while the buffer was still in hand. The defect was waiting for the first email
+       * failure.
+       */
+      const storageKey = String((pdf as any).storageKey)
+      const { data: file, error: dlErr } = await (admin as any).storage
+        .from(SECURE_ASSETS_BUCKET)
+        .download(storageKey)
+
+      if (dlErr || !file) {
+        console.error("[AUDITOR_NOTICE_FAILED] the PDF exists in storage but could not be downloaded", {
+          documentId,
+          documentNumber,
+          storageKey,
+          error: dlErr ? String((dlErr as any)?.message || dlErr) : "no file",
+        })
+      } else {
+        const bytes = Buffer.from(await file.arrayBuffer())
+        /*
+         * ⛔ A zero-length file passes `success` and would produce the same lie the
+         * whole guard exists to prevent: an email that says the invoice is attached,
+         * carrying nothing. "No PDF, no email" applies to a downloaded file exactly as
+         * it applies to a generated one.
+         */
+        if (bytes.length === 0) {
+          console.error("[AUDITOR_NOTICE_FAILED] the stored PDF is zero bytes — treating it as missing", {
+            documentId,
+            documentNumber,
+            storageKey,
+          })
+        } else {
+          pdfBase64 = bytes.toString("base64")
+          console.log("[AUDITOR_INVOICE_PDF_FROM_STORAGE]", {
+            documentId,
+            documentNumber,
+            storageKey,
+            bytes: bytes.length,
+          })
+        }
+      }
     } else {
+      /*
+       * Only NOW is "could not be generated" the truth. The message used to be printed
+       * for a file that existed and was simply not returned inline, which is precisely
+       * the kind of log line that sent us hunting the wrong thing all day: it reported
+       * an assumption instead of what happened.
+       */
       console.error("[AUDITOR_NOTICE_FAILED] invoice PDF could not be generated", {
         documentId,
         documentNumber,
-        error: (pdf as any)?.error || "no buffer",
+        error: (pdf as any)?.error || "generator returned neither a buffer nor a storage key",
       })
     }
 
@@ -144,7 +206,7 @@ export async function deliverAuditorInvoiceEmail(
         to: params.to,
         pdfGenerated: Boolean(pdfBase64),
       })
-      return { sent: false, reason: "skipped_undeliverable", pdfBytes: pdf?.buffer?.length ?? null }
+      return { sent: false, reason: "skipped_undeliverable", pdfBytes: pdfBase64 ? Buffer.from(pdfBase64, "base64").length : null }
     }
 
     const email = await sendAuditorInvoiceToCustomer({
@@ -164,7 +226,7 @@ export async function deliverAuditorInvoiceEmail(
         to: params.to,
         reason: email.reason,
       })
-      return { sent: false, reason: email.reason, pdfBytes: pdf?.buffer?.length ?? null }
+      return { sent: false, reason: email.reason, pdfBytes: pdfBase64 ? Buffer.from(pdfBase64, "base64").length : null }
     }
 
     /*
@@ -211,7 +273,7 @@ export async function deliverAuditorInvoiceEmail(
     }
 
     console.log("[AUDITOR_INVOICE_EMAILED]", { documentId, documentNumber, isTest: params.isTest })
-    return { sent: true, pdfBytes: pdf?.buffer?.length ?? null }
+    return { sent: true, pdfBytes: pdfBase64 ? Buffer.from(pdfBase64, "base64").length : null }
   } catch (e: any) {
     // Cannot propagate. The caller may be mid-issuance with a charge, a subscription and
     // a tax document already committed, none of which an email may undo.
