@@ -287,9 +287,17 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
 
         <div className="uxsf-inner">
           <div className="uxsf-top">
-            <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: ".2px", color: C.ink }}>
-              UX<span style={{ color: C.brand }}>ellent</span>
-            </div>
+            {/*
+              ⛔ The real logo, the third and last place the wordmark was set as type.
+              
+              This screen holds a visitor for the length of a scan — it is the longest they
+              look at any one thing in the flow — and it was the only one still showing the
+              brand as two spans with no starburst.
+              
+              22px of height, matching the checkout bar rather than the report masthead's
+              150px width: this is a compact status card, not a page header.
+            */}
+            <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
             {domain ? (
               <div
                 style={{

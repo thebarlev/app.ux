@@ -51,6 +51,12 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
    * behaviour as before, and still a working page rather than a dead end.
    */
   const backScanId = String(sp.scanId || "").trim()
+  /*
+   * The site the subscription is for. The page listed a plan and a price and never said
+   * what they were for — on a confirmation screen that is the one line that tells a buyer
+   * the right thing was bought.
+   */
+  let host = ""
   const backToken = String(sp.token || "").trim()
   const backHref =
     backScanId && backToken
@@ -145,65 +151,121 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
     }
   }
 
+  if (backScanId) {
+    const admin = createServiceRoleClient()
+    const { data: scanRow } = await admin
+      .from("auditor_scans")
+      .select("normalized_host, hostname")
+      .eq("id", backScanId)
+      .maybeSingle()
+    host = String((scanRow as any)?.normalized_host || (scanRow as any)?.hostname || "")
+  }
+
   const money = (n: number) =>
     n.toLocaleString("he-IL", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })
 
   return (
-    <main className="min-h-svh bg-white px-4 py-12 sm:px-6 sm:py-20" dir="rtl">
+    <main className="min-h-svh bg-white px-4 py-10 sm:px-6 sm:py-14" dir="rtl">
       <div className="mx-auto max-w-md">
-        <div className="rounded-2xl bg-[#F6F8FC] p-7 text-center">
+        {/*
+          ⛔ THE TOP BAR, WHICH THIS PAGE DID NOT HAVE AT ALL.
+          
+          It was the only screen in the flow with no logo and no header — a card floating on
+          white, reached straight after a card payment. That is the screen where a buyer is
+          most likely to ask whether the money went to the right place, and it was the one
+          screen that did not say who we are. Same bar as the checkout, same asset, same
+          22px, so the two pages read as one step.
+        */}
+        <div className="flex items-center justify-between gap-3 border-b border-[#E1E7F1] pb-3">
+          <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
+          <span className="rounded-full bg-[#EDF3F9] px-2.5 py-1 text-[11px] font-extrabold text-[#2C5679]">
+            אישור תשלום
+          </span>
+        </div>
+
+        <div className="mt-6 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#E4F3EA] text-2xl text-[#127048]">
             ✓
           </div>
           <h1 className="mt-4 text-xl font-extrabold text-[#101B31]">התשלום התקבל</h1>
+          {/*
+            ⚠️ "המומחה שלנו יוצר איתכם קשר בימים הקרובים" is kept verbatim and NOT deleted,
+            as instructed — but see the report: a purchase writes no row to auditor_tasks,
+            which is the table the admin tasks screen reads. The only thing a human receives
+            is the operator email. Whether the promise is kept rests on that inbox alone.
+          */}
           <p className="mt-2 text-sm leading-relaxed text-[#3A465F]">
             תודה. המנוי פעיל, והמומחה שלנו יוצר איתכם קשר בימים הקרובים.
           </p>
+        </div>
 
-          <dl className="mt-6 flex flex-col gap-0 border-t border-[#E1E7F1] text-start">
+        {/*
+          ⛔ WHAT WAS BOUGHT, AS ITS OWN BLOCK.
+          
+          The plan, the price and the site used to be three rows in one undifferentiated
+          list that also held the invoice — so "חשבונית מס קבלה / תופק מיד" sat among them
+          looking like a stray table row. They are two different questions: what did I buy,
+          and where is my document. Two blocks, each with a heading, answers both.
+        */}
+        <section className="mt-7 rounded-2xl bg-[#F6F8FC] p-5">
+          <h2 className="text-[12.5px] font-extrabold tracking-[.14em] text-[#78859B]">מה נקנה</h2>
+          <dl className="mt-3 flex flex-col gap-0">
             {planName ? <Row label="המסלול" value={planName} /> : null}
             {gross !== null && Number.isFinite(gross) ? (
               <Row label="סכום" value={`${money(gross)} ₪ כולל מע״מ · לחודש`} />
             ) : null}
-            {documentNumber ? (
-              <Row label="חשבונית מס קבלה" value={documentNumber} ltr />
-            ) : (
-              <Row
-                label="חשבונית מס קבלה"
-                value={settled ? "מופקת ברגעים אלה" : "תופק מיד לאחר אישור התשלום"}
-              />
-            )}
+            {host ? <Row label="עבור" value={host} ltr /> : null}
           </dl>
+        </section>
 
-          <p className="mt-5 text-[12.5px] leading-relaxed text-[#78859B]">
-            {/*
-              Past tense only when a send is on record. Otherwise future tense, which is
-              both true and actionable: the cron runs every five minutes, so "within a
-              few minutes" is the real window rather than a guess.
-            */}
-            {invoiceEmailed ? (
-              email ? (
-                <>
-                  החשבונית נשלחה ל<span dir="ltr" className="font-bold">{email}</span>.
-                </>
+        <section className="mt-4 rounded-2xl bg-[#F6F8FC] p-5">
+          <h2 className="text-[12.5px] font-extrabold tracking-[.14em] text-[#78859B]">החשבונית</h2>
+          {documentNumber ? (
+            <>
+              <dl className="mt-3 flex flex-col gap-0">
+                <Row label="חשבונית מס קבלה" value={documentNumber} ltr />
+              </dl>
+              {/*
+                Past tense only when a send is on record — document_events, not the document
+                existing. Two different facts, and conflating them is what produced the false
+                "נשלחה" this page used to show unconditionally.
+              */}
+              <p className="mt-3 text-[12.5px] leading-relaxed text-[#78859B]">
+                {invoiceEmailed ? (
+                  email ? (
+                    <>נשלחה ל<span dir="ltr" className="font-bold">{email}</span>.</>
+                  ) : (
+                    <>נשלחה לאימייל שהזנתם.</>
+                  )
+                ) : email ? (
+                  <>תישלח ל<span dir="ltr" className="font-bold">{email}</span> תוך מספר דקות.</>
+                ) : (
+                  <>תישלח לאימייל שהזנתם תוך מספר דקות.</>
+                )}
+              </p>
+            </>
+          ) : (
+            /*
+              No number yet, so no empty row pretending to be one. The cron runs every five
+              minutes, so "within a few minutes" is the real window rather than reassurance.
+            */
+            <p className="mt-3 text-sm leading-relaxed text-[#3A465F]">
+              {email ? (
+                <>תישלח ל<span dir="ltr" className="font-bold">{email}</span> תוך מספר דקות.</>
               ) : (
-                <>החשבונית נשלחה לאימייל שהזנתם.</>
-              )
-            ) : email ? (
-              <>
-                החשבונית תישלח ל<span dir="ltr" className="font-bold">{email}</span> תוך מספר דקות.
-              </>
-            ) : (
-              <>החשבונית תישלח לאימייל שהזנתם תוך מספר דקות.</>
-            )}
-            <br />
-            הגישה לאזור האישי תיפתח בקרוב, ותקבלו קישור להגדרת סיסמה.
-          </p>
-        </div>
+                <>תישלח לאימייל שהזנתם תוך מספר דקות.</>
+              )}
+            </p>
+          )}
+        </section>
+
+        <p className="mt-4 text-center text-[12.5px] leading-relaxed text-[#78859B]">
+          הגישה לאזור האישי תיפתח בקרוב, ותקבלו קישור להגדרת סיסמה.
+        </p>
 
         <a
           href={backHref}
-          className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-extrabold text-[#2C5679] shadow-[inset_0_0_0_1.5px_#CBDDEC]"
+          className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-extrabold text-[#2C5679] shadow-[inset_0_0_0_1.5px_#CBDDEC]"
         >
           חזרה לדוח
         </a>
