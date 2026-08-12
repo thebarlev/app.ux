@@ -741,7 +741,19 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           which put a block about what happens next ahead of the number it is a
           reaction to.
         */}
-        {!teaser ? <AuditorWhatHappensNext locale={locale} whatsappUrl={whatsappUrl} emailCopy={emailCopy} /> : null}
+        {/*
+          ⛔ The "הדוח שלכם מוכן / נעבור על זה יחד" panel is gone, whole.
+          
+          It sat directly above the report it announced — a tile telling the visitor that
+          the thing immediately below it exists. On a phone it cost most of the fold to say
+          "look down", and its "דברו איתנו" button competed with the plan buttons that are
+          the actual next step.
+          
+          Removed rather than flagged off: a panel behind a flag is a panel someone turns
+          back on. AuditorWhatHappensNext.tsx is left in the tree untouched and now has no
+          caller — reported rather than deleted, because deleting a file I was not asked to
+          delete is not mine to decide.
+        */}
 
         {/*
           Directly under the gauge, because it is the reading of that number.
@@ -790,10 +802,40 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
               does that, and the old calc would push it below the text.
             */}
             <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand }} aria-hidden="true">
+              {/*
+                ⛔ ONE SMOOTH RISE, NOT A ZIGZAG.
+                
+                The old path was `M3 27 L12 18 L19 22 L31 8` — four straight segments going
+                up, back DOWN, then up again. At 26px that reads as a crooked line rather
+                than growth, which is the opposite of what the sentence beside it says. A
+                single cubic curve climbs the whole way with no reversal. The little arrow
+                head that used to sit at the end went with it: the dot does that job now
+                without adding a second shape at this size.
+
+                ⛔ It carries no data. No axis, no ticks, no figures, no before/after.
+                Organic search has no guaranteed outcome, so a number here is a number
+                somebody quotes back at us. The shape says "up" and says nothing else.
+
+                Classes rather than inline animation, so prefers-reduced-motion can reach
+                them — an inline `animation` cannot be overridden by a media query.
+              */}
               <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
-                <path d="M3 27 L12 18 L19 22 L31 8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"
-                      style={{ strokeDasharray: 46, strokeDashoffset: 0, animation: "ar-draw .9s ease-out both" }} />
-                <path d="M24 8 H31 V15" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                <defs>
+                  <linearGradient id="ar-spark-fill" x1="0" y1="1" x2="0" y2="0">
+                    <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+                    <stop offset="100%" stopColor="currentColor" stopOpacity=".22" />
+                  </linearGradient>
+                </defs>
+                <path className="ar-spark-wash" d="M3 27 C11 25, 15 19, 21 15 S28 9, 31 7 L31 30 L3 30 Z" fill="url(#ar-spark-fill)" />
+                <path
+                  className="ar-spark-line"
+                  d="M3 27 C11 25, 15 19, 21 15 S28 9, 31 7"
+                  stroke="currentColor"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle className="ar-spark-dot" cx="31" cy="7" r="2.6" fill="currentColor" />
               </svg>
             </div>
             {/*

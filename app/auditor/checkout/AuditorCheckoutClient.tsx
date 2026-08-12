@@ -98,10 +98,26 @@ function validate(f: Fields): Partial<Record<keyof Fields, string>> {
   const phone = normalisePhone(f.phone)
   if (phone.length < 9 || phone.length > 10) errors.phone = "מספר טלפון לא תקין"
 
-  if (!f.businessName.trim()) errors.businessName = "נדרש שם חברה או עסק"
-
-  // One checksum for all three identifier types — see the note at the top.
-  if (!isValidIsraeliId(f.taxId)) errors.taxId = "מספר לא תקין. ח.פ, ע.מ או ת״ז — תשע ספרות"
+  /*
+   * ⛔ COMPANY NAME, TAX ID AND ADDRESS DO NOT BLOCK A PAYMENT.
+   *
+   * They used to. A visitor who had already given their name, email and phone at the gate
+   * reached the payment step and was refused until they also produced a registration
+   * number — and the most common honest answer to "ח.פ?" from a small business owner on a
+   * phone is that they do not know it by heart. That is an abandoned sale over a field the
+   * invoice does not require.
+   *
+   * A tax document needs the issuer's number, not the buyer's. The buyer's is needed only
+   * for one thing — reclaiming VAT — which is why the field now says so instead of simply
+   * refusing.
+   *
+   * ⚠️ The checksum still runs, but only on a value that is actually present. Empty is
+   * allowed; wrong is not. Accepting nine digits that fail the check would put a number on
+   * a tax document that belongs to nobody, which is worse than leaving it blank.
+   */
+  if (f.taxId.trim() && !isValidIsraeliId(f.taxId)) {
+    errors.taxId = "מספר לא תקין. ח.פ, ע.מ או ת״ז — תשע ספרות"
+  }
 
   return errors
 }
@@ -200,7 +216,12 @@ export default function AuditorCheckoutClient(props: Props) {
   The rule follows the axis it separates, same as the phone breakpoint already does:
   between stacked quotes it is a short horizontal mark, not a vertical edge.
 */
-.${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
+.\${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
+/* Item 6: 18px in the rail only. Two class levels deep for the same specificity reason
+   the rule above needed — a plain \`aside\` selector loses to the component's own. */
+.\${AUDITOR_SCOPE} aside .ar-testi-item,
+.\${AUDITOR_SCOPE} aside .ar-testi-item p,
+.\${AUDITOR_SCOPE} aside blockquote{ font-size:18px; line-height:1.6 }
 .${AUDITOR_SCOPE} aside .ar-testi-item + .ar-testi-item{ margin-top:18px }
 .${AUDITOR_SCOPE} aside .ar-testi-rule{
   inset-inline-start:50%; transform:translateX(50%);
@@ -221,7 +242,18 @@ export default function AuditorCheckoutClient(props: Props) {
         BELOW the form and below the button, which is the requirement: pushing the CTA
         down on a phone is the fastest way to lose the sale.
       */}
-      <div className="mx-auto grid max-w-5xl items-start gap-8 lg:grid-cols-[1fr_340px]">
+      {/*
+        ⛔ The rail went from 340px to 420px, and its text from the component default to 18px.
+        
+        At 340px the quotes wrapped every three or four words and the whole column read as a
+        narrow strip of filler beside the form — measured earlier at 76px and 52px for two of
+        the blockquotes, which is why the grid override exists at all. Widening it and taking
+        the type up to 18px makes it read as testimony a person would actually finish, which
+        is the only reason it is on a payment page.
+        
+        max-w-5xl stays: the measure of the page is not the complaint, the split inside it is.
+      */}
+      <div className="mx-auto grid max-w-5xl items-start gap-8 lg:grid-cols-[1fr_420px]">
         <div className="max-w-lg">
         {/*
           The top bar. Same mark as the report's, at the same 17px / 800 with the
@@ -281,13 +313,20 @@ export default function AuditorCheckoutClient(props: Props) {
           <Field label="שם מלא" value={fields.fullName} onChange={set("fullName")} error={errors.fullName} autoComplete="name" />
           <Field label="אימייל" value={fields.email} onChange={set("email")} error={errors.email} type="email" autoComplete="email" dir="ltr" />
           <Field label="טלפון" value={fields.phone} onChange={set("phone")} error={errors.phone} type="tel" autoComplete="tel" dir="ltr" />
-          <Field label="שם חברה / עסק" value={fields.businessName} onChange={set("businessName")} error={errors.businessName} autoComplete="organization" />
+          <Field label="שם חברה / עסק (אופציונלי)" value={fields.businessName} onChange={set("businessName")} error={errors.businessName} autoComplete="organization" />
           <Field
-            label="ח.פ / ע.מ / ת״ז"
+            label="ח.פ / ע.מ / ת״ז (אופציונלי)"
             value={fields.taxId}
             onChange={set("taxId")}
             error={errors.taxId}
-            hint="תשע ספרות. נדרש לחשבונית מס קבלה."
+            /*
+             * The old hint said "נדרש לחשבונית מס קבלה", which was not true — the document
+             * needs the ISSUER's number, not the buyer's. It read as a refusal and stopped
+             * people who did not know theirs. Now it names the one thing the number is
+             * actually for, so a business that wants to reclaim VAT knows to fill it and
+             * everyone else knows they can move on.
+             */
+            hint="תשע ספרות. נדרש אם תרצו לנכות מע״מ."
             inputMode="numeric"
             dir="ltr"
           />

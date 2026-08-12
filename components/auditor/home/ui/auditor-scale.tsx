@@ -133,6 +133,24 @@ export function AuditorScaleStyles() {
 }
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
+/* The masthead spark. Same vocabulary as ar-draw and the score gauge: dashoffset to
+   zero, once, then hold. The wash fades in only after the line has arrived, so the
+   fill never appears under a half-drawn curve. */
+@keyframes ar-spark-draw{ to{ stroke-dashoffset:0 } }
+@keyframes ar-spark-wash{ to{ opacity:1 } }
+@keyframes ar-spark-dot{ from{ opacity:0; transform:scale(.4) } to{ opacity:1; transform:scale(1) } }
+/* A breath, not a blink: 6% of scale. Larger competes with the score gauge, and this is
+   ambience rather than a reading. */
+@keyframes ar-spark-pulse{ 0%,100%{ transform:scale(1); opacity:1 } 50%{ transform:scale(1.06); opacity:.75 } }
+@media (prefers-reduced-motion:reduce){
+  .ar-spark-line,.ar-spark-wash,.ar-spark-dot{ animation:none !important }
+  .ar-spark-line{ stroke-dashoffset:0 }
+  .ar-spark-wash,.ar-spark-dot{ opacity:1 }
+}
+.ar-spark-line{ stroke-dasharray:40; stroke-dashoffset:40; animation:ar-spark-draw .9s ease-out both }
+.ar-spark-wash{ opacity:0; animation:ar-spark-wash .5s ease-out .55s both }
+.ar-spark-dot{ transform-box:fill-box; transform-origin:center; opacity:0;
+  animation:ar-spark-dot .4s ease-out .8s both, ar-spark-pulse 2.6s ease-in-out 1.2s infinite }
 /*
   The kick's pulse, carried from the spec: a dot that breathes a ring outward.
   Box-shadow rather than a transform so it cannot shift the text beside it.

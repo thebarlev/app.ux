@@ -53,8 +53,15 @@ export default async function AuditorHomePage({
   // and the same values, so steps 1, 2 and the gate are unchanged and only the
   // report is free of it. Vertical padding stays here: it applies to all of them
   // equally and nothing needs to bleed through it.
+  //
+  // ⛔ sm:py-16 became sm:py-8.
+  //
+  // 64px of nothing above the masthead on a desktop, and the report's own first block
+  // already carries its top spacing — so the two stacked and the first words sat far below
+  // where the fold begins. py-6 on a phone is unchanged: that number was measured earlier
+  // and is not the complaint.
   return (
-    <main className="min-h-svh bg-white py-6 sm:py-16">
+    <main className="min-h-svh bg-white py-6 sm:py-8">
       <Suspense fallback={null}>
         <AuditorHomeClient />
       </Suspense>

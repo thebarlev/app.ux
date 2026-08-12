@@ -29,7 +29,14 @@ export const dynamic = "force-dynamic"
  * already paid and the only thing being revealed is their own receipt.
  */
 
-type Search = Promise<{ session?: string; ReturnValue?: string; returnValue?: string }>
+type Search = Promise<{
+  session?: string
+  ReturnValue?: string
+  returnValue?: string
+  /** Carried through the Cardcom round trip so "חזרה לדוח" can return to the real report. */
+  scanId?: string
+  token?: string
+}>
 
 export default async function AuditorCheckoutSuccessPage({ searchParams }: { searchParams?: Search }) {
   if (!isCheckoutEnabled()) notFound()
@@ -37,6 +44,18 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
   const sp = (await searchParams) ?? {}
   // Cardcom's casing has changed between integrations, so all three are accepted.
   const sessionId = String(sp.session || sp.ReturnValue || sp.returnValue || "").trim()
+  /*
+   * Carried through the Cardcom round trip by checkout/start so "חזרה לדוח" can return to
+   * the report that was actually read, rather than to /auditor, which starts a new scan.
+   * Absent on an older link, in which case the button falls back to /auditor — the same
+   * behaviour as before, and still a working page rather than a dead end.
+   */
+  const backScanId = String(sp.scanId || "").trim()
+  const backToken = String(sp.token || "").trim()
+  const backHref =
+    backScanId && backToken
+      ? `/auditor?scanId=${encodeURIComponent(backScanId)}&token=${encodeURIComponent(backToken)}`
+      : "/auditor"
 
   let planName = ""
   let gross: number | null = null
@@ -183,7 +202,7 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
         </div>
 
         <a
-          href="/auditor"
+          href={backHref}
           className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-extrabold text-[#2C5679] shadow-[inset_0_0_0_1.5px_#CBDDEC]"
         >
           חזרה לדוח

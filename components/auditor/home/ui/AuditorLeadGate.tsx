@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 import { Input } from "@/components/ui/input"
 import type { AuditorLocale } from "@/lib/auditor/locale"
-import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
 import { AUDITOR_CONSENT_TEXT } from "@/lib/auditor/consent-text"
 
 type Props = {
@@ -219,31 +218,23 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
     <div className={`${AUDITOR_SCOPE} relative min-h-[80svh] w-full`} dir={rtl ? "rtl" : "ltr"}>
       <AuditorScaleStyles />
       {/*
-        The report the visitor is about to get, blurred out behind the form.
-        Decorative and inert: aria-hidden keeps it out of the accessibility tree
-        and pointer-events-none stops it swallowing taps meant for the fields,
-        which matters on mobile where the two overlap almost entirely.
+        ⛔ NOTHING BEHIND THE FORM. WHITE.
+        
+        This held a full teaser report at blur-[6px] and 40% opacity, under a 62% white
+        veil. The idea was that a blurred report is more tempting than an empty panel, and
+        it was built that way on request — then seen and decided against.
+        
+        Two things went with it and both are improvements on their own terms:
+        
+        · The blurred layer was a full second render of AuditorReportV3, mounted purely as
+          texture. Removing it removes that whole subtree from the first screen every
+          visitor loads.
+        
+        · Its values were never real — they could not be, because `filter: blur()` over a
+          real score still ships the score in the DOM, and the gate exists to withhold it.
+          So the layer was decoration standing in for content, and once it is decoration
+          there is no argument for paying for it.
       */}
-      {/*
-        Dropped in the no-score variant. Decorative or not, a report-shaped
-        thing sitting behind the form is the strongest promise on the screen —
-        it says the document exists and the form is the only thing in the way.
-        With no score there is nothing behind the form, so nothing is drawn.
-      */}
-      {noScore ? null : (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 select-none overflow-hidden blur-[6px] opacity-40 sm:blur-[8px] sm:opacity-50"
-        >
-          <AuditorReportV3 locale={locale} status={null} teaser />
-        </div>
-      )}
-
-      {/* The mockup's veil: white at 62% over a 2.5px blur. */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
-      />
 
       {/*
         No card around the form.
@@ -254,7 +245,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         it is the reason the form still read as cramped after the fields were
         already flat.
 
-        The veil behind it already separates the form from the blurred report —
+        Nothing sits behind the form now, so it carries its own edge —
         that is what a veil is for — so the panel was drawing a second boundary
         for the same job. The form is now the content of the page at this step,
         with a width cap so it does not sprawl on a desktop.

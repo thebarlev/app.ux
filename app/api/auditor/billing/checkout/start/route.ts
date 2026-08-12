@@ -289,7 +289,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "misconfigured" }, { status: 500 })
   }
 
-  const successUrl = `${publicBaseUrl}/auditor/checkout/success`
+  /*
+   * ⛔ scanId AND token, because "חזרה לדוח" on the thank-you page sent people to a NEW
+   * scan.
+   *
+   * That link was `href="/auditor"` with nothing after it, and /auditor with no parameters
+   * is step one — the URL bar. The report only exists at /auditor?scanId=…&token=…, and
+   * the success page could not build that: it receives only the session id, and
+   * auditor_checkout_sessions stores scan_id but no scan access token (its token_* columns
+   * are the CARD token, a different thing entirely).
+   *
+   * So the pair has to travel, and the shape to copy was one line below all along —
+   * errorUrl already carries both. The asymmetry was the bug: the failure path could
+   * return you to your report and the success path could not.
+   */
+  const successUrl = `${publicBaseUrl}/auditor/checkout/success?scanId=${encodeURIComponent(body.scanId)}&token=${encodeURIComponent(body.token)}`
   const errorUrl = `${publicBaseUrl}/auditor/checkout?plan=${encodeURIComponent(body.plan_id)}&scanId=${encodeURIComponent(body.scanId)}&token=${encodeURIComponent(body.token)}`
   const indicatorUrl = `${publicBaseUrl}/api/auditor/billing/cardcom/indicator`
 
