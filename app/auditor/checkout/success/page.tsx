@@ -43,6 +43,8 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
   let documentNumber: string | null = null
   let email = ""
   let settled = false
+  /** Whether the invoice email is recorded as sent. Never assumed from the document. */
+  let invoiceEmailed = false
 
   if (sessionId) {
     const admin = createServiceRoleClient()
@@ -96,6 +98,29 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
             .eq("id", invoiceId)
             .maybeSingle()
           documentNumber = (doc as any)?.document_number ? String((doc as any).document_number) : null
+
+          /*
+           * ⛔ MEASURED, NOT ASSUMED — the same rule the invoice number already follows.
+           *
+           * This page used to state "החשבונית נשלחה לאימייל שהזנתם" unconditionally,
+           * while no code existed anywhere that emailed an invoice to a customer. The
+           * document was real and unreachable: the only route to the PDF is auth-gated,
+           * behind an account area this very page says opens "בקרוב".
+           *
+           * document_events is where the sender records a successful send. It is read
+           * here rather than inferred from the document existing, because those are two
+           * different facts and conflating them is what produced the false sentence.
+           * event_type 'emailed' has been in the check constraint since migration 006,
+           * so no schema change was needed to be able to tell.
+           */
+          const { data: emailedEvent } = await admin
+            .from("document_events")
+            .select("id")
+            .eq("document_id", invoiceId)
+            .eq("event_type", "emailed")
+            .limit(1)
+            .maybeSingle()
+          invoiceEmailed = Boolean((emailedEvent as any)?.id)
         }
       }
     }
@@ -132,12 +157,25 @@ export default async function AuditorCheckoutSuccessPage({ searchParams }: { sea
           </dl>
 
           <p className="mt-5 text-[12.5px] leading-relaxed text-[#78859B]">
-            {email ? (
+            {/*
+              Past tense only when a send is on record. Otherwise future tense, which is
+              both true and actionable: the cron runs every five minutes, so "within a
+              few minutes" is the real window rather than a guess.
+            */}
+            {invoiceEmailed ? (
+              email ? (
+                <>
+                  החשבונית נשלחה ל<span dir="ltr" className="font-bold">{email}</span>.
+                </>
+              ) : (
+                <>החשבונית נשלחה לאימייל שהזנתם.</>
+              )
+            ) : email ? (
               <>
-                החשבונית נשלחה ל<span dir="ltr" className="font-bold">{email}</span>.
+                החשבונית תישלח ל<span dir="ltr" className="font-bold">{email}</span> תוך מספר דקות.
               </>
             ) : (
-              <>החשבונית נשלחה לאימייל שהזנתם.</>
+              <>החשבונית תישלח לאימייל שהזנתם תוך מספר דקות.</>
             )}
             <br />
             הגישה לאזור האישי תיפתח בקרוב, ותקבלו קישור להגדרת סיסמה.

@@ -14,6 +14,8 @@ import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution
 import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
 import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
 import { sendAuditorIssuanceErrorNotice, sendAuditorSubscriptionNotice } from "@/lib/email/auditorBillingNotice"
+import { sendAuditorInvoiceToCustomer } from "@/lib/email/auditorInvoiceEmail"
+import { generateDocumentPDF } from "@/lib/pdf-service"
 
 const providerKey = "cardcom"
 
@@ -639,6 +641,9 @@ export async function processCardcomIndicatorEvent(
   let issuanceOk = false
   let issuanceError: string | null = null
   let documentNumber: string | null = null
+  // The RPC returns document_id alongside the number. Only the number was captured
+  // before, because nothing downstream needed the id; the customer invoice email does.
+  let documentId: string | null = null
 
   if (chargeId) {
     const isEn = String((checkout as any)?.success_url || "").includes("/en/auditor")
@@ -650,6 +655,7 @@ export async function processCardcomIndicatorEvent(
       } as any)
       issuanceOk = Array.isArray(rpcData) && rpcData[0]?.ok === true && !rpcErr
       documentNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? String(rpcData[0].document_number) : null
+      documentId = Array.isArray(rpcData) && rpcData[0]?.document_id ? String(rpcData[0].document_id) : null
       if (issuanceOk) {
         console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: documentNumber })
       } else {
@@ -771,6 +777,101 @@ export async function processCardcomIndicatorEvent(
    * Fields are named one by one. There is no object to pass through, so the token that
    * this same function encrypts a few lines above has no route into an inbox.
    */
+  /*
+   * ⛔ THE CUSTOMER'S COPY. This is the step that did not exist.
+   *
+   * A buyer used to be left with a document they could not reach: the only route to the
+   * PDF is auth-gated, behind an account area the thank-you page says opens "בקרוב" —
+   * and that same page told them the invoice had already been emailed. This is that
+   * email.
+   *
+   * Placed here on purpose: after the RPC confirmed a document, after the event is
+   * marked ok, and before the operator notice. The customer's copy matters more than
+   * ours, and neither can affect anything above.
+   *
+   * ⚠️ Wrapped whole. generateDocumentPDF is the heaviest thing in this function and
+   * runs inside a cron with a shared budget — a throw, a timeout or an out-of-memory
+   * here must not undo a charge, a subscription or a tax document that are all already
+   * committed. So every failure becomes a log line and the flow continues.
+   *
+   * The success page reads document_events for 'emailed' rather than assuming, so a
+   * failure here changes what the customer is told rather than being papered over.
+   */
+  if (documentId && documentNumber) {
+    try {
+      let pdfBase64: string | null = null
+      const pdf = await generateDocumentPDF(documentId, { context: "issue", isIssuance: true })
+      if (pdf?.success && pdf.buffer) {
+        // pdf.buffer is already a Buffer (lib/types/template.ts) — no re-wrapping.
+        pdfBase64 = pdf.buffer.toString("base64")
+      } else {
+        console.error("[AUDITOR_NOTICE_FAILED] invoice PDF could not be generated", {
+          documentId,
+          documentNumber,
+          error: (pdf as any)?.error || "no buffer",
+        })
+      }
+
+      const invoiceEmail = await sendAuditorInvoiceToCustomer({
+        // The address the buyer typed into the checkout form: checkout/start resolves or
+        // creates the company with it, so companies.email IS that address.
+        to: String(noticeCompany.email || ""),
+        isTest: noticeCompany.is_test,
+        invoiceNumber: documentNumber,
+        planName: plan.name,
+        amount: chargedAmount,
+        currency: chargedCurrency,
+        pdfBase64,
+      })
+
+      if (invoiceEmail.sent) {
+        /*
+         * Recorded as a document event, not as a new column.
+         *
+         * document_events already exists from migration 006 and its event_type check
+         * already allows 'emailed' — so the fact the success page needs is storable with
+         * no migration at all. A column would have meant a migration, a deploy and a
+         * window where the page cannot tell.
+         *
+         * performed_by stays null: nobody performed this, the system did.
+         */
+        const { error: evErr } = await admin.from("document_events").insert({
+          document_id: documentId,
+          company_id: billingCfg.billingAccountId,
+          event_type: "emailed",
+          event_data: {
+            to: String(noticeCompany.email || ""),
+            invoice_number: documentNumber,
+            is_test: noticeCompany.is_test,
+            channel: "auditor_checkout",
+          },
+        } as any)
+        if (evErr) {
+          // The email went out; only the record of it failed. Said plainly, because the
+          // success page will now tell a customer who HAS the invoice that it is coming.
+          console.error("[AUDITOR_NOTICE_FAILED] invoice was emailed but the event was not recorded", {
+            documentId,
+            documentNumber,
+            error: String((evErr as any)?.message || evErr),
+          })
+        }
+      } else {
+        console.error("[AUDITOR_NOTICE_FAILED] the customer did not get their invoice", {
+          documentId,
+          documentNumber,
+          companyId,
+          reason: invoiceEmail.reason,
+        })
+      }
+    } catch (e: any) {
+      console.error("[AUDITOR_NOTICE_FAILED] invoice email threw", {
+        documentId,
+        documentNumber,
+        error: String(e?.message || e),
+      })
+    }
+  }
+
   const notice = await sendAuditorSubscriptionNotice({
     isTest: noticeCompany.is_test,
     fullName: noticeCompany.contact_full_name,

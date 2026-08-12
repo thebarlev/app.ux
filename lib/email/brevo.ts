@@ -11,6 +11,19 @@
 export async function sendBrevoEmail(params: {
   to: string[]
   subject: string
+  /**
+   * Optional file to attach, already base64-encoded.
+   *
+   * Added for the customer invoice email, which is the first thing here that has to
+   * carry a document rather than describe one. Brevo takes attachments as
+   * `attachment: [{ name, content }]` where content is base64 — no multipart, no
+   * upload step.
+   *
+   * ⚠️ Kept optional and unset by default: every existing caller sends HTML only, and
+   * an attachment is the kind of thing that should never appear on an email by
+   * accident.
+   */
+  attachment?: { name: string; contentBase64: string }
   html: string
   senderName: string
   /** Logged on failure so it is obvious which send dropped. */
@@ -40,6 +53,9 @@ export async function sendBrevoEmail(params: {
         to: recipients.map((email) => ({ email })),
         subject: params.subject,
         htmlContent: params.html,
+        ...(params.attachment
+          ? { attachment: [{ name: params.attachment.name, content: params.attachment.contentBase64 }] }
+          : {}),
       }),
     })
 
