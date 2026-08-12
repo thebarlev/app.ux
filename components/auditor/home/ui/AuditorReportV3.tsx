@@ -568,14 +568,20 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
           mark, then what this document is, then the hostname pushed to the far
           end. It was a two-row block with the host stacked under an eyebrow.
 
-          The mark is set as type rather than fetched as an asset. This is a light
-          bar, so the white SVG the navy closing block uses cannot serve here, and
-          two spans need no request and no second colourway.
+          The mark is the black SVG. It used to be set as type — two spans, no starburst —
+          which is what made it read as a placeholder. This is a light bar, so the white
+          colourway the navy closing block uses cannot serve here.
         */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, minHeight: 62, marginBottom: 14, borderBottom: `1px solid ${C.line}`, flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: ".2px", color: C.ink }} dir="ltr">
-            UX<span style={{ color: C.brand }}>ellent</span>
-          </span>
+          {/*
+            ⛔ The real logo. This was the wordmark rebuilt from two text spans — no
+            starburst, and whatever font happened to load. public/brand/black.svg is the
+            dark colourway, correct for this light bar; the white SVG the navy closing block
+            uses would be invisible here. Rasterised and read before use, because the
+            marketing repo warns that its identical logo.svg spells "UXellet" — this file
+            does not.
+          */}
+          <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
           <span style={{ fontSize: "var(--ar-caption)", fontWeight: 800, color: C.brandInk, background: "#EDF3F9", padding: "4px 11px", borderRadius: 999 }}>
             {en ? "Ranking report" : "דוח דירוג"}
           </span>
@@ -801,43 +807,22 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
               line of a heading in a flex-start row. On a centred row alignItems
               does that, and the old calc would push it below the text.
             */}
-            <div style={{ flexShrink: 0, width: 26, height: 26, color: C.brand }} aria-hidden="true">
-              {/*
-                ⛔ ONE SMOOTH RISE, NOT A ZIGZAG.
-                
-                The old path was `M3 27 L12 18 L19 22 L31 8` — four straight segments going
-                up, back DOWN, then up again. At 26px that reads as a crooked line rather
-                than growth, which is the opposite of what the sentence beside it says. A
-                single cubic curve climbs the whole way with no reversal. The little arrow
-                head that used to sit at the end went with it: the dot does that job now
-                without adding a second shape at this size.
-
-                ⛔ It carries no data. No axis, no ticks, no figures, no before/after.
-                Organic search has no guaranteed outcome, so a number here is a number
-                somebody quotes back at us. The shape says "up" and says nothing else.
-
-                Classes rather than inline animation, so prefers-reduced-motion can reach
-                them — an inline `animation` cannot be overridden by a media query.
-              */}
-              <svg viewBox="0 0 34 34" width="26" height="26" fill="none">
-                <defs>
-                  <linearGradient id="ar-spark-fill" x1="0" y1="1" x2="0" y2="0">
-                    <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-                    <stop offset="100%" stopColor="currentColor" stopOpacity=".22" />
-                  </linearGradient>
-                </defs>
-                <path className="ar-spark-wash" d="M3 27 C11 25, 15 19, 21 15 S28 9, 31 7 L31 30 L3 30 Z" fill="url(#ar-spark-fill)" />
-                <path
-                  className="ar-spark-line"
-                  d="M3 27 C11 25, 15 19, 21 15 S28 9, 31 7"
-                  stroke="currentColor"
-                  strokeWidth="2.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle className="ar-spark-dot" cx="31" cy="7" r="2.6" fill="currentColor" />
-              </svg>
-            </div>
+            {/*
+              ⛔ THE GRAPH IS GONE.
+              
+              It was a rising curve with a gradient wash and a pulsing head — fixed twice,
+              once from a zigzag to a smooth rise, and it still did not read. The verdict was
+              "לא ברור, להסיר", and that is the right call: an ambience element nobody can
+              interpret costs attention and returns nothing. A dark band with one clean
+              sentence beats a dark band with a shape people squint at.
+              
+              Nothing replaces it. The row keeps the sentence, centred, and the flex gap that
+              used to separate the two now just sits as breathing room around the text.
+              
+              The ar-spark-* keyframes stay in auditor-scale.tsx: they are three unused rules
+              in a stylesheet, and removing CSS I was not asked to remove is how unrelated
+              things break. Recorded instead.
+            */}
             {/*
               Nobody is working on this site yet. The service starts after an
               approval, a connection and a payment, so "already working on your

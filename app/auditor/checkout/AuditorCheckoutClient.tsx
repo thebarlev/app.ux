@@ -241,12 +241,12 @@ export default function AuditorCheckoutClient(props: Props) {
   The rule follows the axis it separates, same as the phone breakpoint already does:
   between stacked quotes it is a short horizontal mark, not a vertical edge.
 */
-.\${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
+.${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
 /* Item 6: 18px in the rail only. Two class levels deep for the same specificity reason
    the rule above needed — a plain \`aside\` selector loses to the component's own. */
-.\${AUDITOR_SCOPE} aside .ar-testi-item,
-.\${AUDITOR_SCOPE} aside .ar-testi-item p,
-.\${AUDITOR_SCOPE} aside blockquote{ font-size:18px; line-height:1.6 }
+.${AUDITOR_SCOPE} aside .ar-testi-item,
+.${AUDITOR_SCOPE} aside .ar-testi-item p,
+.${AUDITOR_SCOPE} aside blockquote{ font-size:18px; line-height:1.6 }
 .${AUDITOR_SCOPE} aside .ar-testi-item + .ar-testi-item{ margin-top:18px }
 .${AUDITOR_SCOPE} aside .ar-testi-rule{
   inset-inline-start:50%; transform:translateX(50%);
@@ -287,9 +287,24 @@ export default function AuditorCheckoutClient(props: Props) {
         */}
         <div className="flex items-center justify-between gap-3 border-b border-[#E1E7F1] pb-3">
           <div className="flex items-center gap-2.5">
-            <span className="text-[17px] font-extrabold tracking-[.2px] text-[#1C2A46]" dir="ltr">
-              UX<span className="text-[#5389BB]">ellent</span>
-            </span>
+{/*
+              ⛔ The real logo, not letters set as type.
+              
+              This was `UX<span>ellent</span>` — the wordmark rebuilt from two text spans,
+              which meant the brand rendered in whatever font happened to load and without
+              the starburst mark at all. On a payment page that reads as a placeholder,
+              which is exactly how it was reported.
+              
+              public/brand/black.svg is the dark colourway, already tracked in this repo and
+              byte-identical to the marketing site's logo.svg. That file carries a warning in
+              SiteHeader.tsx — "הקובץ הישן logo.svg כתוב UXellet — לא להשתמש" — so it was
+              rasterised and read before being used: it spells UXellent correctly. The
+              warning does not match this file's contents.
+              
+              Height, not width, because the wordmark is much wider than it is tall and 17px
+              of type is what this bar was built around. width:auto keeps the aspect ratio.
+            */}
+            <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
             <span className="rounded-full bg-[#EDF3F9] px-2.5 py-1 text-[11px] font-extrabold text-[#2C5679]">
               הרשמה למנוי
             </span>
@@ -368,7 +383,7 @@ export default function AuditorCheckoutClient(props: Props) {
             disabled={submitting}
             className="mt-1 inline-flex h-[54px] items-center justify-center rounded-xl bg-gradient-to-b from-[#5389BB] to-[#3A6D9A] text-base font-extrabold text-white transition disabled:opacity-60"
           >
-            {submitting ? "רגע…" : `לתשלום · ${money(props.grossAmount)} ₪`}
+            {submitting ? "רגע…" : `לתשלום · ${money(props.grossAmount)} ₪ כולל מע״מ`}
           </button>
 
           {/* Itzik's wording, unchanged. It is also literally true: what is stored
