@@ -244,9 +244,21 @@ export default function AuditorCheckoutClient(props: Props) {
 .${AUDITOR_SCOPE} aside .ar-testi-grid{ grid-template-columns:1fr }
 /* Item 6: 18px in the rail only. Two class levels deep for the same specificity reason
    the rule above needed — a plain \`aside\` selector loses to the component's own. */
+/*
+  16px, not 18. The previous instruction was 18 and it was seen and revised down — this
+  line supersedes it rather than sitting beside it, so there is one number here and not
+  two to reconcile.
+
+  Three selectors because three things carry the type: the blockquote sets
+  font-size:var(--ar-prose) itself and needs overriding by name, and the recommender's name
+  and role sit ABOVE the quote in .ar-testi-item rather than inside it — setting only the
+  blockquote would have left them at whatever the component chose and the block would read
+  as two different sizes.
+*/
 .${AUDITOR_SCOPE} aside .ar-testi-item,
 .${AUDITOR_SCOPE} aside .ar-testi-item p,
-.${AUDITOR_SCOPE} aside blockquote{ font-size:18px; line-height:1.6 }
+.${AUDITOR_SCOPE} aside .ar-testi-item span,
+.${AUDITOR_SCOPE} aside blockquote{ font-size:16px; line-height:1.6 }
 .${AUDITOR_SCOPE} aside .ar-testi-item + .ar-testi-item{ margin-top:18px }
 .${AUDITOR_SCOPE} aside .ar-testi-rule{
   inset-inline-start:50%; transform:translateX(50%);

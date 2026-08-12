@@ -252,6 +252,21 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
       */}
       <div className="relative flex min-h-[80svh] items-center justify-center px-3 py-10 sm:px-4">
         <div className="w-full max-w-[460px]">
+          {/*
+            ⛔ The logo the lead page did not have.
+            
+            It is on the report masthead and on the checkout bar, and this is the FIRST screen
+            a visitor sees — the one place a brand is worth the most and the only one of the
+            three that was missing it. Same asset, same height as the checkout bar.
+            
+            Centred rather than left-aligned: this card is a centred column on a white page,
+            and a mark hugging one edge of a 460px card reads as misalignment.
+          */}
+          <img
+            src="/brand/black.svg"
+            alt="UXellent"
+            style={{ height: 22, width: "auto", display: "block", margin: "0 auto 18px" }}
+          />
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
             style={
@@ -349,7 +364,24 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
               <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.name}
               </label>
-              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
+              {/*
+                Inline on purpose. A stylesheet rule does not win here — see the note above.
+
+                ⚠️ textAlign is "left" now, not rtl ? "right" : "left", and unicodeBidi is
+                plaintext. An email address and a phone number are LTR values, and this field
+                declared direction:ltr while aligning the text to the RIGHT — the one thing in
+                this flow that can put a typed character somewhere the typist is not looking.
+                It was reported as "the dot is not accepted".
+
+                ⛔ Said plainly: this is the only candidate in our code and it is NOT
+                confirmed. There is no character filter anywhere in the path — not in this
+                onChange, not in components/ui/input.tsx, and there is no key handler on this
+                page. Neither this line nor the shared base class was touched in the recent
+                rounds, so this is not a regression from them.
+
+                Worth changing regardless: an LTR value in a right-aligned box is a bidi trap
+                whether or not it is today's bug.
+              */}
               <Input
                 id={nameId}
                 value={fullName}
@@ -372,7 +404,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: "left", unicodeBidi: "plaintext", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
@@ -389,7 +421,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: "left", unicodeBidi: "plaintext", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>

@@ -581,7 +581,23 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
             marketing repo warns that its identical logo.svg spells "UXellet" — this file
             does not.
           */}
-          <img src="/brand/black.svg" alt="UXellent" style={{ height: 22, width: "auto", display: "block" }} />
+          <img
+            src="/brand/black.svg"
+            alt="UXellent"
+            /*
+             * ⚠️ WIDTH, not height, and this is the report's masthead only.
+             *
+             * 22px of height matched the 17px type it replaced, and at that size the wordmark
+             * plus its starburst came out smaller than the badge beside it — a logo losing a
+             * size contest with a pill. 150px of width is the figure asked for; height stays
+             * auto so the aspect ratio is the file's, not a guess.
+             *
+             * The checkout bar keeps 22px height on purpose: that bar is a thin strip above a
+             * form, not a masthead, and 150px there would dominate the one thing the page is
+             * for.
+             */
+            style={{ width: 150, height: "auto", display: "block" }}
+          />
           <span style={{ fontSize: "var(--ar-caption)", fontWeight: 800, color: C.brandInk, background: "#EDF3F9", padding: "4px 11px", borderRadius: 999 }}>
             {en ? "Ranking report" : "דוח דירוג"}
           </span>
