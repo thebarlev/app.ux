@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { getAuditorConfig } from "@/lib/auditor/env"
-import { chargeToken, normalizeCardcomTokenExDate } from "@/lib/auditor/billing/cardcom"
+import { chargeToken, normalizeCardcomTokenExDate, sanitiseIndicatorForStorage } from "@/lib/auditor/billing/cardcom"
 import { decryptToken } from "@/lib/auditor/billing/tokenCrypto"
 import { computeMonthlyPeriod, computeNextMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
@@ -234,7 +234,7 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           provider_internal_deal_number: internalDealNumber,
-          raw_charge_response: chargeResp?.parsed || { error: "charge_failed" },
+          raw_charge_response: chargeResp?.parsed ? sanitiseIndicatorForStorage(chargeResp.parsed) : { error: "charge_failed" },
         } as any)
         .eq("id", chargeId)
 
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
       .update({
         status: "succeeded",
         provider_internal_deal_number: internalDealNumber,
-        raw_charge_response: chargeResp?.parsed || null,
+        raw_charge_response: chargeResp?.parsed ? sanitiseIndicatorForStorage(chargeResp.parsed) : null,
       } as any)
       .eq("id", chargeId)
 

@@ -130,6 +130,22 @@ function firstNonEmptyString(...vals: Array<any>): string | null {
   return null
 }
 
+/**
+ * Every name Cardcom returns the card token under.
+ *
+ * Four, not two. The Low Profile indicator, the token-charge response and the ExtShva
+ * block each use their own spelling, and a redaction that knows about only some of
+ * them leaks the token under the others while looking complete. This array is the
+ * single source: extractTokenFromIndicator reads through it and
+ * sanitiseIndicatorForStorage redacts through it.
+ */
+const CARD_TOKEN_KEYS = [
+  "Token",
+  "ExtShvaParams.CardToken",
+  "ExtShvaParams.CardToken_15",
+  "TokenToCharge.Token",
+] as const
+
 export function extractTokenFromIndicator(indicator: Record<string, any>): {
   token: string
   tokenExDate: string | null
@@ -137,12 +153,9 @@ export function extractTokenFromIndicator(indicator: Record<string, any>): {
   cardNumStart: string | null
   cardNumEnd: string | null
 } | null {
-  const token = firstNonEmptyString(
-    (indicator as any).Token,
-    (indicator as any)["ExtShvaParams.CardToken"],
-    (indicator as any)["ExtShvaParams.CardToken_15"],
-    (indicator as any)["TokenToCharge.Token"]
-  )
+  // Read through the same constant the redactor uses. Whoever adds a fifth Cardcom
+  // token alias updates one array and both the reader and the redaction follow.
+  const token = firstNonEmptyString(...CARD_TOKEN_KEYS.map((k) => (indicator as any)[k]))
   if (!token) return null
 
   const tokenExDate = firstNonEmptyString((indicator as any).TokenExDate, (indicator as any).Tokef_30, (indicator as any)["ExtShvaParams.Tokef30"])
@@ -223,3 +236,33 @@ export async function chargeToken(args: {
   return { raw, parsed }
 }
 
+/**
+ * Strip the card token and the cardholder's identity number before anything is stored.
+ *
+ * ⛔ The token is the instrument that charges the card. It is encrypted in
+ * auditor_customer_payment_methods and was, in the same pass, written in clear text
+ * inside raw_charge_response on the neighbouring table — so the encryption protected
+ * nothing. Cardcom returns it under two names, and both go.
+ *
+ * CardOwnerID and ExtShvaParams.CardHolderIdentityNumber are an Israeli ID number. On
+ * the test terminal it is Cardcom's fixture; in production it is a real customer's
+ * ת״ז, and it is not needed for any diagnosis we do.
+ *
+ * Everything else is kept deliberately: the deal number, the approval code, the last
+ * four digits, the card brand, the amount and the response codes are what a
+ * reconciliation actually needs, and none of them can move money.
+ */
+const INDICATOR_SECRET_KEYS: readonly string[] = [
+  ...CARD_TOKEN_KEYS,
+  // The cardholder's Israeli ID number, under both spellings Cardcom uses.
+  "CardOwnerID",
+  "ExtShvaParams.CardHolderIdentityNumber",
+]
+
+export function sanitiseIndicatorForStorage(parsed: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = { ...parsed }
+  for (const k of INDICATOR_SECRET_KEYS) {
+    if (k in out) out[k] = "[redacted]"
+  }
+  return out
+}

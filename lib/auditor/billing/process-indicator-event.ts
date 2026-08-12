@@ -5,7 +5,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { extractTokenFromIndicator, normalizeCardcomTokenExDate, pullLowProfileIndicator } from "@/lib/auditor/billing/cardcom"
+import { extractTokenFromIndicator, normalizeCardcomTokenExDate, pullLowProfileIndicator, sanitiseIndicatorForStorage } from "@/lib/auditor/billing/cardcom"
 import { encryptToken, tokenHashSha256 } from "@/lib/auditor/billing/tokenCrypto"
 import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
@@ -96,7 +96,9 @@ export async function processCardcomIndicatorEvent(
     .update({
       status: paid ? "paid" : "failed",
       provider_internal_deal_number: internalDealNumber,
-      raw_indicator_json: indicatorParsed,
+      // Third place the same object lands. The token has to go from all of them —
+      // a redaction that misses one table is not a redaction.
+      raw_indicator_json: sanitiseIndicatorForStorage(indicatorParsed),
     } as any)
     .eq("id", String(checkout.id))
 
@@ -521,7 +523,7 @@ export async function processCardcomIndicatorEvent(
       plan_snapshot_name: plan.name,
       plan_snapshot_monthly_amount: chargedAmount,
       provider_internal_deal_number: internalDealNumber,
-      raw_charge_response: { indicator: indicatorParsed },
+      raw_charge_response: { indicator: sanitiseIndicatorForStorage(indicatorParsed) },
     } as any)
     .select("id,issued_invoice_id")
     .maybeSingle()
@@ -628,6 +630,21 @@ export async function processCardcomIndicatorEvent(
         processing_started_at: null,
         processed_at: giveUp ? new Date().toISOString() : null,
         payload: {
+          /*
+           * ⛔ `query` MUST survive. Dropping it is what made the first version of this
+           * retry an infinite loop.
+           *
+           * The processor recovers lowProfileCode from payload.query — it is the only
+           * copy. Replacing the payload wholesale on failure erased it, so the next
+           * claim found no code, returned "missing_lowprofilecode" without updating the
+           * event, and left it in 'processing' until the 10-minute release claimed it
+           * again. Forever, with the attempt counter never advancing and issuance never
+           * retried: the exact runaway the limit exists to prevent, reached by
+           * destroying the data the retry needs.
+           *
+           * Spread first so our own fields cannot silently drop anything Cardcom sent.
+           */
+          ...(payload as Record<string, unknown>),
           paid: true,
           checkout_session_id: checkout.id,
           company_id: companyId,
@@ -649,6 +666,8 @@ export async function processCardcomIndicatorEvent(
       status: "ok",
       processed_at: new Date().toISOString(),
       payload: {
+        // Same reason as the failure path: keep what Cardcom sent, add ours on top.
+        ...(payload as Record<string, unknown>),
         paid: true,
         checkout_session_id: checkout.id,
         company_id: companyId,

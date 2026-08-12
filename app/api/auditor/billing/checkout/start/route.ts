@@ -230,7 +230,13 @@ export async function POST(req: Request) {
          * are the same today and will not always be — production must never mark a
          * paying customer as a test.
          */
-        is_test: String(process.env.VERCEL_ENV || "").trim().toLowerCase() === "preview",
+        // NOT `=== "preview"`. Inverted on purpose: with that test, every environment
+        // that is not literally preview — local, a new environment, a VERCEL_ENV that
+        // failed to load — would create a REAL company. This way only an explicit
+        // production creates one. The wrong direction then fails loudly, because the
+        // is_test guard throws on any outbound regulatory path; the opposite direction
+        // pollutes the books in silence.
+        is_test: String(process.env.VERCEL_ENV || "").trim().toLowerCase() !== "production",
         // Confirmed to exist — text, nullable — by the column list, rather than
         // assumed. It was held out of this insert until then: an unknown column does
         // not get ignored, it fails the whole statement, and failing here loses a sale
