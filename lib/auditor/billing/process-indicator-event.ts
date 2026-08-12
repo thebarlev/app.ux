@@ -467,6 +467,10 @@ export async function processCardcomIndicatorEvent(
         plan_snapshot_monthly_amount: chargedAmount,
         plan_snapshot_currency: chargedCurrency,
         plan_snapshot_created_at: now.toISOString(),
+        // Added by migration 130 B1 for exactly this, and then never written — same
+        // omission as the charge snapshot above. Nullable on purpose: a subscription
+        // created by hand, or before this line existed, carries no scan.
+        scan_id: (checkout as any)?.scan_id ?? null,
         status: "active",
         current_period_start: period.start.toISOString(),
         current_period_end: period.end.toISOString(),
@@ -496,6 +500,26 @@ export async function processCardcomIndicatorEvent(
       currency: chargedCurrency,
       uniq_asmachta: uniq,
       status: "succeeded",
+      /*
+       * The snapshot, and why it was missing.
+       *
+       * Migration 130 added plan_snapshot_name and plan_snapshot_monthly_amount to this
+       * table and backfilled the 14 historical rows — so the migration looked complete
+       * — but nothing updated this insert. The protection going forward, which is the
+       * entire reason the columns exist, therefore never operated: the first new charge
+       * was written with both null.
+       *
+       * The subscription upsert below always had its snapshot because those columns
+       * date from 081 and the code was written alongside them. That is the whole
+       * difference between the two, and it is a pattern rather than an accident — the
+       * same omission left auditor_subscriptions.scan_id null.
+       *
+       * plan.name and chargedAmount, not a re-read of auditor_plans: the point of a
+       * snapshot is the value at this moment, and re-reading would reintroduce exactly
+       * the live reference it exists to freeze.
+       */
+      plan_snapshot_name: plan.name,
+      plan_snapshot_monthly_amount: chargedAmount,
       provider_internal_deal_number: internalDealNumber,
       raw_charge_response: { indicator: indicatorParsed },
     } as any)
@@ -512,6 +536,54 @@ export async function processCardcomIndicatorEvent(
     chargeId = existingCharge?.id ? String(existingCharge.id) : null
   }
 
+  /*
+   * ⛔ ISSUANCE DECIDES THE EVENT'S FATE. It used to only write a log line.
+   *
+   * The previous shape called the RPC, logged failure to the console, and then marked
+   * the event status='ok' with processed_at set — unconditionally, a few lines below.
+   * So a charge could be 'succeeded', a subscription 'active', money taken, and no tax
+   * document anywhere, with the event recorded as processed and therefore never retried.
+   * That happened on the first live issuance.
+   *
+   * It is the third instance of one family found in a single day:
+   *   finalize_document_with_period_guard_service — failed on every call for 81 days
+   *   the scan pipeline — failed in 2.4s while the screen showed 43%
+   *   this — failed and reported ok
+   * A failure that is logged rather than surfaced, with the outside state left looking
+   * fine. Nothing here is allowed to join it.
+   *
+   * Four states, and the machinery for them already existed in scripts/085 — nobody
+   * had used it:
+   *   received    claimable by the cron
+   *   processing  claimed; auto-released after 10 minutes, with `for update skip locked`
+   *   ok          a document exists. Only rpcData[0].ok === true earns this
+   *   error       gave up after MAX_ISSUANCE_ATTEMPTS. A human has to look
+   *
+   * Three attempts, so five-minute cron passes give roughly fifteen minutes of
+   * self-healing — enough for a unique-key race or a lock, and short enough that a real
+   * defect reaches a person while the customer is still waiting. The counter lives in
+   * payload.issuance_attempts, so no migration is needed.
+   *
+   * ⚠️ And `error` must not become the same failure in disguise. A silent terminal
+   * state nobody queries is exactly what this block is fixing, so it logs under a
+   * fixed searchable prefix, and the stage 6 admin email is required to forward every
+   * one of them.
+   */
+  const MAX_ISSUANCE_ATTEMPTS = 3
+  /*
+   * ⚠️ Read from the `payload` parameter, which IS the claimed event's payload.
+   *
+   * This first said `(event as any)?.payload?.issuance_attempts`, and tsc accepted it —
+   * because `event` resolves to the deprecated DOM global rather than being an unknown
+   * name. It would have been undefined on every pass, so the counter would have reset
+   * to 1 forever and the cron would have retried indefinitely: precisely the runaway
+   * this limit exists to prevent, hidden behind a clean typecheck.
+   */
+  const priorAttempts = Number((payload as any)?.issuance_attempts ?? 0) || 0
+  let issuanceOk = false
+  let issuanceError: string | null = null
+  let documentNumber: string | null = null
+
   if (chargeId) {
     const isEn = String((checkout as any)?.success_url || "").includes("/en/auditor")
     try {
@@ -520,27 +592,69 @@ export async function processCardcomIndicatorEvent(
         p_issuer_company_id: billingCfg.billingAccountId,
         p_is_en: isEn,
       } as any)
-      const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
-      const docNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? rpcData[0].document_number : null
-      if (ok && !rpcErr) {
-        console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: docNumber })
+      issuanceOk = Array.isArray(rpcData) && rpcData[0]?.ok === true && !rpcErr
+      documentNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? String(rpcData[0].document_number) : null
+      if (issuanceOk) {
+        console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: documentNumber })
       } else {
-        console.error("[AUDITOR_PROCESS] Invoice issuance failed", {
-          chargeId,
-          error: rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok",
-        })
+        issuanceError = rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok"
       }
     } catch (e: any) {
-      console.error("[AUDITOR_PROCESS] Invoice issuance exception", { chargeId, error: String(e?.message || e) })
+      issuanceError = String(e?.message || e)
     }
+  } else {
+    issuanceError = "no charge id"
   }
 
+  if (!issuanceOk) {
+    const attempts = priorAttempts + 1
+    const giveUp = attempts >= MAX_ISSUANCE_ATTEMPTS
+    console.error("[AUDITOR_ISSUANCE_FAILED]", {
+      eventId,
+      chargeId,
+      companyId,
+      attempts,
+      willRetry: !giveUp,
+      terminal: giveUp,
+      error: issuanceError,
+    })
+
+    await admin
+      .from("auditor_billing_events")
+      .update({
+        // Back to 'received' so claim_pending picks it up again; 'error' only once the
+        // attempts are spent, and it keeps processed_at so nothing claims it after that.
+        status: giveUp ? "error" : "received",
+        processing_started_at: null,
+        processed_at: giveUp ? new Date().toISOString() : null,
+        payload: {
+          paid: true,
+          checkout_session_id: checkout.id,
+          company_id: companyId,
+          charge_id: chargeId,
+          issuance_attempts: attempts,
+          issuance_error: issuanceError,
+        },
+      } as any)
+      .eq("provider", providerKey)
+      .eq("event_id", eventId)
+
+    return { ok: false, paid: true, error: giveUp ? "issuance_failed_terminal" : "issuance_failed_will_retry" }
+  }
+
+  // Reached only when a document actually exists — the failure path above returns.
   await admin
     .from("auditor_billing_events")
     .update({
       status: "ok",
       processed_at: new Date().toISOString(),
-      payload: { paid: true, checkout_session_id: checkout.id, company_id: companyId, charge_id: chargeId },
+      payload: {
+        paid: true,
+        checkout_session_id: checkout.id,
+        company_id: companyId,
+        charge_id: chargeId,
+        document_number: documentNumber,
+      },
     } as any)
     .eq("provider", providerKey)
     .eq("event_id", eventId)

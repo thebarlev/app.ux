@@ -152,6 +152,20 @@ export async function POST(req: Request) {
     .eq("id", body.scanId)
     .maybeSingle()
 
+  /*
+   * The scan's lead_id came out null on the session even though the scan carries one.
+   * Logged rather than guessed at: this prints what the row actually returns, so the
+   * next run says whether the column is empty on the scan or lost between here and the
+   * insert.
+   */
+  if (scan) {
+    console.log("[AUDITOR_CHECKOUT] scan row", {
+      scanId: body.scanId,
+      hasLeadId: Boolean((scan as any).lead_id),
+      leadIdType: typeof (scan as any).lead_id,
+    })
+  }
+
   if (!scan || String((scan as any).scan_access_token || "") !== body.token) {
     console.warn("[AUDITOR_CHECKOUT] bad scan pair", { ip, scanId: body.scanId, scanExists: Boolean(scan) })
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
@@ -204,6 +218,19 @@ export async function POST(req: Request) {
          * would leave resolve_customer matching on a fallback.
          */
         registration_number: taxId,
+        /*
+         * ⛔ A company created by a preview checkout is a test company.
+         *
+         * This was missing, and it already cost us: a form submission on the preview
+         * created company 29fa2ea0 with is_test defaulting to false — an unplanned real
+         * company row, in the same database production uses, carrying a charge.
+         *
+         * Keyed on VERCEL_ENV rather than on the checkout gate: the gate answers "may
+         * the checkout run here", and this asks "is anything created here real". They
+         * are the same today and will not always be — production must never mark a
+         * paying customer as a test.
+         */
+        is_test: String(process.env.VERCEL_ENV || "").trim().toLowerCase() === "preview",
         // Confirmed to exist — text, nullable — by the column list, rather than
         // assumed. It was held out of this insert until then: an unknown column does
         // not get ignored, it fails the whole statement, and failing here loses a sale
