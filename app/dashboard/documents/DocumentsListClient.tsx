@@ -55,16 +55,6 @@ function documentSummaryHref(documentType: string, id: string): string | null {
   return `${basePath}/${config.routeSegment}/${id}/summary`;
 }
 
-function agentLogNav(payload: any) {
-  // #region agent log
-  fetch("http://127.0.0.1:7242/ingest/3a8787c5-a5d3-4ac5-9a1f-728ba44f08e9", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
-  // #endregion
-}
-
 type Props = {
   initialData: { ok: boolean; data?: DocumentsListResult; message?: string };
   initialFilters: DocumentsListFilters;
@@ -1503,13 +1493,6 @@ export default function DocumentsListClient({ initialData, initialFilters, listP
                             const config = DOCUMENT_CONFIGS_BY_DB.get(doc.document_type);
                             if (config) {
                               const basePath = config.category === "business" ? "/business/documents" : "/dashboard/documents";
-                              agentLogNav({
-                                location: "DocumentsListClient.tsx:numberClick",
-                                message: "Navigate to summary from number click",
-                                data: { documentId: doc.id, documentType: doc.document_type, category: config.category, basePath, routeSegment: config.routeSegment },
-                                timestamp: Date.now(),
-                                hypothesisId: "H_NAV_BASEPATH",
-                              });
                               router.push(`${basePath}/${config.routeSegment}/${doc.id}/summary`);
                               return;
                             }
