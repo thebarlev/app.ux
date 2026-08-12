@@ -237,32 +237,143 @@ export async function chargeToken(args: {
 }
 
 /**
- * Strip the card token and the cardholder's identity number before anything is stored.
+ * Keep what we named. Drop everything else.
  *
- * ⛔ The token is the instrument that charges the card. It is encrypted in
- * auditor_customer_payment_methods and was, in the same pass, written in clear text
- * inside raw_charge_response on the neighbouring table — so the encryption protected
- * nothing. Cardcom returns it under two names, and both go.
+ * ── WHY AN ALLOW-LIST AND NOT A DENY-LIST ───────────────────────────────────
+ * The first version of this was a deny-list of two key names. Cardcom returns the card
+ * token under FOUR, and the personal fields under six more — so the deny-list shipped
+ * leaking the token under two aliases while looking complete. That is the structural
+ * argument, and it was demonstrated rather than predicted: you cannot enumerate in
+ * advance what a third party will send.
  *
- * CardOwnerID and ExtShvaParams.CardHolderIdentityNumber are an Israeli ID number. On
- * the test terminal it is Cardcom's fixture; in production it is a real customer's
- * ת״ז, and it is not needed for any diagnosis we do.
+ * With an allow-list the default flips. A field Cardcom adds next year is dropped
+ * because nobody named it, not kept because nobody thought of it.
  *
- * Everything else is kept deliberately: the deal number, the approval code, the last
- * four digits, the card brand, the amount and the response codes are what a
- * reconciliation actually needs, and none of them can move money.
+ * ── THE COST, AND WHAT PAYS IT ──────────────────────────────────────────────
+ * An allow-list silently throws away things that turn out to matter. So the names of
+ * everything dropped are recorded in `dropped_keys` — names only, never values. You can
+ * see that Cardcom sent a field, and that we discarded it, without holding whatever was
+ * in it. If a real charge shows something worth keeping in that array, it moves into
+ * CARDCOM_KEEP_KEYS and the next charge keeps it.
+ *
+ * ⚠️ HOW THIS LIST WAS BUILT, AND WHAT THAT MEANS
+ * From the fields our own code reads plus the categories agreed as safe to keep — NOT
+ * from reading the stored JSON, which is not accessible from here. So it is very likely
+ * incomplete, and `dropped_keys` is the instrument that will say how. Treat the first
+ * few live charges' dropped_keys as a to-do list, not as a clean bill of health.
+ *
+ * ── WHAT IS DELIBERATELY KEPT, AND WHY ──────────────────────────────────────
+ * Deal and terminal identifiers, approval codes, every response code, the card brand
+ * and product name, the BIN and last digits, amounts and the instalment structure, the
+ * token expiry, the date, lowprofilecode, ReturnValue and CallIndicatorResponse.
+ *
+ * The two that are judgement calls rather than obvious:
+ *   Tokef30 / TokenExDate — the token's expiry. Needed to warn a subscriber BEFORE a
+ *     renewal fails, which is the difference between a heads-up and a dunning email.
+ *     Useless on its own: it charges nothing without the token, which is gone.
+ *   FirstCardDigits — the BIN. PCI-DSS permits the first six with the last four, and a
+ *     chargeback enquiry starts from the issuing bank, which is what the BIN names.
+ *
+ * ── AND A HARD DENY THAT WINS REGARDLESS ────────────────────────────────────
+ * CARDCOM_NEVER_KEEP is checked first, so a key cannot be readmitted by being added to
+ * the allow-list by mistake. Belt and braces on the one thing that must not leak.
  */
-const INDICATOR_SECRET_KEYS: readonly string[] = [
+
+/** Names of every field Cardcom may return that we refuse to store, whatever else says. */
+const CARDCOM_NEVER_KEEP: readonly string[] = [
   ...CARD_TOKEN_KEYS,
-  // The cardholder's Israeli ID number, under both spellings Cardcom uses.
+  // The cardholder's identity number, name, email and phone. None of it is needed for
+  // any reconciliation we do; the buyer company already carries its own contact record.
   "CardOwnerID",
   "ExtShvaParams.CardHolderIdentityNumber",
+  "CardOwnerName",
+  "ExtShvaParams.CardOwnerName",
+  "CardOwnerEmail",
+  "CardOwnerPhone",
+  "ExtShvaParams.CardOwnerPhone",
 ]
 
+/** Names kept verbatim. Anything absent from here and from KEEP_PATTERNS is dropped. */
+const CARDCOM_KEEP_KEYS: readonly string[] = [
+  // transaction and terminal identity
+  "InternalDealNumber", "DealNumber", "TranzactionId", "TransactionId",
+  "terminalnumber", "TerminalNumber", "Terminal",
+  "lowprofilecode", "LowProfileCode", "lowProfileCode",
+  "ReturnValue", "returnvalue", "returnValue",
+  "CallIndicatorResponse",
+  // outcome
+  "ResponseCode", "OperationResponse", "OperationResponseText",
+  "DealResponse", "ReturnCode", "Description", "Status",
+  // approval
+  "ApprovalNumber", "ExtShvaParams.ApprovalNumber", "Signature",
+  // the card, without identifying anyone
+  "Mutag", "Mutag_24", "Mutag24", "ExtShvaParams.Mutag24",
+  "CardName", "CardBrand", "ExtShvaParams.CardName",
+  "CardNumStart", "ExtShvaParams.FirstCardDigits",
+  "CardNumEnd", "CardLast4", "ExtShvaParams.CardNumber5",
+  // expiry — see the note above
+  "TokenExDate", "Tokef_30", "ExtShvaParams.Tokef30",
+  // money and instalment structure
+  "Sum", "SumToBill", "Amount", "ExtShvaParams.Sum36",
+  "coinId", "CoinId", "Currency",
+  "NumOfPayments", "FirstPayment", "OtherPayment", "ExtShvaParams.NumOfPayments",
+  // when
+  "DealDate", "Date", "CreateDate",
+]
+
+/**
+ * Whole families kept by shape rather than by name, because Cardcom's response-code
+ * fields are numerous and consistently named, and enumerating each one by hand is how
+ * the deny-list failed. Nothing here can match a token or a personal field: those are
+ * named explicitly in CARDCOM_NEVER_KEEP, which is checked first.
+ */
+const CARDCOM_KEEP_PATTERNS: readonly RegExp[] = [
+  /^ExtShvaParams\.(Sum|NumOfPayments|FirstPayment|OtherPayment|Mutag|ApprovalNumber|Tokef|FirstCardDigits|CardNumber5|CardName)/i,
+  /ResponseCode$/i,
+  /^Deal(Date|Number|Response)$/i,
+]
+
+const NEVER = new Set(CARDCOM_NEVER_KEEP.map((k) => k.toLowerCase()))
+const KEEP = new Set(CARDCOM_KEEP_KEYS.map((k) => k.toLowerCase()))
+
+function isKeepable(key: string): boolean {
+  const lower = key.toLowerCase()
+  if (NEVER.has(lower)) return false
+  if (KEEP.has(lower)) return true
+  return CARDCOM_KEEP_PATTERNS.some((re) => re.test(key))
+}
+
 export function sanitiseIndicatorForStorage(parsed: Record<string, any>): Record<string, any> {
-  const out: Record<string, any> = { ...parsed }
-  for (const k of INDICATOR_SECRET_KEYS) {
-    if (k in out) out[k] = "[redacted]"
+  if (!parsed || typeof parsed !== "object") return parsed
+
+  const kept: Record<string, any> = {}
+  const dropped: string[] = []
+
+  for (const [key, value] of Object.entries(parsed)) {
+    // Structural keys of our own making, not Cardcom's payload. `indicator` wraps the
+    // real object in the checkout path; `error` is what we write when there is no
+    // response at all. Recurse into the former so the allow-list reaches the fields
+    // that matter.
+    if (key === "indicator" && value && typeof value === "object") {
+      kept[key] = sanitiseIndicatorForStorage(value as Record<string, any>)
+      continue
+    }
+    if (key === "error") {
+      kept[key] = value
+      continue
+    }
+    // Our own bookkeeping, added by a previous pass. Carried through so a second run is
+    // a no-op — without this it drops itself and records "dropped_keys" as dropped.
+    if (key === "dropped_keys") {
+      kept[key] = value
+      continue
+    }
+    if (isKeepable(key)) kept[key] = value
+    else dropped.push(key)
   }
-  return out
+
+  // Names only. Sorted so a diff between two charges is readable. Omitted entirely when
+  // nothing was dropped, so its presence always means something.
+  if (dropped.length > 0) kept.dropped_keys = dropped.sort()
+  return kept
 }
