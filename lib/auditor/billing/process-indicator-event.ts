@@ -13,6 +13,7 @@ import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
 import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
 import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
+import { sendAuditorIssuanceErrorNotice, sendAuditorSubscriptionNotice } from "@/lib/email/auditorBillingNotice"
 
 const providerKey = "cardcom"
 
@@ -571,6 +572,50 @@ export async function processCardcomIndicatorEvent(
    * fixed searchable prefix, and the stage 6 admin email is required to forward every
    * one of them.
    */
+  /*
+   * The operator notice needs five facts that live on the company row, and is_test is
+   * the one that decides whether the subject is marked [בדיקה].
+   *
+   * Read here, before the issuance attempt, because BOTH notices need it — the failure
+   * path returns early, so a lookup after the success branch would never run for the
+   * notice that matters most.
+   *
+   * ⚠️ is_test defaults to true on anything unreadable. A test notice mislabelled as a
+   * sale sends someone after a customer who does not exist; a real sale marked [בדיקה]
+   * is merely annoying. The asymmetry decides the default, the same way the is_test
+   * guard treats "cannot tell" as "is a test".
+   */
+  let noticeCompany: {
+    company_name: string | null
+    contact_full_name: string | null
+    email: string | null
+    mobile_phone: string | null
+    is_test: boolean
+  } = { company_name: null, contact_full_name: null, email: null, mobile_phone: null, is_test: true }
+
+  if (companyId) {
+    const { data: cRow, error: cErr } = await admin
+      .from("companies")
+      .select("company_name,contact_full_name,email,mobile_phone,is_test")
+      .eq("id", companyId)
+      .maybeSingle()
+    if (cErr || !cRow) {
+      console.error("[AUDITOR_NOTICE_COMPANY_UNREADABLE]", {
+        companyId,
+        error: cErr ? String((cErr as any)?.message || cErr) : "no row",
+      })
+    } else {
+      noticeCompany = {
+        company_name: (cRow as any).company_name ?? null,
+        contact_full_name: (cRow as any).contact_full_name ?? null,
+        email: (cRow as any).email ?? null,
+        mobile_phone: (cRow as any).mobile_phone ?? null,
+        // Only an explicit boolean false clears the marker.
+        is_test: (cRow as any).is_test === false ? false : true,
+      }
+    }
+  }
+
   const MAX_ISSUANCE_ATTEMPTS = 3
   /*
    * ⚠️ Read from the `payload` parameter, which IS the claimed event's payload.
@@ -656,6 +701,34 @@ export async function processCardcomIndicatorEvent(
       .eq("provider", providerKey)
       .eq("event_id", eventId)
 
+    /*
+     * ⛔ Notice B, and only on the terminal attempt.
+     *
+     * Not on attempts 1 and 2: those are followed by a real retry, and three emails for
+     * one charge that then succeeds trains the operator to ignore the address. This
+     * fires exactly when the system has stopped trying, which is the moment a person has
+     * to take over.
+     *
+     * Awaited but unable to throw — the function catches everything and returns a
+     * result. `sent` is inspected so a failed notice about a failed issuance is itself
+     * logged rather than becoming the third layer of the same swallow.
+     */
+    if (giveUp) {
+      const notice = await sendAuditorIssuanceErrorNotice({
+        isTest: noticeCompany.is_test,
+        chargeId,
+        attempts,
+        errorText: issuanceError,
+      })
+      if (!notice.sent) {
+        console.error("[AUDITOR_ISSUANCE_FAILED] operator was NOT notified", {
+          eventId,
+          chargeId,
+          reason: notice.reason,
+        })
+      }
+    }
+
     return { ok: false, paid: true, error: giveUp ? "issuance_failed_terminal" : "issuance_failed_will_retry" }
   }
 
@@ -677,6 +750,40 @@ export async function processCardcomIndicatorEvent(
     } as any)
     .eq("provider", providerKey)
     .eq("event_id", eventId)
+
+  /*
+   * ⛔ Notice A, last, and after the event is already marked ok.
+   *
+   * Position matters. The charge, the subscription, the document and the event status are
+   * all durable by this line, so nothing here can undo any of them — and the notice
+   * cannot throw regardless. An email is the least important thing that happens in this
+   * function and it is sequenced accordingly.
+   *
+   * Fields are named one by one. There is no object to pass through, so the token that
+   * this same function encrypts a few lines above has no route into an inbox.
+   */
+  const notice = await sendAuditorSubscriptionNotice({
+    isTest: noticeCompany.is_test,
+    fullName: noticeCompany.contact_full_name,
+    companyName: noticeCompany.company_name,
+    email: noticeCompany.email,
+    mobile: noticeCompany.mobile_phone,
+    planName: plan.name,
+    amount: chargedAmount,
+    currency: chargedCurrency,
+    invoiceNumber: documentNumber,
+  })
+  if (!notice.sent) {
+    // Loud, and it names what was sold so the sale is recoverable from the log alone.
+    console.error("[AUDITOR_NOTICE_FAILED] a subscription was sold and nobody was told", {
+      eventId,
+      chargeId,
+      companyId,
+      invoiceNumber: documentNumber,
+      isTest: noticeCompany.is_test,
+      reason: notice.reason,
+    })
+  }
 
   return { ok: true, paid: true }
 }
