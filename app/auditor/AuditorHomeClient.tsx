@@ -112,25 +112,43 @@ export default function AuditorHomeClient(props?: AuditorHomeProps) {
           emailCopy={controller.leadEmailCopy}
           scanId={controller.scanId}
           /*
-           * Where a chosen plan goes.
+           * Where a chosen plan goes: to the checkout.
            *
-           * Nowhere yet, on purpose. The three link_* plans are not rows in
-           * auditor_plans until stage 2, and /auditor/checkout is hard-404'd by
-           * the auditor block, so there is no flow to hand them to. What this
-           * does is record the choice in the URL, which costs nothing, breaks
-           * nothing, and means the two values stage 3 needs — which plan, which
-           * scan — are already where it will look for them.
+           * ⛔ IT USED TO ONLY WRITE THE CHOICE INTO THE ADDRESS BAR.
            *
-           * replaceState rather than a router push: the visitor stays on their
-           * report, and the choice should not become a history entry they have
-           * to press back through.
+           * The comment this replaces was accurate when it was written in stage 1 —
+           * "the three link_* plans are not rows in auditor_plans until stage 2, and
+           * /auditor/checkout is hard-404'd by the auditor block, so there is no flow
+           * to hand them to" — so it called window.history.replaceState and stopped.
+           * Stage 3 built the checkout and nobody came back here. Every click on
+           * "בחירת מסלול" changed the URL and did nothing else: no navigation, no
+           * request, no console error. A silent success, which is why it survived to a
+           * 360 round.
+           *
+           * ⚠️ THREE PARAMS, NOT TWO. `token` is the one that decides it.
+           *
+           * app/auditor/checkout/page.tsx refuses on `!planId || !scanId || !token`.
+           * With plan and scanId alone, every click would land on CheckoutRefusal
+           * "missing_params" — a fix that reads correctly, typechecks, deploys clean,
+           * and fails on the first click. The scan access token is already in
+           * controller state; it is missing from the URL only because the live flow
+           * walks its steps in client state and never puts it there.
+           *
+           * If the token is genuinely absent we navigate anyway rather than doing
+           * nothing. The refusal is a readable screen that tells the visitor to scan
+           * again — worse than the checkout, far better than the silence it replaces.
+           *
+           * router.push, not replaceState: this IS a navigation now, and back should
+           * return the visitor to their report.
+           *
+           * basePath rather than a literal — it is /en/auditor on the English page.
            */
-          onSelectPlan={(plan, scanId) => {
-            if (typeof window === "undefined") return
-            const url = new URL(window.location.href)
-            url.searchParams.set("plan", plan)
-            if (scanId) url.searchParams.set("scanId", scanId)
-            window.history.replaceState(null, "", url.toString())
+          onSelectPlan={(plan, planScanId) => {
+            const sid = planScanId || controller.scanId || ""
+            const params = new URLSearchParams({ plan })
+            if (sid) params.set("scanId", sid)
+            if (controller.token) params.set("token", controller.token)
+            controller.router.push(`${basePath}/checkout?${params.toString()}`)
           }}
         />
       ) : null}
