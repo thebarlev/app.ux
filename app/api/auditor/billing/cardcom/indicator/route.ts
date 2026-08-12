@@ -24,6 +24,39 @@ import { getAuditorConfig } from "@/lib/auditor/env"
  */
 
 
+/**
+ * Every incoming call is recorded, including the refused ones.
+ *
+ * A structured log line and NOT a row in auditor_billing_events, deliberately. That
+ * table's primary key is (provider, event_id) and its contract is "this row is one real
+ * event from Cardcom". A refused call has no event_id — it is derived from
+ * lowProfileCode, which may be exactly what is missing — and inventing one would break
+ * the contract twice: the key stops meaning anything, and anyone reading the table
+ * later assumes a row equals an event. A row that lies about what it is is worse than
+ * no row.
+ *
+ * One fixed prefix so it is greppable, and enough per line to answer "who is knocking":
+ * reason, IP, whether a lowProfileCode was present at all, and when.
+ *
+ * ⚠️ A dedicated auditor_indicator_rejections table is a post-launch item, warranted
+ * only if real traffic turns up here — and by then we will know what shape it needs.
+ */
+function logRejection(req: Request, reason: string, lowProfileCode: string | null): void {
+  console.warn("[AUDITOR_INDICATOR_REJECT]", {
+    reason,
+    ip:
+      req.headers.get("x-vercel-forwarded-for") ||
+      req.headers.get("x-real-ip") ||
+      req.headers.get("x-forwarded-for") ||
+      "unknown",
+    hadLowProfileCode: Boolean(lowProfileCode),
+    // Logged for debugging only. It is trivially spoofable and is never a condition.
+    userAgent: req.headers.get("user-agent") || null,
+    cronSchedule: req.headers.get("x-vercel-cron-schedule") || null,
+    at: new Date().toISOString(),
+  })
+}
+
 function getFirstSearchParam(url: URL, keys: string[]): string | null {
   for (const k of keys) {
     const v = url.searchParams.get(k)
@@ -39,10 +72,14 @@ function getFirstSearchParam(url: URL, keys: string[]): string | null {
  */
 export async function GET(req: Request) {
   // AUDITOR BLOCKED — first statement executed in this handler.
-  if (!isCheckoutEnabled()) return new NextResponse(null, { status: 404 })
+  const url0 = new URL(req.url)
+  if (!isCheckoutEnabled()) {
+    logRejection(req, "checkout_disabled", url0.searchParams.get("lowprofilecode"))
+    return new NextResponse(null, { status: 404 })
+  }
 
   const t0 = Date.now()
-  const url = new URL(req.url)
+  const url = url0
 
   const terminalnumber = url.searchParams.get("terminalnumber")
   const lowProfileCode =
@@ -51,11 +88,14 @@ export async function GET(req: Request) {
   console.log("[AUDITOR_INDICATOR] start", { terminalnumber, lowProfileCode, ms: Date.now() - t0 })
 
   const cfg = getAuditorConfig()
-  if (!cfg.enabled) return new NextResponse(null, { status: 404 })
+  if (!cfg.enabled) {
+    logRejection(req, "auditor_disabled", lowProfileCode)
+    return new NextResponse(null, { status: 404 })
+  }
 
   // Cardcom expects HTTP 200; keep response minimal.
   if (!lowProfileCode) {
-    console.log("[AUDITOR_INDICATOR] missing lowprofilecode", { ms: Date.now() - t0 })
+    logRejection(req, "missing_lowprofilecode", null)
     return NextResponse.json({ ok: true, status: "ignored", message: "Missing lowprofilecode" })
   }
 

@@ -2,6 +2,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
+import { isCheckoutEnabled } from "@/lib/auditor/billing/checkout-gate"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getAuditorConfig } from "@/lib/auditor/env"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
@@ -14,7 +15,14 @@ import { processCardcomIndicatorEvent } from "@/lib/auditor/billing/process-indi
 // code below to unreachable and re-reports the whole body, which fails the build
 // (next.config.mjs ignoreBuildErrors:false). To restore auditor access, revert the
 // security/auditor-block commits.
-const AUDITOR_BLOCKED: boolean = true
+/*
+ * Gated by the checkout gate, not a literal.
+ *
+ * This route creates charges, subscriptions, tokens and tax documents from events
+ * Cardcom already reported, so it must be shut wherever the checkout is shut. The gate
+ * fails closed on unset, empty and malformed, and keeps production closed until a
+ * second explicit variable says otherwise.
+ */
 
 
 const BATCH_LIMIT = 3
@@ -38,7 +46,26 @@ function isAuthorized(req: Request): boolean {
     req.headers.get("x-cron-secret") ||
     (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "")
 
-  if (CRON_SECRET && got && got === CRON_SECRET) return true
+  /*
+   * Two accepted secrets, and the resolution is deliberate.
+   *
+   * Vercel's cron sends `Authorization: Bearer $CRON_SECRET` automatically, and only
+   * for a variable named exactly CRON_SECRET — that is documented platform behaviour,
+   * not a convention we chose. Manual runs (the stage-3 test round) use
+   * AUDITOR_BILLING_CRON_SECRET instead, because a human should not need the cron's
+   * secret to drive a route by hand.
+   *
+   * ⚠️ Built as a list of NON-EMPTY secrets rather than two separate comparisons, and
+   * that is the lesson from app/api/auditor/admin/worker/run: with only one of two
+   * variables set, the other resolves to "" and an absent header would satisfy
+   * `"" === ""` and authenticate. Filtering first makes that impossible, and an empty
+   * list refuses everything.
+   */
+  const accepted = [CRON_SECRET, process.env.AUDITOR_BILLING_CRON_SECRET, process.env.CRON_SECRET]
+    .map((v) => String(v || "").trim())
+    .filter((v) => v.length > 0)
+  if (accepted.length === 0) return false
+  if (got && accepted.includes(got)) return true
   return false
 }
 
@@ -90,14 +117,14 @@ async function handler(req: Request) {
 
 export async function GET(req: Request) {
   // AUDITOR BLOCKED — first statement executed in this handler.
-  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+  if (!isCheckoutEnabled()) return new NextResponse(null, { status: 404 })
 
   return handler(req)
 }
 
 export async function POST(req: Request) {
   // AUDITOR BLOCKED — first statement executed in this handler.
-  if (AUDITOR_BLOCKED) return new NextResponse(null, { status: 404 })
+  if (!isCheckoutEnabled()) return new NextResponse(null, { status: 404 })
 
   return handler(req)
 }
