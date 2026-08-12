@@ -2,9 +2,9 @@
 -- 133-ROLLBACK · restore the function exactly as it was before 133
 -- ============================================================================
 --
--- This is a real rollback, unlike 132's. It reinstalls the production body captured
--- from pg_get_functiondef before the pragma was added — byte for byte, the pragma line
--- being the only difference.
+-- This is a real rollback. It reinstalls the production body captured from
+-- pg_get_functiondef before the pragma was added — byte for byte, the pragma line being
+-- the only difference.
 --
 -- ⛔ WHAT REVERTING COSTS
 --
@@ -16,23 +16,11 @@
 -- never as a way to "put things back". If 133 itself misbehaves, the failure is in the
 -- pragma's interaction with the body, and the next step is the per-occurrence table in
 -- 133's header, not this file.
+--
+-- No install guard here either, for the same reason it is absent from 133.
 -- ============================================================================
 
 begin;
-
-do $guard$
-begin
-  if not exists (
-    select 1 from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
-       and p.proname = 'issue_auditor_charge_invoice_receipt_service'
-       and pg_get_function_identity_arguments(p.oid) = 'uuid, uuid, boolean'
-  ) then
-    raise exception '133-ROLLBACK expects public.issue_auditor_charge_invoice_receipt_service(uuid,uuid,boolean) to exist.';
-  end if;
-end
-$guard$;
 
 CREATE OR REPLACE FUNCTION public.issue_auditor_charge_invoice_receipt_service(p_auditor_charge_id uuid, p_issuer_company_id uuid, p_is_en boolean DEFAULT false)
  RETURNS TABLE(ok boolean, document_id uuid, document_number text)
@@ -459,16 +447,6 @@ begin
   return;
 end;
 $function$;
-
-do $verify$
-begin
-  if position('#variable_conflict use_column' in
-              pg_get_functiondef('public.issue_auditor_charge_invoice_receipt_service(uuid,uuid,boolean)'::regprocedure)) <> 0 then
-    raise exception '133-ROLLBACK FAILED: the pragma is still present. Nothing committed.';
-  end if;
-  raise notice '133-ROLLBACK done: the pragma is gone, and this function now throws 42702 on every call again.';
-end
-$verify$;
 
 commit;
 

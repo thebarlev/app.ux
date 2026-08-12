@@ -66,35 +66,76 @@ test("6 · no secret value survives anywhere in the serialised output", () => {
   expect(JSON.stringify(out)).not.toContain("ישראל")
 })
 
-test("7 · what a reconciliation needs is kept", () => {
+test("7 · what a reconciliation needs is kept — real key names, from the database", () => {
+  // Every name below was measured in the stored responses. The first version of this
+  // test used "ApprovalNumber" and "DealDate", which I had invented; Cardcom actually
+  // sends ExtShvaParams.ApprovalNumber71 and ExtShvaParams.DealDate. A test written
+  // against guessed field names cannot catch a keep list built from guessed field names.
   const out = sanitiseIndicatorForStorage({
     Token: TOKEN,
     InternalDealNumber: "1000123456",
-    ApprovalNumber: "0012345",
-    "ExtShvaParams.CardNumber5": "4580",
-    "ExtShvaParams.FirstCardDigits": "458012",
-    "ExtShvaParams.Mutag24": "2",
-    "ExtShvaParams.Sum36": "11800",
-    "ExtShvaParams.Tokef30": "0930",
-    NumOfPayments: "1",
     ResponseCode: "0",
     OperationResponse: "0",
+    OperationResponseText: "OK",
+    DealResponse: "0",
+    DealRespone: "0",
     terminalnumber: "1000",
     lowprofilecode: "abc-123",
     ReturnValue: "3f2a",
-    DealDate: "2026-08-11",
+    TokenExDate: "0930",
+    TokenApprovalNumber: "0012345",
+    TokenResponse: "0",
+    NumOfPayments: "1",
+    Is3DS: "false",
+    CardValidityMonth: "09",
+    CardValidityYear: "30",
+    "ExtShvaParams.ApprovalNumber71": "0012345",
+    "ExtShvaParams.CardNumber5": "4580",
+    "ExtShvaParams.FirstCardDigits": "458012",
+    "ExtShvaParams.BinId": "458012",
+    "ExtShvaParams.Mutag24": "2",
+    "ExtShvaParams.Sum36": "11800",
+    "ExtShvaParams.Tokef30": "0930",
+    "ExtShvaParams.DealDate": "2026-08-11",
+    "ExtShvaParams.Uid": "u-1",
+    "ExtShvaParams.SapakMutav": "s-1",
   })
   expect(out.InternalDealNumber).toBe("1000123456")
-  expect(out.ApprovalNumber).toBe("0012345")
-  expect(out["ExtShvaParams.CardNumber5"]).toBe("4580")
-  expect(out["ExtShvaParams.FirstCardDigits"]).toBe("458012")
-  expect(out["ExtShvaParams.Tokef30"]).toBe("0930")
-  expect(out.ResponseCode).toBe("0")
-  expect(out.terminalnumber).toBe("1000")
-  expect(out.lowprofilecode).toBe("abc-123")
-  expect(out.DealDate).toBe("2026-08-11")
+  expect(out.TokenApprovalNumber).toBe("0012345")
+  expect(out.TokenResponse).toBe("0")
+  expect(out.DealRespone).toBe("0")
+  expect(out.CardValidityMonth).toBe("09")
+  expect(out["ExtShvaParams.ApprovalNumber71"]).toBe("0012345")
+  expect(out["ExtShvaParams.BinId"]).toBe("458012")
+  expect(out["ExtShvaParams.DealDate"]).toBe("2026-08-11")
+  expect(out["ExtShvaParams.Uid"]).toBe("u-1")
+  expect(out["ExtShvaParams.SapakMutav"]).toBe("s-1")
   // Only the token was dropped from this set.
   expect(out.dropped_keys).toEqual(["Token"])
+})
+
+test("7b ⛔ TokenApprovalNumber and TokenResponse survive while Token does not", () => {
+  // The deny check is exact, never substring. If it ever became a substring match these
+  // two acquirer fields would vanish and nobody would notice until a chargeback.
+  const out = sanitiseIndicatorForStorage({
+    Token: TOKEN,
+    TokenApprovalNumber: "0012345",
+    TokenResponse: "0",
+    TokenExDate: "0930",
+  })
+  expect("Token" in out).toBe(false)
+  expect(out.TokenApprovalNumber).toBe("0012345")
+  expect(out.TokenResponse).toBe("0")
+  expect(out.TokenExDate).toBe("0930")
+})
+
+test("7c ⛔ a field ending in ResponseCode that nobody named is dropped", () => {
+  // The old list kept anything matching /ResponseCode$/. That hedge would keep a field
+  // Cardcom invents next year under a rule no one reviewed, which is exactly what an
+  // allow-list is supposed to prevent.
+  const out = sanitiseIndicatorForStorage({ SomeNewResponseCode: "7", ResponseCode: "0" })
+  expect("SomeNewResponseCode" in out).toBe(false)
+  expect(out.ResponseCode).toBe("0")
 })
 
 test("8 ⛔ an unknown field Cardcom adds later is dropped by default, and its name recorded", () => {

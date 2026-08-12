@@ -293,44 +293,58 @@ const CARDCOM_NEVER_KEEP: readonly string[] = [
   "ExtShvaParams.CardOwnerPhone",
 ]
 
-/** Names kept verbatim. Anything absent from here and from KEEP_PATTERNS is dropped. */
-const CARDCOM_KEEP_KEYS: readonly string[] = [
-  // transaction and terminal identity
-  "InternalDealNumber", "DealNumber", "TranzactionId", "TransactionId",
-  "terminalnumber", "TerminalNumber", "Terminal",
-  "lowprofilecode", "LowProfileCode", "lowProfileCode",
-  "ReturnValue", "returnvalue", "returnValue",
-  "CallIndicatorResponse",
-  // outcome
-  "ResponseCode", "OperationResponse", "OperationResponseText",
-  "DealResponse", "ReturnCode", "Description", "Status",
-  // approval
-  "ApprovalNumber", "ExtShvaParams.ApprovalNumber", "Signature",
-  // the card, without identifying anyone
-  "Mutag", "Mutag_24", "Mutag24", "ExtShvaParams.Mutag24",
-  "CardName", "CardBrand", "ExtShvaParams.CardName",
-  "CardNumStart", "ExtShvaParams.FirstCardDigits",
-  "CardNumEnd", "CardLast4", "ExtShvaParams.CardNumber5",
-  // expiry — see the note above
-  "TokenExDate", "Tokef_30", "ExtShvaParams.Tokef30",
-  // money and instalment structure
-  "Sum", "SumToBill", "Amount", "ExtShvaParams.Sum36",
-  "coinId", "CoinId", "Currency",
-  "NumOfPayments", "FirstPayment", "OtherPayment", "ExtShvaParams.NumOfPayments",
-  // when
-  "DealDate", "Date", "CreateDate",
-]
-
 /**
- * Whole families kept by shape rather than by name, because Cardcom's response-code
- * fields are numerous and consistently named, and enumerating each one by hand is how
- * the deny-list failed. Nothing here can match a token or a personal field: those are
- * named explicitly in CARDCOM_NEVER_KEEP, which is checked first.
+ * The 50 names kept. Anything else is dropped.
+ *
+ * ⛔ THIS LIST CAME FROM THE DATABASE, NOT FROM READING OUR CODE.
+ *
+ * The previous version was assembled from the fields our own code happens to read, plus
+ * reasoning about categories. Measured against what Cardcom actually stores it kept 24
+ * of 50 — it discarded 26 real fields, including the entire ExtShva settlement block
+ * that a chargeback enquiry runs on. Nothing leaked and no secret survived, so the
+ * security purpose held; the diagnostic value did not.
+ *
+ * It was dropped_keys that revealed it. That array exists precisely because an
+ * allow-list built from guesswork is wrong in a way nothing else would surface, and
+ * this is the mechanism doing its job on its first real run. The list below is now
+ * derived from the stored responses themselves and is authoritative.
+ *
+ * ⚠️ WHAT IS STILL NOT COVERED
+ *
+ * All 16 stored responses came from the Low Profile checkout indicator. The monthly
+ * renewal calls a different Cardcom endpoint (chargeToken) and has never run, so
+ * whatever names ITS response uses are absent here and will be dropped on the first
+ * renewal. That is not a defect to pre-empt by guessing again — read dropped_keys on the
+ * first renewal charge and add what is there.
+ *
+ * ⚠️ NO REGEX PATTERNS ANY MORE
+ *
+ * The earlier version also kept anything matching /ResponseCode$/ and similar. Those
+ * were a hedge against not knowing the real names, and they quietly defeated the point
+ * of an allow-list: a field Cardcom invents next year that happens to end in
+ * "ResponseCode" would be kept by a rule nobody reviewed. Exact names only now.
+ *
+ * `DealRespone` is not a typo here — it is Cardcom's own misspelling, and it arrives
+ * alongside the correctly spelled `DealResponse`. Both are kept because both are sent.
  */
-const CARDCOM_KEEP_PATTERNS: readonly RegExp[] = [
-  /^ExtShvaParams\.(Sum|NumOfPayments|FirstPayment|OtherPayment|Mutag|ApprovalNumber|Tokef|FirstCardDigits|CardNumber5|CardName)/i,
-  /ResponseCode$/i,
-  /^Deal(Date|Number|Response)$/i,
+const CARDCOM_KEEP_KEYS: readonly string[] = [
+  // Top level, as stored.
+  "CallIndicatorResponse", "CardValidityMonth", "CardValidityYear", "CoinId", "Country",
+  "DealRespone", "DealResponse", "Description", "InternalDealNumber", "Is3DS",
+  "lowprofilecode", "Mutag", "NumOfPayments", "Operation", "OperationResponse",
+  "OperationResponseText", "ProssesEndOK", "ResponseCode", "ReturnValue", "terminalnumber",
+  "TokenApprovalNumber", "TokenExDate", "TokenResponse",
+  // The ExtShva settlement block — the acquirer's own record of the transaction.
+  "ExtShvaParams.AbroadCard119", "ExtShvaParams.ApprovalNumber71", "ExtShvaParams.BinId",
+  "ExtShvaParams.CardName", "ExtShvaParams.CardNumber5", "ExtShvaParams.CardTypeCode60",
+  "ExtShvaParams.ChargType66", "ExtShvaParams.ConstPayment86", "ExtShvaParams.CouponNumber",
+  "ExtShvaParams.CreditType63", "ExtShvaParams.DealDate", "ExtShvaParams.DealType61",
+  "ExtShvaParams.FirstCardDigits", "ExtShvaParams.FirstPaymentSum78",
+  "ExtShvaParams.HaveRecipient", "ExtShvaParams.InternalDealNumber",
+  "ExtShvaParams.JParameter29", "ExtShvaParams.Mutag24", "ExtShvaParams.NumberOfPayments94",
+  "ExtShvaParams.SapakMutav", "ExtShvaParams.Status1", "ExtShvaParams.Sulac25",
+  "ExtShvaParams.Sum36", "ExtShvaParams.SumStars52", "ExtShvaParams.TerminalNumber",
+  "ExtShvaParams.Tokef30", "ExtShvaParams.Uid",
 ]
 
 const NEVER = new Set(CARDCOM_NEVER_KEEP.map((k) => k.toLowerCase()))
@@ -338,9 +352,11 @@ const KEEP = new Set(CARDCOM_KEEP_KEYS.map((k) => k.toLowerCase()))
 
 function isKeepable(key: string): boolean {
   const lower = key.toLowerCase()
+  // NEVER is checked first, so a sensitive name cannot be readmitted by also appearing
+  // in the keep list by mistake. Both comparisons are exact — never substring — so
+  // TokenApprovalNumber and TokenResponse are kept while Token itself is not.
   if (NEVER.has(lower)) return false
-  if (KEEP.has(lower)) return true
-  return CARDCOM_KEEP_PATTERNS.some((re) => re.test(key))
+  return KEEP.has(lower)
 }
 
 export function sanitiseIndicatorForStorage(parsed: Record<string, any>): Record<string, any> {

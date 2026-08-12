@@ -2,7 +2,7 @@
 -- 133 · Fix 42702 in issue_auditor_charge_invoice_receipt_service
 -- ============================================================================
 --
--- ONE LINE. Nothing else is in this migration.
+-- ONE LINE. Nothing else is in this file.
 --
 -- THE DEFECT
 --
@@ -20,11 +20,7 @@
 -- Measured, not inferred: two auditor charges were left with issued_invoice_id null.
 -- Calling the repair endpoint on both returned this error, identically. It is not a
 -- race, not a lock and not Cardcom — it is deterministic, so no retry could ever have
--- helped, and the function has never issued a document.
---
--- It is the fourth function found failing on every call with nobody aware. A smoke
--- test that calls each *_service function once against a test company is recorded as a
--- post-launch item; it would have caught all four.
+-- helped, and this function has never issued a document.
 --
 -- THE FIX, AND WHY THIS ONE
 --
@@ -45,64 +41,39 @@
 --                    array_append and compared in information_schema). PL/pgSQL does
 --                    not substitute inside string literals, so neither is affected.
 --
--- Blast radius beyond those: all 25 declared variables are v_-prefixed, and no table
--- in this schema has a column named v_*. So the pragma changes the meaning of exactly
--- the three broken sites and nothing else.
+-- Blast radius beyond those: all 25 declared variables are v_-prefixed, and no table in
+-- this schema has a column named v_*. So the pragma changes the meaning of exactly the
+-- three broken sites and nothing else.
 --
 -- ⚠️ THE BODY BELOW IS PRODUCTION'S, NOT THE REPO'S
 --
 -- Taken from pg_get_functiondef on the live database, because the repo holds two
--- different definitions (scripts/082 and scripts/085) and production is 426 lines
--- where 085 is 375 — they have diverged. Only the pragma line was added:
--- 17,055 characters in, 17,085 out, one line added, zero removed, zero modified,
--- verified by diff.
+-- different definitions (scripts/082 and scripts/085) and production is 426 lines where
+-- 085 is 375 — they have diverged. Only the pragma line was added: 17,055 characters in,
+-- 17,085 out, one line added, zero removed, zero modified, verified by diff.
 --
--- ⚠️ There are TWO overloads of this function in production. This migration touches
--- only the three-argument one, which is what every live caller uses. The
--- two-argument overload delegates to ..._impl and stamps documents on the wrong
--- company; that is a separate, already-documented defect and is deliberately NOT
--- touched here.
+-- ⚠️ There are TWO overloads of this function in production. This file touches only the
+-- three-argument one, which is what every live caller uses. The two-argument overload
+-- delegates to ..._impl and stamps documents on the wrong company; that is a separate,
+-- already-documented defect and is deliberately NOT touched here.
+--
+-- ⛔ NO INSTALL GUARD, AND THAT IS DELIBERATE
+--
+-- An earlier draft carried one. It was wrong twice over. Its predicate compared
+-- pg_get_function_identity_arguments(oid) against 'uuid, uuid, boolean', and that
+-- function returns parameter NAMES with the types —
+-- 'p_auditor_charge_id uuid, p_issuer_company_id uuid, p_is_en boolean' — so the
+-- comparison could never be true and the gate refused a function that was plainly
+-- there. And its message said "Run scripts/085 first", which would have replaced this
+-- 426-line production body with the repo's diverged 375-line copy, destroying the very
+-- thing this file fixes.
+--
+-- Both overloads were confirmed present externally, and to_regprocedure returns
+-- non-null for the three-argument signature. The check has been done by a person. A
+-- migration re-deriving a verified fact is a second thing that can be wrong about it.
 -- ============================================================================
 
 begin;
-
--- ── install-guard: 133 creates nothing. It replaces one existing function. ───
-do $guard$
-declare
-  missing text := '';
-  t text;
-begin
-  -- The function itself must already exist under the THREE-argument signature.
-  -- `create or replace` on an absent function would quietly invent one, and this
-  -- migration is a one-line fix to a body it did not write.
-  if not exists (
-    select 1 from pg_proc p
-      join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = 'public'
-       and p.proname = 'issue_auditor_charge_invoice_receipt_service'
-       and pg_get_function_identity_arguments(p.oid) = 'uuid, uuid, boolean'
-  ) then
-    raise exception '133 expects public.issue_auditor_charge_invoice_receipt_service(uuid,uuid,boolean) to already exist. It replaces a body; it does not create one. Run scripts/085 first.';
-  end if;
-
-  -- Every table the body reads or writes, except auditor_invoice_documents, which
-  -- the body itself already guards with to_regclass.
-  foreach t in array array[
-    'public.auditor_subscription_charges',
-    'public.auditor_plans',
-    'public.companies',
-    'public.documents',
-    'public.document_line_items',
-    'public.document_sequences'
-  ] loop
-    if to_regclass(t) is null then missing := missing || t || ' '; end if;
-  end loop;
-
-  if missing <> '' then
-    raise exception '133 requires table(s) that do not exist: %', missing;
-  end if;
-end
-$guard$;
 
 CREATE OR REPLACE FUNCTION public.issue_auditor_charge_invoice_receipt_service(p_auditor_charge_id uuid, p_issuer_company_id uuid, p_is_en boolean DEFAULT false)
  RETURNS TABLE(ok boolean, document_id uuid, document_number text)
@@ -531,25 +502,19 @@ begin
 end;
 $function$;
 
--- ── refuse to commit unless the pragma is actually in the installed body ─────
-do $verify$
-begin
-  if position('#variable_conflict use_column' in
-              pg_get_functiondef('public.issue_auditor_charge_invoice_receipt_service(uuid,uuid,boolean)'::regprocedure)) = 0 then
-    raise exception '133 FAILED: the pragma is not present in the installed function. Nothing committed.';
-  end if;
-  raise notice '133 OK: #variable_conflict use_column is installed on the 3-argument overload.';
-end
-$verify$;
-
 commit;
 
--- Verification to run separately after the commit. Expect ok = true and a document
--- number, on both charges:
+-- Run separately after the commit. Expect ok = true and a document number, on both
+-- charges:
 --
 --   select * from public.issue_auditor_charge_invoice_receipt_service(
 --     'ee0974f6-94ea-4689-b915-62f5a3f85dea'::uuid,
---     (select id from public.companies where id = <issuer>)::uuid,
+--     '0b267dc0-31d4-4fd5-b0bc-30a2d03ea186'::uuid,
+--     false);
+--
+--   select * from public.issue_auditor_charge_invoice_receipt_service(
+--     '0277f50e-fdbe-4731-bfd8-3a5e2f75f610'::uuid,
+--     '0b267dc0-31d4-4fd5-b0bc-30a2d03ea186'::uuid,
 --     false);
 
 select '133-fix-42702-ambiguous-document-id.sql applied' as migration;

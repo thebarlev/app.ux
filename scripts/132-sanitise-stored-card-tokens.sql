@@ -62,13 +62,21 @@
 begin;
 
 -- ── install-guard: this file creates neither table ───────────────────────────
+-- It reports what is missing and stops. It does not say what to run.
+--
+-- Both raises used to end with "Run 081 first". The same habit in 133's guard said
+-- "Run scripts/085 first", and obeying that would have replaced production's 426-line
+-- function body with the repo's diverged 375-line copy — destroying the exact defect
+-- that migration existed to fix. The recommendation was wrong there and the mechanism
+-- is wrong here: a raise cannot know what else is true about the database, so what to
+-- do about a missing dependency is a decision for a person, not a string.
 do $guard$
 begin
   if to_regclass('public.auditor_subscription_charges') is null then
-    raise exception '132 requires public.auditor_subscription_charges (scripts/081). Run 081 first.';
+    raise exception '132: public.auditor_subscription_charges does not exist.';
   end if;
   if to_regclass('public.auditor_checkout_sessions') is null then
-    raise exception '132 requires public.auditor_checkout_sessions (scripts/081). Run 081 first.';
+    raise exception '132: public.auditor_checkout_sessions does not exist.';
   end if;
 end
 $guard$;
