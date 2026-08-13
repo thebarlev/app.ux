@@ -398,6 +398,25 @@ export default function InvoiceReceiptFormClient({
     return Number((qty * unit).toFixed(2));
   }, []);
 
+  /*
+   * The per-unit net price, for field 1265.
+   *
+   * getLineNet returns the LINE total; this returns the UNIT price that line total is
+   * built from, so the two stay consistent by construction rather than by the same
+   * arithmetic performed twice in two places.
+   *
+   * vatMode "before" returns the figure untouched, so nothing changes for a line entered
+   * without VAT.
+   */
+  const getLineUnitNet = useCallback(
+    (item: { unitPrice: number; vatMode: "before" | "included" }) => {
+      if (vatRate <= 0 || item.vatMode !== "included") return item.unitPrice || 0;
+      const net = (item.unitPrice || 0) / (1 + vatRate / 100);
+      return Number(net.toFixed(2));
+    },
+    [vatRate]
+  );
+
   const getLineNet = useCallback(
     (item: ItemRow) => {
       const gross = getLineGross(item);
@@ -514,8 +533,33 @@ export default function InvoiceReceiptFormClient({
       paymentDueDate: "",
       description,
       payments: payments,
+      /*
+       * ⛔ 1265 NET, AND THIS IS THE PAYLOAD THAT PERSISTS.
+       *
+       * The uniform-file spec names field 1265 "מחיר ליחידה ללא מע\"מ" and defines 1267 as
+       * "הכמות בשורה * מחיר ליח' ללא מע"מ בניכוי הנחת השורה" — quoted from 1.31 page 13.
+       * So 1267 = 1264 x 1265 - 1266, and because 1265 is by name net, 1267 is net too.
+       *
+       * Only lineTotal was passed through getLineNet, while unitPrice went out exactly as
+       * typed. With vatMode "included" that is the gross figure, so the stored row said
+       * quantity 1, unit price 37.00, line total 31.36 — a row whose own multiplication
+       * does not hold, and a 1265 that carries VAT in a field defined as excluding it.
+       * Measured on document 1157 in the built file.
+       *
+       * ⚠️ The mismatch was first traced to the PREVIEW payload further down this file,
+       * which builds the same shape and never reaches the database. This is the one that
+       * writes. Fixing the other would have changed nothing and looked like a fix.
+       *
+       * Both fields now come from the same helper, so they cannot disagree: with vatMode
+       * "before" getLineNet returns the figure untouched and nothing changes at all.
+       *
+       * Existing documents keep their stored values. This is the write side only — the
+       * renderer and the uniform-file mapper are untouched, so anything already issued
+       * re-renders exactly as it was delivered.
+       */
       items: items.map((item) => ({
         ...item,
+        unitPrice: getLineUnitNet(item),
         lineTotal: getLineNet(item),
       })),
       notes,
