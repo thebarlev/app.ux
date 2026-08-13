@@ -298,3 +298,22 @@
 - **מה מחזיר אותו לראש התור:** כל `create or replace` על אחת משלוש הפונקציות בשרשרת. בלי ההגדרה החיה בריפו, מיגרציה שנכתבת מהקובץ הקיים דורסת קוד שאיש לא ראה. זה כבר כמעט קרה עם `normalize_registration_number`, ונמנע רק מפני שההגדרה החיה נקראה לפני הכתיבה. **הכלל שנגזר: לפני `create or replace` על פונקציה במסלול חיוב — לקרוא `pg_get_functiondef` ולהשוות.**
 
 ---
+
+## ⛔ delivery_note: a locked sequence for a document type that cannot be issued
+
+Measured 2026-08-13. `document_sequences` holds a LOCKED `delivery_note` row
+(company 4ae68334, starting_number 100, current_number 100, locked_at 2026-05-04T14:25:08)
+while the software has **no** way to issue one: zero form pages, zero form clients, and
+zero documents of that type ever created, of any status.
+
+Appendix 1 gives delivery notes code 200, so a number allocated against that sequence
+would belong to a document type the uniform file does not carry — a gap in a sequence,
+which is the first thing the registrar looks for.
+
+**The sequence must be released, or the type must be mapped, before the first delivery
+note is issued.** Today the hole is theoretical because the counter is still at its
+starting number. It becomes real with the first document.
+
+Unlocking is a data change in production and was deliberately not done here. See
+`BKMV_UNMAPPED_LOCKED_SEQUENCES` in `lib/regulatory/bkmv/codes.ts`, pinned by a test in
+`tests/regulatory/bkmv-mapping.spec.ts`.

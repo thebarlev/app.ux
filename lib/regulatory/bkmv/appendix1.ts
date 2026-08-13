@@ -59,7 +59,13 @@ export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "200", name: "תעודת משלוח", managed: false, internalTypes: [] },
   { code: "205", name: "תעודת משלוח סוכן", managed: false, internalTypes: [] },
   { code: "210", name: "תעודת החזרה", managed: false, internalTypes: [] },
-  { code: "300", name: "חשבונית/חשבונית עסקה", managed: true, internalTypes: ["proforma"] },
+  /*
+   * ⚠️ 300 is unmanaged. It WAS mapped to proforma in codes.ts before this work, and that
+   * mapping was removed on measurement: zero form pages, zero form clients, and zero
+   * proforma documents ever created. A declaration about a type the software cannot issue
+   * is worse than a zero.
+   */
+  { code: "300", name: "חשבונית/חשבונית עסקה", managed: false, internalTypes: [] },
   { code: "305", name: "חשבונית-מס", managed: true, internalTypes: ["tax_invoice"] },
   { code: "310", name: "חשבונית ריכוז", managed: false, internalTypes: [] },
   { code: "320", name: "חשבונית מס / קבלה", managed: true, internalTypes: ["invoice_receipt"] },

@@ -19,7 +19,6 @@ import { BkmvError } from "./errors";
  *   `tax_invoice`     → 305  חשבונית-מס
  *   `invoice_receipt` → 320  חשבונית מס / קבלה
  *   `receipt`         → 400  קבלה
- *   `proforma`        → 300  חשבונית/חשבונית עסקה
  *   `work_order`      → 100  הזמנה
  *
  * ── ⛔ WHY work_order IS HERE, AND HOW IT WAS DECIDED ───────────────────────
@@ -47,9 +46,26 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
   tax_invoice: "305",
   invoice_receipt: "320",
   receipt: "400",
-  proforma: "300",
   work_order: "100",
 };
+
+/*
+ * ⛔ WHY proforma → 300 WAS REMOVED.
+ *
+ * It was mapped here before any of this work, and it failed the same two-part test that
+ * kept delivery_note out — measured in production on 2026-08-13:
+ *
+ *   form pages for proforma      0
+ *   form clients for proforma    0
+ *   documents of type proforma   0, of any status, ever
+ *
+ * A mapping without an issuance path is a declaration about something the software does
+ * not do. The invariant this table now carries is that a mapped code must have documents
+ * behind it and a document type must have a code — proforma satisfied neither half.
+ *
+ * Removing it narrows what can enter the file, which is why it is stated here rather than
+ * done quietly. If a proforma form is ever built, this line comes back with it.
+ */
 
 /**
  * ⚠️ Document types that draw from a LOCKED sequence and have no appendix-1 mapping.
@@ -72,6 +88,22 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
  * is the one option that is wrong.
  */
 export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = ["delivery_note"];
+
+/*
+ * ⚠️ delivery_note, stage two of the test — and it fails.
+ *
+ * Measured 2026-08-13: zero form pages, zero form clients, and zero documents of that type
+ * in the database, of any status, ever. The type exists as a string in actions.ts and
+ * nothing can produce one.
+ *
+ * So the sequence is locked for a document type the software cannot issue. That is a wrong
+ * state, and the fix is either a mapping (which needs an issuance path first) or unlocking
+ * the sequence (which is a data change in production and not ours to make). Neither is done
+ * here: it stays unmapped, declares zero, and is recorded in FOLLOWUPS.md.
+ *
+ * The hole is theoretical while the sequence sits at its starting number. It becomes real
+ * the moment someone issues the first delivery note.
+ */
 
 /**
  * The document types that belong in the file at all.

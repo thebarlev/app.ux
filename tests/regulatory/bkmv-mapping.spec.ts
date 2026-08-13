@@ -161,11 +161,12 @@ test("an unsigned amount field has no sign column at all", () => {
 
 // ---------------------------------------------------------------- code tables
 
-test("the four document types map to the appendix-1 codes", () => {
+test("every mapped document type resolves to its appendix-1 code", () => {
   expect(bkmvDocumentTypeCode("tax_invoice")).toBe("305");
   expect(bkmvDocumentTypeCode("invoice_receipt")).toBe("320");
   expect(bkmvDocumentTypeCode("receipt")).toBe("400");
-  expect(bkmvDocumentTypeCode("proforma")).toBe("300");
+  // work_order joined on measurement (two locked sequences, one at 1003).
+  expect(bkmvDocumentTypeCode("work_order")).toBe("100");
 });
 
 test("an unmapped document type throws instead of guessing a code", () => {
@@ -426,7 +427,6 @@ test("an unmapped payment label stops the whole export rather than mislabelling 
 test("only document types with an appendix-1 code are exportable, and the lookup stays closed", () => {
   expect([...BKMV_EXPORTABLE_DOCUMENT_TYPES].sort()).toEqual([
     "invoice_receipt",
-    "proforma",
     "receipt",
     "tax_invoice",
     "work_order",
@@ -454,6 +454,13 @@ test("only document types with an appendix-1 code are exportable, and the lookup
   // Excluding a type from selection must not weaken the lookup: anything that
   // reaches it without a code still throws.
   expect(() => bkmvDocumentTypeCode("delivery_note")).toThrow(/closed table/);
+  /*
+   * proforma is out too, and for the same reason delivery_note is: measured 2026-08-13 it
+   * had zero form pages, zero form clients and zero documents ever created. It had been
+   * mapped to 300 before this work — a declaration about something the software cannot do.
+   */
+  expect(bkmvIsExportableDocumentType("proforma")).toBe(false);
+  expect(() => bkmvDocumentTypeCode("proforma")).toThrow(/closed table/);
 });
 
 test("one character is one byte in this encoding, so a 30-character cut is 30 columns", () => {
