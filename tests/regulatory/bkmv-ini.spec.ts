@@ -57,7 +57,7 @@ test("declared values land on the columns the spec gives them", () => {
   expect(a000.slice(24, 33)).toBe("515960508"); // 1003, cols 25-33
   expect(a000.slice(33, 48)).toBe("123456789012345"); // 1004, cols 34-48
   expect(a000.slice(48, 56)).toBe("&OF1.31&"); // 1005, cols 49-56
-  expect(a000.slice(56, 64)).toBe("00000000"); // 1006, cols 57-64
+  expect(a000.slice(56, 64)).toBe("99999999"); // 1006, cols 57-64
   expect(a000.slice(64, 84)).toBe("UXellent".padEnd(20, " ")); // 1007, cols 65-84
   expect(a000.slice(84, 104)).toBe("1.0".padEnd(20, " ")); // 1008, cols 85-104
   expect(a000.slice(104, 113)).toBe("515960508"); // 1009, cols 105-113
@@ -112,8 +112,21 @@ test("only the data records are summarised, and a type that was not produced get
   expect(bkmvSummaryRecords({ C100: 1, D120: 0 })).toEqual([{ code: "C100", count: 1 }]);
 });
 
-test("all-zeros in 1006 marks the file as a sample", () => {
-  expect(buildIniTxt(input()).isSample).toBe(true);
+test("isSample is derived from 1006 rather than declared beside it", () => {
+  /*
+   * 1006 is 99999999 now, so isSample is false. The value it reports is not the point —
+   * the point is that it is DERIVED from the field rather than set independently, so the
+   * two can never disagree about whether a file is a sample.
+   *
+   * The previous version of this test asserted `true`, which was correct while 1006 was
+   * all zeros. It failed when the decision changed, which is what a test pinning a
+   * decision is supposed to do.
+   */
+  const ini = buildIniTxt(input());
+  const field1006 = ini.lines[0].slice(56, 64);
+  expect(ini.isSample).toBe(/^0+$/.test(field1006));
+  expect(field1006).toBe("99999999");
+  expect(ini.isSample).toBe(false);
 });
 
 test("the export directory uses the first eight digits, dropping the check digit", () => {

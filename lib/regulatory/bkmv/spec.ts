@@ -64,12 +64,26 @@ export const BKMV_DECLARED_VALUES = {
   /**
    * Field 1006, "מספר רישום התוכנה", `9(8)` and mandatory.
    *
-   * The registration certificate has not been issued yet, and it cannot be:
-   * the file is required in order to register, and the number is required in the
-   * file. All zeros is a **documented placeholder**, and an export that carries
-   * it must be marked as a sample rather than filed.
+   * The registration certificate has not been issued yet, and it cannot be: the file is
+   * required in order to register, and the number is required in the file.
+   *
+   * ⛔ 99999999, not all zeros, and this is a DECISION rather than a quotation.
+   *
+   * The uniform-file spec (1.31, page 10) defines the field as "מספר תעודת הרישום של
+   * התוכנה במערכת המס" and gives no value for a vendor who has none — it says the field
+   * is mandatory and stops there. The only Tax Authority document that addresses the
+   * no-certificate case explicitly is the QR-code specification, which says to write
+   * 99999999. That is the reasoning, and it is an inference across two documents rather
+   * than a rule from this one.
+   *
+   * The simulator settles it. If it rejects 99999999 the answer is the opposite and this
+   * goes back to zeros — measured, not argued.
+   *
+   * ⚠️ Changing this also flips `isSample` in the INI summary to false, because that flag
+   * is derived from whether 1006 is all zeros. It is a reported boolean only: nothing in
+   * INI.TXT or BKMVDATA.TXT is written from it.
    */
-  registrationNumberPlaceholder: "00000000",
+  registrationNumberPlaceholder: "99999999",
 
   /** Field 1013, "סוג הנהח\"ש של התוכנה": 0 = not applicable. No bookkeeping module exists. */
   bookkeepingKind: "0",
