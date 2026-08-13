@@ -50,13 +50,16 @@ export type Appendix1Row = {
 export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "100", name: "הזמנה", managed: true, internalTypes: ["work_order"] },
   /*
-   * ⚠️ 200 is declared unmanaged while document_sequences holds a LOCKED delivery_note
-   * sequence (measured 2026-08-13, still at its starting number 100). Nothing has been
-   * issued against it, so the report reads zero truthfully today — but the lock means a
-   * regulatory number could be spent on a type this file does not carry. See
-   * BKMV_UNMAPPED_LOCKED_SEQUENCES in codes.ts.
+   * 200 is declared MANAGED as of 2026-08-13. Its sequence was already locked in production and
+   * its issuance route already reachable from the menu, so the file now carries what the
+   * software can issue rather than leaving a locked sequence pointing at nothing. The decision
+   * and its obligations are recorded in codes.ts.
+   *
+   * ⚠️ Section 2.6's example (page 9) shows this very type with 45 documents and a total of
+   * zero — "בתוכנה מנוהלות תעודות משלוח ותעודות החזרה, אולם אין בהן ציון של סכומים". A delivery
+   * note with no money on it is expected, not an error.
    */
-  { code: "200", name: "תעודת משלוח", managed: false, internalTypes: [] },
+  { code: "200", name: "תעודת משלוח", managed: true, internalTypes: ["delivery_note"] },
   { code: "205", name: "תעודת משלוח סוכן", managed: false, internalTypes: [] },
   { code: "210", name: "תעודת החזרה", managed: false, internalTypes: [] },
   /*

@@ -20,6 +20,12 @@ import {
 import type { BkmvContext, BkmvDocument, BkmvLineItem } from "@/lib/regulatory/bkmv";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
+/**
+ * The one place the bucket is named. It appears in the upload, in the failure message and in
+ * the response, and a rename that missed one of them is how a diagnosis goes wrong.
+ */
+const EXPORT_BUCKET = "regulatory-exports";
+
 function format2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -262,15 +268,61 @@ export async function POST(req: Request) {
     const fileKey = `company_${companyId}/bkmv/${yyyy}/${mm}/bkmv_${fromDD}_${toDD}_${yyyy}${mm}${dd}_${hh}${mi}${ss}.zip`;
 
     const { error: uploadError } = await service.storage
-      .from("regulatory-exports")
+      .from(EXPORT_BUCKET)
       .upload(fileKey, zipBuffer, {
         contentType: "application/zip",
         upsert: false,
       });
 
+    /*
+     * ⛔ A storage failure names itself, and does not discard the file that was built.
+     *
+     * This used to log `[BKMV] upload failed` and return `500 {"error":"Internal Server
+     * Error"}`. When the bucket did not exist, that message named neither the bucket nor the
+     * step, and it cost a full diagnosis cycle to learn that the regulatory file itself had
+     * been built correctly and then thrown away.
+     *
+     * The build is the expensive, correctness-critical part; the upload is transport. So the
+     * response now carries the bucket, the key, the storage layer's own message, and the
+     * complete appendix-4 report — the caller can see exactly what was produced, what was
+     * counted, and which step failed. 502 rather than 500, because the failure is in a
+     * dependency and not in this route's own logic.
+     *
+     * ⚠️ `ok` stays FALSE. The archive is not retrievable, so reporting success would be the
+     * same class of lie the rest of this work keeps removing — and the client renders the
+     * report only under `ok`, so a person is never shown a "saved to this path" line for a
+     * file that was not saved.
+     */
     if (uploadError) {
-      console.error("[BKMV] upload failed", uploadError);
-      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+      const reason = String((uploadError as any)?.message || uploadError);
+      console.error("[BKMV] storage upload failed", {
+        bucket: EXPORT_BUCKET,
+        key: fileKey,
+        reason,
+        recordCount,
+        documents: documents.length,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `הקבצים נבנו במלואם אך שמירתם נכשלה. דלי האחסון "${EXPORT_BUCKET}" החזיר: ${reason}`,
+          code: "BKMV_STORAGE_UPLOAD_FAILED",
+          step: "storage_upload",
+          bucket: EXPORT_BUCKET,
+          storageKey: fileKey,
+          storageError: reason,
+          // What was built, so a correct file is never invisible because transport failed.
+          built: {
+            records: recordCount,
+            recordCounts,
+            documents: documents.length,
+            directory,
+            bytes: zipBuffer.length,
+          },
+          notes,
+        },
+        { status: 502 }
+      );
     }
 
     /*
@@ -287,7 +339,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       storageKey: fileKey,
-      bucket: "regulatory-exports",
+      bucket: EXPORT_BUCKET,
       generatedAt: generatedAt.toISOString(),
       stats,
       // What is not in the file, and what the export had to change to fit it.

@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { BKMV_TRANSLITERATIONS } from "@/lib/regulatory/bkmv/text";
 import {
   BKMV_EXPORTABLE_DOCUMENT_TYPES,
+  BKMV_UNMAPPED_LOCKED_SEQUENCES,
   BKMV_PAYMENT_MEANS_NEEDS_ACCOUNTANT,
   bkmvIsExportableDocumentType,
   bkmvNormaliseCurrency,
@@ -426,6 +427,7 @@ test("an unmapped payment label stops the whole export rather than mislabelling 
 
 test("only document types with an appendix-1 code are exportable, and the lookup stays closed", () => {
   expect([...BKMV_EXPORTABLE_DOCUMENT_TYPES].sort()).toEqual([
+    "delivery_note",
     "invoice_receipt",
     "receipt",
     "tax_invoice",
@@ -443,17 +445,27 @@ test("only document types with an appendix-1 code are exportable, and the lookup
   expect(bkmvDocumentTypeCode("work_order")).toBe("100");
 
   /*
-   * ⚠️ delivery_note stays out, and it passes the same test work_order passed — a locked
-   * sequence, measured on the same day. It is left unmapped deliberately, because mapping
-   * it changes what enters the submitted file and that was not the declared list. Its
-   * sequence is still at its starting number, so nothing has been spent yet. Pinned here
-   * so the exclusion is a recorded decision and not an omission nobody noticed.
+   * ⛔ delivery_note is IN now, at 200, and the reversal is deliberate.
+   *
+   * It passed the locked-sequence test on the same day work_order did, and was left out
+   * because mapping changes what enters the submitted file. What settled it was discovering
+   * that the exclusion rested on a wrong measurement of mine: I had recorded "zero form
+   * pages, zero form clients", having searched for a per-type directory. The generic route
+   * /business/documents/new/deliveryNote renders TaxInvoiceFormClient and the new-document
+   * menu links to it unguarded. The path is one click from any user, so the locked sequence
+   * is not a theoretical hole — and the file now carries the type rather than the sequence
+   * pointing at nothing.
    */
-  expect(bkmvIsExportableDocumentType("delivery_note")).toBe(false);
+  expect(bkmvIsExportableDocumentType("delivery_note")).toBe(true);
+  expect(bkmvDocumentTypeCode("delivery_note")).toBe("200");
+
+  // The list is now empty, and that IS the assertion: no locked sequence feeds a type the
+  // file cannot carry.
+  expect([...BKMV_UNMAPPED_LOCKED_SEQUENCES]).toEqual([]);
 
   // Excluding a type from selection must not weaken the lookup: anything that
   // reaches it without a code still throws.
-  expect(() => bkmvDocumentTypeCode("delivery_note")).toThrow(/closed table/);
+  expect(() => bkmvDocumentTypeCode("quote")).toThrow(/closed table/);
   /*
    * proforma is out too, and for the same reason delivery_note is: measured 2026-08-13 it
    * had zero form pages, zero form clients and zero documents ever created. It had been

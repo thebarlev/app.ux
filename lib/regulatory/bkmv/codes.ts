@@ -47,6 +47,7 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
   invoice_receipt: "320",
   receipt: "400",
   work_order: "100",
+  delivery_note: "200",
 };
 
 /*
@@ -76,41 +77,42 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
  */
 
 /**
- * ⚠️ Document types that draw from a LOCKED sequence and have no appendix-1 mapping.
+ * Document types that draw from a LOCKED sequence and have no appendix-1 mapping.
  *
- * Measured in production on 2026-08-13:
- *
- *   delivery_note   start 100  current 100  is_locked true  locked_at 2026-05-04T14:25:08
- *
- * By the same test that put work_order in the table, delivery_note belongs there too —
- * appendix 1 gives it code 200, and a locked sequence means a regulatory number can be
- * allocated against it.
- *
- * It is NOT mapped here, and that is a deliberate refusal rather than an oversight: adding
- * it changes what enters the file we submit, and the declared list of types was set
- * without it. Its sequence is still at its starting number, so no number has actually been
- * spent — the hole is theoretical today and would become real on the first delivery note
- * issued.
- *
- * Whoever resolves this either maps it or unlocks the sequence. Leaving both as they are
- * is the one option that is wrong.
+ * ✅ EMPTY, as of 2026-08-13, because delivery_note was mapped rather than left out. Kept as a
+ * concept and pinned by a test: the state it describes — a locked regulatory sequence feeding
+ * a type the uniform file does not carry — is a real failure mode, and an empty list is the
+ * assertion that we are not in it.
  */
-export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = ["delivery_note"];
+export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = [];
 
 /*
- * ⚠️ delivery_note, stage two — and the same correction applies, which makes it WORSE.
+ * ⛔ delivery_note IS mapped, to 200. The decision, and why it went this way.
  *
- * This comment used to say "zero form pages, zero form clients ... nothing can produce one".
- * Wrong, for the reason above: /business/documents/new/deliveryNote exists, renders
- * TaxInvoiceFormClient, and NewDocumentFab links to it as "תעודת משלוח".
+ * The state that forced it, measured in production on 2026-08-13: `document_sequences` holds a
+ * LOCKED delivery_note row (start 100, current 100, locked_at 2026-05-04T14:25:08), an issuance
+ * path exists at /business/documents/new/deliveryNote through TaxInvoiceFormClient, and
+ * NewDocumentFab links to it as "תעודת משלוח" with no flag guarding it. A regulatory number
+ * could therefore be spent on a type the uniform file did not carry — a gap in a sequence,
+ * which is the first thing an audit looks for.
  *
- * What is measured is only this: zero delivery_note documents ever created, and a LOCKED
- * sequence sitting at its starting number.
+ * Two ways to close it: map the code, or block the route.
  *
- * The earlier reading made the risk sound theoretical because no path existed. The truth is
- * the opposite — the path exists and is one menu click away, so the first person who uses it
- * allocates a regulatory number against a type this file does not carry. Same wrong state,
- * much shorter fuse.
+ * ⛔ Mapped, because blocking is worse. Appendix 1 defines 200 as תעודת משלוח, so a delivery
+ * note is a regulatory document and not an internal convenience. The sequence was locked
+ * deliberately by someone who meant it to be issued. Removing a document type the product
+ * already offers, in order to make a file simpler, solves a reporting problem by deleting a
+ * feature — and it would leave the same locked sequence behind, ready to spend numbers again
+ * the moment anyone restored the route.
+ *
+ * ⚠️ WHAT THIS OBLIGES. The invariant on this table is that a mapped code has documents behind
+ * it in the submitted data. The submission batch must therefore include delivery notes — at
+ * least ten, like every other mapped code — or this mapping declares output we do not have and
+ * should come back out. Recorded in docs/CHECKLIST-REGISTRAR.md, not only here.
+ *
+ * ⚠️ AND WHAT IT DOES NOT MEAN. Section 2.6's own example shows type 200 with 45 documents and
+ * a money total of zero, explaining "בתוכנה מנוהלות תעודות משלוח ותעודות החזרה, אולם אין בהן
+ * ציון של סכומים". A delivery note carrying no amounts is an anticipated shape, not an error.
  */
 
 /**
