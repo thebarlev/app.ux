@@ -341,3 +341,20 @@ inside sixty seconds, and inventing the state now would be the larger change.
 
 ⚠️ It becomes real the moment two people export at once, or a retry fires immediately after
 a failure.
+
+---
+
+## The item/payment split rule exists in two places
+
+`lib/documents/line-kinds.ts` owns it now: a line is a payment when
+`payment_metadata.kind === "payment"`, and a document with no labels anywhere gets the old
+"both lists get every line" behaviour so already-issued documents keep loading.
+
+`lib/pdf-service.ts:1135-1144` implements the same rule inline, written earlier and unchanged
+here (`hasKindDiscriminator`, `paymentItems`, `docItems`). It behaves identically today —
+which is why mixed-line documents already render correctly — but it is one decision with two
+implementations, and the next change to the rule will be applied to one of them.
+
+Not unified in this pass on purpose: the renderer is what produces the documents the export
+is built from, and refactoring it days before that export is produced trades a real risk for
+a tidiness gain.

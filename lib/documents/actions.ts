@@ -22,6 +22,11 @@ import type {
   VatType,
 } from "@/lib/documents/types";
 import { paymentRowToLineItem as convertPayment } from "@/lib/types/receipt";
+import {
+  buildLineItemRows,
+  isItemDocumentType,
+  splitLineItemsByKind,
+} from "@/lib/documents/line-kinds";
 import { headers } from "next/headers";
 import {
   isDigitalSignaturesEnabled,
@@ -106,21 +111,6 @@ function toDbDocumentType(documentType: DocumentIssueType) {
   return documentType;
 }
 
-function isItemDocumentType(documentType: DocumentIssueType) {
-  return (
-    documentType === "tax_invoice" ||
-    documentType === "invoiceReceipt" ||
-    documentType === "creditNote" ||
-    documentType === "quote" ||
-    documentType === "proforma" ||
-    documentType === "workOrder" ||
-    documentType === "deliveryNote" ||
-    documentType === "returnNote" ||
-    documentType === "purchaseOrder" ||
-    documentType === "selfInvoice" ||
-    documentType === "selfCreditNote"
-  );
-}
 
 function getDocumentBasePath(documentType: DocumentIssueType) {
   const config = getDocumentConfig(documentType);
@@ -319,40 +309,6 @@ async function precheckSubscriptionEligibility(params: {
   };
 }
 
-function itemRowToLineItem(
-  item: TaxInvoiceItemRow,
-  documentId: string,
-  companyId: string,
-  lineNumber: number,
-  issueDate: string
-) {
-  const metadata = {
-    sku: item.sku || null,
-    label: item.label || null,
-    details: item.description || null,
-    vatMode: item.vatMode || "before",
-  };
-  const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
-  const unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
-  const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal : quantity * unitPrice;
-
-  return {
-    document_id: documentId,
-    company_id: companyId,
-    line_number: lineNumber,
-    description: item.label || item.description || "פריט",
-    item_date: issueDate,
-    unit_price: unitPrice,
-    quantity: quantity,
-    line_total: lineTotal,
-    currency: item.currency,
-    bank_name: null,
-    branch: null,
-    account_number: null,
-    item_sku: item.sku || null, // ✅ שמירה ישירה של המק"ט
-    payment_metadata: metadata,
-  };
-}
 
 async function resolveRecipientIdentifier(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
@@ -789,16 +745,8 @@ async function replaceDocumentLineItems(args: {
 
   if (deleteError) return deleteError;
 
-  if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
-    const lineItems = payload.items.map((item, idx) =>
-      itemRowToLineItem(item, documentId, companyId, idx + 1, payload.documentDate)
-    );
-    const { error: lineItemsError } = await supabase.from("document_line_items").insert(lineItems);
-    if (lineItemsError) return lineItemsError;
-  } else if (payload.payments && payload.payments.length > 0) {
-    const lineItems = payload.payments.map((payment, idx) =>
-      convertPayment(payment, documentId, companyId, idx + 1)
-    );
+  const lineItems = buildLineItemRows({ documentType, payload, documentId, companyId });
+  if (lineItems.length > 0) {
     const { error: lineItemsError } = await supabase.from("document_line_items").insert(lineItems);
     if (lineItemsError) return lineItemsError;
   }
@@ -940,23 +888,13 @@ export async function saveDocumentDraftAction(
     return { ok: false as const, message: "Draft creation failed." };
   }
 
-  if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
-    const lineItems = payload.items.map((item, idx) =>
-      itemRowToLineItem(item, data.id, companyId, idx + 1, payload.documentDate)
-    );
-
-    const { error: lineItemsError } = await supabase
-      .from("document_line_items")
-      .insert(lineItems);
-
-    if (lineItemsError) {
-      console.error("Failed to insert line items:", lineItemsError);
-    }
-  } else if (payload.payments && payload.payments.length > 0) {
-    const lineItems = payload.payments.map((payment, idx) =>
-      convertPayment(payment, data.id, companyId, idx + 1)
-    );
-
+  const lineItems = buildLineItemRows({
+    documentType,
+    payload,
+    documentId: data.id,
+    companyId,
+  });
+  if (lineItems.length > 0) {
     const { error: lineItemsError } = await supabase
       .from("document_line_items")
       .insert(lineItems);
@@ -1457,29 +1395,25 @@ export async function issueDocumentAction(
 
     console.log(`${logPrefix} Draft created`, { draftId: draft.id });
 
-    if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {
-      console.log(`${logPrefix} Inserting item line items`, { count: payload.items.length });
-      const lineItems = payload.items.map((item, idx) =>
-        itemRowToLineItem(item, draft.id, companyId, idx + 1, payload.documentDate)
-      );
-
-      const { error: lineItemsError } = await supabase
-        .from("document_line_items")
-        .insert(lineItems);
-
-      if (lineItemsError) {
-        console.error(`${logPrefix} Failed to insert line items`, {
-          error: lineItemsError.message,
-          code: lineItemsError.code,
-        });
-      } else {
-        console.log(`${logPrefix} Line items inserted successfully`);
-      }
-    } else if (payload.payments && payload.payments.length > 0) {
-      console.log(`${logPrefix} Inserting payment line items`, { count: payload.payments.length });
-      const lineItems = payload.payments.map((payment, idx) =>
-        convertPayment(payment, draft.id, companyId, idx + 1)
-      );
+    const lineItems = buildLineItemRows({
+      documentType,
+      payload,
+      documentId: draft.id,
+      companyId,
+    });
+    if (lineItems.length > 0) {
+      /*
+       * Counted by kind, because "10 line items inserted" is what let a dropped payment go
+       * unnoticed: the number looked right for the goods alone.
+       */
+      const paymentCount = lineItems.filter(
+        (r: any) => (r?.payment_metadata as any)?.kind === "payment"
+      ).length;
+      console.log(`${logPrefix} Inserting line items`, {
+        total: lineItems.length,
+        goods: lineItems.length - paymentCount,
+        payments: paymentCount,
+      });
 
       const { error: lineItemsError } = await supabase
         .from("document_line_items")
@@ -1745,10 +1679,24 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
       .eq("company_id", companyId)
       .order("line_number");
 
+    /*
+     * ⛔ Split by kind before mapping.
+     *
+     * Both of these loaders used to map EVERY line into `items` and, separately, every line
+     * into `payments` — correct only while a document has one kind of line, and relying on
+     * the caller to read the array that matched the document's type. A חשבונית מס/קבלה now
+     * carries both, and under the old code reopening one showed its payment as a product row
+     * and its products as payment rows.
+     *
+     * A document with no labels at all is a legacy document and gets both lists in full,
+     * exactly as before — see splitLineItemsByKind.
+     */
+    const { itemLines, paymentLines } = splitLineItemsByKind((lineItems || []) as any[]);
+
     let items: TaxInvoiceItemRow[] = [];
     let payments: PaymentRow[] = [];
     if (lineItems && lineItems.length > 0) {
-      items = lineItems.map((item: any) => {
+      items = itemLines.map((item: any) => {
         const metadata = item.payment_metadata || {};
         return {
           label: metadata.label || item.description || "",
@@ -1761,7 +1709,7 @@ export async function getDraftDocumentForEditAction(documentType: DocumentIssueT
           lineTotal: typeof item.line_total === "number" ? item.line_total : 0,
         };
       });
-      payments = lineItems.map((item: any) => {
+      payments = paymentLines.map((item: any) => {
         const metadata = item.payment_metadata || {};
         return {
           method: item.description || "תשלום",
@@ -1845,10 +1793,24 @@ export async function getDocumentForChainingAction(documentId: string) {
       .eq("company_id", companyId)
       .order("line_number");
 
+    /*
+     * ⛔ Split by kind before mapping.
+     *
+     * Both of these loaders used to map EVERY line into `items` and, separately, every line
+     * into `payments` — correct only while a document has one kind of line, and relying on
+     * the caller to read the array that matched the document's type. A חשבונית מס/קבלה now
+     * carries both, and under the old code reopening one showed its payment as a product row
+     * and its products as payment rows.
+     *
+     * A document with no labels at all is a legacy document and gets both lists in full,
+     * exactly as before — see splitLineItemsByKind.
+     */
+    const { itemLines, paymentLines } = splitLineItemsByKind((lineItems || []) as any[]);
+
     let items: TaxInvoiceItemRow[] = [];
     let payments: PaymentRow[] = [];
     if (lineItems && lineItems.length > 0) {
-      items = lineItems.map((item: any) => {
+      items = itemLines.map((item: any) => {
         // Parse payment_metadata if exists (for receipts/invoices)
         const metadata = item.payment_metadata || {};
         
@@ -1863,7 +1825,7 @@ export async function getDocumentForChainingAction(documentId: string) {
           lineTotal: typeof item.line_total === "number" ? item.line_total : 0,
         };
       });
-      payments = lineItems.map((item: any) => {
+      payments = paymentLines.map((item: any) => {
         const metadata = item.payment_metadata || {};
         return {
           method: item.description || "תשלום",
