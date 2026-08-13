@@ -180,6 +180,9 @@ export async function POST(req: Request) {
         customerPostalCode: c?.address_zip ?? null,
         customerCountry: c?.address_country ?? null,
         customerNumber: c?.customer_number ?? null,
+        // Filled in below, from document_links.
+        baseDocumentType: null,
+        baseDocumentNumber: null,
       };
     });
 
@@ -188,6 +191,65 @@ export async function POST(req: Request) {
         { error: "No FINAL documents found in the given date range", code: "NO_FINAL_DOCUMENTS" },
         { status: 400 }
       );
+    }
+
+    /*
+     * Fields 1256/1257 — the document each document is based on.
+     *
+     * ⚠️ Recorded until now as having no source, because `documents` has no `base_document_id`
+     * column. The column does not exist; the RELATION does. `document_links` holds
+     * source_document_id / target_document_id and is written by createDocumentLinkAction, in
+     * the direction "this document refers to that one" — its single production row is
+     * receipt 4000 -> tax_invoice 1000.
+     *
+     * ⛔ Fails closed. If the link table cannot be read, the export continues with no base
+     * documents rather than stopping: 1256/1257 are ח/ר, so a file without them is valid,
+     * while a file that silently omits half of them would not be — hence the error is logged
+     * with its reason instead of being swallowed.
+     */
+    const { data: links, error: linksError } = await service
+      .from("document_links")
+      .select("source_document_id, target_document_id")
+      .eq("company_id", companyId)
+      .in("source_document_id", documents.map((d) => d.id));
+
+    if (linksError) {
+      console.error("[BKMV] document_links query failed; 1256/1257 will be empty", {
+        reason: String((linksError as any)?.message || linksError),
+      });
+    }
+
+    const targetIds = [...new Set((links || []).map((l: any) => l.target_document_id))];
+    const baseById = new Map<string, { documentType: string; documentNumber: string }>();
+
+    if (targetIds.length > 0) {
+      const { data: baseDocs } = await service
+        .from("documents")
+        .select("id, document_type, document_number")
+        .in("id", targetIds);
+
+      for (const b of (baseDocs || []) as any[]) {
+        baseById.set(String(b.id), {
+          documentType: String(b.document_type),
+          documentNumber: String(b.document_number),
+        });
+      }
+    }
+
+    const baseForSource = new Map<string, { documentType: string; documentNumber: string }>();
+    for (const l of (links || []) as any[]) {
+      const base = baseById.get(String(l.target_document_id));
+      // First link wins: 1256/1257 name one base document, and a document with two links
+      // has no defined second slot to put the other in.
+      if (base && !baseForSource.has(String(l.source_document_id))) {
+        baseForSource.set(String(l.source_document_id), base);
+      }
+    }
+
+    for (const d of documents) {
+      const base = baseForSource.get(d.id);
+      d.baseDocumentType = base?.documentType ?? null;
+      d.baseDocumentNumber = base?.documentNumber ?? null;
     }
 
     // Line items (best-effort; some doc types may have none)

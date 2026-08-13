@@ -4,6 +4,7 @@ import {
   bkmvClearingHouseCode,
   bkmvCreditDealCode,
   bkmvDocumentTypeCode,
+  bkmvIsExportableDocumentType,
   bkmvNormaliseCurrency,
   bkmvPaymentMeansCode,
 } from "./codes";
@@ -104,10 +105,28 @@ export type BkmvExportNotes = {
   currencyNormalisations: BkmvCurrencyNormalisation[];
   /** Documents whose 1221 + 1222 does not equal 1223. Reported, not repaired. */
   amountMismatches: BkmvAmountMismatch[];
+  /**
+   * Documents that are based on another document whose type has no appendix-1 code, so
+   * fields 1256/1257 were left empty. Counted rather than guessed at — see the D110 builder.
+   */
+  unmappedBaseDocuments: BkmvUnmappedBaseDocument[];
+};
+
+/** A base-document link that could not be expressed in field 1256. */
+export type BkmvUnmappedBaseDocument = {
+  documentNumber: string | null;
+  baseDocumentType: string;
+  baseDocumentNumber: string;
 };
 
 export function emptyNotes(): BkmvExportNotes {
-  return { truncations: [], transliterations: [], currencyNormalisations: [], amountMismatches: [] };
+  return {
+    truncations: [],
+    transliterations: [],
+    currencyNormalisations: [],
+    amountMismatches: [],
+    unmappedBaseDocuments: [],
+  };
 }
 
 function plainText(value: unknown): string | undefined {
@@ -363,15 +382,49 @@ export function bkmvD110Values(params: {
   const t = textFor(d.documentNumber, line.lineNumber, params.notes);
   const description = t(1260, line.description);
 
+  /*
+   * ⛔ An unmapped base type empties BOTH fields rather than guessing a code or throwing.
+   *
+   * 1256 takes an appendix-1 code, and appendix 1 is a closed table. A base document of a type
+   * with no code — a quote, say — has nothing legal to put there. Throwing would let one link
+   * take down an entire export over an optional field; writing 1257 alone would name a
+   * document while declaring it is of no known type. So the pair is all-or-nothing, and the
+   * omission is counted so it is visible rather than silent.
+   */
+  const baseType = d.baseDocumentType;
+  const baseCode =
+    baseType && d.baseDocumentNumber && bkmvIsExportableDocumentType(baseType)
+      ? bkmvDocumentTypeCode(baseType)
+      : null;
+  if (baseType && d.baseDocumentNumber && !baseCode) {
+    params.notes?.unmappedBaseDocuments.push({
+      documentNumber: d.documentNumber,
+      baseDocumentType: baseType,
+      baseDocumentNumber: d.baseDocumentNumber,
+    });
+  }
+
   return {
     1251: params.recordNumber,
     1252: digits(ctx.companyTaxId),
     1253: bkmvDocumentTypeCode(d.documentType),
     1254: t(1254, d.documentNumber),
     1255: line.lineNumber,
-    // 1256 סוג מסמך בסיס / 1257 מספר מסמך בסיס — NO SOURCE. Nothing records what
-    // a document is based on; voiding_document_id is a cancellation link, not a
-    // base. Left out: zeros and spaces.
+    /*
+     * 1256 סוג מסמך בסיס / 1257 מספר מסמך בסיס — from `document_links`.
+     *
+     * ⚠️ This pair was recorded as having NO SOURCE, on the grounds that no `base_document_id`
+     * column exists. The column does not exist; the RELATION does. `document_links` carries
+     * source_document_id / target_document_id / link_type and is populated by
+     * createDocumentLinkAction, and its direction is already "this document refers to that
+     * one" — the single production row is receipt 4000 -> tax_invoice 1000.
+     *
+     * Both fields are ח/ר: written together when a base exists, and both left empty when it
+     * does not. A credit note is the case that makes them matter, because the document it
+     * credits is the whole point of it.
+     */
+    1256: baseCode ?? undefined,
+    1257: baseCode ? t(1257, d.baseDocumentNumber) : undefined,
     // 1258 סוג עסקה — NO SOURCE. Left out: zeros.
     1259: t(1259, line.itemCode),
     // 1260 — X(30), mandatory. Product descriptions are unbounded in the database,

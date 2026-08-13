@@ -77,6 +77,8 @@ function doc(over: Partial<BkmvDocument> = {}): BkmvDocument {
     customerPostalCode: "6120101",
     customerCountry: "IL",
     customerNumber: "C-7",
+    baseDocumentType: null,
+    baseDocumentNumber: null,
     ...over,
   };
 }
@@ -421,6 +423,91 @@ test("an unmapped payment label stops the whole export rather than mislabelling 
       primaryIdentifier: IDENT,
     })
   ).toThrow(/"Revolut"/);
+});
+
+// ------------------------------------------------- 1256/1257, the base document
+
+/**
+ * ⛔ These two were recorded as having NO SOURCE. They do have one.
+ *
+ * The record said no `base_document_id` column exists — true, and the wrong thing to look for.
+ * `document_links` carries the relation, is written by createDocumentLinkAction, and already
+ * runs in the direction "this document refers to that one" (its one production row is
+ * receipt 4000 -> tax_invoice 1000). A credit note is the case that makes the pair matter.
+ */
+test("a document based on another writes its base type and number into D110", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [
+      doc({
+        documentNumber: "4000",
+        documentType: "receipt",
+        baseDocumentType: "tax_invoice",
+        baseDocumentNumber: "1000",
+      }),
+    ],
+    lineItems: [line({ description: "מזומן", paymentMetadata: { kind: "payment" } })],
+    primaryIdentifier: IDENT,
+  });
+  // A receipt's line is a payment, so force a goods line to inspect D110.
+  const withGoods = buildBkmvTxt({
+    ctx: CTX,
+    documents: [
+      doc({
+        documentNumber: "330001",
+        documentType: "tax_invoice",
+        baseDocumentType: "tax_invoice",
+        baseDocumentNumber: "1000",
+      }),
+    ],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const d110 = withGoods.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D110")) as string;
+  expect(at(d110, "D110", 1256)).toBe("305");
+  expect(at(d110, "D110", 1257)).toBe("1000".padEnd(20, " "));
+  expect(built.notes.unmappedBaseDocuments).toEqual([]);
+});
+
+test("no base document leaves both fields empty, per their own widths", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ baseDocumentType: null, baseDocumentNumber: null })],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const d110 = built.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D110")) as string;
+  // 1256 is numeric so it renders as zeros; 1257 is alphanumeric so it renders as spaces.
+  expect(at(d110, "D110", 1256)).toBe("000");
+  expect(at(d110, "D110", 1257)).toBe(" ".repeat(20));
+});
+
+/**
+ * ⛔ All-or-nothing, and counted.
+ *
+ * 1256 takes an appendix-1 code and appendix 1 is a closed table, so a base document of an
+ * unmapped type has nothing legal to put there. Throwing would let one optional link take down
+ * a whole export; writing 1257 alone would name a document while declaring it of no known type.
+ */
+test("a base document of an unmapped type empties both fields and is reported", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [
+      doc({ documentNumber: "77", baseDocumentType: "quote", baseDocumentNumber: "Q-5" }),
+    ],
+    lineItems: [line({ paymentMetadata: { kind: "item" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const d110 = built.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D110")) as string;
+  expect(at(d110, "D110", 1256)).toBe("000");
+  expect(at(d110, "D110", 1257)).toBe(" ".repeat(20));
+
+  expect(built.notes.unmappedBaseDocuments).toEqual([
+    { documentNumber: "77", baseDocumentType: "quote", baseDocumentNumber: "Q-5" },
+  ]);
 });
 
 // ------------------------------------------------- whitelist and truncation

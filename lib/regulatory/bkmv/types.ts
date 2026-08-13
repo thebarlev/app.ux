@@ -144,6 +144,22 @@ export type BkmvDocument = {
   customerPostalCode: string | null;
   customerCountry: string | null;
   customerNumber: string | null;
+
+  /**
+   * The document this one is based on — fields 1256 and 1257 in D110.
+   *
+   * Clarification 6 of the spec: "כאשר המסמך הנידון מבוסס על מסמך אחר יש לציין את סוג המסמך
+   * עליו מתבססים ואת מספרו." Both fields are ח/ר — required when relevant.
+   *
+   * ⛔ Source: `document_links`, where this document is the SOURCE and the base is the TARGET.
+   * That direction is the one the table already uses: its single production row is
+   * receipt 4000 -> tax_invoice 1000, i.e. "this document refers to that one".
+   *
+   * `baseDocumentType` is the internal document_type of the base, not a code — the mapper
+   * turns it into an appendix-1 code, and refuses to guess when the type has none.
+   */
+  baseDocumentType: string | null;
+  baseDocumentNumber: string | null;
 };
 
 export type BkmvLineItem = {
