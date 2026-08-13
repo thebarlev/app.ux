@@ -48,6 +48,7 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
   receipt: "400",
   work_order: "100",
   delivery_note: "200",
+  credit_note: "330",
 };
 
 /*
@@ -85,6 +86,28 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
  * assertion that we are not in it.
  */
 export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = [];
+
+/*
+ * ⛔ credit_note IS mapped, to 330, now that issuance is possible.
+ *
+ * It was deliberately absent while `security/credit-note-block` refused issuance outright —
+ * "so a credit note cannot be quietly exportable while issuing one is blocked", which was the
+ * right call for that state. The block has been replaced by a precondition
+ * (lib/documents/credit-note-precondition.ts): issuance is refused only until the credit
+ * sequence's starting number has been decided, so the capability exists and the code belongs.
+ *
+ * Appendix 1, verbatim: `330  חשבונית מס זיכוי`. And `710 זיכוי רכש` is the purchase-side
+ * equivalent, which this system does not issue.
+ *
+ * ⚠️ AMOUNTS ARE POSITIVE. Clarification 1: "משמעות המסמך בהנהלת חשבונות הינה עפ\"י סוג המסמך
+ * ולא עפ\"י ערכו ... תעודת זיכוי חיובית תקטין הכנסה". The credit is expressed by the code, not
+ * by the sign; section 2.4.י"ב reserves negatives for values that REDUCE a document's own
+ * total, which is the line discount in 1266.
+ *
+ * ⚠️ And the same obligation as every other mapped code: at least ten credit notes in the
+ * submitted data, each pointing at a real invoice through 1256/1257. A credit note with no
+ * base document is a credit note that was never tested.
+ */
 
 /*
  * ⛔ delivery_note IS mapped, to 200. The decision, and why it went this way.

@@ -8,14 +8,15 @@ import { getInitialInvoiceReceiptCreateData } from "@/app/dashboard/documents/in
 import CreditNoteFormClient from "@/app/dashboard/documents/credit-note/CreditNoteFormClient"
 import { getInitialCreditNoteCreateData } from "@/app/dashboard/documents/credit-note/actions"
 
-// ── CREDIT NOTE BLOCKED ───────────────────────────────────────────────────────
-// Hard-coded, not configurable. An env-var gate that is unset fails open, which is
-// exactly the failure mode fixed in S1.3, so the value is a literal here.
-// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
-// code below to unreachable and re-reports the whole body, which fails the build
-// (next.config.mjs ignoreBuildErrors:false). To restore credit-note issuance,
-// revert the security/credit-note-block commits.
-const CREDIT_NOTE_BLOCKED: boolean = true
+/*
+ * ⛔ The credit-note route opens again, because the block became a precondition.
+ *
+ * It 404'd so that a click could not create a locked credit sequence with a starting number no
+ * accountant chose. That case is now refused where the number is actually drawn — in
+ * issueCreditNoteAction, via lib/documents/credit-note-precondition.ts — which no UI can
+ * bypass. Hiding the form as well would only mean a person meets a 404 instead of a sentence
+ * telling them what is missing and who decides it.
+ */
 
 type Params = {
   documentType: "invoice" | "invoiceReceipt" | "receipt" | "creditNote"
@@ -44,7 +45,6 @@ export default async function IncomeDocumentNewPage({ params }: { params: Params
     // /dashboard/incomes/documents/new/creditNote 404s too, not just the tile.
     // The allocation stop in issueCreditNoteAction is the real guarantee; this
     // closes the door so nobody reaches the form and gets a toast instead.
-    if (CREDIT_NOTE_BLOCKED) notFound()
 
     const initial = await getInitialCreditNoteCreateData()
     return <CreditNoteFormClient initial={initial} />

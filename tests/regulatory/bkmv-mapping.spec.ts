@@ -173,8 +173,13 @@ test("every mapped document type resolves to its appendix-1 code", () => {
 });
 
 test("an unmapped document type throws instead of guessing a code", () => {
-  expect(() => bkmvDocumentTypeCode("credit_note")).toThrow(/No BKMV document type code/);
+  /*
+   * credit_note used to be the example here, because it was deliberately unmapped while
+   * issuance was blocked. It is mapped now that issuance is possible, so the example moved to
+   * types that genuinely have no appendix-1 code and no issuance intent.
+   */
   expect(() => bkmvDocumentTypeCode("quote")).toThrow(/closed table/);
+  expect(() => bkmvDocumentTypeCode("purchase_order")).toThrow(/No BKMV document type code/);
 });
 
 test("the 21 payment labels map onto the nine codes as decided", () => {
@@ -599,12 +604,20 @@ test("a base document of an unmapped type empties both fields and is reported", 
 
 test("only document types with an appendix-1 code are exportable, and the lookup stays closed", () => {
   expect([...BKMV_EXPORTABLE_DOCUMENT_TYPES].sort()).toEqual([
+    "credit_note",
     "delivery_note",
     "invoice_receipt",
     "receipt",
     "tax_invoice",
     "work_order",
   ]);
+
+  /*
+   * 330 joined when issuance became possible. It was deliberately absent while the block
+   * refused every credit note, so that one could not be silently exportable while it could not
+   * be issued; the block is now a precondition and the capability exists.
+   */
+  expect(bkmvDocumentTypeCode("credit_note")).toBe("330");
 
   expect(bkmvIsExportableDocumentType("tax_invoice")).toBe(true);
   /*

@@ -16,18 +16,19 @@ import {
 } from "@/lib/documents/actions";
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser } from "@/lib/document-helpers";
+import { creditNoteSequenceReadiness } from "@/lib/documents/credit-note-precondition";
 
-// ── CREDIT NOTE BLOCKED ───────────────────────────────────────────────────────
-// Hard-coded, not configurable. An env-var gate that is unset fails open, which is
-// exactly the failure mode fixed in S1.3, so the value is a literal here.
-// Annotated `: boolean` on purpose — without the annotation TypeScript narrows the
-// code below to unreachable and re-reports the whole body, which fails the build
-// (next.config.mjs ignoreBuildErrors:false). To restore credit-note issuance,
-// revert the security/credit-note-block commits.
-//
-// Deliberately NOT applied to saveCreditNoteDraftAction: a draft carries no
-// document number and consumes nothing, so it is harmless and stays working.
-const CREDIT_NOTE_BLOCKED: boolean = true;
+/*
+ * ⛔ The credit-note BLOCK is gone; the precondition it protected is not.
+ *
+ * `security/credit-note-block` refused issuance outright. Its surviving justification — one
+ * click permanently fixing a starting number no accountant chose — is now enforced by
+ * `creditNoteSequenceReadiness` instead, which refuses exactly that case and allows the rest.
+ * See lib/documents/credit-note-precondition.ts for the reasoning in full.
+ *
+ * Draft saving was never blocked and still is not: a draft carries no document number and
+ * consumes nothing.
+ */
 
 export {
   getRecipientConsentStatusAction,
@@ -44,26 +45,37 @@ export async function getInitialCreditNoteCreateData(): Promise<InitialCreditNot
  }
  
  export async function issueCreditNoteAction(payload: CreditNoteDraftPayload) {
-   // CREDIT NOTE BLOCKED — first statement executed, before issueDocumentAction.
-   //
-   // This is the allocation stop, and it is the one that matters. Issuance calls
-   // generate_document_number at lib/document-helpers.ts:298 and persists the
-   // number at :321-328, roughly 760 lines BEFORE the PDF is built at :1057.
-   // Those are separate PostgREST calls, so each commits on its own — there is no
-   // enclosing transaction for a later failure to abort. With no credit_note
-   // template, lib/pdf-service.ts:979 throws TEMPLATE_NOT_FOUND, which surfaces as
-   // { ok: false } at :254 and returns at document-helpers.ts:1078 — after the
-   // number is already committed. Nothing anywhere decrements current_number or
-   // deletes the numbered draft, so every new failing draft permanently consumes a
-   // number in a sequence that generate_document_number creates with
-   // is_locked = true.
-   //
-   // Returning the failure here stops that before a number is ever drawn.
-   // Deliberately a return and not a throw: the shape below is what
-   // CreditNoteFormClient.tsx:665-677 already handles, so the form shows a toast
-   // instead of crashing.
-   if (CREDIT_NOTE_BLOCKED) {
-     return { ok: false as const, message: "הפקת חשבונית זיכוי אינה זמינה כרגע" };
+   /*
+    * ⛔ THE ALLOCATION STOP, NOW A PRECONDITION RATHER THAN A BLOCK.
+    *
+    * What it protects is unchanged and still real. Issuance calls generate_document_number at
+    * lib/document-helpers.ts:298 and persists the number at :321-328, some 760 lines before
+    * the PDF is built at :1057. Those are separate PostgREST calls, each committing on its
+    * own, so no later failure can abort the allocation — and the sequence is created with
+    * is_locked = true, which migration 118 made enforceable. One click on a company with no
+    * credit sequence permanently fixes a regulatory starting number nobody chose.
+    *
+    * The block prevented that by refusing every credit note. This refuses only the case that
+    * causes it: issuing before the starting number has been decided. Once it exists, the
+    * issuance path draws from it and creates nothing.
+    *
+    * Deliberately a return and not a throw — the shape below is what
+    * CreditNoteFormClient.tsx:665-677 already handles, so the form shows the message instead
+    * of crashing. The message names what is missing AND who decides it, because "not
+    * available" told the person nothing they could act on.
+    */
+   // getCompanyIdForUser resolves the session itself and throws when there is none, so the
+   // precondition can never be evaluated for a company the caller does not belong to.
+   let companyId: string;
+   try {
+     companyId = await getCompanyIdForUser();
+   } catch {
+     return { ok: false as const, message: "יש להתחבר כדי להפיק מסמך" };
+   }
+
+   const readiness = await creditNoteSequenceReadiness(companyId);
+   if (!readiness.ready) {
+     return { ok: false as const, message: readiness.message, reason: readiness.reason };
    }
 
    return issueDocumentAction("creditNote", payload);
