@@ -11,6 +11,7 @@ import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from ".
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { callShaamInvoiceApprovalV2, type ShaamApprovalV2Payload } from "@/lib/shaam/invoice-allocation"
+import { assertNotTestCompany } from "@/lib/security/test-company-guard.server"
 import { markConnectionError, recordShaamEvent } from "@/lib/shaam/tokens"
 import { getValidShaamAccessToken, NeedsReauthError, ShaamTransientError } from "@/lib/shaam/token-manager"
 import { DocIssueTracker } from "@/lib/diagnostics/external-services-check"
@@ -829,6 +830,23 @@ export async function finalizeDocument(
             eventType: "allocation_request",
             payload: { document_id: draftId, document_type: dbDocType, payment_amount: paymentAmountSafe, vat_amount: vatAmountSafe, issue_date: issueDateYmd },
           })
+
+          /*
+           * A test company never asks the tax authority for anything.
+           *
+           * Placed immediately before the call rather than at the top of the
+           * function: everything above this point is local — reading the draft,
+           * building the payload, marking the row pending — and none of it leaves the
+           * building. This is the first line that talks to the outside, so this is
+           * where the refusal belongs.
+           *
+           * It throws rather than returning a refusal object, and the throw is caught
+           * by the surrounding handler which leaves the document unissued. That is the
+           * correct outcome: a test document with no allocation number is a draft,
+           * while a test document that obtained a real allocation number is a filing
+           * that cannot be withdrawn.
+           */
+          await assertNotTestCompany(companyId, "shaam_allocation_request")
 
           const makeCall = async (token: string) => {
             return await callShaamInvoiceApprovalV2({

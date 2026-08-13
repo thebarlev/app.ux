@@ -6,6 +6,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
+import { assertNotTestCompany } from "@/lib/security/test-company-guard.server";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
 
 export async function GET(req: Request) {
@@ -25,6 +26,13 @@ export async function GET(req: Request) {
     }
 
     // Ensure key is scoped to the given company to avoid traversal/cross-tenant access.
+    /*
+     * Downloading a built file is still the file leaving. Guarding only the export
+     * would mean a uniform file built before the flag was set stays downloadable
+     * forever, so both ends refuse.
+     */
+    await assertNotTestCompany(companyId, "bkmv_download");
+
     const expectedPrefix = `company_${companyId}/bkmv/`;
     if (!key.startsWith(expectedPrefix)) {
       return NextResponse.json({ error: "Invalid key for company", code: "INVALID_KEY_SCOPE" }, { status: 400 });

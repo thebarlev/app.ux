@@ -5,7 +5,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { extractTokenFromIndicator, normalizeCardcomTokenExDate, pullLowProfileIndicator } from "@/lib/auditor/billing/cardcom"
+import { extractTokenFromIndicator, normalizeCardcomTokenExDate, pullLowProfileIndicator, sanitiseIndicatorForStorage } from "@/lib/auditor/billing/cardcom"
 import { encryptToken, tokenHashSha256 } from "@/lib/auditor/billing/tokenCrypto"
 import { computeMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
@@ -13,6 +13,8 @@ import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { resolveCanonicalAuditorCompany } from "@/lib/auditor/company-resolution"
 import { createRegistrationLog } from "@/lib/auditor/leads/createRegistrationLog"
 import { sendAdminNotification } from "@/lib/email/sendAdminNotification"
+import { sendAuditorIssuanceErrorNotice, sendAuditorSubscriptionNotice } from "@/lib/email/auditorBillingNotice"
+import { deliverAuditorInvoiceEmail } from "@/lib/auditor/billing/deliver-invoice-email"
 
 const providerKey = "cardcom"
 
@@ -96,7 +98,9 @@ export async function processCardcomIndicatorEvent(
     .update({
       status: paid ? "paid" : "failed",
       provider_internal_deal_number: internalDealNumber,
-      raw_indicator_json: indicatorParsed,
+      // Third place the same object lands. The token has to go from all of them —
+      // a redaction that misses one table is not a redaction.
+      raw_indicator_json: sanitiseIndicatorForStorage(indicatorParsed),
     } as any)
     .eq("id", String(checkout.id))
 
@@ -351,9 +355,11 @@ export async function processCardcomIndicatorEvent(
           } catch (err) {
             console.error("[AUDITOR_PROCESS] registration log failed", err)
           }
-          // Admin notification email (fire-and-forget — must not break payment flow)
+          // Must not break the payment flow — but a non-delivery is logged. Same reason
+          // as bootstrap-company: the catch alone could never fire, because
+          // sendBrevoEmail returns {sent, reason} rather than throwing.
           try {
-            await sendAdminNotification({
+            const notice = await sendAdminNotification({
               subject: "New Auditor Registration",
               html: `<p><strong>New Auditor user registered (via payment)</strong></p>
 <ul>
@@ -364,8 +370,15 @@ export async function processCardcomIndicatorEvent(
   <li><strong>Signup time:</strong> ${new Date().toISOString()}</li>
 </ul>`,
             })
+            if (!notice?.sent) {
+              console.error("[AUDITOR_NOTICE_FAILED] auditor registration via payment, nobody was told", {
+                reason: notice?.reason || "unknown",
+                leadEmail,
+                normalizedHost,
+              })
+            }
           } catch (err) {
-            console.error("[AUDITOR_PROCESS] Admin email notification failed", err)
+            console.error("[AUDITOR_NOTICE_FAILED] auditor registration via payment threw", err)
           }
         }
       } catch (invErr: any) {
@@ -467,6 +480,10 @@ export async function processCardcomIndicatorEvent(
         plan_snapshot_monthly_amount: chargedAmount,
         plan_snapshot_currency: chargedCurrency,
         plan_snapshot_created_at: now.toISOString(),
+        // Added by migration 130 B1 for exactly this, and then never written — same
+        // omission as the charge snapshot above. Nullable on purpose: a subscription
+        // created by hand, or before this line existed, carries no scan.
+        scan_id: (checkout as any)?.scan_id ?? null,
         status: "active",
         current_period_start: period.start.toISOString(),
         current_period_end: period.end.toISOString(),
@@ -496,8 +513,28 @@ export async function processCardcomIndicatorEvent(
       currency: chargedCurrency,
       uniq_asmachta: uniq,
       status: "succeeded",
+      /*
+       * The snapshot, and why it was missing.
+       *
+       * Migration 130 added plan_snapshot_name and plan_snapshot_monthly_amount to this
+       * table and backfilled the 14 historical rows — so the migration looked complete
+       * — but nothing updated this insert. The protection going forward, which is the
+       * entire reason the columns exist, therefore never operated: the first new charge
+       * was written with both null.
+       *
+       * The subscription upsert below always had its snapshot because those columns
+       * date from 081 and the code was written alongside them. That is the whole
+       * difference between the two, and it is a pattern rather than an accident — the
+       * same omission left auditor_subscriptions.scan_id null.
+       *
+       * plan.name and chargedAmount, not a re-read of auditor_plans: the point of a
+       * snapshot is the value at this moment, and re-reading would reintroduce exactly
+       * the live reference it exists to freeze.
+       */
+      plan_snapshot_name: plan.name,
+      plan_snapshot_monthly_amount: chargedAmount,
       provider_internal_deal_number: internalDealNumber,
-      raw_charge_response: { indicator: indicatorParsed },
+      raw_charge_response: { indicator: sanitiseIndicatorForStorage(indicatorParsed) },
     } as any)
     .select("id,issued_invoice_id")
     .maybeSingle()
@@ -512,6 +549,101 @@ export async function processCardcomIndicatorEvent(
     chargeId = existingCharge?.id ? String(existingCharge.id) : null
   }
 
+  /*
+   * ⛔ ISSUANCE DECIDES THE EVENT'S FATE. It used to only write a log line.
+   *
+   * The previous shape called the RPC, logged failure to the console, and then marked
+   * the event status='ok' with processed_at set — unconditionally, a few lines below.
+   * So a charge could be 'succeeded', a subscription 'active', money taken, and no tax
+   * document anywhere, with the event recorded as processed and therefore never retried.
+   * That happened on the first live issuance.
+   *
+   * It is the third instance of one family found in a single day:
+   *   finalize_document_with_period_guard_service — failed on every call for 81 days
+   *   the scan pipeline — failed in 2.4s while the screen showed 43%
+   *   this — failed and reported ok
+   * A failure that is logged rather than surfaced, with the outside state left looking
+   * fine. Nothing here is allowed to join it.
+   *
+   * Four states, and the machinery for them already existed in scripts/085 — nobody
+   * had used it:
+   *   received    claimable by the cron
+   *   processing  claimed; auto-released after 10 minutes, with `for update skip locked`
+   *   ok          a document exists. Only rpcData[0].ok === true earns this
+   *   error       gave up after MAX_ISSUANCE_ATTEMPTS. A human has to look
+   *
+   * Three attempts, so five-minute cron passes give roughly fifteen minutes of
+   * self-healing — enough for a unique-key race or a lock, and short enough that a real
+   * defect reaches a person while the customer is still waiting. The counter lives in
+   * payload.issuance_attempts, so no migration is needed.
+   *
+   * ⚠️ And `error` must not become the same failure in disguise. A silent terminal
+   * state nobody queries is exactly what this block is fixing, so it logs under a
+   * fixed searchable prefix, and the stage 6 admin email is required to forward every
+   * one of them.
+   */
+  /*
+   * The operator notice needs five facts that live on the company row, and is_test is
+   * the one that decides whether the subject is marked [בדיקה].
+   *
+   * Read here, before the issuance attempt, because BOTH notices need it — the failure
+   * path returns early, so a lookup after the success branch would never run for the
+   * notice that matters most.
+   *
+   * ⚠️ is_test defaults to true on anything unreadable. A test notice mislabelled as a
+   * sale sends someone after a customer who does not exist; a real sale marked [בדיקה]
+   * is merely annoying. The asymmetry decides the default, the same way the is_test
+   * guard treats "cannot tell" as "is a test".
+   */
+  let noticeCompany: {
+    company_name: string | null
+    contact_full_name: string | null
+    email: string | null
+    mobile_phone: string | null
+    is_test: boolean
+  } = { company_name: null, contact_full_name: null, email: null, mobile_phone: null, is_test: true }
+
+  if (companyId) {
+    const { data: cRow, error: cErr } = await admin
+      .from("companies")
+      .select("company_name,contact_full_name,email,mobile_phone,is_test")
+      .eq("id", companyId)
+      .maybeSingle()
+    if (cErr || !cRow) {
+      console.error("[AUDITOR_NOTICE_COMPANY_UNREADABLE]", {
+        companyId,
+        error: cErr ? String((cErr as any)?.message || cErr) : "no row",
+      })
+    } else {
+      noticeCompany = {
+        company_name: (cRow as any).company_name ?? null,
+        contact_full_name: (cRow as any).contact_full_name ?? null,
+        email: (cRow as any).email ?? null,
+        mobile_phone: (cRow as any).mobile_phone ?? null,
+        // Only an explicit boolean false clears the marker.
+        is_test: (cRow as any).is_test === false ? false : true,
+      }
+    }
+  }
+
+  const MAX_ISSUANCE_ATTEMPTS = 3
+  /*
+   * ⚠️ Read from the `payload` parameter, which IS the claimed event's payload.
+   *
+   * This first said `(event as any)?.payload?.issuance_attempts`, and tsc accepted it —
+   * because `event` resolves to the deprecated DOM global rather than being an unknown
+   * name. It would have been undefined on every pass, so the counter would have reset
+   * to 1 forever and the cron would have retried indefinitely: precisely the runaway
+   * this limit exists to prevent, hidden behind a clean typecheck.
+   */
+  const priorAttempts = Number((payload as any)?.issuance_attempts ?? 0) || 0
+  let issuanceOk = false
+  let issuanceError: string | null = null
+  let documentNumber: string | null = null
+  // The RPC returns document_id alongside the number. Only the number was captured
+  // before, because nothing downstream needed the id; the customer invoice email does.
+  let documentId: string | null = null
+
   if (chargeId) {
     const isEn = String((checkout as any)?.success_url || "").includes("/en/auditor")
     try {
@@ -520,30 +652,183 @@ export async function processCardcomIndicatorEvent(
         p_issuer_company_id: billingCfg.billingAccountId,
         p_is_en: isEn,
       } as any)
-      const ok = Array.isArray(rpcData) && rpcData[0]?.ok === true
-      const docNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? rpcData[0].document_number : null
-      if (ok && !rpcErr) {
-        console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: docNumber })
+      issuanceOk = Array.isArray(rpcData) && rpcData[0]?.ok === true && !rpcErr
+      documentNumber = Array.isArray(rpcData) && rpcData[0]?.document_number ? String(rpcData[0].document_number) : null
+      documentId = Array.isArray(rpcData) && rpcData[0]?.document_id ? String(rpcData[0].document_id) : null
+      if (issuanceOk) {
+        console.log("[AUDITOR_PROCESS] Invoice issued", { chargeId, document_number: documentNumber })
       } else {
-        console.error("[AUDITOR_PROCESS] Invoice issuance failed", {
-          chargeId,
-          error: rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok",
-        })
+        issuanceError = rpcErr ? String((rpcErr as any)?.message || rpcErr) : "rpc returned not-ok"
       }
     } catch (e: any) {
-      console.error("[AUDITOR_PROCESS] Invoice issuance exception", { chargeId, error: String(e?.message || e) })
+      issuanceError = String(e?.message || e)
     }
+  } else {
+    issuanceError = "no charge id"
   }
 
+  if (!issuanceOk) {
+    const attempts = priorAttempts + 1
+    const giveUp = attempts >= MAX_ISSUANCE_ATTEMPTS
+    console.error("[AUDITOR_ISSUANCE_FAILED]", {
+      eventId,
+      chargeId,
+      companyId,
+      attempts,
+      willRetry: !giveUp,
+      terminal: giveUp,
+      error: issuanceError,
+    })
+
+    await admin
+      .from("auditor_billing_events")
+      .update({
+        // Back to 'received' so claim_pending picks it up again; 'error' only once the
+        // attempts are spent, and it keeps processed_at so nothing claims it after that.
+        status: giveUp ? "error" : "received",
+        processing_started_at: null,
+        processed_at: giveUp ? new Date().toISOString() : null,
+        payload: {
+          /*
+           * ⛔ `query` MUST survive. Dropping it is what made the first version of this
+           * retry an infinite loop.
+           *
+           * The processor recovers lowProfileCode from payload.query — it is the only
+           * copy. Replacing the payload wholesale on failure erased it, so the next
+           * claim found no code, returned "missing_lowprofilecode" without updating the
+           * event, and left it in 'processing' until the 10-minute release claimed it
+           * again. Forever, with the attempt counter never advancing and issuance never
+           * retried: the exact runaway the limit exists to prevent, reached by
+           * destroying the data the retry needs.
+           *
+           * Spread first so our own fields cannot silently drop anything Cardcom sent.
+           */
+          ...(payload as Record<string, unknown>),
+          paid: true,
+          checkout_session_id: checkout.id,
+          company_id: companyId,
+          charge_id: chargeId,
+          issuance_attempts: attempts,
+          issuance_error: issuanceError,
+        },
+      } as any)
+      .eq("provider", providerKey)
+      .eq("event_id", eventId)
+
+    /*
+     * ⛔ Notice B, and only on the terminal attempt.
+     *
+     * Not on attempts 1 and 2: those are followed by a real retry, and three emails for
+     * one charge that then succeeds trains the operator to ignore the address. This
+     * fires exactly when the system has stopped trying, which is the moment a person has
+     * to take over.
+     *
+     * Awaited but unable to throw — the function catches everything and returns a
+     * result. `sent` is inspected so a failed notice about a failed issuance is itself
+     * logged rather than becoming the third layer of the same swallow.
+     */
+    if (giveUp) {
+      const notice = await sendAuditorIssuanceErrorNotice({
+        isTest: noticeCompany.is_test,
+        chargeId,
+        attempts,
+        errorText: issuanceError,
+      })
+      if (!notice.sent) {
+        console.error("[AUDITOR_ISSUANCE_FAILED] operator was NOT notified", {
+          eventId,
+          chargeId,
+          reason: notice.reason,
+        })
+      }
+    }
+
+    return { ok: false, paid: true, error: giveUp ? "issuance_failed_terminal" : "issuance_failed_will_retry" }
+  }
+
+  // Reached only when a document actually exists — the failure path above returns.
   await admin
     .from("auditor_billing_events")
     .update({
       status: "ok",
       processed_at: new Date().toISOString(),
-      payload: { paid: true, checkout_session_id: checkout.id, company_id: companyId, charge_id: chargeId },
+      payload: {
+        // Same reason as the failure path: keep what Cardcom sent, add ours on top.
+        ...(payload as Record<string, unknown>),
+        paid: true,
+        checkout_session_id: checkout.id,
+        company_id: companyId,
+        charge_id: chargeId,
+        document_number: documentNumber,
+      },
     } as any)
     .eq("provider", providerKey)
     .eq("event_id", eventId)
+
+  /*
+   * ⛔ Notice A, last, and after the event is already marked ok.
+   *
+   * Position matters. The charge, the subscription, the document and the event status are
+   * all durable by this line, so nothing here can undo any of them — and the notice
+   * cannot throw regardless. An email is the least important thing that happens in this
+   * function and it is sequenced accordingly.
+   *
+   * Fields are named one by one. There is no object to pass through, so the token that
+   * this same function encrypts a few lines above has no route into an inbox.
+   */
+  /*
+   * ⛔ THE CUSTOMER'S COPY. This is the step that did not exist.
+   *
+   * A buyer used to be left with a document they could not reach: the only route to the
+   * PDF is auth-gated, behind an account area the thank-you page says opens "בקרוב" —
+   * and that same page told them the invoice had already been emailed.
+   *
+   * The work lives in deliverAuditorInvoiceEmail because process-pending's completion
+   * sweep calls exactly the same function for documents that have no 'emailed' event
+   * yet. Two copies of this would drift, and the failure mode of drift here is a
+   * customer who is told they were sent something they were not.
+   *
+   * It cannot throw and its result is deliberately not acted on: the charge, the
+   * subscription, the document and the event status are all already committed above.
+   * A failure logs and the sweep picks it up within five minutes.
+   */
+  if (documentId && documentNumber) {
+    await deliverAuditorInvoiceEmail(admin, {
+      documentId,
+      documentNumber,
+      // checkout/start resolves or creates the company with the address the buyer typed,
+      // so companies.email IS the checkout form address.
+      to: String(noticeCompany.email || ""),
+      isTest: noticeCompany.is_test,
+      planName: plan.name,
+      amount: chargedAmount,
+      currency: chargedCurrency,
+      issuerCompanyId: billingCfg.billingAccountId,
+    })
+  }
+
+  const notice = await sendAuditorSubscriptionNotice({
+    isTest: noticeCompany.is_test,
+    fullName: noticeCompany.contact_full_name,
+    companyName: noticeCompany.company_name,
+    email: noticeCompany.email,
+    mobile: noticeCompany.mobile_phone,
+    planName: plan.name,
+    amount: chargedAmount,
+    currency: chargedCurrency,
+    invoiceNumber: documentNumber,
+  })
+  if (!notice.sent) {
+    // Loud, and it names what was sold so the sale is recoverable from the log alone.
+    console.error("[AUDITOR_NOTICE_FAILED] a subscription was sold and nobody was told", {
+      eventId,
+      chargeId,
+      companyId,
+      invoiceNumber: documentNumber,
+      isTest: noticeCompany.is_test,
+      reason: notice.reason,
+    })
+  }
 
   return { ok: true, paid: true }
 }

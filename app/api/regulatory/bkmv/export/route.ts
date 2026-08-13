@@ -1,4 +1,5 @@
 import "server-only";
+import { assertNotTestCompany } from "@/lib/security/test-company-guard.server";
 
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -115,6 +116,14 @@ export async function POST(req: Request) {
 
     // Role-gated (admin/accountant/owner)
     await assertCompanyRoleAccess({ companyId, allowedRoles: ["owner", "admin", "accountant"] });
+
+    /*
+     * The uniform file is a filing. A test company's documents must never appear in
+     * one, and this refuses rather than filtering them out: a file that silently
+     * omits rows is a file whose totals do not reconcile, which is harder to notice
+     * and worse to explain than a request that failed.
+     */
+    await assertNotTestCompany(companyId, "bkmv_export");
 
     const service = createServiceRoleClient();
 

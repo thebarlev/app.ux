@@ -5,7 +5,7 @@ import { NextResponse } from "next/server"
 import { createServiceRoleClient } from "@/lib/supabase/server"
 import { getAuditorBillingConfig } from "@/lib/auditor/billing/env"
 import { getAuditorConfig } from "@/lib/auditor/env"
-import { chargeToken, normalizeCardcomTokenExDate } from "@/lib/auditor/billing/cardcom"
+import { chargeToken, normalizeCardcomTokenExDate, sanitiseIndicatorForStorage } from "@/lib/auditor/billing/cardcom"
 import { decryptToken } from "@/lib/auditor/billing/tokenCrypto"
 import { computeMonthlyPeriod, computeNextMonthlyPeriod } from "@/lib/auditor/billing/period"
 import { uniqAsmachtaAuditor } from "@/lib/auditor/billing/uniqAsmachta"
@@ -234,7 +234,7 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           provider_internal_deal_number: internalDealNumber,
-          raw_charge_response: chargeResp?.parsed || { error: "charge_failed" },
+          raw_charge_response: chargeResp?.parsed ? sanitiseIndicatorForStorage(chargeResp.parsed) : { error: "charge_failed" },
         } as any)
         .eq("id", chargeId)
 
@@ -257,7 +257,7 @@ export async function POST(req: Request) {
       .update({
         status: "succeeded",
         provider_internal_deal_number: internalDealNumber,
-        raw_charge_response: chargeResp?.parsed || null,
+        raw_charge_response: chargeResp?.parsed ? sanitiseIndicatorForStorage(chargeResp.parsed) : null,
       } as any)
       .eq("id", chargeId)
 
@@ -274,10 +274,43 @@ export async function POST(req: Request) {
       .eq("company_id", companyId)
 
     // Issue invoice_receipt (idempotent RPC)
+    //
+    // p_is_en is passed explicitly, and that is the entire point of this line.
+    //
+    // public.issue_auditor_charge_invoice_receipt_service exists under TWO
+    // signatures. PostgreSQL picks by arity, so omitting p_is_en selected the
+    // two-argument overload — a thin SQL wrapper that delegates to
+    // ..._service_impl, which stamps the document on the WRONG company:
+    //
+    //   _impl:  number drawn from p_issuer_company_id's sequence
+    //           documents.company_id          = v_charge.company_id   (the BUYER)
+    //           document_line_items.company_id = v_charge.company_id   (the BUYER)
+    //
+    //   3-arg:  both are p_issuer_company_id                           (correct)
+    //
+    // So the invoice landed in the subscriber's books while the issuer's numbering
+    // advanced with no document behind it — a document in the wrong dealer's ledger
+    // AND a gap in the right one, neither of which fails loudly.
+    //
+    // It has never fired: every auditor charge so far had issuer == buyer (the
+    // company subscribing to its own product), so both expressions returned the same
+    // uuid. It would fire on the first genuine third-party subscriber — on their
+    // first document, not eventually.
+    //
+    // This route is the only caller of the two-argument overload, and it has never
+    // run (billing_renewal_events is empty; the route is not scheduled). One
+    // argument moves the only live path onto the correct implementation.
+    //
+    // false, not derived: this renewal path has no language signal. The indicator
+    // path derives isEn from the checkout URL and the repair route from the charge
+    // currency; neither is available here, and Hebrew is the correct default for
+    // Israeli subscribers. If EN renewals are ever needed, derive it — do not drop
+    // the argument, which would silently select the broken overload again.
     try {
       await admin.rpc("issue_auditor_charge_invoice_receipt_service", {
         p_auditor_charge_id: chargeId,
         p_issuer_company_id: String((sub as any).billing_account_id),
+        p_is_en: false,
       } as any)
     } catch {
       // Leave charge succeeded; can be repaired separately

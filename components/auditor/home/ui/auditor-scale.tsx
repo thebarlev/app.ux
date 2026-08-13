@@ -42,6 +42,16 @@ export function AuditorScaleStyles() {
   --ar-h1:23px; --ar-h2:17px; --ar-h3:16px; --ar-cta:20px; --ar-score:40px;
   --ar-lede:14.5px; --ar-prose:13.5px; --ar-label:13px; --ar-meta:12.5px; --ar-caption:11px; --ar-val:30px; --ar-peek:19px;
   --ar-page:22px 16px 40px; --ar-panel:22px 24px; --ar-panel-lg:26px 30px; --ar-panel-sm:15px 16px;
+  /*
+    --ar-page split into its three parts.
+
+    The hero is a full-bleed dark band, so it has to escape the horizontal
+    padding that used to sit on the page root. The root now carries the vertical
+    halves only and each content container carries --ar-gutter itself, which
+    leaves the band free to run edge to edge while everything else stays aligned
+    to the same measure. Same numbers as the shorthand above, just addressable.
+  */
+  --ar-page-top:22px; --ar-gutter:16px; --ar-page-bottom:40px;
   --ar-btn:13px 20px; --ar-gap:16px; --ar-check:15px; --ar-testi-top:34px;
 }
 /*
@@ -72,9 +82,21 @@ export function AuditorScaleStyles() {
 }
 @media (max-width:640px){
   .${AUDITOR_SCOPE}{
-    --ar-h1:26px; --ar-h2:21px; --ar-h3:20px; --ar-cta:24px; --ar-score:46px;
-    --ar-lede:20px; --ar-prose:20px; --ar-label:19px; --ar-meta:18px; --ar-caption:18px; --ar-val:34px; --ar-peek:24px;
+    /*
+     * ⛔ +20% ON EVERYTHING HERE EXCEPT --ar-score.
+     *
+     *   h1 26->31   h2 21->25   h3 20->24   cta 24->29
+     *   lede 20->24   prose 20->24   label 19->23   meta 18->22   caption 18->22
+     *   val 34->41   peek 24->29
+     *
+     * --ar-score stays 46. It sets the number inside a fixed-diameter gauge, and 55 in a
+     * ring sized for 46 does not wrap — it overflows the circle. A type scale can grow;
+     * a number inside a drawn shape cannot, not without redrawing the shape.
+     */
+    --ar-h1:31px; --ar-h2:25px; --ar-h3:24px; --ar-cta:29px; --ar-score:46px;
+    --ar-lede:24px; --ar-prose:24px; --ar-label:23px; --ar-meta:22px; --ar-caption:22px; --ar-val:41px; --ar-peek:29px;
     --ar-page:16px 8px 32px; --ar-panel:18px 14px; --ar-panel-lg:20px 16px; --ar-panel-sm:16px 14px;
+    --ar-page-top:16px; --ar-gutter:8px; --ar-page-bottom:32px;
     --ar-btn:15px 20px; --ar-gap:12px; --ar-check:22px; --ar-testi-top:38px;
   }
   .${AUDITOR_SCOPE} .ar-tile{
@@ -122,7 +144,49 @@ export function AuditorScaleStyles() {
 }
 @keyframes ar-reveal{ from{ opacity:0; transform:translateY(-4px) } to{ opacity:1; transform:none } }
 @keyframes ar-draw{ from{ stroke-dashoffset:46 } to{ stroke-dashoffset:0 } }
-@media (prefers-reduced-motion:reduce){ .${AUDITOR_SCOPE} svg *{ animation:none !important } }
+/* The masthead spark. Same vocabulary as ar-draw and the score gauge: dashoffset to
+   zero, once, then hold. The wash fades in only after the line has arrived, so the
+   fill never appears under a half-drawn curve. */
+@keyframes ar-spark-draw{ to{ stroke-dashoffset:0 } }
+@keyframes ar-spark-wash{ to{ opacity:1 } }
+@keyframes ar-spark-dot{ from{ opacity:0; transform:scale(.4) } to{ opacity:1; transform:scale(1) } }
+/* A breath, not a blink: 6% of scale. Larger competes with the score gauge, and this is
+   ambience rather than a reading. */
+@keyframes ar-spark-pulse{ 0%,100%{ transform:scale(1); opacity:1 } 50%{ transform:scale(1.06); opacity:.75 } }
+@media (prefers-reduced-motion:reduce){
+  .ar-spark-line,.ar-spark-wash,.ar-spark-dot{ animation:none !important }
+  .ar-spark-line{ stroke-dashoffset:0 }
+  .ar-spark-wash,.ar-spark-dot{ opacity:1 }
+}
+.ar-spark-line{ stroke-dasharray:40; stroke-dashoffset:40; animation:ar-spark-draw .9s ease-out both }
+.ar-spark-wash{ opacity:0; animation:ar-spark-wash .5s ease-out .55s both }
+.ar-spark-dot{ transform-box:fill-box; transform-origin:center; opacity:0;
+  animation:ar-spark-dot .4s ease-out .8s both, ar-spark-pulse 2.6s ease-in-out 1.2s infinite }
+/*
+  The kick's pulse, carried from the spec: a dot that breathes a ring outward.
+  Box-shadow rather than a transform so it cannot shift the text beside it.
+*/
+@keyframes ar-pulse{
+  0%{ box-shadow:0 0 0 0 rgba(83,137,187,.55) }
+  70%{ box-shadow:0 0 0 11px rgba(83,137,187,0) }
+  100%{ box-shadow:0 0 0 0 rgba(83,137,187,0) }
+}
+.${AUDITOR_SCOPE} .ar-pulse{
+  width:7px; height:7px; border-radius:50%; background:#5389BB; flex-shrink:0;
+  animation:ar-pulse 2.4s infinite;
+}
+/*
+  The gauge draws itself once. The target offset depends on the score, so it
+  cannot be a keyframe — the arc renders empty and the offset is set after mount,
+  and this transition is what makes that a sweep rather than a jump.
+*/
+.${AUDITOR_SCOPE} .ar-gauge-arc{ transition:stroke-dashoffset .9s ease-out }
+@media (prefers-reduced-motion:reduce){
+  .${AUDITOR_SCOPE} svg *{ animation:none !important }
+  /* The arc's motion is a transition, not an animation, so it needs saying too. */
+  .${AUDITOR_SCOPE} .ar-gauge-arc{ transition:none !important }
+  .${AUDITOR_SCOPE} .ar-pulse{ animation:none !important }
+}
 `.trim(),
       }}
     />

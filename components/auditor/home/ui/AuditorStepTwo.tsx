@@ -287,9 +287,19 @@ export function AuditorStepTwo({ locale, status, step2IsWorking, siteUrl }: Prop
 
         <div className="uxsf-inner">
           <div className="uxsf-top">
-            <div style={{ fontWeight: 800, fontSize: 17, letterSpacing: ".2px", color: C.ink }}>
-              UX<span style={{ color: C.brand }}>ellent</span>
-            </div>
+            {/*
+              ⛔ The real logo, the third and last place the wordmark was set as type.
+              
+              This screen holds a visitor for the length of a scan — it is the longest they
+              look at any one thing in the flow — and it was the only one still showing the
+              brand as two spans with no starburst.
+              
+              150px wide, matching the report masthead rather than the checkout bar's 22px
+              height. This screen is a full step a visitor sits on, not a strip above a
+              form — at 22px the mark came out smaller than the status text beside it.
+              Height auto, so the ratio is the file's.
+            */}
+            <img src="/brand/black.svg" alt="UXellent" style={{ width: 150, height: "auto", display: "block" }} />
             {domain ? (
               <div
                 style={{

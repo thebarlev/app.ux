@@ -44,13 +44,27 @@ export default async function AuditorHomePage({
   // which on a 390px screen is a fifth of the fold spent before the first word.
   // Step one does not miss it: its own block is min-h-[70svh] and centred, so it
   // sits in the same place either way.
+  // The horizontal measure moved inside.
+  //
+  // `px-4 sm:px-6` and `mx-auto max-w-5xl` used to live here, wrapping the whole
+  // flow — which meant the report could never place a full-bleed band, because a
+  // band cannot escape padding and a max-width on its own ancestor. The measure
+  // now sits on each step inside AuditorHomeClient instead, with the same classes
+  // and the same values, so steps 1, 2 and the gate are unchanged and only the
+  // report is free of it. Vertical padding stays here: it applies to all of them
+  // equally and nothing needs to bleed through it.
+  //
+  // ⛔ sm:py-16 became sm:py-8.
+  //
+  // 64px of nothing above the masthead on a desktop, and the report's own first block
+  // already carries its top spacing — so the two stacked and the first words sat far below
+  // where the fold begins. py-6 on a phone is unchanged: that number was measured earlier
+  // and is not the complaint.
   return (
-    <main className="min-h-svh bg-white px-4 py-6 sm:px-6 sm:py-16">
-      <div className="mx-auto max-w-5xl">
-        <Suspense fallback={null}>
-          <AuditorHomeClient />
-        </Suspense>
-      </div>
+    <main className="min-h-svh bg-white py-6 sm:py-8">
+      <Suspense fallback={null}>
+        <AuditorHomeClient />
+      </Suspense>
     </main>
   )
 }

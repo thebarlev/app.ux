@@ -5,7 +5,6 @@ import { Loader2 } from "lucide-react"
 import { AUDITOR_SCOPE, AuditorScaleStyles } from "@/components/auditor/home/ui/auditor-scale"
 import { Input } from "@/components/ui/input"
 import type { AuditorLocale } from "@/lib/auditor/locale"
-import { AuditorReportV3 } from "@/components/auditor/home/ui/AuditorReportV3"
 import { AUDITOR_CONSENT_TEXT } from "@/lib/auditor/consent-text"
 
 type Props = {
@@ -61,8 +60,16 @@ const T = {
   he: {
     ready: "● הדוח מוכן",
     where: "לאן לשלוח את הדוח?",
-    ledeA: "הציון כבר חושב. השאירו פרטים ו",
-    ledeB: "הדוח נפתח מיד כאן על המסך",
+    /*
+     * "הציון כבר חושב. השאירו פרטים והדוח נפתח מיד כאן על המסך." read as machine copy —
+     * "הציון כבר חושב" is the passive voice of a system describing itself. The chosen
+     * replacement says who did the work and what the visitor gets.
+     *
+     * Kept as three parts rather than one string: ledeB is the emphasised half, so the
+     * weight stays on the payoff ("הדוח המלא ייפתח כאן, מיד") instead of on the setup.
+     */
+    ledeA: "סיימנו לבדוק את האתר. השאירו פרטים ו",
+    ledeB: "הדוח המלא ייפתח כאן, מיד",
     ledeC: ".",
     peekScoreLocked: "ציון האתר",
     peekIssues: "ממצאים",
@@ -219,31 +226,23 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
     <div className={`${AUDITOR_SCOPE} relative min-h-[80svh] w-full`} dir={rtl ? "rtl" : "ltr"}>
       <AuditorScaleStyles />
       {/*
-        The report the visitor is about to get, blurred out behind the form.
-        Decorative and inert: aria-hidden keeps it out of the accessibility tree
-        and pointer-events-none stops it swallowing taps meant for the fields,
-        which matters on mobile where the two overlap almost entirely.
+        ⛔ NOTHING BEHIND THE FORM. WHITE.
+        
+        This held a full teaser report at blur-[6px] and 40% opacity, under a 62% white
+        veil. The idea was that a blurred report is more tempting than an empty panel, and
+        it was built that way on request — then seen and decided against.
+        
+        Two things went with it and both are improvements on their own terms:
+        
+        · The blurred layer was a full second render of AuditorReportV3, mounted purely as
+          texture. Removing it removes that whole subtree from the first screen every
+          visitor loads.
+        
+        · Its values were never real — they could not be, because `filter: blur()` over a
+          real score still ships the score in the DOM, and the gate exists to withhold it.
+          So the layer was decoration standing in for content, and once it is decoration
+          there is no argument for paying for it.
       */}
-      {/*
-        Dropped in the no-score variant. Decorative or not, a report-shaped
-        thing sitting behind the form is the strongest promise on the screen —
-        it says the document exists and the form is the only thing in the way.
-        With no score there is nothing behind the form, so nothing is drawn.
-      */}
-      {noScore ? null : (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 select-none overflow-hidden blur-[6px] opacity-40 sm:blur-[8px] sm:opacity-50"
-        >
-          <AuditorReportV3 locale={locale} status={null} teaser />
-        </div>
-      )}
-
-      {/* The mockup's veil: white at 62% over a 2.5px blur. */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "rgba(255,255,255,.62)", backdropFilter: "blur(2.5px)" }}
-      />
 
       {/*
         No card around the form.
@@ -254,13 +253,33 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
         it is the reason the form still read as cramped after the fields were
         already flat.
 
-        The veil behind it already separates the form from the blurred report —
+        Nothing sits behind the form now, so it carries its own edge —
         that is what a veil is for — so the panel was drawing a second boundary
         for the same job. The form is now the content of the page at this step,
         with a width cap so it does not sprawl on a desktop.
       */}
       <div className="relative flex min-h-[80svh] items-center justify-center px-3 py-10 sm:px-4">
         <div className="w-full max-w-[460px]">
+          {/*
+            ⛔ The logo the lead page did not have.
+            
+            It is on the report masthead and on the checkout bar, and this is the FIRST screen
+            a visitor sees — the one place a brand is worth the most and the only one of the
+            three that was missing it. Same asset, same height as the checkout bar.
+            
+            Centred rather than left-aligned: this card is a centred column on a white page,
+            and a mark hugging one edge of a 460px card reads as misalignment.
+
+            ⚠️ 140px wide, and the 10px difference from the report masthead and the scanning
+            screen is deliberate, not a slip. Those two are full-width steps; this is a
+            460px card, and 150 inside it left the mark crowding the card's own edges. Height
+            auto, so the ratio stays the file's.
+          */}
+          <img
+            src="/brand/black.svg"
+            alt="UXellent"
+            style={{ width: 140, height: "auto", display: "block", margin: "0 auto 18px" }}
+          />
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
             style={
@@ -358,7 +377,24 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
               <label htmlFor={nameId} className="mb-1 block font-bold" style={{ color: C.ink2, fontSize: "var(--ar-label)" }}>
                 {t.name}
               </label>
-              {/* Inline on purpose. A stylesheet rule does not win here — see the note above. */}
+              {/*
+                Inline on purpose. A stylesheet rule does not win here — see the note above.
+
+                ⚠️ textAlign is "left" now, not rtl ? "right" : "left", and unicodeBidi is
+                plaintext. An email address and a phone number are LTR values, and this field
+                declared direction:ltr while aligning the text to the RIGHT — the one thing in
+                this flow that can put a typed character somewhere the typist is not looking.
+                It was reported as "the dot is not accepted".
+
+                ⛔ Said plainly: this is the only candidate in our code and it is NOT
+                confirmed. There is no character filter anywhere in the path — not in this
+                onChange, not in components/ui/input.tsx, and there is no key handler on this
+                page. Neither this line nor the shared base class was touched in the recent
+                rounds, so this is not a regression from them.
+
+                Worth changing regardless: an LTR value in a right-aligned box is a bidi trap
+                whether or not it is today's bug.
+              */}
               <Input
                 id={nameId}
                 value={fullName}
@@ -381,7 +417,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="tel"
                 autoComplete="tel"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: "left", unicodeBidi: "plaintext", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>
@@ -398,7 +434,7 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
                 inputMode="email"
                 autoComplete="email"
                 dir="ltr"
-                style={{ direction: "ltr", textAlign: rtl ? "right" : "left", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
+                style={{ direction: "ltr", textAlign: "left", unicodeBidi: "plaintext", border: "none", borderBottom: `1px solid ${C.fieldLine}`, borderRadius: 0, background: "transparent", boxShadow: "none", paddingInline: 2 }}
                 className="ar-field h-[52px] focus:ring-0"
               />
             </div>

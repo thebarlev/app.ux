@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { getAuditorIssuerCompanyId } from "@/lib/auditor/billing/env"
 
 export async function POST(req: Request) {
   const secret = req.headers.get("x-admin-secret")
@@ -28,11 +29,23 @@ export async function POST(req: Request) {
     .maybeSingle()
 
   const isEn = (charge as any)?.currency === "USD"
-  const issuerId =
-    process.env.VOW_BILLING_COMPANY_ID || process.env.AUDITOR_BILLING_ACCOUNT_ID
-  if (!issuerId) {
+
+  // One source of truth for the issuing dealer, shared with every other auditor
+  // path. This route used to resolve `VOW_BILLING_COMPANY_ID ||
+  // AUDITOR_BILLING_ACCOUNT_ID` — the opposite precedence to the main path — so the
+  // same charge could be invoiced under two different companies depending on which
+  // route repaired it. VOW_BILLING_COMPANY_ID belongs to the invoicing product and
+  // does not decide who owns an auditor document.
+  //
+  // getAuditorIssuerCompanyId throws when the variable is missing or not a UUID.
+  // That is deliberate: a repair that guesses the dealer is worse than a repair
+  // that refuses to run.
+  let issuerId: string
+  try {
+    issuerId = getAuditorIssuerCompanyId()
+  } catch (e: any) {
     return NextResponse.json(
-      { ok: false, error: "Missing VOW_BILLING_COMPANY_ID or AUDITOR_BILLING_ACCOUNT_ID" },
+      { ok: false, error: e?.message || "AUDITOR_BILLING_ACCOUNT_ID is not configured" },
       { status: 500 }
     )
   }
