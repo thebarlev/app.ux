@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getTaxInvoicePreviewUrlAction } from "@/app/dashboard/documents/tax-invoice/actions";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { currencySymbol } from "@/lib/currency/symbol";
 import { getAllDocumentConfigs } from "@/lib/documents/document-configs";
@@ -127,6 +128,7 @@ export default function TaxInvoiceSummaryClient(props: {
   customer: CustomerRow;
   items: ItemRow[];
 }) {
+  const router = useRouter();
   const [busy, setBusy] = useState<null | "view" | "download">(null);
   const [itemsState, setItemsState] = useState<{
     status: "idle" | "loading" | "ready" | "error";
@@ -393,6 +395,49 @@ export default function TaxInvoiceSummaryClient(props: {
                     </div>
                   </>
                 )}
+
+                {/*
+                  ⛔ "זיכוי מתוך החשבונית" — the way into the credit-note form.
+                  
+                  The form already knows how to be seeded: given ?sourceDocumentId= it copies the
+                  invoice's line items, description, currency and VAT type through
+                  getDocumentForChainingAction, leaves every amount editable, and writes the
+                  document_links row on issuance with the credit note as SOURCE and this invoice
+                  as TARGET. That is the direction fields 1256/1257 read.
+                  
+                  ⚠️ Nothing linked in. The capability existed and was unreachable, so every credit
+                  note would have been typed from scratch and would have carried no base document —
+                  and a credit note with no base document is one the file cannot connect to what it
+                  credits.
+                  
+                  Final documents only: a draft has no number to credit.
+                */}
+                {props.taxInvoice.document_status === "final" ? (
+                  <div className="relative group">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="זיכוי מתוך החשבונית"
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          sourceDocumentId: props.taxInvoice.id,
+                        });
+                        if (props.taxInvoice.customer_name) {
+                          params.set("customerName", props.taxInvoice.customer_name);
+                        }
+                        router.push(`/dashboard/incomes/documents/new/creditNote?${params.toString()}`);
+                      }}
+                      disabled={busy !== null}
+                    >
+                      <Undo2 className="h-5 w-5" />
+                    </Button>
+                    <div className="pointer-events-none absolute right-0 top-full mt-2 hidden group-hover:block">
+                      <div className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm">
+                        זיכוי מתוך החשבונית
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="relative group">
                   <Button
