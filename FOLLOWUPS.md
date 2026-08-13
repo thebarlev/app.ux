@@ -303,8 +303,16 @@
 
 Measured 2026-08-13. `document_sequences` holds a LOCKED `delivery_note` row
 (company 4ae68334, starting_number 100, current_number 100, locked_at 2026-05-04T14:25:08)
-while the software has **no** way to issue one: zero form pages, zero form clients, and
-zero documents of that type ever created, of any status.
+and zero documents of that type have ever been created, of any status.
+
+⛔ **CORRECTION, and it makes this more urgent, not less.** This entry first said the software
+has "no way to issue one: zero form pages, zero form clients". That was wrong — it came from
+looking for a per-type directory. `app/business/documents/new/[documentType]/page.tsx` is a
+generic form page covering deliveryNote (and proforma, quote, returnNote, purchaseOrder,
+selfInvoice, selfCreditNote) through TaxInvoiceFormClient, and `NewDocumentFab` links to
+`/business/documents/new/deliveryNote` as "תעודת משלוח" with no flag guarding it.
+
+So the path is not missing. It is one menu click from any user.
 
 Appendix 1 gives delivery notes code 200, so a number allocated against that sequence
 would belong to a document type the uniform file does not carry — a gap in a sequence,
@@ -358,3 +366,27 @@ implementations, and the next change to the rule will be applied to one of them.
 Not unified in this pass on purpose: the renderer is what produces the documents the export
 is built from, and refactoring it days before that export is produced trades a real risk for
 a tidiness gain.
+
+---
+
+## ⛔ The `regulatory-exports` storage bucket does not exist
+
+Measured 2026-08-13. The export route builds INI.TXT and BKMVDATA.TXT correctly, packs the
+archive, and then fails on `service.storage.from("regulatory-exports").upload(...)` with
+`StorageApiError: Bucket not found`. It returns `500 {"error":"Internal Server Error"}`.
+
+Two separate problems:
+
+**1. The bucket is missing.** Creating it is a production infrastructure change and was not
+done here. Until it exists, the module cannot deliver a file to anyone through the UI — which
+also means appendix 4's report cannot be produced by a user, because the report is rendered
+from the response the upload never allows.
+
+**2. A successfully built regulatory file is discarded on an unrelated failure, and the
+caller is told nothing.** The build is the expensive, correctness-critical part; the upload is
+transport. Losing the first because the second is misconfigured, behind a message that names
+neither the bucket nor the step, is the same defect family recorded four times already in this
+file. The route should surface the storage failure by name and keep the report.
+
+The demo file for this session was produced by calling the same builder directly, outside the
+route, and reading the bytes — see `docs/CHECKLIST-REGISTRAR.md`.

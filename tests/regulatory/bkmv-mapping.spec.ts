@@ -700,6 +700,34 @@ test("a document whose amounts do add up is not counted", () => {
   expect(built.notes.amountMismatches).toEqual([]);
 });
 
+/**
+ * ⛔ A receipt's 1221 and 1222 are zero by definition, so the mismatch check must not fire.
+ *
+ * Measured on the first demo export: three of ten documents were receipts, and all three were
+ * reported as amount mismatches because 0 + 0 never equals the amount received. A note that
+ * always fires is a note nobody reads.
+ */
+test("a receipt with no taxable base is not reported as a mismatch", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ documentType: "receipt", subtotal: 0, vatAmount: 0, vatRate: 0, totalAmount: 1500 })],
+    lineItems: [line({ description: "מזומן", paymentMetadata: { kind: "payment" } })],
+    primaryIdentifier: IDENT,
+  })
+  expect(built.notes.amountMismatches).toEqual([])
+})
+
+/** But a receipt carrying a partial base IS inconsistent, and is still reported. */
+test("a receipt with a partial subtotal is still reported", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ documentType: "receipt", subtotal: 500, vatAmount: 0, vatRate: 0, totalAmount: 1500 })],
+    lineItems: [line({ description: "מזומן", paymentMetadata: { kind: "payment" } })],
+    primaryIdentifier: IDENT,
+  })
+  expect(built.notes.amountMismatches).toHaveLength(1)
+})
+
 test("a VAT-exempt document, where the VAT is legitimately zero, is not counted", () => {
   // 39 of the 121 look like this: subtotal equals total and the rate is zero.
   const built = buildBkmvTxt({

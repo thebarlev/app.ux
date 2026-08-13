@@ -108,6 +108,71 @@ test("the payment line carries GROSS, matching what was received", () => {
   expect(paid.quantity).toBe(1);
 });
 
+/**
+ * ⛔ 1265 net, enforced where it is written rather than where it is typed.
+ *
+ * The form clients convert (getLineUnitNet) and always did after 6640ec4. A caller that
+ * builds its own payload did not — measured on the demo batch, which stored quantity 1,
+ * unit_price 1180.00 and line_total 1000.00 on a real issued document.
+ */
+test("unit_price is derived from the net line total, whatever the caller sent", () => {
+  const rows = buildLineItemRows({
+    documentType: "invoiceReceipt",
+    payload: payload({
+      // Gross unit price with a net line total: exactly what the harness sent.
+      items: [item({ quantity: 1, unitPrice: 1180, lineTotal: 1000, vatMode: "included" })],
+      payments: [payment({ amount: 1180 })],
+    }),
+    documentId: DOC,
+    companyId: CO,
+  })
+
+  const goods = rows[0] as any
+  expect(goods.unit_price).toBe(1000)
+  expect(goods.line_total).toBe(1000)
+  // 1267 = 1264 x 1265, by construction.
+  expect(goods.quantity * goods.unit_price).toBeCloseTo(goods.line_total, 2)
+})
+
+test("a multi-unit line divides, so the identity still holds", () => {
+  const rows = buildLineItemRows({
+    documentType: "tax_invoice",
+    payload: payload({
+      documentType: "tax_invoice",
+      items: [item({ quantity: 4, unitPrice: 295, lineTotal: 1000 })],
+    } as any),
+    documentId: DOC,
+    companyId: CO,
+  })
+
+  const goods = rows[0] as any
+  expect(goods.unit_price).toBe(250)
+  expect(goods.quantity * goods.unit_price).toBeCloseTo(goods.line_total, 2)
+})
+
+test("the already-correct form payload is unchanged, so the fix is idempotent", () => {
+  const rows = buildLineItemRows({
+    documentType: "tax_invoice",
+    // What a fixed form client sends: net in both fields.
+    payload: payload({ documentType: "tax_invoice", items: [item({ quantity: 2, unitPrice: 500, lineTotal: 1000 })] } as any),
+    documentId: DOC,
+    companyId: CO,
+  })
+
+  expect((rows[0] as any).unit_price).toBe(500)
+})
+
+test("a zero-quantity line keeps what it was given rather than dividing by zero", () => {
+  const rows = buildLineItemRows({
+    documentType: "tax_invoice",
+    payload: payload({ documentType: "tax_invoice", items: [item({ quantity: 0, unitPrice: 42, lineTotal: 0 })] } as any),
+    documentId: DOC,
+    companyId: CO,
+  })
+
+  expect((rows[0] as any).unit_price).toBe(42)
+})
+
 test("a tax invoice gets no payment line even if the payload carries one", () => {
   const rows = buildLineItemRows({
     documentType: "tax_invoice",

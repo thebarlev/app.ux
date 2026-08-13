@@ -60,10 +60,13 @@ export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "205", name: "תעודת משלוח סוכן", managed: false, internalTypes: [] },
   { code: "210", name: "תעודת החזרה", managed: false, internalTypes: [] },
   /*
-   * ⚠️ 300 is unmanaged. It WAS mapped to proforma in codes.ts before this work, and that
-   * mapping was removed on measurement: zero form pages, zero form clients, and zero
-   * proforma documents ever created. A declaration about a type the software cannot issue
-   * is worse than a zero.
+   * ⚠️ 300 is unmanaged. It WAS mapped to proforma in codes.ts before this work, and the
+   * mapping was removed because zero proforma documents have ever been created.
+   *
+   * ⛔ Not because no form exists — that reason was recorded here and is wrong. The generic
+   * route /business/documents/new/proforma renders TaxInvoiceFormClient and is linked from
+   * the new-document menu. The type is issuable; the submission data simply has none of it,
+   * and a code declared with nothing behind it is a claim about output we do not have.
    */
   { code: "300", name: "חשבונית/חשבונית עסקה", managed: false, internalTypes: [] },
   { code: "305", name: "חשבונית-מס", managed: true, internalTypes: ["tax_invoice"] },

@@ -50,21 +50,29 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
 };
 
 /*
- * ⛔ WHY proforma → 300 WAS REMOVED.
+ * ⛔ WHY proforma → 300 WAS REMOVED — and a correction to the reason first recorded here.
  *
- * It was mapped here before any of this work, and it failed the same two-part test that
- * kept delivery_note out — measured in production on 2026-08-13:
+ * ⚠️ THE ORIGINAL REASON WAS WRONG. It said "form pages for proforma 0, form clients for
+ * proforma 0". That came from searching for a per-type directory (app/dashboard/documents/
+ * proforma/) and finding none. There is no per-type directory, and there does not need to
+ * be: `app/business/documents/new/[documentType]/page.tsx` is a GENERIC form page that
+ * serves proforma, workOrder, deliveryNote, quote, returnNote, purchaseOrder, selfInvoice
+ * and selfCreditNote through TaxInvoiceFormClient, `getDocumentConfig` defines proforma, and
+ * NewDocumentFab links to /business/documents/new/proforma unconditionally — it is one
+ * menu click away. So an issuance path exists and the software CAN issue a proforma.
  *
- *   form pages for proforma      0
- *   form clients for proforma    0
+ * What survives measurement, in production on 2026-08-13:
+ *
  *   documents of type proforma   0, of any status, ever
  *
- * A mapping without an issuance path is a declaration about something the software does
- * not do. The invariant this table now carries is that a mapped code must have documents
- * behind it and a document type must have a code — proforma satisfied neither half.
+ * That is the whole of the evidence, and it is enough for the decision but not for the
+ * original claim. The invariant this table carries is that a mapped code must have
+ * documents behind it in the submitted data: a code declared with nothing behind it tells
+ * the registrar we issue something we have never issued.
  *
- * Removing it narrows what can enter the file, which is why it is stated here rather than
- * done quietly. If a proforma form is ever built, this line comes back with it.
+ * ⚠️ So this is now a REVERSIBLE decision with a cheap condition, not a statement about a
+ * missing feature: issue ten proformas through the existing form and the mapping earns its
+ * place. It was removed because the submission data has none, not because none can exist.
  */
 
 /**
@@ -90,19 +98,19 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
 export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = ["delivery_note"];
 
 /*
- * ⚠️ delivery_note, stage two of the test — and it fails.
+ * ⚠️ delivery_note, stage two — and the same correction applies, which makes it WORSE.
  *
- * Measured 2026-08-13: zero form pages, zero form clients, and zero documents of that type
- * in the database, of any status, ever. The type exists as a string in actions.ts and
- * nothing can produce one.
+ * This comment used to say "zero form pages, zero form clients ... nothing can produce one".
+ * Wrong, for the reason above: /business/documents/new/deliveryNote exists, renders
+ * TaxInvoiceFormClient, and NewDocumentFab links to it as "תעודת משלוח".
  *
- * So the sequence is locked for a document type the software cannot issue. That is a wrong
- * state, and the fix is either a mapping (which needs an issuance path first) or unlocking
- * the sequence (which is a data change in production and not ours to make). Neither is done
- * here: it stays unmapped, declares zero, and is recorded in FOLLOWUPS.md.
+ * What is measured is only this: zero delivery_note documents ever created, and a LOCKED
+ * sequence sitting at its starting number.
  *
- * The hole is theoretical while the sequence sits at its starting number. It becomes real
- * the moment someone issues the first delivery note.
+ * The earlier reading made the risk sound theoretical because no path existed. The truth is
+ * the opposite — the path exists and is one menu click away, so the first person who uses it
+ * allocates a regulatory number against a type this file does not carry. Same wrong state,
+ * much shorter fuse.
  */
 
 /**

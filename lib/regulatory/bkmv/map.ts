@@ -228,7 +228,27 @@ export function bkmvC100Values(params: {
   const beforeVat = Number(d.subtotal ?? 0);
   const vat = Number(d.vatAmount ?? 0);
   const total = Number(d.totalAmount ?? 0);
-  if (Math.abs(beforeVat + vat - total) > 0.005) {
+  /*
+   * ⛔ A receipt has no taxable base, and that is not an inconsistency.
+   *
+   * A קבלה records money received; the VAT was declared on the invoice that created the
+   * debt. So `documents` legitimately holds subtotal 0, vat_amount 0 and a total, and 1221
+   * and 1222 are written as zeros — measured on the demo company's three receipts, and
+   * correct: a receipt must not carry VAT a second time.
+   *
+   * Without this exemption the check fires on EVERY receipt: 0 + 0 never equals the amount.
+   * Three of ten documents in the first demo export were flagged this way. A note that
+   * always fires is a note nobody reads, and a real mismatch would sit unnoticed among them.
+   *
+   * Deliberately narrow — only when both components are zero AND the type is payment-only.
+   * A receipt that somehow carries a partial subtotal is still reported, because that IS
+   * inconsistent.
+   */
+  const isPaymentOnlyDocument = d.documentType === "receipt";
+  const hasNoTaxableBase = beforeVat === 0 && vat === 0;
+  if (isPaymentOnlyDocument && hasNoTaxableBase) {
+    // Nothing to reconcile: 1221 and 1222 are zero by definition for this type.
+  } else if (Math.abs(beforeVat + vat - total) > 0.005) {
     params.notes?.amountMismatches.push({
       documentNumber: d.documentNumber,
       beforeVat,

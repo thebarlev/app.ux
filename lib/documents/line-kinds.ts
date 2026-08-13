@@ -117,8 +117,34 @@ export function itemRowToLineItem(
     vatMode: item.vatMode || "before",
   };
   const quantity = Number.isFinite(item.quantity) ? item.quantity : 0;
-  const unitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
-  const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal : quantity * unitPrice;
+  const rawUnitPrice = Number.isFinite(item.unitPrice) ? item.unitPrice : 0;
+  const lineTotal = Number.isFinite(item.lineTotal) ? item.lineTotal : quantity * rawUnitPrice;
+
+  /*
+   * ⛔ unit_price is DERIVED from the line total, not taken as given.
+   *
+   * Field 1265 is "מחיר ליחידה ללא מע\"מ" and 1267 is "הכמות בשורה * מחיר ליח' ללא מע\"מ
+   * בניכוי הנחת השורה" (spec 1.31, page 13). So the file requires 1267 = 1264 x 1265, and
+   * both net. Deriving 1265 from the net line total makes that identity hold by
+   * construction instead of by agreement between callers.
+   *
+   * ── WHY IT MOVED HERE ─────────────────────────────────────────────────────
+   *
+   * The conversion used to live in the form clients (`getLineUnitNet`), which fixed the
+   * screens and left the write path unprotected. Measured on the demo batch: a caller that
+   * builds its own payload — the batch harness, and any future API — stored
+   * quantity 1, unit_price 1180.00, line_total 1000.00. A row whose own multiplication does
+   * not hold, and a 1265 carrying the VAT its own definition excludes. Document 2 of the
+   * demo company is that row.
+   *
+   * Idempotent for the form path: those clients already send net for both, and dividing a
+   * net line total by the quantity returns the same net unit price. Nothing about them
+   * changes.
+   *
+   * ⚠️ Write side only. The renderer and the uniform-file mapper still read what is stored,
+   * so every document already issued re-renders exactly as it was delivered.
+   */
+  const unitPrice = quantity > 0 ? Number((lineTotal / quantity).toFixed(2)) : rawUnitPrice;
 
   return {
     document_id: documentId,
