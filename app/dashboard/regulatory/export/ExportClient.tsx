@@ -50,6 +50,8 @@ type ReportPayload = {
 type ExportResponse = {
   ok?: boolean
   storageKey?: string
+  iniKey?: string
+  dataKey?: string
   report?: ReportPayload
   stats?: { totalDocs: number; docsWithoutPaymentLines: number }
   excludedDocuments?: Array<{
@@ -97,6 +99,9 @@ export function ExportClient({ companies }: { companies: Company[] }) {
   const [busy, setBusy] = useState(false)
   const [res, setRes] = useState<ExportResponse | null>(null)
   const [transportError, setTransportError] = useState<string | null>(null)
+
+  const downloadHref = (key: string) =>
+    `/api/regulatory/bkmv/download?companyId=${encodeURIComponent(companyId)}&key=${encodeURIComponent(key)}`
 
   const selected = useMemo(
     () => companies.find((c) => c.id === companyId) ?? null,
@@ -343,6 +348,10 @@ export function ExportClient({ companies }: { companies: Company[] }) {
                 זהו הנתיב שנבנה בתוך קובץ ה-ZIP שהורד. פתיחת הארכיב אל כונן יוצרת את עץ
                 התיקיות הזה תחת אותו כונן.
               </p>
+              <p className="no-print mt-1 text-[12px] text-[#78859B]">
+                לסימולטור של רשות המסים יש להעלות את שני קבצי ה-TXT הגולמיים בנפרד, לא את
+                הארכיב. שניהם זמינים בכפתורים שלמטה, ובאותם בייטים בדיוק.
+              </p>
             </div>
 
             <div className="mt-4 text-[13px]">
@@ -413,12 +422,31 @@ export function ExportClient({ companies }: { companies: Company[] }) {
             </button>
             {res?.storageKey ? (
               <a
-                href={`/api/regulatory/bkmv/download?companyId=${encodeURIComponent(
-                  companyId
-                )}&key=${encodeURIComponent(res.storageKey)}`}
+                href={downloadHref(res.storageKey)}
                 className="rounded bg-[#2C5679] px-4 py-1.5 text-[13px] font-bold text-white"
               >
-                הורדת הקבצים
+                הורדת הארכיב (INI + BKMVDATA מכווץ)
+              </a>
+            ) : null}
+            {/*
+              ⛔ The raw pair, offered separately because the Tax Authority's simulator asks for
+              INI.TXT and BKMVDATA.TXT in two upload fields and refuses the archive. Same bytes
+              as the archive holds — stored, not rebuilt.
+            */}
+            {res?.iniKey ? (
+              <a
+                href={downloadHref(res.iniKey)}
+                className="rounded border-2 border-[#2C5679] px-4 py-1.5 text-[13px] font-bold text-[#2C5679]"
+              >
+                INI.TXT גולמי
+              </a>
+            ) : null}
+            {res?.dataKey ? (
+              <a
+                href={downloadHref(res.dataKey)}
+                className="rounded border-2 border-[#2C5679] px-4 py-1.5 text-[13px] font-bold text-[#2C5679]"
+              >
+                BKMVDATA.TXT גולמי
               </a>
             ) : null}
           </div>

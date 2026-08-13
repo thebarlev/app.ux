@@ -327,7 +327,25 @@ export async function POST(req: Request) {
     const { yyyy, mm, dd, hh, mi, ss } = toKeyParts(generatedAt);
     const fromDD = toDDMMYYYY(from);
     const toDD = toDDMMYYYY(to);
-    const fileKey = `company_${companyId}/bkmv/${yyyy}/${mm}/bkmv_${fromDD}_${toDD}_${yyyy}${mm}${dd}_${hh}${mi}${ss}.zip`;
+    const stem = `company_${companyId}/bkmv/${yyyy}/${mm}/bkmv_${fromDD}_${toDD}_${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+    const fileKey = `${stem}.zip`;
+    /*
+     * ⛔ TWO OUTPUTS FOR TWO CONSUMERS, and both are required.
+     *
+     * Section 2.2.ד defines the archive: INI.TXT beside a compressed BKMVDATA, inside the
+     * OPENFRMT tree. That is what an auditor receives.
+     *
+     * The Tax Authority's simulator wants something else — INI.TXT and BKMVDATA.TXT raw, in
+     * two separate upload fields, not the archive. A module that only produces the archive
+     * cannot be tested against the simulator at all, which is how the first run had to be done
+     * by extracting the files by hand.
+     *
+     * So the same two buffers are stored a second time, uncompressed and individually. They
+     * are the identical bytes that went into the archive — not a rebuild — so the file an
+     * auditor opens and the file the simulator reads cannot drift apart.
+     */
+    const iniKey = `${stem}.INI.TXT`;
+    const dataKey = `${stem}.BKMVDATA.TXT`;
 
     const { error: uploadError } = await service.storage
       .from(EXPORT_BUCKET)
@@ -335,6 +353,22 @@ export async function POST(req: Request) {
         contentType: "application/zip",
         upsert: false,
       });
+
+    // The raw pair, stored only once the archive is safely up so a half-written export never
+    // looks complete. Their failures are reported the same way, by the block below.
+    const rawUploads = uploadError
+      ? []
+      : await Promise.all([
+          service.storage.from(EXPORT_BUCKET).upload(iniKey, iniBuffer, {
+            contentType: "text/plain; charset=ISO-8859-8-i",
+            upsert: false,
+          }),
+          service.storage.from(EXPORT_BUCKET).upload(dataKey, txtBuffer, {
+            contentType: "text/plain; charset=ISO-8859-8-i",
+            upsert: false,
+          }),
+        ]);
+    const rawError = rawUploads.find((r) => r.error)?.error ?? null;
 
     /*
      * ⛔ A storage failure names itself, and does not discard the file that was built.
@@ -355,11 +389,12 @@ export async function POST(req: Request) {
      * report only under `ok`, so a person is never shown a "saved to this path" line for a
      * file that was not saved.
      */
-    if (uploadError) {
-      const reason = String((uploadError as any)?.message || uploadError);
+    if (uploadError || rawError) {
+      const failed = uploadError || rawError;
+      const reason = String((failed as any)?.message || failed);
       console.error("[BKMV] storage upload failed", {
         bucket: EXPORT_BUCKET,
-        key: fileKey,
+        key: uploadError ? fileKey : `${iniKey} / ${dataKey}`,
         reason,
         recordCount,
         documents: documents.length,
@@ -401,6 +436,9 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       storageKey: fileKey,
+      /** The raw pair the Tax Authority simulator asks for, as two separate files. */
+      iniKey,
+      dataKey,
       bucket: EXPORT_BUCKET,
       generatedAt: generatedAt.toISOString(),
       stats,
