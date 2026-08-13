@@ -317,3 +317,27 @@ starting number. It becomes real with the first document.
 Unlocking is a data change in production and was deliberately not done here. See
 `BKMV_UNMAPPED_LOCKED_SEQUENCES` in `lib/regulatory/bkmv/codes.ts`, pinned by a test in
 `tests/regulatory/bkmv-mapping.spec.ts`.
+
+---
+
+## Two exports in the same minute produce the same directory name
+
+Found while settling MMDDhhmm against DDMMhhmm, section 2.2, page 5. The spec anticipates
+the collision and gives a rule:
+
+> "במידה ובעסק בוצעו באותה דקה שתי הפקות, יש לרשום את ההפקה השנייה עם ערך של הדקה העוקבת
+> על מנת שניתן יהיה להבדיל בין ההפקות השונות"
+
+`bkmvExportDirectory` derives the eight characters from the clock alone, so two exports for
+one business inside the same minute produce an identical path in field 1012 and an identical
+directory inside both archives. Nothing breaks on our side — the storage key carries seconds,
+so neither upload overwrites the other — but the two files are then indistinguishable by the
+one value the instructions intend for telling them apart.
+
+Implementing it needs state we do not keep: the last directory issued per business. The
+cheap version is to read the most recent `regulatory-exports` key for the company and step
+the minute forward on a match. Not done, because it is invisible until someone exports twice
+inside sixty seconds, and inventing the state now would be the larger change.
+
+⚠️ It becomes real the moment two people export at once, or a retry fires immediately after
+a failure.

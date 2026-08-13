@@ -12,6 +12,13 @@ export {
   bkmvDocumentTypeCode,
   bkmvPaymentMeansCode,
 } from "./codes";
+export {
+  BKMV_APPENDIX_4_RECORD_TABLE,
+  bkmvAppendix4RecordRows,
+  bkmvProducedAtStamp,
+  bkmvRangeDDMMYYYY,
+} from "./appendix4";
+export type { BkmvAppendix4Row } from "./appendix4";
 export { classifyLine, emptyNotes } from "./map";
 export type { BkmvAmountMismatch, BkmvExportNotes, BkmvTruncation } from "./map";
 export { BKMV_TRANSLITERATIONS, transliterate } from "./text";

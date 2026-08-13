@@ -4,10 +4,14 @@ import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
 import {
+  BKMV_DECLARED_VALUES,
   BKMV_EXPORTABLE_DOCUMENT_TYPES,
   BkmvError,
+  bkmvAppendix4RecordRows,
   bkmvExportDirectory,
   bkmvPrimaryIdentifier,
+  bkmvProducedAtStamp,
+  bkmvRangeDDMMYYYY,
   bkmvSummaryRecords,
   buildBkmvPackageZip,
   buildBkmvTxt,
@@ -47,12 +51,27 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => null);
     const companyId = body?.companyId as string | undefined;
-    const from = body?.from as string | undefined; // YYYY-MM-DD
-    const to = body?.to as string | undefined; // YYYY-MM-DD
+
+    /*
+     * Two ways to state the period, both from appendix 4 (page 20):
+     *
+     *   "טווח תאריכים: מתאריך (DDMMYYYY) ועד תאריך (DDMMYYYY) בתוכנה רב שנתית
+     *    או שנת המס (YYYY) בתוכנה חד שנתית"
+     *
+     * We declare software kind 2 — multi-year (field 1011) — so the range is the primary
+     * form. A tax year is accepted as well and expanded to its calendar bounds here, on the
+     * server, so the file and the printed report cannot disagree about what "2025" meant.
+     * `periodMode` is echoed back because the report prints a different line for each.
+     */
+    const taxYear = String(body?.taxYear ?? "").trim();
+    const periodMode: "range" | "taxYear" = /^\d{4}$/.test(taxYear) ? "taxYear" : "range";
+
+    const from = (periodMode === "taxYear" ? `${taxYear}-01-01` : body?.from) as string | undefined; // YYYY-MM-DD
+    const to = (periodMode === "taxYear" ? `${taxYear}-12-31` : body?.to) as string | undefined; // YYYY-MM-DD
 
     if (!companyId || !from || !to) {
       return NextResponse.json(
-        { error: "Missing required fields: companyId, from, to" },
+        { error: "Missing required fields: companyId, and either from+to or taxYear" },
         { status: 400 }
       );
     }
@@ -254,6 +273,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
+    /*
+     * Everything appendix 4's printed report needs, computed here.
+     *
+     * ⛔ The browser is not asked to derive any of it. The record table comes from the
+     * counts BKMVDATA.TXT emitted, the path is the directory that was actually packed, and
+     * the date and time come off the same clock that named that directory — see
+     * bkmvProducedAtStamp for why a client-side format would print a time three hours from
+     * the path beside it.
+     */
+    const producedAt = bkmvProducedAtStamp(generatedAt);
+
     return NextResponse.json({
       ok: true,
       storageKey: fileKey,
@@ -263,6 +293,28 @@ export async function POST(req: Request) {
       // What is not in the file, and what the export had to change to fit it.
       excludedDocuments,
       notes,
+
+      /** The appendix-4 report, ready to render. */
+      report: {
+        dealerNumber: companyTaxId,
+        businessName: String(company.company_name || "").trim(),
+        /** Field 1012, as packed. No drive letter — there is no drive. */
+        directory,
+        periodMode,
+        taxYear: periodMode === "taxYear" ? taxYear : null,
+        from,
+        to,
+        fromDDMMYYYY: bkmvRangeDDMMYYYY(from),
+        toDDMMYYYY: bkmvRangeDDMMYYYY(to),
+        /** One row per record type that exists, per page 20's footnote. */
+        recordRows: bkmvAppendix4RecordRows(recordCounts),
+        recordCount,
+        softwareName: BKMV_DECLARED_VALUES.softwareName,
+        softwareRelease: BKMV_DECLARED_VALUES.softwareRelease,
+        registrationNumber: BKMV_DECLARED_VALUES.registrationNumberPlaceholder,
+        producedAtDate: producedAt.date,
+        producedAtTime: producedAt.time,
+      },
     });
   } catch (e: any) {
     if (e instanceof BkmvError) {
