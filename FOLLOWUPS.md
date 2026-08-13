@@ -384,3 +384,22 @@ That is still true today: any storage error — a revoked key, a full project, a
 — throws away a correct file and returns `500 {"error":"Internal Server Error"}`, naming
 neither the bucket nor the step. It cost a full diagnosis cycle when the bucket was missing.
 The route should name the failing step and keep the report.
+
+---
+
+## A cheque receipt cannot yet carry a compliant field 1307
+
+Field 1307 מספר הבנק is `9(10)` — numeric — and required "בהמחאה בלבד". The form collects the
+cheque's bank as free text with the placeholder "בנק לקוח"
+(`app/dashboard/documents/receipt/PaymentDetailsSection.tsx:504`), so a user who types "לאומי"
+produces no digits and the field exports as zeros again. The same applies to 1308 מספר הסניף.
+
+The mapping bug is fixed — those fields now read the cheque's own metadata rather than the
+bank-transfer columns — but the input remains free text where the file needs a bank code.
+
+**To issue a fully compliant cheque receipt the form needs a numeric bank code**, ideally a
+picker over the Israeli bank list (10 לאומי, 12 הפועלים, 20 מזרחי, …) rather than a text box.
+Not done here: it is a product change to a form that is otherwise working, and the submission
+data avoids cheques instead.
+
+⚠️ This is invisible until a real customer pays by cheque and that receipt reaches an export.

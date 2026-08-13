@@ -472,6 +472,15 @@ export function bkmvD120Values(params: {
   const t = textFor(d.documentNumber, line.lineNumber, params.notes);
   const meta = line.paymentMetadata ?? {};
 
+  /*
+   * The means decides which columns 1307-1309 come from, so it is resolved before the record
+   * is built. Code 2 is המחאה in the spec's own list on field 1306:
+   *   1 מזומן · 2 המחאה · 3 כ. אשראי · 4 העב. בנקאית · 5 תווי קניה ·
+   *   6 תלוש החלפה · 7 שטר · 8 ה.קבע · 9 אחר
+   */
+  const meansCode = bkmvPaymentMeansCode(line.description);
+  const isCheque = meansCode === "2";
+
   return {
     1301: params.recordNumber,
     1302: digits(ctx.companyTaxId),
@@ -481,13 +490,27 @@ export function bkmvD120Values(params: {
     // 1306 סוג אמצעי התשלום, mandatory. The means is stored as a Hebrew label in
     // the line's description (lib/types/receipt.ts:281); codes.ts maps the closed
     // list of 21 onto the spec's nine and throws on anything unmapped.
-    1306: bkmvPaymentMeansCode(line.description),
-    // 1307 מספר הבנק. The column holds a bank NAME as free text and the field is
-    // 9(10) numeric, so only digits survive — which for a name is nothing. Kept
-    // wired rather than dropped, so it starts working the day the column does.
-    1307: digits(line.bankName),
-    1308: digits(line.branch),
-    1309: digits(line.accountNumber),
+    1306: meansCode,
+    /*
+     * 1307-1310 — ⛔ "בהמחאה בלבד", and they used to read the wrong columns.
+     *
+     * The spec's note on all four is exactly that: 1307 מספר הבנק, 1308 מספר הסניף,
+     * 1309 מספר חשבון and 1310 מספר המחאה are חמ — conditionally mandatory — and the
+     * condition is that the payment IS a cheque. For every other means they are not required
+     * at all, and section 2.4.ז says a numeric field with no value carries zeros.
+     *
+     * The bug: 1307/1308/1309 read `bank_name`, `branch` and `account_number`, which
+     * `paymentRowToLineItem` fills from the BANK-TRANSFER inputs. A cheque's details go to
+     * `payment_metadata` as checkBank / checkBranch / checkAccount, so a perfectly filled
+     * cheque still exported three zeroed mandatory fields. Measured: the demo company's
+     * receipt number 2, means 2, all four zeroed, and the simulator flagged exactly those.
+     *
+     * Now the source follows the means: a cheque reads the cheque fields, everything else
+     * keeps the transfer columns.
+     */
+    1307: isCheque ? digits(meta.checkBank) : digits(line.bankName),
+    1308: isCheque ? digits(meta.checkBranch) : digits(line.branch),
+    1309: isCheque ? digits(meta.checkAccount) : digits(line.accountNumber),
     1310: digits(meta.checkNumber),
     // 1311 תאריך הפירעון של ההמחאה — NO SOURCE. payment_metadata has no such key.
     // Left out: zeros.

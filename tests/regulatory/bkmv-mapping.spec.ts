@@ -425,6 +425,91 @@ test("an unmapped payment label stops the whole export rather than mislabelling 
   ).toThrow(/"Revolut"/);
 });
 
+// ------------------------------------------------- D120 cheque fields
+
+/**
+ * ⛔ 1307-1310 are "בהמחאה בלבד", and they used to read the bank-TRANSFER columns.
+ *
+ * Caught by the simulator on the demo company's receipt number 2: means 2, and all four of
+ * 1307/1308/1309/1310 zeroed. The cheque's details live in payment_metadata, not in
+ * bank_name / branch / account_number, so a correctly filled cheque still exported zeros in
+ * three conditionally-mandatory fields.
+ */
+test("a cheque payment reads its own fields, not the transfer columns", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ documentType: "receipt", documentNumber: "2" })],
+    lineItems: [
+      line({
+        description: "צ׳ק",
+        bankName: "לא רלוונטי",
+        branch: null,
+        accountNumber: null,
+        paymentMetadata: {
+          kind: "payment",
+          checkBank: "12",
+          checkBranch: "345",
+          checkAccount: "67890",
+          checkNumber: "1122",
+        },
+      }),
+    ],
+    primaryIdentifier: IDENT,
+  });
+
+  const d120 = built.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D120")) as string;
+  expect(at(d120, "D120", 1306)).toBe("2");
+  expect(at(d120, "D120", 1307)).toBe("12".padStart(10, "0"));
+  expect(at(d120, "D120", 1308)).toBe("345".padStart(10, "0"));
+  expect(at(d120, "D120", 1309)).toBe("67890".padStart(15, "0"));
+  expect(at(d120, "D120", 1310)).toBe("1122".padStart(10, "0"));
+});
+
+/**
+ * And a means that is not a cheque leaves them zeroed, which is correct rather than missing:
+ * section 2.4.ז says a numeric field with no value carries zeros, and the four are required
+ * only "בהמחאה בלבד".
+ */
+test("a bank transfer keeps the transfer columns and zeroes the cheque-only fields", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ documentType: "receipt", documentNumber: "3" })],
+    lineItems: [
+      line({
+        description: "העברה בנקאית",
+        bankName: "20",
+        branch: "631",
+        accountNumber: "123456",
+        paymentMetadata: { kind: "payment" },
+      }),
+    ],
+    primaryIdentifier: IDENT,
+  });
+
+  const d120 = built.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D120")) as string;
+  expect(at(d120, "D120", 1306)).toBe("4");
+  expect(at(d120, "D120", 1307)).toBe("20".padStart(10, "0"));
+  // A cheque number on a transfer would be nonsense, and there is none.
+  expect(at(d120, "D120", 1310)).toBe("0".repeat(10));
+});
+
+/** Cash requires none of the four, and the simulator must not see them as missing. */
+test("cash zeroes all four, which is what the spec asks for", () => {
+  const built = buildBkmvTxt({
+    ctx: CTX,
+    documents: [doc({ documentType: "receipt", documentNumber: "4" })],
+    lineItems: [line({ description: "מזומן", bankName: null, branch: null, accountNumber: null, paymentMetadata: { kind: "payment" } })],
+    primaryIdentifier: IDENT,
+  });
+
+  const d120 = built.txtBuffer.toString("latin1").split("\r\n").find((l) => l.startsWith("D120")) as string;
+  expect(at(d120, "D120", 1306)).toBe("1");
+  expect(at(d120, "D120", 1307)).toBe("0".repeat(10));
+  expect(at(d120, "D120", 1308)).toBe("0".repeat(10));
+  expect(at(d120, "D120", 1309)).toBe("0".repeat(15));
+  expect(at(d120, "D120", 1310)).toBe("0".repeat(10));
+});
+
 // ------------------------------------------------- 1256/1257, the base document
 
 /**
