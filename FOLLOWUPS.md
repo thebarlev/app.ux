@@ -403,3 +403,32 @@ Not done here: it is a product change to a form that is otherwise working, and t
 data avoids cheques instead.
 
 ⚠️ This is invisible until a real customer pays by cheque and that receipt reaches an export.
+
+---
+
+## ⚠️ AUDITOR_CHECKOUT_ALLOW_PRODUCTION was set in Production, and nobody knew
+
+Found on 2026-08-13, during the post-deploy verification of the registrar merge.
+
+The auditor checkout is guarded by two independent flags on purpose: `AUDITOR_CHECKOUT_ENABLED`
+turns the feature on, and `AUDITOR_CHECKOUT_ALLOW_PRODUCTION` is a second, separate
+acknowledgement that production is an acceptable place to run it. The whole value of the pair
+is that one wrong click cannot open a real payment page against a real terminal — it takes two,
+in two places.
+
+`AUDITOR_CHECKOUT_ALLOW_PRODUCTION` was defined in the Production environment. The checkout was
+still shut, because `AUDITOR_CHECKOUT_ENABLED` was absent and the gate reads it first — but the
+double lock had become a single lock without anyone deciding that.
+
+⛔ Its value was never read, before or after. It does not matter: `true` or `false`, its mere
+presence in Production is what removes the second leg, and that is the reason it was removed
+rather than inspected.
+
+Removed from Production and the deployment rebuilt, because Vercel resolves environment
+variables at build time — deleting the record alone would have left the running production
+untouched.
+
+**Worth establishing: who set it, when, and why.** It was not created by the registrar branch —
+`git diff 64e11c1..03c8966` over every auditor path returns zero files, and environment
+variables are not in the code at all. The Vercel audit log or the project's activity feed should
+name the actor and the date.
