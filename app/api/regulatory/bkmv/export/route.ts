@@ -26,6 +26,37 @@ import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-li
  */
 const EXPORT_BUCKET = "regulatory-exports";
 
+/**
+ * ⛔ How many ids may go into one `.in(...)` filter.
+ *
+ * PostgREST puts the list in the request line, so a single query naming every document in an
+ * export becomes an enormous URL. At 391 documents undici refused it outright:
+ *
+ *   TypeError: fetch failed
+ *   Caused by: HeadersOverflowError (UND_ERR_HEADERS_OVERFLOW)
+ *
+ * and the export returned a 500 that named none of that. It is a volume bug in the exact place
+ * volume is required: the registrar wants 2,000+ records, which is hundreds of documents, so
+ * every real submission would have hit it while every small test passed.
+ *
+ * 100 keeps the request line well inside the limit with a uuid list.
+ */
+const ID_CHUNK = 100;
+
+/** Runs a PostgREST `.in(...)` query in chunks and concatenates the rows. */
+async function selectInChunks<T>(
+  ids: string[],
+  run: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const { data, error } = await run(ids.slice(i, i + ID_CHUNK));
+    if (error) return { data: out, error };
+    if (data) out.push(...data);
+  }
+  return { data: out, error: null };
+}
+
 function format2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -207,11 +238,15 @@ export async function POST(req: Request) {
      * while a file that silently omits half of them would not be — hence the error is logged
      * with its reason instead of being swallowed.
      */
-    const { data: links, error: linksError } = await service
-      .from("document_links")
-      .select("source_document_id, target_document_id")
-      .eq("company_id", companyId)
-      .in("source_document_id", documents.map((d) => d.id));
+    const { data: links, error: linksError } = await selectInChunks<any>(
+      documents.map((d) => d.id),
+      (chunk) =>
+        service
+          .from("document_links")
+          .select("source_document_id, target_document_id")
+          .eq("company_id", companyId)
+          .in("source_document_id", chunk)
+    );
 
     if (linksError) {
       console.error("[BKMV] document_links query failed; 1256/1257 will be empty", {
@@ -223,10 +258,9 @@ export async function POST(req: Request) {
     const baseById = new Map<string, { documentType: string; documentNumber: string }>();
 
     if (targetIds.length > 0) {
-      const { data: baseDocs } = await service
-        .from("documents")
-        .select("id, document_type, document_number")
-        .in("id", targetIds);
+      const { data: baseDocs } = await selectInChunks<any>(targetIds, (chunk) =>
+        service.from("documents").select("id, document_type, document_number").in("id", chunk)
+      );
 
       for (const b of (baseDocs || []) as any[]) {
         baseById.set(String(b.id), {
@@ -254,15 +288,17 @@ export async function POST(req: Request) {
 
     // Line items (best-effort; some doc types may have none)
     const docIds = documents.map((d) => d.id);
-    const { data: items, error: itemsError } = await service
-      .from("document_line_items")
-      .select(
-        "document_id, line_number, description, quantity, unit_price, discount_amount, line_total, " +
-          "currency, item_date, item_code, bank_name, branch, account_number, payment_metadata"
-      )
-      .in("document_id", docIds)
-      .order("document_id", { ascending: true })
-      .order("line_number", { ascending: true });
+    const { data: items, error: itemsError } = await selectInChunks<any>(docIds, (chunk) =>
+      service
+        .from("document_line_items")
+        .select(
+          "document_id, line_number, description, quantity, unit_price, discount_amount, line_total, " +
+            "currency, item_date, item_code, bank_name, branch, account_number, payment_metadata"
+        )
+        .in("document_id", chunk)
+        .order("document_id", { ascending: true })
+        .order("line_number", { ascending: true })
+    );
 
     if (itemsError) {
       console.error("[BKMV] line items query failed", itemsError);
