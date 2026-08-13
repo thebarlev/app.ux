@@ -267,12 +267,41 @@ export function AuditorPlans({ locale, scanId = null, onSelectPlan }: Props) {
                   >
                     בחירת המסלול
                   </button>
+                  {/*
+                    ⛔ A LINK TO THE DETAIL, NOT A COPY OF IT.
+                    
+                    Each card lists what is DIFFERENT about its plan; the six lines every
+                    plan carries live once, below, in #pl-included. The card and that block
+                    read as unrelated today, which is the complaint — so this connects them.
+                    
+                    Duplicating the six lines into three cards was the other option and it
+                    is the wrong one: three copies of one list diverge the first time
+                    somebody edits one, and nothing would fail when they did.
+                    
+                    A real <a href="#…"> rather than a scroll handler, so it works before
+                    hydration, survives a middle-click, and needs no JavaScript to do the
+                    one thing it does.
+                  */}
+                  <a className="pl-incl-link" href="#pl-included">
+                    מה כלול בחבילה
+                  </a>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="pl-exp">
+          {/*
+            ⛔ The anchor the cards point at.
+            
+            The six shared lines below ARE the answer to "what is in the package" — they are
+            what every plan carries whatever the price, which is exactly the question a card
+            leaves open. The 37-item <details> sits under them for anyone who wants the
+            depth, so one link serves both without a second list.
+            
+            scroll-margin-top so the browser does not park the heading under the top of the
+            viewport. Nothing else here changes.
+          */}
+          <div className="pl-exp" id="pl-included" style={{ scrollMarginTop: 24 }}>
             <span className="ic"><PeopleIcon /></span>
             <h3>לא כלי, לא בוט. מומחה אנושי שעובד אתכם יד ביד</h3>
             <p>לכל מנוי מוצמד מומחה קידום מהצוות שלנו. אותו אדם, לאורך כל הדרך, שמכיר את העסק שלכם ואת האתר שלכם ואפשר להתייעץ אתו לפני שעושים משהו.</p>
@@ -492,6 +521,12 @@ section.pl{
   text-decoration:none;transition:background .18s ease, box-shadow .18s ease;
 }
 .pl-btn.ghost{background:#fff;color:var(--pl-brand-ink);box-shadow:inset 0 0 0 1.5px var(--pl-brand-line)}
+/* The detail link. Deliberately quiet: it sits under the CTA and must not compete with
+   it — the plan button is the action, this is a reference. Underlined on purpose, because
+   a link that scrolls should look like a link. */
+.pl-incl-link{display:block;margin-top:10px;text-align:center;font-size:var(--pl-meta,13px);
+  font-weight:700;color:var(--pl-brand-ink);text-decoration:underline;text-underline-offset:3px}
+.pl-incl-link:hover{text-decoration-thickness:2px}
 .pl-btn.ghost:hover{background:var(--pl-brand-wash)}
 .pl-btn.fill{
   background:linear-gradient(180deg,var(--pl-brand-2),var(--pl-brand));color:#fff;

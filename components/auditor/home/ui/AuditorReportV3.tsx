@@ -731,26 +731,14 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
             */}
             {!teaser ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 22 }}>
-                <a
-                  href="#plans"
-                  style={{
-                    border: 0,
-                    borderRadius: 12,
-                    padding: "14px 24px",
-                    fontFamily: "inherit",
-                    fontWeight: 800,
-                    fontSize: "var(--ar-prose)",
-                    textDecoration: "none",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    background: "linear-gradient(180deg,#D9A73C,#B0872F)",
-                    color: "#231A05",
-                  }}
-                >
-                  {en ? "See the plans" : "לראות את המסלולים"}
-                </a>
+                {/*
+                  ⛔ The "לראות את המסלולים" button is gone from the hero.
+                  
+                  It appeared only after the details were filled — the moment the report
+                  itself became visible — so it was a button asking someone to go and look
+                  at something they were already scrolling towards, on the same page. The
+                  plans section is directly below and needs no escort.
+                */}
               </div>
             ) : null}
           </div>
@@ -887,16 +875,17 @@ export function AuditorReportV3({ locale, status, teaser = false, scanId = null,
             </span>{" "}
             {en ? "with data-based analysis, not estimates." : "באתר שלך, בניתוח מבוסס-נתונים ולא בהערכות."}
           </span>
-          <span style={{ color: C.muted }}>·</span>
-          <span style={{ color: C.gold, fontWeight: 700, lineHeight: 1.25 }}>
-            {/*
-              The promise is kept by the expert with their own tools, not by this
-              scanner. Said that way, it is also true — the full-site pass is
-              manual work in the monthly report, which is why a missing
-              AUDITOR_SERPER_API_KEY does not block any of this.
+          {/*
+              ⛔ "במסלולי המנוי המומחה שלנו עובר על האתר המלא" and the block it sat in are
+              removed — together with the "·" that separated it from the sentence above,
+              whose only job was to divide the two. A separator with nothing on one side of
+              it is a visible leftover, which is how a removal announces itself.
+              
+              It described the paid service in the middle of the free report — a sentence
+              selling the plans, placed above the plans, in the voice of the diagnosis. The
+              plan cards say what the plans include; this said it earlier and vaguer, and an
+              ↗ that pointed nowhere in particular.
             */}
-            {en ? "On our subscription plans an expert reviews the whole site ↗" : "במסלולי המנוי המומחה שלנו עובר על האתר המלא ↗"}
-          </span>
         </div>
 
         {/* category tiles */}

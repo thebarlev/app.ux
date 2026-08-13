@@ -82,8 +82,19 @@ export function AuditorScaleStyles() {
 }
 @media (max-width:640px){
   .${AUDITOR_SCOPE}{
-    --ar-h1:26px; --ar-h2:21px; --ar-h3:20px; --ar-cta:24px; --ar-score:46px;
-    --ar-lede:20px; --ar-prose:20px; --ar-label:19px; --ar-meta:18px; --ar-caption:18px; --ar-val:34px; --ar-peek:24px;
+    /*
+     * ⛔ +20% ON EVERYTHING HERE EXCEPT --ar-score.
+     *
+     *   h1 26->31   h2 21->25   h3 20->24   cta 24->29
+     *   lede 20->24   prose 20->24   label 19->23   meta 18->22   caption 18->22
+     *   val 34->41   peek 24->29
+     *
+     * --ar-score stays 46. It sets the number inside a fixed-diameter gauge, and 55 in a
+     * ring sized for 46 does not wrap — it overflows the circle. A type scale can grow;
+     * a number inside a drawn shape cannot, not without redrawing the shape.
+     */
+    --ar-h1:31px; --ar-h2:25px; --ar-h3:24px; --ar-cta:29px; --ar-score:46px;
+    --ar-lede:24px; --ar-prose:24px; --ar-label:23px; --ar-meta:22px; --ar-caption:22px; --ar-val:41px; --ar-peek:29px;
     --ar-page:16px 8px 32px; --ar-panel:18px 14px; --ar-panel-lg:20px 16px; --ar-panel-sm:16px 14px;
     --ar-page-top:16px; --ar-gutter:8px; --ar-page-bottom:32px;
     --ar-btn:15px 20px; --ar-gap:12px; --ar-check:22px; --ar-testi-top:38px;

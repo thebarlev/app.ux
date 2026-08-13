@@ -60,8 +60,16 @@ const T = {
   he: {
     ready: "● הדוח מוכן",
     where: "לאן לשלוח את הדוח?",
-    ledeA: "הציון כבר חושב. השאירו פרטים ו",
-    ledeB: "הדוח נפתח מיד כאן על המסך",
+    /*
+     * "הציון כבר חושב. השאירו פרטים והדוח נפתח מיד כאן על המסך." read as machine copy —
+     * "הציון כבר חושב" is the passive voice of a system describing itself. The chosen
+     * replacement says who did the work and what the visitor gets.
+     *
+     * Kept as three parts rather than one string: ledeB is the emphasised half, so the
+     * weight stays on the payoff ("הדוח המלא ייפתח כאן, מיד") instead of on the setup.
+     */
+    ledeA: "סיימנו לבדוק את האתר. השאירו פרטים ו",
+    ledeB: "הדוח המלא ייפתח כאן, מיד",
     ledeC: ".",
     peekScoreLocked: "ציון האתר",
     peekIssues: "ממצאים",
