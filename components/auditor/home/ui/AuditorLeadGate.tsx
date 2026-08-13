@@ -261,11 +261,16 @@ export function AuditorLeadGate({ locale, isSubmitting, pagesScanned, issuesCoun
             
             Centred rather than left-aligned: this card is a centred column on a white page,
             and a mark hugging one edge of a 460px card reads as misalignment.
+
+            ⚠️ 140px wide, and the 10px difference from the report masthead and the scanning
+            screen is deliberate, not a slip. Those two are full-width steps; this is a
+            460px card, and 150 inside it left the mark crowding the card's own edges. Height
+            auto, so the ratio stays the file's.
           */}
           <img
             src="/brand/black.svg"
             alt="UXellent"
-            style={{ height: 22, width: "auto", display: "block", margin: "0 auto 18px" }}
+            style={{ width: 140, height: "auto", display: "block", margin: "0 auto 18px" }}
           />
           <span
             className="inline-flex items-center gap-[7px] rounded-full px-3 py-1 font-extrabold"
