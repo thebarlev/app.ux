@@ -124,8 +124,18 @@ export default async function VerificationReportPage({ searchParams }: { searchP
         dangerouslySetInnerHTML={{
           __html: `
 @media print {
-  /* The printed page is the report. Chrome, nav and controls are not part of it. */
-  nav, aside, header, footer, .no-print { display: none !important }
+  /*
+   * The printed page is the report. Chrome, nav and controls are not part of it.
+   *
+   * The HEADER element is NOT in this list, and must not be. The only one on this page is the
+   * report's own — it carries the title, the business name, the dealer number and the date
+   * range. Hiding it printed a table with no heading and no statement of whose books these
+   * are, which is not a section 2.6 report at all. Caught by measuring the printed output
+   * rather than by reading the rule.
+   *
+   * The app chrome uses nav and aside; nothing of ours needs the header element hidden.
+   */
+  nav, aside, footer, .no-print { display: none !important }
   body { background: #fff }
   table { page-break-inside: auto }
   tr { page-break-inside: avoid }
