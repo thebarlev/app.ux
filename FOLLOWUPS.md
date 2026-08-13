@@ -5,6 +5,83 @@
 
 ---
 
+## ⛔ מוקש מספור · הפרש של אחד בין הכתיבה בקוד לכתיבה ב-RPC  `[קריטי — לא תוקן]`
+- **⛔ מוקש מספור.** `initializeSequence` כותבת `current_number = startingNumber - 1`; `lock_sequence_start` גרסה ב׳ כותבת `= p_starting_number`. **הפרש של אחד.** מעבר עתידי ל-RPC יזיז את כל המספור. **חובה ליישב לפני כל חיווט.**
+- **המקומות:** `lib/document-helpers.ts:100` ו-`:117` — `current_number: startingNumber - 1` בשני הענפים (עדכון והוספה). מול גרסה ב׳ במסד, `lock_sequence_start(uuid, text, integer, text, uuid)`, שכותבת `current_number = p_starting_number`.
+- **למה זה מוקש ולא באג:** שתי הסמנטיקות עקביות בתוך עצמן. בקוד `current_number` הוא "המספר האחרון שנצרך", ולכן `starting - 1` נכון והמסמך הראשון מקבל את `starting`. ב-RPC `current_number` הוא "המספר הבא", ולכן המסמך הראשון היה מקבל `starting + 1`. **מי שיחווט את ה-RPC בלי לשים לב יזיז כל מספור בחברה באחד**, וזה שינוי בלתי הפיך על מסמכים חשבונאיים.
+- **מה מחזיר אותו לראש התור:** כל חיווט ל-`lock_sequence_start`. אז — להכריע מה `current_number` אומר, ליישר את שני הצדדים, ולבדוק על רצף קיים.
+
+## מרוץ · `initializeSequence` אינה אטומית  `[לא תוקן]`
+- **מרוץ.** `initializeSequence` עושה `select` ואז `insert` בשתי בקשות PostgREST נפרדות — **בלי אטומיות. שתי לחיצות מקבילות עוברות שתיהן.** `lock_sequence_start` גרסה ב׳ עושה `for update` **ואינה נקראת.**
+- **המקום:** `lib/document-helpers.ts:85-90` (ה-`select`) מול `:111-121` (ה-`insert`). אין `for update`, אין `on conflict`, ואין טרנזקציה — PostgREST מחייב כל בקשה בנפרד.
+- **מה יקרה בפועל:** שתי לחיצות מקבילות על "אישור והתחלת מיספור" עוברות שתיהן את בדיקת `existing`, ואז שתיהן מנסות `insert`. אם קיים אילוץ ייחודיות על `(company_id, document_type)` השנייה תיפול על שגיאת מסד והמשתמש יראה אותה כ-`error.message` גולמי; אם אין אילוץ — **ייווצרו שתי שורות רצף לאותו סוג מסמך**, וההתנהגות מכאן תלויה ב-`maybeSingle()` שיחזיר שגיאה או שורה שרירותית.
+- **לא נבדק:** לא אימתתי אם קיים אילוץ ייחודיות על `(company_id, document_type)` ב-`document_sequences`. זו הבדיקה הראשונה כשהפריט הזה נפתח.
+- **מה מחזיר אותו לראש התור:** יחד עם המוקש שמעליו — שני הפריטים נפתרים באותו מעבר ל-RPC, ובאותה הכרעה על סמנטיקת `current_number`.
+
+## קוד מת ושבור · `lock_sequence_start(uuid, text, bigint)`  `[לא תוקן]`
+- **קוד מת ושבור.** `lock_sequence_start(uuid, text, bigint)` מפנה ל-`business_id`/`doc_type`/`start_number`/`next_number` — **עמודות שאינן קיימות** ב-`document_sequences`. **הייתה נופלת בקריאה.** מנוטרלת ל-`service_role` ב-`120`. **שתי החתימות בלי מיגרציה.**
+- **העמודות שכן קיימות:** `company_id`, `document_type`, `starting_number`, `current_number`, `is_locked`, `locked_at`, `prefix`, `created_by`, `created_at`, `updated_at` — כפי שנראה בשורת רצף חיה מהייצור.
+- **אפס קוראים:** חיפוש `lock_sequence_start` בכל קוד ה-TS/TSX — **אפס מופעים**. כל 11 המופעים בריפו הם `revoke`/`grant`/הערות ב-`117`, `120` ו-`120-ROLLBACK`. אין הכרעת עומס כי אין קורא.
+- **מה מחזיר אותו לראש התור:** מחיקה של גרסה א׳, כחלק מהוצאת ההגדרות החיות לקבצי מיגרציה. **לא למחוק מניחוש** — ההגדרה המדויקת תיחלץ מהייצור קודם.
+
+## ⛔ סחף מסד-קוד — תופעה, לא תקלה נקודתית  `[קריטי — לא תוקן]`
+- **⛔ סחף מסד-קוד — תופעה, לא תקלה נקודתית.** שני טריגרים (`trg_auditor_invoice_document_company_check`, `trigger_enforce_document_number_integrity`), שתי הפונקציות שלהם, וטבלת `auditor_invoice_documents` — קיימים בייצור, אין להם מיגרציה. הטבלה בשימוש פעיל (`app/admin/(app)/auditor/clients/actions.ts:141`). **ההיקף המלא ממתין לאינוונטר.**
+- **הביקורת שנעשתה (9.8.2026):** ששת הטריגרים שרצים בייצור על `public.documents` הוצלבו מול `scripts/`. ארבעה נמצאו — `before_invoice_receipt_insert` (`043:145-148`) · `trigger_enforce_document_immutability` (`044:77-81`, וגם `009:57-61`) · `trigger_log_document_event` (`006:429-433`) · `trigger_prevent_final_delete` (`006:351-355`). **שניים חסרים לחלוטין**, ואיתם הפונקציות שהם מפעילים. אותן שתיים חסרות בשתי הרשימות — אין מקרה של פונקציה בלי טריגר או להפך.
+- **שמות הפונקציות החסרות משוערים** מהמקבילה בשם הטריגר ולא נראו. **אין לכתוב מיגרציה מניחוש** — ההגדרות המדויקות ייחלצו מהייצור.
+- **למה זה תופעה ולא שכחה:** הטריגר החסר של האודיטור מצביע על טבלה שגם היא אינה בריפו, כלומר **פיצ'ר שלם נבנה במסד בלי מיגרציות**. וזה המופע השלישי של אותה תופעה: הרשומה על מדיניות RLS שנערכה ידנית מחוץ למיגרציות כבר כאן, והכלל שנקבע אחריה — לאמת מול `pg_policies` — **מעולם לא כיסה טריגרים, פונקציות או טבלאות.**
+- **בסיס ההצלבה, צד הריפו (נבנה 9.8.2026):** `scripts/` — 163 קבצים — יוצר **57 טבלאות · 46 פונקציות · 27 טריגרים**. הרשימות שמורות ב-`scratchpad/repo-inventory.json` וניתנות לשחזור. אף אחד מחמשת השמות החסרים אינו מופיע בהן.
+- **⚠️ סחף בכיוון ההפוך — רגישות סדר `006` → `044`:** `scripts/006:330` יוצר `trigger_document_immutability`, **בשם אחר** מזה שרץ בייצור, ו-`scripts/044:76` מוריד אותו לפני שהוא יוצר את `trigger_enforce_document_immutability`. הרצף כולו מגיע למצב הנכון — **אבל רק אם 044 רץ.** סביבה שנעצרת ב-`043` מקבלת טריגר בשם אחר ובהגדרה **ישנה** של `enforce_document_immutability`: זו שחוסמת כל עדכון על מסמך סופי, **בלי חריג ה-`cancelled`/`voided`** שנוסף ב-044 ובלי הדרישה ל-`cancellation_reason`. כלומר סגירת מסמך תיכשל, ולא בגלל באג בקוד.
+- **הדפוס להעתיק ממנו כשיאושר:** `scripts/041-document-links-accounting-triggers.sql:47-48` מגדיר `trg_document_links_company_integrity` על `public.document_links` — אותה משפחת שמות ואותה מטרה כמו הטריגר החסר של האודיטור, וקיים בריפו.
+- **למה נדחה:** אין לכתוב מיגרציות עד שההגדרות המדויקות ייחלצו מהייצור, וההיקף המלא ידוע רק אחרי הצלבת האינוונטר.
+- **מה מחזיר אותו לראש התור:** האינוונטר המלא של `public` מהייצור. אחריו: הוצאת ההגדרות החיות לקבצי מיגרציה בסוף הרצף, והרחבת כלל האימות מ-`pg_policies` גם ל-`pg_trigger`, `pg_proc` ו-`information_schema.tables`.
+
+## דליפה · סימן מטבע נכתב מילולית לעמודת קוד מטבע  `[באג נתונים — לא תוקן]`
+- **דליפה.** `lib/documents/actions.ts:631` כותב `currency: "₪"` מילולית, ועוד 8 מקומות עם `currency || "₪"`. מקור ארבעת המסמכים. **לא לתקן בלי מיפוי תצוגה — הערך כנראה מוצג ישירות ב-UI.** 4 השורות הקיימות ממילא ב-`enforce_document_immutability`. המייצא מנרמל.
+- **המקום המדויק:** `lib/documents/actions.ts:631`, בתוך `baseDraftInsert` — `currency: "₪"` בכל טיוטה שנוצרת במסלול הזה. שמונה המקומות האחרים עם ברירת המחדל `|| "₪"`: `CreditNoteFormClient.tsx:532,707` · `TaxInvoiceFormClient.tsx:669` · `credit-note/actions.ts:115` · `lib/documents/actions.ts:1697,1708` · `lib/pdf-service.ts:1165,1184,1215` · ושלושה מסכי preview שקוראים `searchParams.get("currency") || "₪"`.
+- **למה זה שני באגים ולא אחד:** בעמודת נתונים `₪` אינו קוד מטבע — שדה 1218 דורש ISO-4217. ובתצוגה `₪` הוא בדיוק מה שהמשתמש מצפה לראות. **הפרדת השניים היא התיקון**; החלפה עיוורת ל-`ILS` תשנה את מה שמוצג במסמכים.
+- **מה שכן נעשה:** המייצא מנרמל בקריאה בלבד (`bkmvNormaliseCurrency`), מדווח כל נרמול, וזורק על קוד שאינו ISO-4217 ואינו ברשימת הנרמול. המסמכים לא נגעו — `currency` ברשימה החסומה של `enforce_document_immutability`, ולכן ארבעת הקיימים אינם ניתנים לתיקון במקום בכל מקרה.
+- **מה מחזיר אותו לראש התור:** מיפוי תצוגה — היכן `documents.currency` מוצג ישירות למשתמש — ואז החלפת ברירות המחדל בקוד ISO-4217 עם המרה לסמל בשכבת התצוגה בלבד.
+- **המספרים מהמסד (קריאה בלבד, 9.8.2026):** `documents.currency` → `ILS` 116 · `USD` 34 · **`₪` 4**. ארבעת המסמכים: `invoice_receipt` 1002, 1003, 1004 (11.2.2026) ו-2001 (9.8.2026) — פברואר ואוגוסט, כלומר לא אירוע חד-פעמי. `document_line_items.currency` **נקי לגמרי** (`ILS` 173, `USD` 34): הכתיב השגוי נוגע רק בכותרת המסמך, ומתאים ל-`baseDraftInsert` שכותב לטבלת `documents` בלבד.
+- **איך זה נראה בקובץ:** `₪` אינו בר-קידוד ב-ISO-8859-8, ולכן הוא **הפיל את ההפקה** עד שנוסף הנרמול — זה מה שחשף אותו. שדה 1218 דורש קוד לפי נספח 2.
+- **הערה למי שיתקן:** רשומה קודמת כאן השאירה את מסלול הכתיבה כשאלה פתוחה ("לא זיהיתי איזה מסלול כתב את הארבעה"). היא נמצאה ואוחדה לתוך הרשומה הזאת — `lib/documents/actions.ts:631`.
+
+## חוסם רישום · אין רגיסטר לקוחות  `[חוסם — לא תוקן]`
+- **חוסם רישום. אין רגיסטר לקוחות.** `customers` ריקה; לקוחות כטקסט חופשי על המסמך. 1207 ו-1225 חובה-מותנית לכל קוד 100-710. גזירה מטקסט חופשי נבדקה ונפסלה: 64/75 מפתחות למסמך בודד.
+- **המספרים (קריאה בלבד, 9.8.2026):** `customers` 0 שורות בכל החברות · `customer_id` null ב-121/121 · `customer_name` ב-121/121 (87 ערכים) · `customer_tax_id` ב-22/121, כולם אותו ח.פ · אין במפרט 1.31 מושג "לקוח מזדמן" (0 מופעים ב-22 עמודים) · דרישת B110 יושבת על שדות B100 1364/1365 בלבד, לא על 1225.
+- **הפתרון:** רגיסטר לקוחות אמיתי עם מפתח יציב, ו-`customer_id` על כל מסמך. **שינוי מוצר — לא להתחיל בלי תכנון.**
+
+## נתונים · חמישה מסמכים סופיים שסכומיהם אינם מסתכמים  `[דורש הכרעת רו"ח — לא תוקן]`
+- **נתונים.** 5 מסמכים סופיים (1000-1004, 11.2.2026) עם `subtotal + vat ≠ total`. בלתי ניתנים לתיקון — סופיים ו-`subtotal` ברשימת האי-שינויות. דורש הכרעת רו״ח.
+- **בקובץ:** 5 מתוך 121 שורות C100 עם `1221 + 1222 ≠ 1223`; בכולן 1221 ו-1222 אפס ו-1223 אינו אפס. 116 האחרות תקינות. הייצוא **אינו מתקן** — לא גוזר subtotal מ-total ולא משלים מע"מ — אלא סופר ומדווח ב-`notes.amountMismatches`.
+- **לא לבלבל עם פטור ממע"מ:** 39 מסמכים עם `vat_amount = 0` תקינים לחלוטין (`subtotal = total`, `vat_rate = 0`) ואינם נספרים.
+
+## תיאור הטובין אינו מוגבל ל-30 תווים בהזנה, ולכן נחתך בייצוא  `[באג מוצר — לא תוקן]`
+- **מה:** שדה 1260 ב-`D110`, "תיאור הטובין שנמכר או השירות שניתן", הוא `X(30)` — 30 עמודות, ואין במפרט שדה המשך. הטופס מאפשר תיאור באורך בלתי מוגבל, ו-`document_line_items.description` הוא `TEXT`. לכן הייצוא **חותך**, וזה אושר במפורש כאובדן מידע מכוון.
+- **המספרים מהמסד (קריאה בלבד, 9.8.2026):** על 175 שורות של בוגו מדיה ב-2026, **19 שורות חורגות**, הארוכה 36 תווים: `"שירותי חשבונית ירוקה מאובטחת - Basic"` נכתב כ-`"שירותי חשבונית ירוקה מאובטחת "`. זה גם השדה **היחיד** שנשפך בכל מאגר הנתונים — מדדתי את כל השדות המופים מול הרוחב שלהם.
+- **למה זה שייך להזנה ולא לייצוא:** החיתוך הוא בשדה שמבקר קורא. מסמכים **חדשים** ימשיכו להיחתך, ולכן ההגבלה צריכה לקרות בטופס, שם המשתמש רואה שהוא נחתך ויכול לנסח מחדש — ולא בשקט בייצוא, חודשים אחרי ההנפקה.
+- **איפה:** `lib/regulatory/bkmv/map.ts` (`truncate`, שדה 1260) · הטופס: `app/dashboard/documents/tax-invoice/` ו-`invoice-receipt/` · העמודה: `document_line_items.description`
+- **למה נדחה:** הוראה מפורשת — לחתוך עכשיו, לא להגביל בהזנה. הגבלת קלט נוגעת בטופס ההנפקה.
+- **מה מחזיר אותו לראש התור:** ההחלטה להגביל את השדה בטופס. עד אז כל חיתוך מדווח ב-`truncations` וניתן לראות מה אבד.
+
+## מסלול ההנפקה מהטופס מאבד את `payload.payments` ב-320  `[באג מוצר — לא תוקן]`
+- **זה באג מוצר, לא פער ייצוא.** טופס חשבונית מס/קבלה (320) אוסף שורות תקבול — אמצעי תשלום, פרטי המחאה, פרטי כרטיס — ו**הן אינן נשמרות למסד**. הייצוא הרגולטורי רק חשף אותו.
+- **השורה המדויקת:** `lib/documents/actions.ts:792` פותח `if (isItemDocumentType(documentType) && payload.items && payload.items.length > 0) {`, ו-**`lib/documents/actions.ts:798`** הוא `} else if (payload.payments && payload.payments.length > 0) {`. הענף **בלעדי**, ו-`invoiceReceipt` הוא item type (`lib/documents/actions.ts:112`). לכן במסמך 320 נכתבות שורות הטובין ו-`payload.payments` **נזרק בשקט** — אין שגיאה, אין לוג.
+- **אותו דפוס פעם שנייה:** `lib/documents/actions.ts:949` ו-**`:955`** — אותו `if`/`else if` בדיוק בפונקציית ההנפקה השנייה.
+- **הטופס כן מחזיק את הנתון:** `app/dashboard/documents/invoice-receipt/InvoiceReceiptFormClient.tsx:196` מנהל `payments` ב-state ו-`:305` קורא אותם בחזרה בעריכה — כלומר המשתמש רואה שדות שהוא מילא, והם לא נשמרו.
+- **המספרים מהמסד (קריאה בלבד, 9.8.2026):** 129 מסמכי `invoice_receipt`, מהם 107 `final`. **ל-57 יש שורת תקבול ול-50 אין.** כל 57 נכתבו על ידי `lib/billing/vow-billing/providers/internal-provider.ts:273`, שכן מסמן `payment_metadata.kind = "payment"` — כלומר מסלול החיוב הפנימי, לא הטופס. אף אחד מהם אינו מקושר ל-`billing_documents` או ל-`vow_billing_issued_documents`.
+- **למה זה חשוב מעבר ל-BKMV:** מסמך 320 הוא ראיה חשבונאית שהתקבל תשלום. אם אמצעי התשלום אינו נשמר, **הידיעה איך שולם קיימת רק ב-PDF ולא בנתונים** — לא ניתן לשאילתה, לא ניתן לביקורת, ולא ניתן לשחזור.
+- **מה זה עשה ל-BKMV:** רשומת `D120` נבנית רק למסמכים שיש להם שורות תקבול בפועל. 50 מסמכי 320 סופיים ייצאו בלי `D120`, וזה מדווח ב-`stats.docsWithoutPaymentLines`. לא הומצאה שורת תקבול ולא הוסקה מהסכום.
+- **איפה:** `lib/documents/actions.ts:792-804` · `lib/documents/actions.ts:109-121` (`isItemDocumentType`) · `app/dashboard/documents/invoice-receipt/InvoiceReceiptFormClient.tsx:196,305` · `lib/types/receipt.ts:281` (המקום שבו אמצעי התשלום נשמר בתוך `description`)
+- **למה נדחה:** תיקון הכתיבה נוגע במסלול הנפקת מסמכים חשבונאיים, ואינו בהיקף עבודת ה-BKMV. גם השאלה מה עושים עם 50 המסמכים שכבר הונפקו אינה שאלה טכנית.
+- **מה מחזיר אותו לראש התור:** ההחלטה אם 320 חייב לשמור תקבולים. אם כן — לתקן את הענף הבלעדי, ולהחליט מה קורה עם מה שכבר הונפק.
+
+## אמצעי התשלום נשמר בעמודת התיאור, שמשמשת גם לתיאור הטובין  `[ממצא מ-BKMV E1 — לא תוקן]`
+- **מה:** `document_line_items.description` מחזיק **שני דברים שונים**: בשורת טובין זה תיאור המוצר, ובשורת תקבול זה אמצעי התשלום כתווית עברית (`lib/types/receipt.ts:281`: `description: payment.method || "תשלום"`). אין עמודה שאומרת מה השורה. ב-BKMV אותה עמודה מזינה שני שדות שונים — 1260 ב-`D110` ו-1306 ב-`D120`.
+- **איך זה נפתר ב-BKMV, ולמה זה לא פתרון כללי:** `classifyLine` ב-`lib/regulatory/bkmv/map.ts` גוזר את התפקיד לפי `payment_metadata.kind` כשהוא קיים, אחרת לפי סוג המסמך. זה עובד לייצוא **כי** מסלול החיוב הפנימי מסמן `kind` ומסמכי 400 הם תקבולים בלבד. זו גזירה, לא נתון.
+- **איפה:** `lib/types/receipt.ts:281,299` · `lib/regulatory/bkmv/map.ts` (`classifyLine`)
+- **למה נדחה:** הוספת עמודת `line_role` או `payment_method` היא שינוי סכמה במסלול ההנפקה.
+- **מה מחזיר אותו לראש התור:** יחד עם הפריט שמעליו — זו אותה החלטה.
+
 ## שאריות קוסמטיות מחסימת ה-auditor — נשארו במכוון  `[קוסמטי, לא אבטחתי]`
 - **פריט ראשון:** `app/auditor/[scanId]/page.tsx` הוא shim של הפניה בלבד — דורש `?token=` אחרת `notFound()` (שורה 14), מפנה מי שאינו אדמין ל-`/auditor/dashboard` (שורה 17), ומפנה אדמין ל-`/auditor?scanId=…&token=…` (שורה 19). אחרי חסימת ה-auditor הענף הלא-אדמין מוביל ל-404, כי `/auditor/dashboard` חסום.
 - **פריט שני:** `app/auditor/[scanId]/AuditorScanClient.tsx` הוא **קובץ יתום** — העמוד שלידו מעולם לא מייבא אותו, הוא רק מפנה. הקובץ כן מייבא ומרנדר את `AuditorScanResults`, ולכן הוא נראה כמו מסלול חי בחיפוש טקסטואלי בעוד שהוא מת. זו מלכודת לכל מי שימפה את המודול בעתיד.
@@ -190,4 +267,139 @@
 - **למה נדחה:** שינוי `.eslintrc` / `.eslintignore` אינו בהיקף שלב 1, ומחיקת ה-worktree נוגעת בעץ שאינו שלי.
 - **מה מחזיר אותו לראש התור:** הוספת `.claude/` ל-ignore של eslint, או ניקוי ה-worktree הזנוח אחרי אישור שאין בו עבודה שלא נשמרה.
 
+## מחיקת לקוח שיש לו מסמכים תיכשל בשגיאת FK גולמית
+- **מה:** `documents.customer_id` מוגדר `references public.customers(id)` **בלי `on delete`**, כלומר **NO ACTION**. כל עוד `customer_id` ריק על כל המסמכים זה תיאורטי; ברגע שרגיסטר הלקוחות יתמלא (`scripts/124`), מחיקת לקוח שהונפק לו מסמך תיחסם במסד. `deleteCustomerAction` מחזיר את `error.message` כמו שהוא, כך שמה שהמשתמש יראה הוא `update or delete on table "customers" violates foreign key constraint`. זה ייקרא כקריסה, לא כ"ללקוח הזה יש מסמכים ולכן אי אפשר למחוק אותו".
+- **איפה:** `scripts/006-tenant-isolation-and-audit.sql:115` (הגדרת ה-FK) · `app/dashboard/customers/actions.ts:207-220` (`deleteCustomerAction`) · `app/dashboard/customers/CustomersListClient.tsx:49` (מציג את ההודעה)
+- **למה נדחה:** החסימה עצמה **נכונה** ואינה באג — מסמך שהונפק חייב לשמור על מי שהוא הונפק לו. מה שחסר הוא הודעה בעברית, ואפשר גם `status = 'inactive'` במקום מחיקה. שינוי התנהגות ב-UI אינו בהיקף של הרגיסטר.
+- **מה מחזיר אותו לראש התור:** היום שבו מסמך ראשון יישא `customer_id` בייצור. מאותו רגע זה תלוי בנתונים ולא בתיאוריה.
+
+## שתי גרסאות של מדיניות RLS על `customers`, ורק ב-delete הן נבדלות
+- **מה:** `007` ו-`014` שניהם מגדירים את אותם ארבעה שמות מדיניות על `public.customers` ב-`drop`+`create`, כך שהקובץ שרץ אחרון קובע. שלוש מהן זהות. ה-**delete** אינו: `007` דורש `company_id in (user_company_ids()) **and status != 'active'`, ו-`014` דורש רק `company_id in (...)`. כלומר לפי `007` אי אפשר למחוק לקוח פעיל, ולפי `014` אפשר. איזו מהן חיה בייצור לא נקבע — `pg_policies` אינו נראה מלקוח PostgREST.
+- **איפה:** `scripts/007-tenant-rls-policies.sql:72-77` מול `scripts/014-consolidate-customers-schema.sql:97-100`
+- **למה נדחה:** אינו חוסם את הרגיסטר: `select` ו-`insert` זהים בשתי הגרסאות, ו-`resolve_customer` נשען עליהן בלבד. זה עוד מופע של תלות-הסדר בין המיגרציות שרשומה כאן ממילא, ולא באג בפני עצמו.
+- **מה מחזיר אותו לראש התור:** קריאה אחת ב-SQL Editor — `select policyname, cmd, qual from pg_policies where tablename='customers'` — ואז החלטה מפורשת איזו מהשתיים היא הכוונה, בקובץ מיגרציה שקובע אותה.
+
+## `try {} catch {}` ריק סביב הנפקת חשבונית החידוש — יבלע כל כשל, כולל כשל בעלות
+- **מה:** הקריאה ל-`issue_auditor_charge_invoice_receipt_service` בזרימת החידושים עטופה ב-`try { … } catch { /* Leave charge succeeded; can be repaired separately */ }`. ה-`catch` ריק לחלוטין: אין לוג, אין שורת כשל, אין החזרת שגיאה. החיוב מסומן כמוצלח והחשבונית פשוט לא נוצרת — או נוצרת שגוי — בלי שום סימן. אין גם `repair` שמאתר את המצב הזה בפועל, כך ש-"can be repaired separately" אינו מתקיים.
+- **איפה:** `app/api/auditor/billing/renewals/run/route.ts:277-284`
+- **למה נדחה:** שינוי טיפול שגיאות במסלול חיוב אינו בהיקף רגיסטר הלקוחות, והמסלול אינו מתוזמן כרגע ולכן אינו רץ. אבל הוא בדיוק המסלול שבו נמצא חשד לבאג בעלות (`_impl` רושמת על `v_charge.company_id`), ואם הבאג אמיתי — ה-`catch` הזה הוא מה שיבטיח שאף אחד לא ידע.
+- **מה מחזיר אותו לראש התור:** חיבור הנתיב למתזמן. מאותו רגע כל כשל שקט הוא חשבונית חסרה או שגויה בכל חודש, לכל מנוי.
+
+## `/api/auditor/billing/renewals/run` אינו מתוזמן, וזה מה שמסתיר את מסלול ה-`_impl`
+- **מה:** `vercel.json` מכיל cron אחד — `*/2 * * * *` על `/api/auditor/admin/worker/run`. נתיב חידושי האודיטור אינו מתוזמן ואינו נקרא מאף מקום בקוד; שלושת האזכורים היחידים שלו הם ב-`docs/billing/`. הוא יכול לרוץ היום רק בהפעלה ידנית. `public.billing_renewal_events` ריקה — אפס שורות — מה שמאשר שהוא אכן לא רץ אף פעם.
+- **איפה:** `vercel.json` (מקטע `crons`) מול `app/api/auditor/billing/renewals/run/route.ts`
+- **למה נדחה:** תזמון הוא שינוי תפעולי, ואינו בהיקף הרגיסטר. יש תקדים מדויק במערכת — מסלולי חידוש שלא היו מחוברים למתזמן ולכן 38 מנויים לא חויבו כארבעה חודשים.
+- **מה מחזיר אותו לראש התור:** **הסדר חשוב יותר מהתזמון עצמו.** תיקון הבעלות ב-`_impl` חייב לקדום לחיבור המתזמן. חיבור לפני תיקון הוא בדיוק הרגע שבו מסמכים מתחילים להירשם על הישות הלא נכונה — חודש אחר חודש, לכל מנוי, ובשקט מלא בגלל ה-`catch` הריק שלמעלה.
+
+## `issue_auditor_charge_invoice_receipt_service_impl` אינה קיימת בשום מיגרציה
+- **מה:** הפונקציה קיימת בייצור ומהווה את המימוש שאליו מפנה העטיפה `issue_auditor_charge_invoice_receipt_service(uuid,uuid)`. אין לה `create or replace` באף קובץ ב-`scripts/`, ואין אף אזכור שלה בריפו. גם העטיפה עצמה אינה שם — `scripts/085` מגדיר את גרסת שלושת הארגומנטים בלבד. כלומר מסלול החידושים כולו עובר בקוד שאינו במעקב גרסאות.
+- **איפה:** בייצור (`pg_proc`) מול `scripts/085-auditor-en-invoice-no-vat.sql` ו-`scripts/082-auditor-issue-invoice-receipt-service.sql`
+- **למה נדחה:** אינו באג בפני עצמו — הוא מופע נוסף של סחף מסד↔קוד שכבר רשום כאן, לצד `normalize_registration_number` (קיימת בייצור, אינה בריפו) וששת ה-triggers. הכתיבה מחדש שלו ל-`scripts/` היא עבודת תיעוד שלא נתבקשה.
+- **מה מחזיר אותו לראש התור:** כל `create or replace` על אחת משלוש הפונקציות בשרשרת. בלי ההגדרה החיה בריפו, מיגרציה שנכתבת מהקובץ הקיים דורסת קוד שאיש לא ראה. זה כבר כמעט קרה עם `normalize_registration_number`, ונמנע רק מפני שההגדרה החיה נקראה לפני הכתיבה. **הכלל שנגזר: לפני `create or replace` על פונקציה במסלול חיוב — לקרוא `pg_get_functiondef` ולהשוות.**
+
 ---
+
+## ✅ delivery_note — closed 13.8.2026 by mapping code 200
+
+`document_sequences` held a LOCKED delivery_note row (company 4ae68334, start 100, current 100,
+locked_at 2026-05-04T14:25:08) while the uniform file carried no code for the type, so a
+regulatory number could be spent on a document the file would not contain.
+
+The entry originally said the software had no way to issue one. That was wrong — see the
+correction recorded in `lib/regulatory/bkmv/codes.ts` — and being wrong made it look
+theoretical. `/business/documents/new/deliveryNote` renders TaxInvoiceFormClient and the
+new-document menu links to it unguarded, so the path is one click from any user.
+
+**Resolved by mapping, not by blocking.** Appendix 1 defines 200 as תעודת משלוח: a delivery
+note is a regulatory document, and deleting a feature the product already offers in order to
+simplify a file is the wrong trade. `BKMV_UNMAPPED_LOCKED_SEQUENCES` is now empty, and a test
+asserts it stays that way.
+
+⚠️ **What it obliges:** the invariant says a mapped code needs at least ten documents behind it
+in the submitted data. The submission batch must include delivery notes, or the mapping
+declares output we do not have.
+
+---
+
+## Two exports in the same minute produce the same directory name
+
+Found while settling MMDDhhmm against DDMMhhmm, section 2.2, page 5. The spec anticipates
+the collision and gives a rule:
+
+> "במידה ובעסק בוצעו באותה דקה שתי הפקות, יש לרשום את ההפקה השנייה עם ערך של הדקה העוקבת
+> על מנת שניתן יהיה להבדיל בין ההפקות השונות"
+
+`bkmvExportDirectory` derives the eight characters from the clock alone, so two exports for
+one business inside the same minute produce an identical path in field 1012 and an identical
+directory inside both archives. Nothing breaks on our side — the storage key carries seconds,
+so neither upload overwrites the other — but the two files are then indistinguishable by the
+one value the instructions intend for telling them apart.
+
+Implementing it needs state we do not keep: the last directory issued per business. The
+cheap version is to read the most recent `regulatory-exports` key for the company and step
+the minute forward on a match. Not done, because it is invisible until someone exports twice
+inside sixty seconds, and inventing the state now would be the larger change.
+
+⚠️ It becomes real the moment two people export at once, or a retry fires immediately after
+a failure.
+
+---
+
+## The item/payment split rule exists in two places
+
+`lib/documents/line-kinds.ts` owns it now: a line is a payment when
+`payment_metadata.kind === "payment"`, and a document with no labels anywhere gets the old
+"both lists get every line" behaviour so already-issued documents keep loading.
+
+`lib/pdf-service.ts:1135-1144` implements the same rule inline, written earlier and unchanged
+here (`hasKindDiscriminator`, `paymentItems`, `docItems`). It behaves identically today —
+which is why mixed-line documents already render correctly — but it is one decision with two
+implementations, and the next change to the rule will be applied to one of them.
+
+Not unified in this pass on purpose: the renderer is what produces the documents the export
+is built from, and refactoring it days before that export is produced trades a real risk for
+a tidiness gain.
+
+---
+
+## The export route discards a built file when storage fails
+
+✅ **The bucket half is RESOLVED.** `regulatory-exports` was created on 2026-08-13 (private,
+zero policies) and the whole path was re-run end to end: upload 200, object stored at
+2,253 bytes as `application/zip`, download route 200 returning the same 2,253 bytes, and the
+archive holding exactly the two entries section 2.2 requires —
+`OPENFRMT/12345678.26/08131550/INI.TXT` and `.../BKMVDATA.zip`.
+
+⚠️ No policy was needed and none should be added on this account: both routes use
+`createServiceRoleClient()`, which bypasses RLS. A policy would only matter if the browser
+ever talked to storage directly, which it does not.
+
+**What remains: a successfully built regulatory file is discarded on an unrelated failure, and
+the caller is told nothing.** The build is the expensive, correctness-critical part; the upload is
+transport. Losing the first because the second is misconfigured, behind a message that names
+neither the bucket nor the step, is the same defect family recorded four times already in this
+file. The route should surface the storage failure by name and keep the report.
+
+That is still true today: any storage error — a revoked key, a full project, a renamed bucket
+— throws away a correct file and returns `500 {"error":"Internal Server Error"}`, naming
+neither the bucket nor the step. It cost a full diagnosis cycle when the bucket was missing.
+The route should name the failing step and keep the report.
+
+---
+
+## A cheque receipt cannot yet carry a compliant field 1307
+
+Field 1307 מספר הבנק is `9(10)` — numeric — and required "בהמחאה בלבד". The form collects the
+cheque's bank as free text with the placeholder "בנק לקוח"
+(`app/dashboard/documents/receipt/PaymentDetailsSection.tsx:504`), so a user who types "לאומי"
+produces no digits and the field exports as zeros again. The same applies to 1308 מספר הסניף.
+
+The mapping bug is fixed — those fields now read the cheque's own metadata rather than the
+bank-transfer columns — but the input remains free text where the file needs a bank code.
+
+**To issue a fully compliant cheque receipt the form needs a numeric bank code**, ideally a
+picker over the Israeli bank list (10 לאומי, 12 הפועלים, 20 מזרחי, …) rather than a text box.
+Not done here: it is a product change to a form that is otherwise working, and the submission
+data avoids cheques instead.
+
+⚠️ This is invisible until a real customer pays by cheque and that receipt reaches an export.

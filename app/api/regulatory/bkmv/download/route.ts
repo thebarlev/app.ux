@@ -49,10 +49,29 @@ export async function GET(req: Request) {
     }
 
     const arrayBuffer = await data.arrayBuffer();
+
+    /*
+     * ⛔ The name and type follow the object, because there are now three of them.
+     *
+     * This used to hard-code `application/zip` and `filename="Income.zip"` — a name with no
+     * basis in the instructions, and wrong for the two raw files the simulator asks for. The
+     * simulator wants INI.TXT and BKMVDATA.TXT as separate uploads, so serving either of them
+     * as "Income.zip" would hand the user a file it refuses.
+     *
+     * ⚠️ The TXT files are ISO-8859-8-i, and the charset is declared. A browser that guesses
+     * UTF-8 shows Hebrew as mojibake, and someone re-saving it "fixed" would change the bytes
+     * of a regulatory file.
+     */
+    const name = key.split("/").pop() || "download";
+    const isTxt = name.toUpperCase().endsWith(".TXT");
+    const contentType = isTxt
+      ? "text/plain; charset=ISO-8859-8-i"
+      : "application/zip";
+
     return new NextResponse(arrayBuffer, {
       headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="Income.zip"`,
+        "Content-Type": contentType,
+        "Content-Disposition": `attachment; filename="${name}"`,
         "Content-Length": String(arrayBuffer.byteLength),
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },

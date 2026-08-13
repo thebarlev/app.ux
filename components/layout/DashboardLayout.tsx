@@ -48,6 +48,27 @@ const SIDEBAR_LS_KEY = "docsSidebarPinnedCollapsed"
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "דשבורד", icon: Home },
   { href: "/dashboard/reports", label: "דוחות", icon: BarChart },
+  /*
+   * ⛔ One step from the main menu, because the Tax Authority requires it.
+   *
+   * The registrar's condition is that the uniform-file module sit no more than one step
+   * from the main menu. A top-level entry with the two outputs under it is one click to
+   * either — and before this there was no regulatory entry in the UI at all: grep for
+   * "regulatory/bkmv/export" across every .tsx returned nothing, so the export route
+   * existed and nothing could reach it.
+   *
+   * "ממשק פתוח" rather than "BKMV" or "קובץ אחיד": that is the phrase the spec itself uses
+   * for the operation ("ביצוע ממשק פתוח הסתיים בהצלחה", appendix 4), and it is what a
+   * bookkeeper will be looking for.
+   */
+  {
+    label: "ממשק פתוח",
+    icon: FileText,
+    subItems: [
+      { href: "/dashboard/regulatory/verification-report", label: "דוח לאימות נתונים" },
+      { href: "/dashboard/regulatory/export", label: "הפקת קבצים במבנה אחיד" },
+    ],
+  },
   {
     label: "לקוחות",
     icon: Users,

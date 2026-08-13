@@ -181,6 +181,20 @@ export type ReceiptSettings = {
  * Fields that don't fit in standard columns
  */
 export type PaymentMetadata = {
+  /**
+   * Which half of a document this line belongs to.
+   *
+   * ⛔ Written explicitly rather than inferred. Consumers that need to tell a goods line
+   * from a payment line used to fall back on the document's type, which works only while a
+   * document has one kind of line — and stops working the moment a חשבונית מס/קבלה carries
+   * both. `lib/regulatory/bkmv/map.ts` classifies D110 against D120 on this field, and
+   * `lib/pdf-service.ts` splits the invoice table from the payments table on it.
+   *
+   * The internal billing provider has always written it. The manual document path did not,
+   * and a receipt only rendered correctly because every fallback happened to guess right.
+   */
+  kind?: "item" | "payment";
+
   // Credit card
   cardInstallments?: number;
   cardDealType?: string;
@@ -247,9 +261,21 @@ export function paymentRowToLineItem(
   companyId: string,
   lineNumber: number
 ): Omit<DocumentLineItem, "id" | "created_at" | "updated_at"> {
-  // Extract metadata fields (everything except bank transfer basic fields)
-  const metadata: PaymentMetadata = {};
-  
+  /*
+   * ⛔ kind first, and unconditionally.
+   *
+   * Everything else here is conditional — a card field only appears for a card, a cheque
+   * field only for a cheque — and the object used to come out `null` when a payment had no
+   * extra detail at all. A cash payment therefore stored `payment_metadata: null`, and every
+   * consumer had to guess what the line was from the document's type.
+   *
+   * That guess is correct for a receipt and WRONG for a חשבונית מס/קבלה, where the mapper's
+   * fallback reads an unlabelled line as goods: a payment line would have become a D110
+   * instead of a D120. `kind` is therefore set before anything can make the object empty,
+   * which also means `payment_metadata` is never null again on a payment line.
+   */
+  const metadata: PaymentMetadata = { kind: "payment" };
+
   if (payment.cardInstallments) metadata.cardInstallments = payment.cardInstallments;
   if (payment.cardDealType) metadata.cardDealType = payment.cardDealType;
   if (payment.cardType) metadata.cardType = payment.cardType;
@@ -287,7 +313,10 @@ export function paymentRowToLineItem(
     bank_name: payment.bankName || null,
     branch: payment.branch || null,
     account_number: payment.accountNumber || null,
-    payment_metadata: Object.keys(metadata).length > 0 ? metadata : null,
+    // Always an object now, because `kind` is always in it. The old
+    // `Object.keys(metadata).length > 0 ? metadata : null` was the line that produced the
+    // unlabelled cash payment.
+    payment_metadata: metadata,
   };
 }
 

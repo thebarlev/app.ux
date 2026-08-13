@@ -7,10 +7,13 @@
     "dev": "next dev",
     "lint": "eslint .",
     "postinstall": "node scripts/playwright-install.mjs",
+    "prebuild": "npm run verify:bkmv",
     "start": "next start",
+    "test:bkmv": "NODE_OPTIONS=--conditions=react-server node node_modules/@playwright/test/cli.js test -c playwright.bkmv.config.ts",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
-    "vercel-build": "npx playwright install chromium --with-deps && next build",
-    "test:unit": "node node_modules/@playwright/test/cli.js test --config=playwright.unit.config.ts"
+    "test:unit": "node node_modules/@playwright/test/cli.js test --config=playwright.unit.config.ts",
+    "verify:bkmv": "node scripts/verify-bkmv-record-lengths.mjs",
+    "vercel-build": "npm run verify:bkmv && npx playwright install chromium --with-deps && next build"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",

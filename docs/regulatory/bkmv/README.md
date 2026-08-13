@@ -1,3 +1,5 @@
+> ⚠️ **מיושן. מקור האמת הוא `docs/regulatory/bkmv/fields-1.31.json`.**
+
 # BKMV (תקן 5.4) – ייצוא קובץ רישום (Income.zip)
 
 מסמך זה מתאר את מנגנון הייצוא הרגולטורי (BKMV) בהתאם לתקן 5.4:
@@ -5,7 +7,7 @@
 - הפלט הוא **ZIP בשם `Income.zip`**
 - בתוך ה־ZIP קובץ יחיד: **`BKMVDATA.TXT`**
 - `BKMVDATA.TXT` בנוי מ־**רשומות fixed-length** (אין מפרידי שדות)
-- **Encoding**: Windows-1255
+- **Encoding**: ISO-8859-8-i (שדה 1029 = 1). **לא** Windows-1255 — הוא אינו מופיע במפרט.
 - **סיום שורה**: CRLF
 - **Scope**: רק מסמכים במצב **FINAL** (כלומר `documents.document_status = 'final'`)
 - **D120**: יופיע רק עבור מסמכי `receipt`
@@ -64,14 +66,12 @@
 3. **No cross-access**:
    - התחבר כ־`adminA` ונסה לקרוא `download` עם key של companyB → מצופה **403**.
 
-4. **Content checks**:
-   - `Income.zip` מכיל **רק** `BKMVDATA.TXT`.
-   - `BKMVDATA.TXT` הוא Windows-1255 + CRLF.
-   - הרשומות בסדר: A100 → B100 → B110 → (מסמכים כרונולוגיים) → Z900.
-   - D120 מופיע רק למסמכי `receipt`.
 
 ## Spec (Single Source of Truth)
 
 המפרט המחייב נמצא ב:
-- `docs/regulatory/bkmv/spec.md`
+- `docs/regulatory/bkmv/fields-1.31.json` — טבלאות השדות, מקור האמת שממנו נגזר `lib/regulatory/bkmv/`
+- `docs/regulatory/bkmv/field-spec-1.31.md` — אותן טבלאות בקריאה אנושית
+
+`docs/regulatory/bkmv/spec.md` **מיושן** ואינו מחייב.
 

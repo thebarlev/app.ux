@@ -1,56 +1,201 @@
-import type { BkmvRecordCode, BkmvSpec } from "./types";
 import { BkmvError } from "./errors";
+import { BKMV_IN_SCOPE_KEYS, BKMV_RECORDS, bkmvRecordLengthReport } from "./fields";
+import type { BkmvSpec } from "./types";
 
 /**
- * IMPORTANT:
- * This file is the executable spec used by the generator.
- * It MUST mirror `docs/regulatory/bkmv/spec.md`.
+ * The executable spec used by the generator.
  *
- * We intentionally ship this as incomplete until the official 5.4 tables
- * (field order/length/padding/required rules) are pasted in and verified.
- * The exporter will refuse to run while spec is incomplete.
+ * The field tables are imported from `docs/regulatory/bkmv/fields-1.31.json` via
+ * `fields.ts`. That JSON is the single source of truth; `docs/regulatory/bkmv/spec.md`
+ * is a stale narrative kept only for history.
  */
 
-export const BKMV_SPEC_VERSION = "5.4-TBD";
+/**
+ * Version of the Tax Authority instructions this implements: "הוראות להפקת קבצים
+ * במבנה אחיד", 1.31, 10.05.2009.
+ *
+ * Not to be confused with 5.4, which is a **section number** inside those
+ * instructions. An earlier revision of this file carried "5.4-TBD" as if it were
+ * a version.
+ */
+export const BKMV_SPEC_VERSION = "1.31";
 
-function recordCodeOnly(code: BkmvRecordCode) {
-  return {
-    code,
-    fields: [
-      {
-        name: "record_code",
-        length: 4,
-        align: "left" as const,
-        padChar: " " as const,
-        required: true,
-      },
-      // TODO(5.4): Add the remaining fields for this record code (fixed-length tables).
-    ],
-  };
-}
+/**
+ * Values the spec fixes for this vendor and this software. Declared here so that
+ * nobody has to guess one later; the writer that consumes them is workplan
+ * stage 5 (data mapping) and does not exist yet.
+ */
+export const BKMV_DECLARED_VALUES = {
+  /**
+   * Fields 1005 / 1104 / 1154, "קבוע מערכת", `X(8)` and mandatory in all three.
+   *
+   * Eight characters, verbatim from "הוראות להפקת קבצים במבנה אחיד" 1.31, where the
+   * remark column of all three rows reads `&OF1.31&`.
+   *
+   * It was briefly recorded reversed as "&1.31OF&". Reading the PDF settled it:
+   * three independent occurrences, all `& O F 1 . 3 1 &`.
+   */
+  systemConstant: "&OF1.31&",
+
+  /** Field 1007, "שם התוכנה", `X(20)`. */
+  softwareName: "UXellent",
+
+  /** Field 1008, "מהדורת התוכנה", `X(20)`. */
+  softwareRelease: "1.0",
+
+  /** Field 1011, "סוג התוכנה", `9(1)`: 1 = single-year, 2 = multi-year. */
+  softwareKind: "2",
+
+  /**
+   * Field 1029, "סט תוים", `9(1)`.
+   *
+   * The instructions permit exactly two values — `1` = ISO-8859-8-i and `2` =
+   * CP-862 — and Windows-1255 is not among them. This is a Windows-side export,
+   * not DOS, so it declares `1`, which is what `encoding.ts` emits.
+   */
+  characterSetCode: "1",
+
+  /** Field 1009, "מספר ע\"מ של יצרן התוכנה", `9(9)`. */
+  vendorTaxId: "515960508",
+
+  /** Field 1010, "שם יצרן התוכנה", `X(20)`. */
+  vendorName: "Uxellent",
+
+  /**
+   * Field 1006, "מספר רישום התוכנה", `9(8)` and mandatory.
+   *
+   * The registration certificate has not been issued yet, and it cannot be: the file is
+   * required in order to register, and the number is required in the file.
+   *
+   * ⛔ 99999999, not all zeros, and this is a DECISION rather than a quotation.
+   *
+   * The uniform-file spec (1.31, page 10) defines the field as "מספר תעודת הרישום של
+   * התוכנה במערכת המס" and gives no value for a vendor who has none — it says the field
+   * is mandatory and stops there. The only Tax Authority document that addresses the
+   * no-certificate case explicitly is the QR-code specification, which says to write
+   * 99999999. That is the reasoning, and it is an inference across two documents rather
+   * than a rule from this one.
+   *
+   * The simulator settles it. If it rejects 99999999 the answer is the opposite and this
+   * goes back to zeros — measured, not argued.
+   *
+   * ⚠️ Changing this also flips `isSample` in the INI summary to false, because that flag
+   * is derived from whether 1006 is all zeros. It is a reported boolean only: nothing in
+   * INI.TXT or BKMVDATA.TXT is written from it.
+   */
+  registrationNumberPlaceholder: "99999999",
+
+  /** Field 1013, "סוג הנהח\"ש של התוכנה": 0 = not applicable. No bookkeeping module exists. */
+  bookkeepingKind: "0",
+
+  /** Field 1032, "מטבע מוביל", `X(3)`. */
+  leadingCurrency: "ILS",
+
+  /**
+   * Field 1028, "קוד שפה", `9(1)`: 0 = Hebrew, 1 = Arabic, 2 = other, per the
+   * instructions.
+   */
+  languageCode: "0",
+
+  /**
+   * Field 1030, "שם תוכנת הכיווץ", `X(20)` — the compressor that actually runs.
+   * `zip.ts` uses JSZip.
+   */
+  compressionSoftwareName: "JSZip",
+
+  /** Field 1034, "מידע על סניפים /ענפים", `9(1)`: 0 — the business has no branches. */
+  branchInfo: "0",
+
+  /**
+   * Field 1012, "נתיב מיקום שמירת הקבצים", `X(50)` and mandatory.
+   *
+   * The published directory layout is
+   * `<drive>:\OPENFRMT\<8-digit dealer number>.<YY>\<MMDDhhmm>\`, holding INI.TXT,
+   * BKMVDATA.TXT and BKMVDATA compressed separately. There is no drive letter in
+   * a cloud application, so this records the path from OPENFRMT down.
+   * **A documented assumption, to be put to the registrar.**
+   */
+  filePathTemplate: "OPENFRMT\\<8-digit>.<YY>\\<MMDDhhmm>",
+} as const;
+
+/**
+ * The characters written into the sign column of a signed amount field.
+ *
+ * Settled against section 2.3, which gives worked examples for `x9(5)v99`:
+ * `-12345.65` is written `"-1234565"`, `1245.65` is written `"+0124565"`, and
+ * `1245` is written `"+0124500"`. **A positive amount carries a literal `+`, not
+ * a space.** An earlier revision used a space and would have shifted nothing but
+ * meant nothing either.
+ *
+ * Which amounts are negative is section י"ב: values in C100 and D110 are positive
+ * except those whose meaning is a reduction of the document or line total. So a
+ * document discount (1220) and a line discount (1266) are negative, while
+ * withholding tax (1224) is positive — clarifications 4 and 5.
+ */
+export const BKMV_AMOUNT_SIGN = {
+  negative: "-",
+  positive: "+",
+} as const;
 
 export const BKMV_SPEC: BkmvSpec = {
   version: BKMV_SPEC_VERSION,
-  records: {
-    A100: recordCodeOnly("A100"),
-    B100: recordCodeOnly("B100"),
-    B110: recordCodeOnly("B110"),
-    C100: recordCodeOnly("C100"),
-    D110: recordCodeOnly("D110"),
-    D120: recordCodeOnly("D120"),
-    M100: recordCodeOnly("M100"),
-    Z900: recordCodeOnly("Z900"),
-  },
+  records: BKMV_RECORDS,
 };
 
+/**
+ * Refuses to let the exporter run unless every in-scope record is fully
+ * described.
+ *
+ * "Fully described" means the field widths add up to the record length the spec
+ * publishes — summed from the widths, never derived from the printed `from`/`to`
+ * columns, because the thirteen cancelled `X(0)` fields carry a notational
+ * `from == to` while occupying no columns.
+ *
+ * The three out-of-scope records (B100, B110, M100) are reported by
+ * `bkmvRecordLengthReport()` but never block: this system has no bookkeeping
+ * module and no inventory, so it does not emit them.
+ */
 export function assertBkmvSpecComplete(): void {
-  const incomplete = Object.values(BKMV_SPEC.records).filter((r) => r.fields.length <= 1);
-  if (incomplete.length > 0) {
+  const rows = bkmvRecordLengthReport();
+  const byKey = new Map(rows.map((row) => [row.key, row]));
+
+  const problems: Array<Record<string, unknown>> = [];
+
+  for (const key of BKMV_IN_SCOPE_KEYS) {
+    const record = BKMV_SPEC.records[key];
+    const row = byKey.get(key);
+
+    if (!record || !row) {
+      problems.push({ record: key, reason: "missing" });
+      continue;
+    }
+    if (!record.inScope) {
+      problems.push({ record: key, reason: "declared out of scope" });
+      continue;
+    }
+    if (record.fields.length === 0) {
+      problems.push({ record: key, reason: "no fields" });
+      continue;
+    }
+    if (!row.ok) {
+      problems.push({
+        record: key,
+        reason: "field widths do not add up to the record length",
+        computed: row.computed,
+        declared: row.declared,
+        fieldCount: row.fieldCount,
+      });
+    }
+  }
+
+  if (problems.length > 0) {
     throw new BkmvError(
       "BKMV_SPEC_INCOMPLETE",
-      "BKMV spec is incomplete. Populate fixed-length field tables in lib/regulatory/bkmv/spec.ts based on docs/regulatory/bkmv/spec.md (5.4).",
-      { recordCodes: incomplete.map((r) => r.code), specVersion: BKMV_SPEC.version }
+      "BKMV spec is incomplete. The field tables in docs/regulatory/bkmv/fields-1.31.json do not fully describe every in-scope record.",
+      { specVersion: BKMV_SPEC.version, problems }
     );
   }
 }
 
+export { BKMV_IN_SCOPE_KEYS, BKMV_RECORD_KEYS, BKMV_RECORDS, bkmvRecordLengthReport } from "./fields";
+export type { BkmvRecordLengthRow } from "./fields";

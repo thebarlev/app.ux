@@ -147,6 +147,52 @@ export const internalBillingProvider: BillingProvider = {
       customerEmail ||
       "Customer"
 
+    // 0) Customer register: resolve the buyer to a customers row.
+    //
+    // This path has no tax id — BillingProviderCustomer is { name?, email,
+    // country, phone? } (providers/types.ts:3-8) — so match key 1 is never
+    // available. It always has an email, which the type makes REQUIRED, so it
+    // lands on key 2 and never reaches the exact-name key. That matters here
+    // specifically: this is the path that falls back to the literal "Customer"
+    // when there is no name (see below), and matching on that name would glue
+    // unrelated buyers into one customer row. Because the email decides first,
+    // it cannot.
+    //
+    // FAILS OPEN, unlike the form path. A customer has already been charged by
+    // the time this runs; a paid customer with no document is worse than a
+    // document with a null customer_id, which is a row we can repair later. The
+    // failure is logged so it is repairable rather than invisible.
+    let resolvedCustomerId: string | null = null
+    {
+      const rc = await admin.rpc("resolve_customer", {
+        p_company_id: issuerCompanyId,
+        p_name:       customerName,
+        p_tax_id:     null,
+        p_email:      customerEmail || null,
+      })
+
+      if (rc.error || !rc.data) {
+        tracker.fail("resolve_customer", new Error(rc.error?.message || "resolve_customer_returned_null"), {
+          company_id: issuerCompanyId,
+        })
+        console.error("[VOW_BILLING][INTERNAL_PROVIDER] resolve_customer failed — issuing without a customer_id", {
+          code:    rc.error?.code,
+          message: rc.error?.message,
+        })
+        await logVowBillingFailure({
+          stage:        "vow_create_document_resolve_customer",
+          errorCode:    rc.error?.code ?? "resolve_customer_returned_null",
+          errorMessage: rc.error?.message ?? "resolve_customer returned no id",
+          errorDetails: { rpc: "resolve_customer" },
+          documentId:   null,
+          userId:       (params.metadata as any)?.user_id ?? null,
+          companyId:    issuerCompanyId,
+        })
+      } else {
+        resolvedCustomerId = String(rc.data)
+      }
+    }
+
     // 1) Create draft document (service role)
     const { data: doc, error: docErr } = await admin
       .from("documents")
@@ -155,7 +201,7 @@ export const internalBillingProvider: BillingProvider = {
         document_type: dbDocumentType,
         document_status: "draft",
         document_number: null,
-        customer_id: null,
+        customer_id: resolvedCustomerId,
         customer_name: customerName,
         customer_email: customerEmail || null,
         customer_phone: customerPhone || null,

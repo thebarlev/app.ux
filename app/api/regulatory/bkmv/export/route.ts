@@ -4,9 +4,59 @@ import { assertNotTestCompany } from "@/lib/security/test-company-guard.server";
 import { NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { assertCompanyRoleAccess } from "@/lib/regulatory/bkmv/auth";
-import { buildBkmvTxt, buildIncomeZip, BkmvError } from "@/lib/regulatory/bkmv";
+import {
+  BKMV_DECLARED_VALUES,
+  BKMV_EXPORTABLE_DOCUMENT_TYPES,
+  BkmvError,
+  bkmvAppendix4RecordRows,
+  bkmvExportDirectory,
+  bkmvPrimaryIdentifier,
+  bkmvProducedAtStamp,
+  bkmvRangeDDMMYYYY,
+  bkmvSummaryRecords,
+  buildBkmvPackageZip,
+  buildBkmvTxt,
+  buildIniTxt,
+} from "@/lib/regulatory/bkmv";
 import type { BkmvContext, BkmvDocument, BkmvLineItem } from "@/lib/regulatory/bkmv";
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit";
+
+/**
+ * The one place the bucket is named. It appears in the upload, in the failure message and in
+ * the response, and a rename that missed one of them is how a diagnosis goes wrong.
+ */
+const EXPORT_BUCKET = "regulatory-exports";
+
+/**
+ * ⛔ How many ids may go into one `.in(...)` filter.
+ *
+ * PostgREST puts the list in the request line, so a single query naming every document in an
+ * export becomes an enormous URL. At 391 documents undici refused it outright:
+ *
+ *   TypeError: fetch failed
+ *   Caused by: HeadersOverflowError (UND_ERR_HEADERS_OVERFLOW)
+ *
+ * and the export returned a 500 that named none of that. It is a volume bug in the exact place
+ * volume is required: the registrar wants 2,000+ records, which is hundreds of documents, so
+ * every real submission would have hit it while every small test passed.
+ *
+ * 100 keeps the request line well inside the limit with a uuid list.
+ */
+const ID_CHUNK = 100;
+
+/** Runs a PostgREST `.in(...)` query in chunks and concatenates the rows. */
+async function selectInChunks<T>(
+  ids: string[],
+  run: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<{ data: T[]; error: unknown }> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const { data, error } = await run(ids.slice(i, i + ID_CHUNK));
+    if (error) return { data: out, error };
+    if (data) out.push(...data);
+  }
+  return { data: out, error: null };
+}
 
 function format2(n: number) {
   return String(n).padStart(2, "0");
@@ -39,12 +89,27 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => null);
     const companyId = body?.companyId as string | undefined;
-    const from = body?.from as string | undefined; // YYYY-MM-DD
-    const to = body?.to as string | undefined; // YYYY-MM-DD
+
+    /*
+     * Two ways to state the period, both from appendix 4 (page 20):
+     *
+     *   "טווח תאריכים: מתאריך (DDMMYYYY) ועד תאריך (DDMMYYYY) בתוכנה רב שנתית
+     *    או שנת המס (YYYY) בתוכנה חד שנתית"
+     *
+     * We declare software kind 2 — multi-year (field 1011) — so the range is the primary
+     * form. A tax year is accepted as well and expanded to its calendar bounds here, on the
+     * server, so the file and the printed report cannot disagree about what "2025" meant.
+     * `periodMode` is echoed back because the report prints a different line for each.
+     */
+    const taxYear = String(body?.taxYear ?? "").trim();
+    const periodMode: "range" | "taxYear" = /^\d{4}$/.test(taxYear) ? "taxYear" : "range";
+
+    const from = (periodMode === "taxYear" ? `${taxYear}-01-01` : body?.from) as string | undefined; // YYYY-MM-DD
+    const to = (periodMode === "taxYear" ? `${taxYear}-12-31` : body?.to) as string | undefined; // YYYY-MM-DD
 
     if (!companyId || !from || !to) {
       return NextResponse.json(
-        { error: "Missing required fields: companyId, from, to" },
+        { error: "Missing required fields: companyId, and either from+to or taxYear" },
         { status: 400 }
       );
     }
@@ -78,12 +143,24 @@ export async function POST(req: Request) {
       String((company as any).registration_number || "").trim() ||
       "";
 
-    // Documents: FINAL only, any document type, within date range by issue_date
+    /*
+     * FINAL documents of the types that belong in the file, by issue_date.
+     *
+     * Selected by an explicit whitelist rather than by taking every final document
+     * and hoping each one has an appendix-1 code. The unified file describes
+     * accounting documents; a type with no code is not something to map.
+     */
     const { data: docs, error: docsError } = await service
       .from("documents")
-      .select("id, document_type, document_number, issue_date, created_at, currency, total_amount, company_id, document_status")
+      .select(
+        "id, document_type, document_number, issue_date, finalized_at, created_at, currency, " +
+          "total_amount, subtotal, vat_amount, vat_rate, company_id, document_status, " +
+          "customer_id, customer_name, customer_tax_id, customer_address, customer_phone, " +
+          "customers(address_city, address_zip, address_country, customer_number)"
+      )
       .eq("company_id", companyId)
       .eq("document_status", "final")
+      .in("document_type", [...BKMV_EXPORTABLE_DOCUMENT_TYPES])
       .gte("issue_date", from)
       .lte("issue_date", to)
       .order("issue_date", { ascending: true })
@@ -94,15 +171,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 
-    const documents: BkmvDocument[] = (docs || []).map((d: any) => ({
-      id: d.id,
+    /*
+     * The final documents in range that the whitelist left out. Reported, never
+     * silently omitted: the caller is told exactly what is not in the file.
+     */
+    const { data: skipped, error: skippedError } = await service
+      .from("documents")
+      .select("document_type, document_number, issue_date, total_amount")
+      .eq("company_id", companyId)
+      .eq("document_status", "final")
+      .not("document_type", "in", `(${BKMV_EXPORTABLE_DOCUMENT_TYPES.join(",")})`)
+      .gte("issue_date", from)
+      .lte("issue_date", to);
+
+    if (skippedError) {
+      console.error("[BKMV] skipped-docs query failed", skippedError);
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+
+    const excludedDocuments = (skipped || []).map((d: any) => ({
       documentType: d.document_type,
       documentNumber: d.document_number,
       issueDate: d.issue_date,
-      createdAt: d.created_at,
-      currency: d.currency,
       totalAmount: d.total_amount,
     }));
+
+    const documents: BkmvDocument[] = (docs || []).map((d: any) => {
+      // `customers` is the joined row, present only when customer_id is set.
+      const c = Array.isArray(d.customers) ? d.customers[0] : d.customers;
+      return {
+        id: d.id,
+        documentType: d.document_type,
+        documentNumber: d.document_number,
+        issueDate: d.issue_date,
+        finalizedAt: d.finalized_at ?? null,
+        createdAt: d.created_at,
+        documentStatus: d.document_status ?? null,
+        currency: d.currency,
+        totalAmount: d.total_amount,
+        subtotal: d.subtotal ?? null,
+        vatAmount: d.vat_amount ?? null,
+        vatRate: d.vat_rate ?? null,
+        customerName: d.customer_name ?? null,
+        customerTaxId: d.customer_tax_id ?? null,
+        customerAddress: d.customer_address ?? null,
+        customerPhone: d.customer_phone ?? null,
+        customerCity: c?.address_city ?? null,
+        customerPostalCode: c?.address_zip ?? null,
+        customerCountry: c?.address_country ?? null,
+        customerNumber: c?.customer_number ?? null,
+        // Filled in below, from document_links.
+        baseDocumentType: null,
+        baseDocumentNumber: null,
+      };
+    });
 
     if (documents.length === 0) {
       return NextResponse.json(
@@ -111,14 +233,81 @@ export async function POST(req: Request) {
       );
     }
 
+    /*
+     * Fields 1256/1257 — the document each document is based on.
+     *
+     * ⚠️ Recorded until now as having no source, because `documents` has no `base_document_id`
+     * column. The column does not exist; the RELATION does. `document_links` holds
+     * source_document_id / target_document_id and is written by createDocumentLinkAction, in
+     * the direction "this document refers to that one" — its single production row is
+     * receipt 4000 -> tax_invoice 1000.
+     *
+     * ⛔ Fails closed. If the link table cannot be read, the export continues with no base
+     * documents rather than stopping: 1256/1257 are ח/ר, so a file without them is valid,
+     * while a file that silently omits half of them would not be — hence the error is logged
+     * with its reason instead of being swallowed.
+     */
+    const { data: links, error: linksError } = await selectInChunks<any>(
+      documents.map((d) => d.id),
+      (chunk) =>
+        service
+          .from("document_links")
+          .select("source_document_id, target_document_id")
+          .eq("company_id", companyId)
+          .in("source_document_id", chunk)
+    );
+
+    if (linksError) {
+      console.error("[BKMV] document_links query failed; 1256/1257 will be empty", {
+        reason: String((linksError as any)?.message || linksError),
+      });
+    }
+
+    const targetIds = [...new Set((links || []).map((l: any) => l.target_document_id))];
+    const baseById = new Map<string, { documentType: string; documentNumber: string }>();
+
+    if (targetIds.length > 0) {
+      const { data: baseDocs } = await selectInChunks<any>(targetIds, (chunk) =>
+        service.from("documents").select("id, document_type, document_number").in("id", chunk)
+      );
+
+      for (const b of (baseDocs || []) as any[]) {
+        baseById.set(String(b.id), {
+          documentType: String(b.document_type),
+          documentNumber: String(b.document_number),
+        });
+      }
+    }
+
+    const baseForSource = new Map<string, { documentType: string; documentNumber: string }>();
+    for (const l of (links || []) as any[]) {
+      const base = baseById.get(String(l.target_document_id));
+      // First link wins: 1256/1257 name one base document, and a document with two links
+      // has no defined second slot to put the other in.
+      if (base && !baseForSource.has(String(l.source_document_id))) {
+        baseForSource.set(String(l.source_document_id), base);
+      }
+    }
+
+    for (const d of documents) {
+      const base = baseForSource.get(d.id);
+      d.baseDocumentType = base?.documentType ?? null;
+      d.baseDocumentNumber = base?.documentNumber ?? null;
+    }
+
     // Line items (best-effort; some doc types may have none)
     const docIds = documents.map((d) => d.id);
-    const { data: items, error: itemsError } = await service
-      .from("document_line_items")
-      .select("document_id, line_number, description, quantity, unit_price, line_total, currency")
-      .in("document_id", docIds)
-      .order("document_id", { ascending: true })
-      .order("line_number", { ascending: true });
+    const { data: items, error: itemsError } = await selectInChunks<any>(docIds, (chunk) =>
+      service
+        .from("document_line_items")
+        .select(
+          "document_id, line_number, description, quantity, unit_price, discount_amount, line_total, " +
+            "currency, item_date, item_code, bank_name, branch, account_number, payment_metadata"
+        )
+        .in("document_id", chunk)
+        .order("document_id", { ascending: true })
+        .order("line_number", { ascending: true })
+    );
 
     if (itemsError) {
       console.error("[BKMV] line items query failed", itemsError);
@@ -131,8 +320,15 @@ export async function POST(req: Request) {
       description: it.description,
       quantity: it.quantity,
       unitPrice: it.unit_price,
+      discountAmount: it.discount_amount ?? null,
       lineTotal: it.line_total,
       currency: it.currency,
+      itemDate: it.item_date ?? null,
+      itemCode: it.item_code ?? null,
+      bankName: it.bank_name ?? null,
+      branch: it.branch ?? null,
+      accountNumber: it.account_number ?? null,
+      paymentMetadata: it.payment_metadata ?? null,
     }));
 
     const generatedAt = new Date();
@@ -145,32 +341,177 @@ export async function POST(req: Request) {
       generatedAtIso: generatedAt.toISOString(),
     };
 
-    const { txtBuffer, stats } = buildBkmvTxt({ ctx, documents, lineItems });
-    const zipBuffer = await buildIncomeZip({ bkmvDataTxt: txtBuffer });
+    // One identifier per export, shared by A000 1004, A100 1103 and Z900 1153.
+    const primaryIdentifier = bkmvPrimaryIdentifier();
+
+    const { txtBuffer, stats, recordCounts, recordCount, notes } = buildBkmvTxt({
+      ctx,
+      documents,
+      lineItems,
+      primaryIdentifier,
+    });
+
+    const directory = bkmvExportDirectory({ dealerNumber: companyTaxId, at: generatedAt });
+    const { txtBuffer: iniBuffer } = buildIniTxt({
+      primaryIdentifier,
+      dealerNumber: companyTaxId,
+      businessName: String(company.company_name || "").trim(),
+      bkmvDataRecordCount: recordCount,
+      summaries: bkmvSummaryRecords(recordCounts),
+      range: { from, to },
+      processStartedAt: generatedAt,
+      filePath: directory,
+    });
+
+    const { zipBuffer } = await buildBkmvPackageZip({
+      directory,
+      iniTxt: iniBuffer,
+      bkmvDataTxt: txtBuffer,
+    });
 
     const { yyyy, mm, dd, hh, mi, ss } = toKeyParts(generatedAt);
     const fromDD = toDDMMYYYY(from);
     const toDD = toDDMMYYYY(to);
-    const fileKey = `company_${companyId}/bkmv/${yyyy}/${mm}/bkmv_${fromDD}_${toDD}_${yyyy}${mm}${dd}_${hh}${mi}${ss}.zip`;
+    const stem = `company_${companyId}/bkmv/${yyyy}/${mm}/bkmv_${fromDD}_${toDD}_${yyyy}${mm}${dd}_${hh}${mi}${ss}`;
+    const fileKey = `${stem}.zip`;
+    /*
+     * ⛔ TWO OUTPUTS FOR TWO CONSUMERS, and both are required.
+     *
+     * Section 2.2.ד defines the archive: INI.TXT beside a compressed BKMVDATA, inside the
+     * OPENFRMT tree. That is what an auditor receives.
+     *
+     * The Tax Authority's simulator wants something else — INI.TXT and BKMVDATA.TXT raw, in
+     * two separate upload fields, not the archive. A module that only produces the archive
+     * cannot be tested against the simulator at all, which is how the first run had to be done
+     * by extracting the files by hand.
+     *
+     * So the same two buffers are stored a second time, uncompressed and individually. They
+     * are the identical bytes that went into the archive — not a rebuild — so the file an
+     * auditor opens and the file the simulator reads cannot drift apart.
+     */
+    const iniKey = `${stem}.INI.TXT`;
+    const dataKey = `${stem}.BKMVDATA.TXT`;
 
     const { error: uploadError } = await service.storage
-      .from("regulatory-exports")
+      .from(EXPORT_BUCKET)
       .upload(fileKey, zipBuffer, {
         contentType: "application/zip",
         upsert: false,
       });
 
-    if (uploadError) {
-      console.error("[BKMV] upload failed", uploadError);
-      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    // The raw pair, stored only once the archive is safely up so a half-written export never
+    // looks complete. Their failures are reported the same way, by the block below.
+    const rawUploads = uploadError
+      ? []
+      : await Promise.all([
+          service.storage.from(EXPORT_BUCKET).upload(iniKey, iniBuffer, {
+            contentType: "text/plain; charset=ISO-8859-8-i",
+            upsert: false,
+          }),
+          service.storage.from(EXPORT_BUCKET).upload(dataKey, txtBuffer, {
+            contentType: "text/plain; charset=ISO-8859-8-i",
+            upsert: false,
+          }),
+        ]);
+    const rawError = rawUploads.find((r) => r.error)?.error ?? null;
+
+    /*
+     * ⛔ A storage failure names itself, and does not discard the file that was built.
+     *
+     * This used to log `[BKMV] upload failed` and return `500 {"error":"Internal Server
+     * Error"}`. When the bucket did not exist, that message named neither the bucket nor the
+     * step, and it cost a full diagnosis cycle to learn that the regulatory file itself had
+     * been built correctly and then thrown away.
+     *
+     * The build is the expensive, correctness-critical part; the upload is transport. So the
+     * response now carries the bucket, the key, the storage layer's own message, and the
+     * complete appendix-4 report — the caller can see exactly what was produced, what was
+     * counted, and which step failed. 502 rather than 500, because the failure is in a
+     * dependency and not in this route's own logic.
+     *
+     * ⚠️ `ok` stays FALSE. The archive is not retrievable, so reporting success would be the
+     * same class of lie the rest of this work keeps removing — and the client renders the
+     * report only under `ok`, so a person is never shown a "saved to this path" line for a
+     * file that was not saved.
+     */
+    if (uploadError || rawError) {
+      const failed = uploadError || rawError;
+      const reason = String((failed as any)?.message || failed);
+      console.error("[BKMV] storage upload failed", {
+        bucket: EXPORT_BUCKET,
+        key: uploadError ? fileKey : `${iniKey} / ${dataKey}`,
+        reason,
+        recordCount,
+        documents: documents.length,
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `הקבצים נבנו במלואם אך שמירתם נכשלה. דלי האחסון "${EXPORT_BUCKET}" החזיר: ${reason}`,
+          code: "BKMV_STORAGE_UPLOAD_FAILED",
+          step: "storage_upload",
+          bucket: EXPORT_BUCKET,
+          storageKey: fileKey,
+          storageError: reason,
+          // What was built, so a correct file is never invisible because transport failed.
+          built: {
+            records: recordCount,
+            recordCounts,
+            documents: documents.length,
+            directory,
+            bytes: zipBuffer.length,
+          },
+          notes,
+        },
+        { status: 502 }
+      );
     }
+
+    /*
+     * Everything appendix 4's printed report needs, computed here.
+     *
+     * ⛔ The browser is not asked to derive any of it. The record table comes from the
+     * counts BKMVDATA.TXT emitted, the path is the directory that was actually packed, and
+     * the date and time come off the same clock that named that directory — see
+     * bkmvProducedAtStamp for why a client-side format would print a time three hours from
+     * the path beside it.
+     */
+    const producedAt = bkmvProducedAtStamp(generatedAt);
 
     return NextResponse.json({
       ok: true,
       storageKey: fileKey,
-      bucket: "regulatory-exports",
+      /** The raw pair the Tax Authority simulator asks for, as two separate files. */
+      iniKey,
+      dataKey,
+      bucket: EXPORT_BUCKET,
       generatedAt: generatedAt.toISOString(),
       stats,
+      // What is not in the file, and what the export had to change to fit it.
+      excludedDocuments,
+      notes,
+
+      /** The appendix-4 report, ready to render. */
+      report: {
+        dealerNumber: companyTaxId,
+        businessName: String(company.company_name || "").trim(),
+        /** Field 1012, as packed. No drive letter — there is no drive. */
+        directory,
+        periodMode,
+        taxYear: periodMode === "taxYear" ? taxYear : null,
+        from,
+        to,
+        fromDDMMYYYY: bkmvRangeDDMMYYYY(from),
+        toDDMMYYYY: bkmvRangeDDMMYYYY(to),
+        /** One row per record type that exists, per page 20's footnote. */
+        recordRows: bkmvAppendix4RecordRows(recordCounts),
+        recordCount,
+        softwareName: BKMV_DECLARED_VALUES.softwareName,
+        softwareRelease: BKMV_DECLARED_VALUES.softwareRelease,
+        registrationNumber: BKMV_DECLARED_VALUES.registrationNumberPlaceholder,
+        producedAtDate: producedAt.date,
+        producedAtTime: producedAt.time,
+      },
     });
   } catch (e: any) {
     if (e instanceof BkmvError) {

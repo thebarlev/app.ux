@@ -1,3 +1,5 @@
+> ⚠️ **מיושן. מקור האמת הוא `docs/regulatory/bkmv/fields-1.31.json`.**
+
 # BKMV / תקן 5.4 – Spec (Single Source of Truth)
 
 מסמך זה הוא **Single Source of Truth** לפורמט ייצוא BKMV בתקינה 5.4, והוא מחייב את המימוש תחת `lib/regulatory/bkmv/`.
@@ -14,7 +16,7 @@ Income.zip
 
 ## Encoding / newline
 
-- **Encoding**: Windows-1255 (cp1255)
+- **Encoding**: ISO-8859-8-i (שדה 1029 = 1). **לא** Windows-1255 — הוא אינו מופיע במפרט.
 - **Record format**: Fixed length (אין מפרידי שדות)
 - **Newline**: CRLF (`\r\n`)
 

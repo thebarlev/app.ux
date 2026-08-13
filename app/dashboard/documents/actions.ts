@@ -3,16 +3,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCompanyIdForUser, initializeSequence, isSequenceLocked } from "@/lib/document-helpers";
 
-// ── CREDIT NOTE BLOCKED ───────────────────────────────────────────────────────
-// Hard-coded, not configurable. An env-var gate that is unset fails open, which is
-// exactly the failure mode fixed in S1.3, so the values are literals here.
-//
-// Scoped deliberately to the three credit document types, in BOTH the app-level
-// camelCase spelling used by the caller and the snake_case spelling used by the
-// database. Nothing else in this file changes, and no other document type is
-// affected. To restore credit-note issuance, revert the
-// security/credit-note-block commits.
-const CREDIT_NOTE_SEQUENCE_BLOCKED_TYPES: ReadonlySet<string> = new Set([
+/*
+ * ⛔ THE CREDIT SEQUENCE IS NEVER CREATED FROM A DOCUMENT FORM. This layer stays.
+ *
+ * The credit-note block was replaced by a precondition (lib/documents/credit-note-precondition.ts):
+ * issuance is refused until the credit sequence exists, rather than refused always. This guard
+ * is the other half of that, and removing it would defeat the whole change — because the harm
+ * was never "credit notes exist", it was "a click in a document form fixes a regulatory
+ * starting number forever".
+ *
+ * initializeSequence inserts the row with is_locked = true (lib/document-helpers.ts:111-121),
+ * and migration 118 made that lock enforceable, so the first click decides the number and
+ * nothing can revise it (`sequence_already_locked`). The numbering dialog is reachable from the
+ * form; an accountant is not.
+ *
+ * So the number for a credit sequence is set deliberately and elsewhere, and the form's dialog
+ * is refused for credit types — in BOTH the camelCase spelling the caller uses and the
+ * snake_case spelling the database uses. No other document type is affected.
+ */
+const CREDIT_SEQUENCE_NOT_SET_FROM_FORM: ReadonlySet<string> = new Set([
   "creditNote",
   "credit_note",
   "selfCreditNote",
@@ -363,7 +372,7 @@ export async function lockStartingNumberAction(params: {
   //
   // Every other document type — invoice, invoiceReceipt, receipt, tax_invoice and
   // the rest — falls through untouched, with identical behaviour to before.
-  if (CREDIT_NOTE_SEQUENCE_BLOCKED_TYPES.has(params.documentType)) {
+  if (CREDIT_SEQUENCE_NOT_SET_FROM_FORM.has(params.documentType)) {
     return { ok: false as const, message: "הפקת חשבונית זיכוי אינה זמינה כרגע" };
   }
 
