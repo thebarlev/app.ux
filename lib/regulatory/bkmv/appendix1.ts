@@ -30,10 +30,10 @@
  *
  * ⚠️ It is deliberately separate from DOCUMENT_TYPE_CODES in codes.ts, which maps our
  * internal document_type strings onto these codes for the export. Those two lists answer
- * different questions and are not the same length today: 100 and 330 are declared here
- * and are absent there — 330 because credit-note issuance is blocked, 100 because no
- * mapping exists yet. Anything declared here and missing there produces zeros in the
- * report and nothing in the file, which is a discrepancy worth seeing rather than hiding.
+ * different questions. They agree today except on 330, which is declared here and absent
+ * there because credit-note issuance is blocked — so it reports zero and produces nothing
+ * in the file until that work lands. Anything declared here and missing there yields zeros
+ * in the report and nothing in the file, which is a discrepancy worth seeing.
  */
 
 export type Appendix1Row = {
@@ -49,10 +49,17 @@ export type Appendix1Row = {
 
 export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "100", name: "הזמנה", managed: true, internalTypes: ["work_order"] },
+  /*
+   * ⚠️ 200 is declared unmanaged while document_sequences holds a LOCKED delivery_note
+   * sequence (measured 2026-08-13, still at its starting number 100). Nothing has been
+   * issued against it, so the report reads zero truthfully today — but the lock means a
+   * regulatory number could be spent on a type this file does not carry. See
+   * BKMV_UNMAPPED_LOCKED_SEQUENCES in codes.ts.
+   */
   { code: "200", name: "תעודת משלוח", managed: false, internalTypes: [] },
   { code: "205", name: "תעודת משלוח סוכן", managed: false, internalTypes: [] },
   { code: "210", name: "תעודת החזרה", managed: false, internalTypes: [] },
-  { code: "300", name: "חשבונית/חשבונית עסקה", managed: false, internalTypes: [] },
+  { code: "300", name: "חשבונית/חשבונית עסקה", managed: true, internalTypes: ["proforma"] },
   { code: "305", name: "חשבונית-מס", managed: true, internalTypes: ["tax_invoice"] },
   { code: "310", name: "חשבונית ריכוז", managed: false, internalTypes: [] },
   { code: "320", name: "חשבונית מס / קבלה", managed: true, internalTypes: ["invoice_receipt"] },

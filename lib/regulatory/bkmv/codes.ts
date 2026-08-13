@@ -15,21 +15,63 @@ import { BkmvError } from "./errors";
  * Section 2.4.ה is explicit that only values from that table may be used, so this
  * is a closed mapping and an unrecognised type throws.
  *
- * The four types this system issues:
+ * The types this system issues:
  *   `tax_invoice`     → 305  חשבונית-מס
  *   `invoice_receipt` → 320  חשבונית מס / קבלה
  *   `receipt`         → 400  קבלה
  *   `proforma`        → 300  חשבונית/חשבונית עסקה
+ *   `work_order`      → 100  הזמנה
+ *
+ * ── ⛔ WHY work_order IS HERE, AND HOW IT WAS DECIDED ───────────────────────
+ *
+ * Not by preference. The test was whether its numbers come from a locked regulatory
+ * sequence or from a counter that is merely convenient, and it was run against
+ * production:
+ *
+ *   document_type      start  current  is_locked  locked_at
+ *   work_order          1000     1003  true       2026-05-04T06:28:01
+ *   work_order          3000     3000  true       2026-08-11T14:32:21
+ *
+ * Two locked sequences, one of them already advanced to 1003. A regulatory number that
+ * was allocated and appears in no file is a gap in a sequence, and a gap in a sequence is
+ * precisely what the registrar looks for. So it maps, and it is declared.
  *
  * `credit_note` → 330 is deliberately absent: credit-note issuance is blocked in
- * this system, so a 330 cannot exist and must not be silently exportable.
+ * this system, so a 330 cannot exist and must not be silently exportable. It goes in with
+ * the credit-note work, not before it.
+ *
+ * ⚠️ AND ONE THAT PASSES THE SAME TEST AND IS NOT HERE — see the note under
+ * BKMV_UNMAPPED_LOCKED_SEQUENCES below. It is reported rather than decided.
  */
 const DOCUMENT_TYPE_CODES: Record<string, string> = {
   tax_invoice: "305",
   invoice_receipt: "320",
   receipt: "400",
   proforma: "300",
+  work_order: "100",
 };
+
+/**
+ * ⚠️ Document types that draw from a LOCKED sequence and have no appendix-1 mapping.
+ *
+ * Measured in production on 2026-08-13:
+ *
+ *   delivery_note   start 100  current 100  is_locked true  locked_at 2026-05-04T14:25:08
+ *
+ * By the same test that put work_order in the table, delivery_note belongs there too —
+ * appendix 1 gives it code 200, and a locked sequence means a regulatory number can be
+ * allocated against it.
+ *
+ * It is NOT mapped here, and that is a deliberate refusal rather than an oversight: adding
+ * it changes what enters the file we submit, and the declared list of types was set
+ * without it. Its sequence is still at its starting number, so no number has actually been
+ * spent — the hole is theoretical today and would become real on the first delivery note
+ * issued.
+ *
+ * Whoever resolves this either maps it or unlocks the sequence. Leaving both as they are
+ * is the one option that is wrong.
+ */
+export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = ["delivery_note"];
 
 /**
  * The document types that belong in the file at all.

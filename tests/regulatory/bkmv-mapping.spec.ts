@@ -429,15 +429,31 @@ test("only document types with an appendix-1 code are exportable, and the lookup
     "proforma",
     "receipt",
     "tax_invoice",
+    "work_order",
   ]);
 
   expect(bkmvIsExportableDocumentType("tax_invoice")).toBe(true);
-  expect(bkmvIsExportableDocumentType("work_order")).toBe(false);
+  /*
+   * work_order is exportable now. It was not, and the reason it changed is measured
+   * rather than preferred: document_sequences holds two LOCKED work_order sequences in
+   * production, one already advanced to 1003. A regulatory number that was allocated and
+   * appears in no file is a gap in a sequence, which is what the registrar looks for.
+   */
+  expect(bkmvIsExportableDocumentType("work_order")).toBe(true);
+  expect(bkmvDocumentTypeCode("work_order")).toBe("100");
+
+  /*
+   * ⚠️ delivery_note stays out, and it passes the same test work_order passed — a locked
+   * sequence, measured on the same day. It is left unmapped deliberately, because mapping
+   * it changes what enters the submitted file and that was not the declared list. Its
+   * sequence is still at its starting number, so nothing has been spent yet. Pinned here
+   * so the exclusion is a recorded decision and not an omission nobody noticed.
+   */
   expect(bkmvIsExportableDocumentType("delivery_note")).toBe(false);
 
   // Excluding a type from selection must not weaken the lookup: anything that
   // reaches it without a code still throws.
-  expect(() => bkmvDocumentTypeCode("work_order")).toThrow(/closed table/);
+  expect(() => bkmvDocumentTypeCode("delivery_note")).toThrow(/closed table/);
 });
 
 test("one character is one byte in this encoding, so a 30-character cut is 30 columns", () => {
