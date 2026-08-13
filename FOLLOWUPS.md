@@ -369,24 +369,25 @@ a tidiness gain.
 
 ---
 
-## ⛔ The `regulatory-exports` storage bucket does not exist
+## The export route discards a built file when storage fails
 
-Measured 2026-08-13. The export route builds INI.TXT and BKMVDATA.TXT correctly, packs the
-archive, and then fails on `service.storage.from("regulatory-exports").upload(...)` with
-`StorageApiError: Bucket not found`. It returns `500 {"error":"Internal Server Error"}`.
+✅ **The bucket half is RESOLVED.** `regulatory-exports` was created on 2026-08-13 (private,
+zero policies) and the whole path was re-run end to end: upload 200, object stored at
+2,253 bytes as `application/zip`, download route 200 returning the same 2,253 bytes, and the
+archive holding exactly the two entries section 2.2 requires —
+`OPENFRMT/12345678.26/08131550/INI.TXT` and `.../BKMVDATA.zip`.
 
-Two separate problems:
+⚠️ No policy was needed and none should be added on this account: both routes use
+`createServiceRoleClient()`, which bypasses RLS. A policy would only matter if the browser
+ever talked to storage directly, which it does not.
 
-**1. The bucket is missing.** Creating it is a production infrastructure change and was not
-done here. Until it exists, the module cannot deliver a file to anyone through the UI — which
-also means appendix 4's report cannot be produced by a user, because the report is rendered
-from the response the upload never allows.
-
-**2. A successfully built regulatory file is discarded on an unrelated failure, and the
-caller is told nothing.** The build is the expensive, correctness-critical part; the upload is
+**What remains: a successfully built regulatory file is discarded on an unrelated failure, and
+the caller is told nothing.** The build is the expensive, correctness-critical part; the upload is
 transport. Losing the first because the second is misconfigured, behind a message that names
 neither the bucket nor the step, is the same defect family recorded four times already in this
 file. The route should surface the storage failure by name and keep the report.
 
-The demo file for this session was produced by calling the same builder directly, outside the
-route, and reading the bytes — see `docs/CHECKLIST-REGISTRAR.md`.
+That is still true today: any storage error — a revoked key, a full project, a renamed bucket
+— throws away a correct file and returns `500 {"error":"Internal Server Error"}`, naming
+neither the bucket nor the step. It cost a full diagnosis cycle when the bucket was missing.
+The route should name the failing step and keep the report.
