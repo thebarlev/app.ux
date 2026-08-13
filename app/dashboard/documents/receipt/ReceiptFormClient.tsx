@@ -664,8 +664,28 @@ export default function ReceiptFormClient({
       return;
     }
 
-    if (!description || description.trim().length < 5) {
-      setDescriptionError("התיאור חובה, לפחות 5 תווים");
+    /*
+     * ⛔ One character, not five.
+     *
+     * The rule demanded five characters, which refused a legitimate subject: "ים" is a
+     * real thing to write on an invoice and the form would not let it through. Nothing
+     * requires five — the minimum was ours, it lived only in the client, and it blocked
+     * work.
+     *
+     * Measured against the spec before changing it: the uniform file gives field 1260
+     * `X(30)`, a MAXIMUM and no minimum, and 1260 is fed by the LINE description
+     * (document_line_items.description) rather than by this field. The document subject
+     * is not a uniform-file field at all, so no length here has any regulatory meaning.
+     *
+     * Still required rather than removed: the subject prints on the document, and one
+     * with no subject is a worse document. Required, minimum one character.
+     *
+     * ⚠️ The rule lives TWICE in each of these four files — here, and in the onChange
+     * that clears the error. Changing only one leaves an error message that will not go
+     * away as the user types, which looks like a fix that worked.
+     */
+    if (!description || description.trim().length === 0) {
+      setDescriptionError("התיאור חובה");
       setIsFinalizing(false);
       setConfirmationModalOpen(false);
 
@@ -935,7 +955,7 @@ export default function ReceiptFormClient({
                         value={description}
                         onChange={(e) => {
                           setDescription(e.target.value);
-                          if (descriptionError && e.target.value.trim().length >= 5) setDescriptionError(null);
+                          if (descriptionError && e.target.value.trim().length > 0) setDescriptionError(null);
                         }}
                         helperText="מינימום 5 תווים - לדוגמה: שירותי עיצוב גרפי"
                         containerClassName="w-full min-w-0"
