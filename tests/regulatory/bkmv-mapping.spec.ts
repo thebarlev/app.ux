@@ -172,14 +172,24 @@ test("every mapped document type resolves to its appendix-1 code", () => {
   expect(bkmvDocumentTypeCode("work_order")).toBe("100");
 });
 
+/**
+ * ⛔ THE RULE THIS PROTECTS IS THE POINT, AND IT MUST KEEP A SUBJECT.
+ *
+ * An unmapped type must THROW rather than guess a code. That is what stops a wrong value being
+ * written into a regulatory file, and it is worth more than any single example.
+ *
+ * The example has moved twice as types were mapped: credit_note, then purchase_order. Both are
+ * mapped now. `quote` is the only type left with no appendix-1 code — הצעת מחיר is not an
+ * accounting document — so it is the subject now, and it is a stable one: it cannot be mapped
+ * without a code existing that does not exist.
+ *
+ * ⚠️ If quote is ever mapped, this test needs a new subject rather than deletion.
+ */
 test("an unmapped document type throws instead of guessing a code", () => {
-  /*
-   * credit_note used to be the example here, because it was deliberately unmapped while
-   * issuance was blocked. It is mapped now that issuance is possible, so the example moved to
-   * types that genuinely have no appendix-1 code and no issuance intent.
-   */
   expect(() => bkmvDocumentTypeCode("quote")).toThrow(/closed table/);
-  expect(() => bkmvDocumentTypeCode("purchase_order")).toThrow(/No BKMV document type code/);
+  expect(() => bkmvDocumentTypeCode("quote")).toThrow(/No BKMV document type code/);
+  // And the closed lookup agrees: quote is not exportable.
+  expect(bkmvIsExportableDocumentType("quote")).toBe(false);
 });
 
 test("the 21 payment labels map onto the nine codes as decided", () => {
@@ -607,7 +617,12 @@ test("only document types with an appendix-1 code are exportable, and the lookup
     "credit_note",
     "delivery_note",
     "invoice_receipt",
+    "proforma",
+    "purchase_order",
     "receipt",
+    "return_note",
+    "self_credit_note",
+    "self_invoice",
     "tax_invoice",
     "work_order",
   ]);
@@ -652,12 +667,16 @@ test("only document types with an appendix-1 code are exportable, and the lookup
   // reaches it without a code still throws.
   expect(() => bkmvDocumentTypeCode("quote")).toThrow(/closed table/);
   /*
-   * proforma is out too, and for the same reason delivery_note is: measured 2026-08-13 it
-   * had zero form pages, zero form clients and zero documents ever created. It had been
-   * mapped to 300 before this work — a declaration about something the software cannot do.
+   * ⛔ proforma is IN, at 300, and the history of this line is worth keeping.
+   *
+   * It was mapped before this work, removed on 2026-08-13 on the reasoning that it had "zero
+   * form pages, zero form clients and zero documents ever created", and restored on 2026-08-14
+   * when both halves of that reasoning failed: the form pages were there all along behind a
+   * generic route, and zero documents in a system whose first documents were issued this month
+   * is a starting state rather than evidence about a feature.
    */
-  expect(bkmvIsExportableDocumentType("proforma")).toBe(false);
-  expect(() => bkmvDocumentTypeCode("proforma")).toThrow(/closed table/);
+  expect(bkmvIsExportableDocumentType("proforma")).toBe(true);
+  expect(bkmvDocumentTypeCode("proforma")).toBe("300");
 });
 
 test("one character is one byte in this encoding, so a 30-character cut is 30 columns", () => {
