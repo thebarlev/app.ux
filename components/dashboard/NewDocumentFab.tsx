@@ -37,28 +37,19 @@ export default function NewDocumentFab({
   }, [isOpen]);
 
   /*
-   * ⛔ FIVE TYPES REMOVED FROM THE MENU, and quote deliberately kept.
+   * ⛔ REVERTED. The five entries are back, and the reasoning that removed them was wrong.
    *
-   * Measured in production on 2026-08-13: proforma, returnNote, purchaseOrder, selfInvoice and
-   * selfCreditNote each have an appendix-1 code (300, 210, 500, 700, 710), zero mapping in
-   * lib/regulatory/bkmv/codes.ts, zero document_sequences rows and zero documents ever issued —
-   * while every one of them was one click from this menu.
+   * They were removed because each had an appendix-1 code, no mapping, no sequence and zero
+   * documents ever issued — read as "the software does not manage this type". That inference
+   * does not hold: in a system whose first documents were issued this month, zero documents is
+   * the starting state of every type, not evidence about the feature.
    *
-   * That is exactly the state delivery_note was in, with one difference in our favour: no
-   * sequence exists yet, so no regulatory number has been spent. The first person to use any of
-   * these entries would allocate a number against a type the uniform file does not carry, and
-   * a gap in a sequence is the first thing an audit looks for.
+   * Measured against the product instead: a חשבון עסקה issues, and a חשבונית מס/קבלה or a
+   * קבלה chains from it carrying the source document's number. The logic works.
    *
-   * Removed rather than disabled, so the menu does not offer what it will refuse — the same
-   * reasoning the credit-note block used for its tile.
-   *
-   * ⚠️ They are NOT deleted from the product. getDocumentConfig still defines them and
-   * /business/documents/new/[documentType] still renders them, so each comes back by restoring
-   * its line here — together with a mapping in codes.ts and documents in the submitted data.
-   * That order matters: the mapping without the documents is what we removed proforma for.
-   *
-   * quote stays. Appendix 1 has no code for הצעת מחיר because a quote is not an accounting
-   * document, so it can never leave a hole in a regulatory sequence.
+   * What remains true is narrower and stays recorded in codes.ts: a type must not be MAPPED to
+   * an appendix-1 code until the submitted data actually contains documents of it. Declaring is
+   * the risk; offering the feature is not.
    */
   const primaryDocs = [
     { href: "/dashboard/incomes/documents/new/invoice", label: "חשבונית מס" },
@@ -66,11 +57,16 @@ export default function NewDocumentFab({
     { href: "/dashboard/incomes/documents/new/creditNote", label: "חשבונית זיכוי" },
     { href: "/dashboard/incomes/documents/new/receipt", label: "קבלה" },
     { href: "/business/documents/new/quote", label: "הצעת מחיר" },
+    { href: "/business/documents/new/proforma", label: "חשבון עסקה (דרישת תשלום)" },
   ];
 
   const moreDocs = [
     { href: "/business/documents/new/workOrder", label: "הזמנת עבודה" },
     { href: "/business/documents/new/deliveryNote", label: "תעודת משלוח" },
+    { href: "/business/documents/new/returnNote", label: "תעודת החזרה" },
+    { href: "/business/documents/new/purchaseOrder", label: "הזמנת רכש" },
+    { href: "/business/documents/new/selfInvoice", label: "חשבונית עצמית" },
+    { href: "/business/documents/new/selfCreditNote", label: "חשבונית זיכוי עצמית" },
   ];
 
   return (
