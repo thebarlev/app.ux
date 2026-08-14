@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getClientIp, rateLimit, rateLimitHeaders } from "@/lib/security/rate-limit"
 import { logSecurityEvent } from "@/lib/security/audit-log"
 
@@ -95,13 +96,39 @@ export async function POST(
     return NextResponse.json({ ok: true, alreadyIssued: true })
   }
 
-  const { error: updErr } = await userClient
+  /*
+   * ── ⛔ WHY adminClient, AND WHAT AUTHORISES IT ────────────────────────────
+   *
+   * The stamp lands on a document that is already issued, so `documents_update` —
+   * draft-only from migration 138 — refuses it under the user's identity. The write runs
+   * as service role, and the authorisation that service role bypasses is re-established
+   * here rather than assumed.
+   *
+   * ⚠️ The predicate is NOT company equality. `documents_select` deliberately admits a
+   * buyer to a billing document that belongs to another company, and this route is
+   * reachable for those. Requiring the caller's own company would deny a buyer the
+   * issuance stamp on an invoice they are entitled to.
+   *
+   * The authorisation is the RLS-scoped read above: `existing` came back only because
+   * `documents_select` returned it for THIS user. The write is pinned to that row by id
+   * AND by the company_id it carried, so service role cannot reach any other row.
+   */
+  const ownerCompanyId = (existing as any)?.company_id
+  if (!ownerCompanyId) {
+    console.error("[ISSUANCE] refusing stamp: document has no company_id", { documentId })
+    return NextResponse.json({ ok: false, message: "Internal Server Error" }, { status: 500 })
+  }
+
+  const adminClient = createAdminClient()
+  const { error: updErr } = await adminClient
     .from("documents")
     .update({
       original_issued_at: nowIso,
       original_issued_language: language,
     })
     .eq("id", documentId)
+    .eq("company_id", ownerCompanyId)
+    .is("original_issued_at", null)
 
   if (updErr) {
     console.error("[ISSUANCE] update failed", { documentId, error: updErr })

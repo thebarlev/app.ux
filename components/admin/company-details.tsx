@@ -85,10 +85,17 @@ export function CompanyDetails({
     setUpdatingGoalId(documentId)
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase.from("documents").update({ is_goal_marked: checked }).eq("id", documentId)
-
-      if (error) throw error
+      /*
+       * ⛔ This used to write to the documents table straight from the browser. It now goes
+       * through /api/admin/documents/[id]/goal-marked, which checks system_admins server-side
+       * before touching the row. See that route for why.
+       */
+      const res = await fetch(`/api/admin/documents/${encodeURIComponent(documentId)}/goal-marked`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isGoalMarked: checked }),
+      })
+      if (!res.ok) throw new Error(`goal-marked update failed: ${res.status}`)
 
       setDocuments((prev) => prev.map((d) => (d.id === documentId ? { ...d, is_goal_marked: checked } : d)))
     } catch (error) {

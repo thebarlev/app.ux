@@ -134,8 +134,23 @@ export default async function VerificationReportPage({ searchParams }: { searchP
    * rather than by reading the rule.
    *
    * The app chrome uses nav and aside; nothing of ours needs the header element hidden.
+   *
+   * ⛔ .dcx-sheet AND .dcx-backdrop ARE NOT nav/aside — THEY ARE PLAIN DIVS.
+   *
+   * They were missing here and the printed report carried the app's menu. The chrome's
+   * mobile sheet (DashboardChrome.tsx) is a <div role="dialog">, and its own stylesheet
+   * turns it to display:block inside the narrow-viewport media query — which print
+   * emulation triggers. So the sheet printed while the sidebar and the mobile bar, being
+   * a real <aside> and a real <nav>, were hidden correctly.
+   *
+   * The cost was not cosmetic: the sheet is position:fixed, it landed on page 2 of the
+   * section 2.6 report, and it pushed rows 900 and 910 and the footnote off the edge of
+   * the sheet. Two appendix-1 rows unreadable in a document going to the registrar.
+   *
+   * ⚠️ Hiding by element name only covers the chrome that happens to use those elements.
+   * A new chrome container that is a div needs adding here too.
    */
-  nav, aside, footer, .no-print { display: none !important }
+  nav, aside, footer, .no-print, .dcx-sheet, .dcx-backdrop { display: none !important }
   body { background: #fff }
   table { page-break-inside: auto }
   tr { page-break-inside: avoid }

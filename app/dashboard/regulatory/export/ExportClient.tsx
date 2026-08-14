@@ -67,8 +67,14 @@ type ExportResponse = {
 
 const PRINT_CSS = `
 @media print {
-  /* The printed page is the report. Chrome, nav, controls and diagnostics are not. */
-  nav, aside, header.app-chrome, footer, .no-print { display: none !important }
+  /* The printed page is the report. Chrome, nav, controls and diagnostics are not.
+   *
+   * ⛔ .dcx-sheet AND .dcx-backdrop ARE NOT nav/aside — THEY ARE PLAIN DIVS, and they
+   * were missing here, so the appendix 4 report printed with the app's menu on it. The
+   * chrome's mobile sheet is a <div role="dialog"> that its own stylesheet shows inside
+   * the narrow-viewport media query, which print emulation triggers. Same omission and
+   * same fix as the section 2.6 report. */
+  nav, aside, header.app-chrome, footer, .no-print, .dcx-sheet, .dcx-backdrop { display: none !important }
   body { background: #fff }
   table { page-break-inside: auto }
   tr { page-break-inside: avoid }

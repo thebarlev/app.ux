@@ -4,6 +4,8 @@ export type SecurityEvent = {
   event:
     | "auth_denied"
     | "admin_denied"
+    /** A system admin changed a row through an admin-only route, as service role. */
+    | "admin_action"
     | "pdf_download"
     | "issuance_mark"
     | "signing_failed"
