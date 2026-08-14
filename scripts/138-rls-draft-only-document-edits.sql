@@ -38,6 +38,15 @@
 --                         grants everything the tightened documents_update is about to
 --                         refuse. ⚠️ Without dropping it, the rest of this file is decorative.
 --
+--   "System admins can update documents"         The same hole, one role over, and it was
+--                         missed on the first pass of this file. From 002-enable-rls.sql:
+--                         FOR UPDATE, USING nothing but `exists (select 1 from system_admins
+--                         where auth_user_id = auth.uid())`. No WITH CHECK, no status test,
+--                         and no company scoping of any kind — it is every document of every
+--                         tenant in every status. OR'd beside documents_update it means a
+--                         signed-in admin can still edit a finalised tax invoice straight
+--                         through the Data API after this migration. It goes too.
+--
 -- Two policies were measured and are CORRECT. This file does not touch them:
 --
 --   documents_delete            ... and document_status = 'draft'
@@ -50,6 +59,12 @@
 --   1. documents_update, line_items_update, line_items_delete gain a draft test, in USING
 --      and in WITH CHECK.
 --   2. The three duplicate "Business owners can ..." policies on documents are dropped.
+--   3. "System admins can update documents" is dropped. A finalised tax invoice is not
+--      editable by anyone — not by its owner and not by an operator — and that is precisely
+--      what the registrar declaration asserts. An admin who needs to write to a document
+--      does it through a server route behind requireSystemAdmin(), the way
+--      /api/admin/documents/[id]/goal-marked in this change set does. The pattern exists;
+--      nothing needs the blanket policy.
 --
 -- On the WITH CHECK value, deliberately 'draft' and not 'draft','final':
 -- allowing 'final' in the check would let a caller flip a draft to final directly through
@@ -186,6 +201,23 @@ drop policy if exists "Business owners can view own documents" on public.documen
 -- who passes it passes documents_insert too.
 drop policy if exists "Business owners can insert own documents" on public.documents;
 
+-- FOR UPDATE, from 002-enable-rls.sql. USING is only "caller appears in system_admins" —
+-- no WITH CHECK, no status test, no company scoping. It is the same hole as the owner policy
+-- above with a wider blast radius: every document, every tenant, every status. Measured as a
+-- surviving UPDATE grant AFTER the first draft of this migration, which is why V3 below now
+-- expects exactly one UPDATE policy and would have caught it.
+--
+-- ⚠️ Dropping it removes the ability of an admin to edit documents through the Data API.
+-- That is the intent. Admin writes go through a server route behind requireSystemAdmin() —
+-- see /api/admin/documents/[documentId]/goal-marked, which is the pattern to copy. Measured
+-- before dropping: zero write paths to `documents` run under a browser identity, and zero
+-- run under an admin's session identity; every remaining write is service role or is scoped
+-- to a draft.
+--
+-- ⛔ "System admins can view all documents" is NOT dropped. Reading across tenants is what an
+-- operator surface legitimately does, and no immutability claim depends on it.
+drop policy if exists "System admins can update documents" on public.documents;
+
 
 -- ═════════════════════════════════════════════════════════════════════════════════════
 -- 4. Deliberately untouched
@@ -210,7 +242,7 @@ where schemaname = 'public'
   and policyname in ('documents_update','line_items_update','line_items_delete')
 order by tablename, policyname;
 
--- V2. The three dropped policies must return ZERO rows.
+-- V2. The four dropped policies must return ZERO rows.
 select policyname
 from pg_policies
 where schemaname = 'public'
@@ -218,11 +250,14 @@ where schemaname = 'public'
   and policyname in (
     'Business owners can update own documents',
     'Business owners can view own documents',
-    'Business owners can insert own documents'
+    'Business owners can insert own documents',
+    'System admins can update documents'
   );
 
 -- V3. Every remaining UPDATE grant on documents, so no looser OR arm survives unnoticed.
---     Expect documents_update and nothing else.
+--     ⛔ Expect EXACTLY ONE row: documents_update, with document_status = 'draft' present in
+--     both qual and with_check. Any second row here is another OR arm and defeats this file —
+--     that is exactly how "System admins can update documents" was caught.
 select policyname, cmd, qual, with_check
 from pg_policies
 where schemaname = 'public' and tablename = 'documents' and cmd in ('UPDATE','ALL')
@@ -250,5 +285,21 @@ from pg_trigger
 where tgrelid = 'public.documents'::regclass
   and not tgisinternal
 order by tgname;
+
+-- V7. Every policy left on documents, in one glance.
+--     Expect one grant per command and nothing spare:
+--
+--       documents_select              SELECT   own tenant + billing buyer + auditor charge
+--       System admins can view all documents
+--                                     SELECT   operator read across tenants (kept on purpose)
+--       documents_insert              INSERT
+--       documents_update              UPDATE   draft only
+--       documents_delete              DELETE   draft only
+--
+--     Anything else on this list is a policy nobody has justified. Read it before moving on.
+select policyname, cmd, roles
+from pg_policies
+where schemaname = 'public' and tablename = 'documents'
+order by cmd, policyname;
 
 select '138-rls-draft-only-document-edits.sql applied' as migration;

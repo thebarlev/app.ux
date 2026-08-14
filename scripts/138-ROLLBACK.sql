@@ -12,8 +12,14 @@
 --    they do not depend on these policies.
 --
 -- Restores documents_update to its 044-allow-final-close.sql definition and the line-item
--- policies to their 007-tenant-rls-policies.sql definitions, and recreates the three
--- "Business owners can ..." policies from 005-business-owner-rls.sql verbatim.
+-- policies to their 007-tenant-rls-policies.sql definitions, recreates the three
+-- "Business owners can ..." policies from 005-business-owner-rls.sql verbatim, and recreates
+-- "System admins can update documents" from 002-enable-rls.sql verbatim.
+--
+-- ⚠️ Restoring that last one gives every system admin UPDATE on every document of every
+--    tenant in every status again, with no WITH CHECK. If you are rolling back for a reason
+--    unrelated to admin writes, consider leaving it out — nothing in the application needs
+--    it, since admin writes go through requireSystemAdmin() server routes.
 
 begin;
 
@@ -55,6 +61,16 @@ create policy "Business owners can update own documents" on public.documents
   for update
   using (
     company_id in (select id from public.companies where auth_user_id = auth.uid())
+  );
+
+-- From 002-enable-rls.sql, verbatim. See the warning at the top before restoring this one.
+create policy "System admins can update documents" on public.documents
+  for update
+  using (
+    exists (
+      select 1 from public.system_admins
+      where system_admins.auth_user_id = auth.uid()
+    )
   );
 
 commit;
