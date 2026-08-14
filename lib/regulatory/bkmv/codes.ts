@@ -35,9 +35,13 @@ import { BkmvError } from "./errors";
  * was allocated and appears in no file is a gap in a sequence, and a gap in a sequence is
  * precisely what the registrar looks for. So it maps, and it is declared.
  *
- * `credit_note` → 330 is deliberately absent: credit-note issuance is blocked in
- * this system, so a 330 cannot exist and must not be silently exportable. It goes in with
- * the credit-note work, not before it.
+ * `credit_note` → 330 IS MAPPED, and this note used to say the opposite.
+ *
+ * It read "deliberately absent: credit-note issuance is blocked in this system, so a 330
+ * cannot exist and must not be silently exportable". That was true when it was written and
+ * is not true now — the mapping is in the table below and the submission file carries 62
+ * credit notes. A comment claiming a code is absent, sitting directly above the line that
+ * maps it, is worse than no comment: it is the note a reader trusts instead of the table.
  *
  * ⚠️ AND ONE THAT PASSES THE SAME TEST AND IS NOT HERE — see the note under
  * BKMV_UNMAPPED_LOCKED_SEQUENCES below. It is reported rather than decided.

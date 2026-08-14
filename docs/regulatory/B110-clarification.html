@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>הבהרה בנוגע לרשומות B110</title>
+<style>
+  @page { margin: 20mm; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    font-family: "Arial Hebrew", Arial, Helvetica, sans-serif;
+    font-size: 15.3px;
+    line-height: 1.78;
+    color: #000;
+    direction: rtl;
+    text-align: justify;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: bold;
+    margin: 7px 0 10px 0;
+    padding-bottom: 9px;
+    border-bottom: 2.5px solid #111;
+    text-align: right;
+  }
+
+  /* אל: / בעניין: — label on the right, value beside it. */
+  .meta { display: grid; grid-template-columns: 72px 1fr; row-gap: 7px; margin: 16px 0 22px 0; }
+  .meta dt { font-weight: bold; text-align: right; }
+  .meta dd { margin: 0; text-align: right; }
+
+  .item { margin: 0 0 16px 0; break-inside: avoid; }
+  .item p { margin: 0 0 10px 0; }
+  .item p:last-child { margin-bottom: 0; }
+
+  blockquote {
+    margin: 10px 0 10px 0;
+    padding-left: 12px;
+    border-left: 3px solid #bbb;
+    text-align: right;
+  }
+
+  code { font-family: "Courier New", Courier, monospace; font-size: 14px;
+         direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+  .ltr { direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+
+  footer {
+    break-inside: avoid;
+    margin-top: 26px;
+    padding-top: 10px;
+    border-top: 1px solid #ccc;
+    font-size: 12px;
+    color: #555;
+    text-align: right;
+  }
+  footer p { margin: 0 0 3px 0; }
+</style>
+</head>
+<body>
+
+<h1>הבהרה בנוגע לרשומות B110</h1>
+
+<dl class="meta">
+  <dt>אל:</dt>
+  <dd>רשות המסים, מחלקת ביקורת ממוחשבת</dd>
+  <dt>בעניין:</dt>
+  <dd>בקשה לרישום תוכנה — UXellent, גרסה 1.0</dd>
+  <dt></dt>
+  <dd>ח.פ. בית התוכנה 515960508</dd>
+</dl>
+
+<div class="item">
+  <p>1. <b>הליקוי כלשונו מפלט הסימולטור.</b> תחת הבדיקה „מבנה כלליות" מדווח ליקוי אחד:</p>
+  <blockquote>„לא הועברו רשומות מסוג חשבון בהנהלת חשבונות (B110)."</blockquote>
+  <p>זהו הליקוי היחיד שנותר; יתר הבדיקות — INI, שלמות נתונים, סיכומים ו-BKMVDATA — תקינות.</p>
+</div>
+
+<div class="item">
+  <p>2. <b>שדה <code>1013</code> בערך <code>0</code>.</b> התוכנה מצהירה בשדה <code>1013</code> („סוג הנהח״ש של התוכנה") את הערך <code>0</code>, שמשמעותו על פי המפרט „לא רלוונטי". התוכנה היא מודול להפקת מסמכים בלבד ואינה כוללת מודול הנהלת חשבונות: היא אינה מנהלת חשבונות, אינה מנהלת תנועות יומן ואינה מנהלת יתרות.</p>
+</div>
+
+<div class="item">
+  <p>3. <b>סעיף 2.5.ג אינו מחייב סוג רשומה כלשהו.</b></p>
+  <blockquote>„הקובץ BKMVDATA.TXT יכיל את נתוני בית העסק. בקובץ זה תהיה רשומת פתיחה אחת, <b>רשומות נוספות מהסוגים שיתוארו להלן</b>, ורשומת סיום אחת."</blockquote>
+  <p>הניסוח „רשומות נוספות מהסוגים שיתוארו להלן" מגדיר את מרחב הסוגים האפשריים, ואינו קובע שכל סוג חייב להופיע. בהתאמה, סעיף 2.5.ב קובע כי רשומת סיכום ב-INI.TXT תיבנה „לכל סוג רשומה <b>שקיימת</b> בקובץ".</p>
+</div>
+
+<div class="item">
+  <p>4. <b>סעיף 2.6 מתנה את הפלטים במודולים שקיימים בתוכנה.</b></p>
+  <blockquote>„<b>בתוכנה הכוללת מודול הנהלת חשבונות</b>: תנועות, מאזן בוחן. <b>בתוכנה הכוללת מודול הפקת מסמכים</b>: דוח שיכלול לגבי כל אחד מהמסמכים הכלולים בנספח מספר 1 את כמות המסמכים ואת הסך הכספי שלהם."</blockquote>
+  <p>המפרט מכיר אפוא במפורש בתוכנה שאין בה מודול הנהלת חשבונות, ומחיל עליה את דרישות מודול הפקת המסמכים בלבד. הדוח הנדרש לפי סעיף זה הופק ומצורף לבקשה.</p>
+</div>
+
+<div class="item">
+  <p>5. <b>ומדוע הפקת רשומות B110 הייתה גרועה מהיעדרן.</b> רשומת B110 כוללת שדות שדרגתם <b>חובה</b> ואין להם מקור בתוכנה שאינה מנהלת הנהלת חשבונות: <code>1405</code> (קוד מאזן בוחן), <code>1406</code> (תיאור קוד מאזן בוחן), <code>1414</code> (יתרת החשבון בתחילת החתך), <code>1415</code> (סה״כ חובה) ו-<code>1416</code> (סה״כ זכות). מילוי שדות אלה באפסים היה מהווה הצהרה שאינה נכונה בקובץ רגולטורי — הצהרה שלכל חשבון יתרת פתיחה אפס ומחזור חובה וזכות אפס — ולפיכך נמנענו מכך במכוון.</p>
+</div>
+
+<div class="item">
+  <p>6. <b>הדפסת דוח נספח 4 המצורפת הופקה בריצת ייצוא נפרדת.</b> ההדפסה של דוח נספח 4 המצורפת לבקשה הופקה בריצת ייצוא נפרדת, של אותה תקופה ושל אותם נתונים. לפיכך חותמת הזמן ושם ספריית הארכיב המופיעים בה שונים מאלה שבקובץ INI.TXT המצורף. סיכומי הרשומות זהים בשתי הריצות: <span class="ltr">C100 408 · D110 2,557 · D120 126</span>.</p>
+</div>
+
+<footer>
+  <p>UXellent · ח.פ. 515960508 · תוכנה: UXellent, מהדורה 1.0</p>
+  <p>הקובץ שהוגש לסימולטור: 3,093 רשומות, לתקופה 09/07/2025 עד 31/12/2025.</p>
+</footer>
+
+</body>
+</html>
