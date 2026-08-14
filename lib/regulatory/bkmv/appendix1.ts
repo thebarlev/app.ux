@@ -25,15 +25,15 @@
  * ── WHAT "MANAGED" MEANS BELOW ──────────────────────────────────────────────
  *
  * `managed: true` is a DECLARATION about this software, not a fact derived from the
- * database. It says: this is a document type we tell the registrar we issue. Five are
- * declared. The other twenty-two report zero and always will until one of them is built.
+ * database. It says: this is a document type we tell the registrar we issue. Eleven are
+ * declared. The other sixteen report zero and always will until one of them is built.
  *
  * ⚠️ It is deliberately separate from DOCUMENT_TYPE_CODES in codes.ts, which maps our
  * internal document_type strings onto these codes for the export. Those two lists answer
- * different questions. They agree today except on 330, which is declared here and absent
- * there because credit-note issuance is blocked — so it reports zero and produces nothing
- * in the file until that work lands. Anything declared here and missing there yields zeros
- * in the report and nothing in the file, which is a discrepancy worth seeing.
+ * different questions. As of 14.8.2026 they agree on all eleven, 330 included — the
+ * credit-note mapping landed, and the submission file carries 62 of them. Anything
+ * declared here and missing there yields zeros in the report and nothing in the file,
+ * which is a discrepancy worth seeing.
  */
 
 export type Appendix1Row = {
