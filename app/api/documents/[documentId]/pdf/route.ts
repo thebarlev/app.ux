@@ -574,13 +574,39 @@ export async function GET(
       // ignore
     }
 
-    // Mark original issued (idempotent) when we successfully serve it.
+    /*
+     * Mark original issued (idempotent) when we successfully serve it.
+     *
+     * ── ⛔ WHY adminClient, AND WHAT AUTHORISES IT ──────────────────────────
+     *
+     * This stamp lands on a document that is by definition already issued, so the
+     * `documents_update` policy — draft-only from migration 138 — refuses it under the
+     * user's identity. The write therefore runs as service role, which bypasses RLS, and
+     * the authorisation it bypasses has to be re-established here explicitly.
+     *
+     * ⚠️ The predicate is NOT "the document belongs to the caller's company". This route
+     * deliberately serves three cases (see the gate at step 2): own tenant, a billing
+     * invoice where the caller is the buyer, and an auditor subscription charge. A company
+     * equality check here would lock buyers out of their own invoices.
+     *
+     * The authorisation is the RLS-scoped read above: `doc` exists only because
+     * `documents_select` returned it for THIS user. The write is pinned to that same row
+     * by id AND by the company_id that came back with it, so service role cannot reach a
+     * row the user was not already permitted to read.
+     */
     if (effectiveIssue === "original" && targetLanguage === "he" && !originalAlreadyIssued) {
+      const ownerCompanyId = (doc as any)?.company_id
+      if (!ownerCompanyId) {
+        // A readable document with no company is not a document we will write to.
+        console.error("[PDF API] refusing issuance stamp: document has no company_id", { documentId })
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
+      }
       const nowIso = new Date().toISOString()
-      await userClient
+      await adminClient
         .from("documents")
         .update({ original_issued_at: nowIso, original_issued_language: "he" })
         .eq("id", documentId)
+        .eq("company_id", ownerCompanyId)
         .is("original_issued_at", null)
     }
 
