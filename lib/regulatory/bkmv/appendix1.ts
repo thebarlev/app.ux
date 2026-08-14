@@ -47,6 +47,21 @@ export type Appendix1Row = {
   internalTypes: readonly string[]
 }
 
+/*
+ * ⛔ ELEVEN CODES ARE DECLARED, and this file must agree with codes.ts.
+ *
+ * On 14.8.2026 codes.ts gained proforma 300, return_note 210, purchase_order 500,
+ * self_invoice 700 and self_credit_note 710 — and this file was left behind. The file carried
+ * documents of all five while the section 2.6 report counted them as zero, because the report
+ * reads `internalTypes` from here and the export reads DOCUMENT_TYPE_CODES from there.
+ *
+ * That is exactly the discrepancy the note below predicted, in the opposite direction: the two
+ * lists answer different questions, and one of them was updated alone. A 2.6 report declaring
+ * that five document types are not managed, filed beside a uniform file that carries them, is
+ * two annexes contradicting each other in front of the registrar.
+ *
+ * ⚠️ Whoever maps a code in codes.ts must set it managed here in the same change.
+ */
 export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "100", name: "הזמנה", managed: true, internalTypes: ["work_order"] },
   /*
@@ -61,17 +76,8 @@ export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
    */
   { code: "200", name: "תעודת משלוח", managed: true, internalTypes: ["delivery_note"] },
   { code: "205", name: "תעודת משלוח סוכן", managed: false, internalTypes: [] },
-  { code: "210", name: "תעודת החזרה", managed: false, internalTypes: [] },
-  /*
-   * ⚠️ 300 is unmanaged. It WAS mapped to proforma in codes.ts before this work, and the
-   * mapping was removed because zero proforma documents have ever been created.
-   *
-   * ⛔ Not because no form exists — that reason was recorded here and is wrong. The generic
-   * route /business/documents/new/proforma renders TaxInvoiceFormClient and is linked from
-   * the new-document menu. The type is issuable; the submission data simply has none of it,
-   * and a code declared with nothing behind it is a claim about output we do not have.
-   */
-  { code: "300", name: "חשבונית/חשבונית עסקה", managed: false, internalTypes: [] },
+  { code: "210", name: "תעודת החזרה", managed: true, internalTypes: ["return_note"] },
+  { code: "300", name: "חשבונית/חשבונית עסקה", managed: true, internalTypes: ["proforma"] },
   { code: "305", name: "חשבונית-מס", managed: true, internalTypes: ["tax_invoice"] },
   { code: "310", name: "חשבונית ריכוז", managed: false, internalTypes: [] },
   { code: "320", name: "חשבונית מס / קבלה", managed: true, internalTypes: ["invoice_receipt"] },
@@ -82,11 +88,11 @@ export const BKMV_APPENDIX_1: readonly Appendix1Row[] = [
   { code: "405", name: "קבלה על תרומות", managed: false, internalTypes: [] },
   { code: "410", name: "יציאה מקופה", managed: false, internalTypes: [] },
   { code: "420", name: "הפקדת בנק", managed: false, internalTypes: [] },
-  { code: "500", name: "הזמנת רכש", managed: false, internalTypes: [] },
+  { code: "500", name: "הזמנת רכש", managed: true, internalTypes: ["purchase_order"] },
   { code: "600", name: "תעודת משלוח רכש", managed: false, internalTypes: [] },
   { code: "610", name: "החזרת רכש", managed: false, internalTypes: [] },
-  { code: "700", name: "חשבונית מס רכש", managed: false, internalTypes: [] },
-  { code: "710", name: "זיכוי רכש", managed: false, internalTypes: [] },
+  { code: "700", name: "חשבונית מס רכש", managed: true, internalTypes: ["self_invoice"] },
+  { code: "710", name: "זיכוי רכש", managed: true, internalTypes: ["self_credit_note"] },
   { code: "800", name: "יתרת פתיחה", managed: false, internalTypes: [] },
   { code: "810", name: "כניסה כללית למלאי", managed: false, internalTypes: [] },
   { code: "820", name: "יציאה כללית מהמלאי", managed: false, internalTypes: [] },

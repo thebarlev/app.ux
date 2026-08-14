@@ -49,6 +49,11 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
   work_order: "100",
   delivery_note: "200",
   credit_note: "330",
+  proforma: "300",
+  return_note: "210",
+  purchase_order: "500",
+  self_invoice: "700",
+  self_credit_note: "710",
 };
 
 /*
@@ -86,6 +91,42 @@ const DOCUMENT_TYPE_CODES: Record<string, string> = {
  * assertion that we are not in it.
  */
 export const BKMV_UNMAPPED_LOCKED_SEQUENCES: readonly string[] = [];
+
+/*
+ * ⛔ THE FIVE PURCHASE-AND-DEMAND CODES, added 14.8.2026 by decision.
+ *
+ * proforma 300 · return_note 210 · purchase_order 500 · self_invoice 700 · self_credit_note 710.
+ * The names are appendix 1's own: חשבונית/חשבונית עסקה · תעודת החזרה · הזמנת רכש ·
+ * חשבונית מס רכש · זיכוי רכש.
+ *
+ * ⚠️ quote is NOT here and must not be. Appendix 1 has no code for הצעת מחיר, because a quote
+ * is not an accounting document. It stays a working type in the product and is never declared.
+ *
+ * ── WHAT WAS RAISED BEFORE THIS WAS DECIDED, AND HOW IT WAS ANSWERED ────────
+ *
+ * Two objections were put and both were answered deliberately; they are recorded so the answer
+ * is not re-derived from memory.
+ *
+ * 1. 500/700/710 are purchase-side codes, and field 1225 is defined as "מפתח הלקוח אצל המוכר
+ *    או מפתח הספק אצל הקונה". The database has no supplier table and no supplier column —
+ *    measured 14.8.2026: zero columns matching supplier/vendor on `documents`, zero such
+ *    tables in the schema — and the three purchase documents write to the customer columns.
+ *
+ *    The answer: 1225 is ONE field whose meaning follows the direction of the transaction. The
+ *    value written is the counterparty's key, and that is correct in both directions. No
+ *    supplier column, no supplier table, no schema change.
+ *
+ * 2. 700/710 describe documents a business RECEIVES. That is what they are; declaring them
+ *    states that the software manages those documents, which it does — it issues them, they
+ *    carry numbers from locked sequences, and until now those numbers went into no file at all.
+ *
+ * ── AND THE OBLIGATION IS UNCHANGED ────────────────────────────────────────
+ *
+ * The invariant on this table still holds: a mapped code needs documents behind it in the
+ * submitted data. Each of these five currently has exactly one document in the demo company —
+ * the one issued to measure that the type works. Ten each are required before submission, or
+ * the declaration describes output we do not have.
+ */
 
 /*
  * ⛔ credit_note IS mapped, to 330, now that issuance is possible.
