@@ -1,5 +1,8 @@
 # app.ux — working rules
 
+Scope: database work only. Silence here is not permission — frontend, testing and code
+conventions are not covered yet.
+
 ## Database
 
 Migrations live in `scripts/`, numbered `NNN-<slug>.sql`, three digits, applied in order.
@@ -61,6 +64,11 @@ that defines each body:
 | `finalize_document_with_usage_guard` | `scripts/047`, `scripts/075` | defined DEFINER |
 | `recompute_document_accounting` | `scripts/111-conversion-amount-aware.sql` | defined DEFINER |
 
+Measured 2026-08-16 against project hpvomklpmblxhejehiyq: all four report
+`prosecdef = true`. The first three from a `pg_proc` query over the `finalize_*` family;
+`recompute_document_accounting` from `pg_get_functiondef`, which prints SECURITY DEFINER
+in the header. Re-verify before relying on it — that is what this file is about.
+
 `auth.uid()` still identifies the **caller** under `SECURITY DEFINER` — it reads the
 request's JWT claim from a GUC, not the session user. Ownership tests and `finalized_by`
 keep working as written. Do not "fix" them.
@@ -81,3 +89,6 @@ skipped" from "ran and was lost".
 
 One Supabase database serves every environment. A test through a preview URL writes real
 production rows. There is no staging copy.
+
+⚠️ Not measured in the session that wrote this. Treat it as binding regardless: if it is
+wrong, the cost is excess caution.
