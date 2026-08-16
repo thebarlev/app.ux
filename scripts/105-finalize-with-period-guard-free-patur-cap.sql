@@ -1,3 +1,40 @@
+-- ⛔⛔ READ BEFORE EDITING THE BODY BELOW — STANDING OBLIGATION ⛔⛔
+-- =====================================================================================
+-- This function is SECURITY DEFINER. It was NOT when this file was written.
+-- scripts/139-finalize-period-guard-security-definer.sql changed the attribute on
+-- 2026-08-16, in production, to fix a live breakage: 138 made documents_update
+-- draft-only in WITH CHECK, and the UPDATE at the end of this body ran as the caller,
+-- so every issuance failed with
+--     new row violates row-level security policy for table "documents"
+--
+-- WHAT THAT MEANS FOR ANY EDIT YOU ARE ABOUT TO MAKE:
+--
+--   ⛔ RLS NO LONGER FILTERS ANYTHING THIS FUNCTION READS.
+--      Not just the UPDATE that needed it — every table it touches. It reads
+--      subscriptions, plans and documents to compute the period usage cap, and those
+--      reads previously came back filtered by the caller's policies. They no longer do.
+--      They see all rows, for every tenant.
+--
+--   ⛔ THEREFORE: EVERY QUERY IN THIS BODY MUST SCOPE ITSELF.
+--      The counting query is already scoped by `d.company_id = p_company_id`, and
+--      p_company_id is validated against public.user_company_ids() near the top. Any
+--      query you ADD must carry its own equivalent scope. If you add an unscoped read,
+--      nothing will stop it and nothing will warn you — it will simply return other
+--      tenants' rows and the tests will pass.
+--
+--   ⚠️ The in-body checks are now the ONLY tenant boundary: the auth.uid() null test,
+--      the user_company_ids() membership test, and the company_id + document_status
+--      predicate on the UPDATE. Do not weaken or reorder them.
+--
+--   ⚠️ auth.uid() still identifies the CALLER under SECURITY DEFINER — it reads the
+--      request's JWT claim from a GUC, not the session user. finalized_by keeps
+--      recording the human. Do not "fix" this.
+--
+-- Recorded here, and not only in 139, because this is the file someone opens when they
+-- come to change the logic — and a rule stored where nobody reads it is the failure it
+-- was written to prevent.
+-- =====================================================================================
+
 -- ====================================================
 -- 105 - Finalize with period guard: cap free_patur like free
 -- ====================================================
