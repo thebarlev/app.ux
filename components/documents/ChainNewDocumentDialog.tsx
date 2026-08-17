@@ -31,9 +31,11 @@ export default function ChainNewDocumentDialog(props: {
       return ['deliveryNote', 'credit_note'];
     }
     
-    // קבלה - תעודת משלוח + זיכוי
+    // קבלה - תעודת משלוח בלבד.
+    // ⛔ לא חשבונית זיכוי: קבלה אינה מסמך חייב במע"מ, ואין ממה לזכות. ביטול
+    // קבלה נעשה בקבלה שלילית, דרך כפתור הביטול (DocumentsListClient.tsx:353).
     if (sourceType === 'receipt') {
-      return ['deliveryNote', 'credit_note'];
+      return ['deliveryNote'];
     }
     
     // כל שאר המסמכים - כל האפשרויות

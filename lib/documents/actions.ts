@@ -2147,13 +2147,31 @@ export async function createDocumentLinkAction(args: {
     // Verify both documents belong to the current company
     const { data: docs, error: docsError } = await supabase
       .from("documents")
-      .select("id, company_id")
+      .select("id, company_id, document_type")
       .eq("company_id", companyId)
       .in("id", [args.sourceDocumentId, args.targetDocumentId]);
 
     if (docsError) return { ok: false, message: docsError.message };
     if (!docs || docs.length !== 2) {
       return { ok: false, message: "אחד מהמסמכים לשיוך לא נמצא" };
+    }
+
+    // A credit note may only be issued against a document that carries VAT.
+    // A receipt is not one: it records a collection, not a taxable sale, so
+    // there is nothing to credit. Issuing one produced a real document with a
+    // real sequence number that moved no balance anywhere — the credit link is
+    // swallowed by the settled-on-issue branch of recompute_document_accounting,
+    // which returns before it reads any link (scripts/140-credit-documents-always-settled.sql:153-164).
+    if (args.linkType === "credit") {
+      const target = docs.find((d: any) => String(d.id) === String(args.targetDocumentId));
+      const targetType = String((target as any)?.document_type || "");
+      if (targetType !== "tax_invoice" && targetType !== "invoice_receipt") {
+        return {
+          ok: false,
+          message:
+            "לא ניתן להפיק חשבונית זיכוי כנגד מסמך זה. זיכוי אפשרי רק כנגד חשבונית מס או חשבונית מס/קבלה. לביטול קבלה יש להפיק קבלה שלילית.",
+        };
+      }
     }
 
     const { data, error } = await supabase
