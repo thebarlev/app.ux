@@ -7,6 +7,27 @@ import { createServiceRoleClient } from "@/lib/supabase/server"
 
 export type ShaamConnectionStatus = "active" | "expired" | "revoked" | "error"
 
+/**
+ * The connection row could not be written.
+ *
+ * Thrown rather than returned because the one caller — the OAuth callback —
+ * discards return values, and a swallowed failure here is exactly the defect
+ * this type exists to end: between 29/07 and 18/08 every token upsert returned
+ * 42P10 (the code half of a0889cc was unmerged, so `onConflict` named
+ * `company_id` while the live primary key was `(company_id, env)`), the error
+ * was never destructured, and `oauth_connected` was written anyway. The screen
+ * showed a green banner over a connection that did not exist.
+ */
+export class ShaamConnectionPersistError extends Error {
+  readonly code: string
+
+  constructor(code: string, message: string) {
+    super(message)
+    this.name = "ShaamConnectionPersistError"
+    this.code = code
+  }
+}
+
 type TokenResponse = {
   access_token: string
   refresh_token: string
@@ -90,7 +111,10 @@ export async function upsertConnectionFromTokenResponse(params: {
       : null
   const admin = createServiceRoleClient()
 
-  await admin.from("company_shaam_connections").upsert(
+  // supabase-js does NOT throw on a database error — it returns it. Destructuring
+  // `error` is the whole difference between a connection that was saved and one
+  // that only looked saved.
+  const { error } = await admin.from("company_shaam_connections").upsert(
     {
       company_id: params.companyId,
       env: getShaamEnv(),
@@ -113,6 +137,27 @@ export async function upsertConnectionFromTokenResponse(params: {
     { onConflict: "company_id,env" }
   )
 
+  if (error) {
+    const code = String((error as any)?.code || "db_error").slice(0, 120)
+    const message = String((error as any)?.message || "connection_upsert_failed").slice(0, 500)
+
+    // 'oauth_connected' is a claim that the tokens are stored. They are not, so
+    // the event that goes in is the one that is true.
+    await recordShaamEvent({
+      companyId: params.companyId,
+      eventType: "oauth_error",
+      payload: {
+        status: "error",
+        stage: "connection_upsert",
+        last_error_code: code,
+        last_error_message: message,
+      },
+    })
+
+    throw new ShaamConnectionPersistError(code, message)
+  }
+
+  // Reached only when the row is actually on disk.
   await recordShaamEvent({
     companyId: params.companyId,
     eventType: "oauth_connected",
@@ -120,18 +165,31 @@ export async function upsertConnectionFromTokenResponse(params: {
   })
 }
 
+/**
+ * Records a failed connection attempt on the row and in the event log.
+ *
+ * Returns rather than throws — every one of its seven callers is already on an
+ * error path, and throwing here would replace a meaningful error redirect with
+ * a 500 and bury the original failure. The persistence failure is still made
+ * loud: it goes into the event payload, so the trace survives even when the
+ * row does not.
+ */
 export async function markConnectionError(params: {
   companyId: string
   status: Exclude<ShaamConnectionStatus, "revoked" | "active">
   errorCode: string
   errorMessage: string
-}) {
+}): Promise<{ ok: true } | { ok: false; persistErrorCode: string; persistErrorMessage: string }> {
   const admin = createServiceRoleClient()
   // We must supply expires_at if inserting a new row; if row doesn't exist, we create an \"error\" shell.
   const now = new Date()
   const shellExpiresAt = now.toISOString()
 
-  await admin.from("company_shaam_connections").upsert(
+  const errorCode = String(params.errorCode || "").slice(0, 120) || null
+  const errorMessage = String(params.errorMessage || "").slice(0, 500) || null
+
+  // Same rule as the success path: supabase-js returns the error, it does not throw.
+  const { error } = await admin.from("company_shaam_connections").upsert(
     {
       company_id: params.companyId,
       env: getShaamEnvSafe(),
@@ -140,21 +198,47 @@ export async function markConnectionError(params: {
       issued_at: shellExpiresAt,
       connected_at: shellExpiresAt,
       status: params.status,
-      last_error_code: String(params.errorCode || "").slice(0, 120) || null,
-      last_error_message: String(params.errorMessage || "").slice(0, 500) || null,
+      last_error_code: errorCode,
+      last_error_message: errorMessage,
     },
     { onConflict: "company_id,env" }
   )
+
+  const persistErrorCode = error ? String((error as any)?.code || "db_error").slice(0, 120) : null
+  const persistErrorMessage = error
+    ? String((error as any)?.message || "connection_upsert_failed").slice(0, 500)
+    : null
+
+  if (persistErrorCode) {
+    console.error("[shaam][tokens] markConnectionError: connection row was not written", {
+      company_id: params.companyId,
+      persist_error_code: persistErrorCode,
+    })
+  }
 
   await recordShaamEvent({
     companyId: params.companyId,
     eventType: params.status === "expired" ? "oauth_expired" : "oauth_error",
     payload: {
       status: params.status,
-      last_error_code: String(params.errorCode || "").slice(0, 120) || null,
-      last_error_message: String(params.errorMessage || "").slice(0, 500) || null,
+      last_error_code: errorCode,
+      last_error_message: errorMessage,
+      // Present only when the row itself could not be written, so the log never
+      // implies a persisted state that does not exist.
+      ...(persistErrorCode
+        ? {
+            connection_row_persisted: false,
+            persist_error_code: persistErrorCode,
+            persist_error_message: persistErrorMessage,
+          }
+        : {}),
     },
   })
+
+  if (persistErrorCode) {
+    return { ok: false, persistErrorCode, persistErrorMessage: persistErrorMessage as string }
+  }
+  return { ok: true }
 }
 
 export async function disconnectShaam(params: { companyId: string }) {

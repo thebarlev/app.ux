@@ -1,3 +1,7 @@
+-- APPLIED IN PRODUCTION 2026-07-29 as part of a0889cc.
+-- The code half of that commit was merged only on 18.8.2026,
+-- which is why every token upsert returned 42P10 in between.
+-- Idempotent: safe to re-run, but it has already been applied.
 -- ====================================================
 -- 110 - SHAAM: per-environment connections (V1)
 -- ====================================================
