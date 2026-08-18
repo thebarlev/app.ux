@@ -3,8 +3,9 @@ import "server-only"
 import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 
-// Paths only — host comes from getShaamConfig().baseUrl. The previous
-// hardcoded host (t-ita-api.taxes.gov.il) has no DNS record at all.
+// Paths only — host comes from getShaamConfig().apiBaseUrl, the same host the
+// allocation request uses, since a decision must reach the service that holds
+// the document it refers to.
 const DECISION_PATH_PREFIX = "/InvoiceDecisionApi/v1" as const
 
 export type ShaamInvoiceDecisionType = "CANCEL" | "CONTINUE" | "FURTHEROBJECTION"
@@ -23,7 +24,7 @@ export type ShaamInvoiceDecisionCallResult =
   | { ok: false; kind: "unauthorized" | "bad_request" | "temporary_failure"; provider_json: any }
 
 function endpointForDecision(decision: ShaamInvoiceDecisionType): string {
-  const base = `${getShaamConfig().baseUrl}${DECISION_PATH_PREFIX}`
+  const base = `${getShaamConfig().apiBaseUrl}${DECISION_PATH_PREFIX}`
   if (decision === "CANCEL") return `${base}/Cancel`
   if (decision === "CONTINUE") return `${base}/Continue`
   return `${base}/FurtherObjection`

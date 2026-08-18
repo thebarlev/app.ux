@@ -18,6 +18,7 @@ import { isDigitalSignaturesEnabled } from "@/lib/documents/signing/feature-flag
 import { createSigningRequest, sha256Hex as sha256HexFromSigningClient } from "@/lib/documents/signing/secure-signature-client"
 import { stampPdfFooter } from "@/lib/pdf/stamp-footer"
 import { parseAllocationNumber } from "@/lib/documents/allocation-number"
+import { resolveIssuerTaxId } from "@/lib/documents/issuer-tax-id"
 import { PUBLIC_ASSETS_BUCKET, SECURE_ASSETS_BUCKET } from "@/lib/storage/buckets"
 import { countHandlebarsBlocks, redactDigits, safeExcerptNoDigits, stripHtmlToText } from "@/lib/template-engine"
 import type { 
@@ -1014,6 +1015,7 @@ export async function prepareDocumentData(
         company_name,
         company_name_en,
         english_address,
+        tax_id,
         registration_number,
         company_number,
         contact_first_name,
@@ -1048,6 +1050,7 @@ export async function prepareDocumentData(
       company:companies(
         id,
         company_name,
+        tax_id,
         registration_number,
         company_number,
         contact_first_name,
@@ -1459,8 +1462,10 @@ export async function prepareDocumentData(
     }
   }
 
-  // Use registration_number or company_number for tax ID
-  const companyTaxId = doc.company?.registration_number || doc.company?.company_number || null;
+  // Same order the ITA allocation is requested under — see resolveIssuerTaxId.
+  // This used to skip tax_id entirely, so a document could print one identifier
+  // while its allocation number was granted against another.
+  const companyTaxId = resolveIssuerTaxId(doc.company as any);
   
   // Use mobile_phone or phone for company phone
   const companyPhone = doc.company?.mobile_phone || doc.company?.phone || null;
