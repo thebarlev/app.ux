@@ -7,7 +7,7 @@ import { getShaamConfig } from "@/lib/shaam/config"
 import { getShaamDispatcher } from "@/lib/shaam/dispatcher"
 import { verifyShaamOauthState } from "@/lib/shaam/state"
 import { SHAAM_SETTINGS_PATH, withShaamOutcome } from "@/lib/shaam/return-to"
-import { markConnectionError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
+import { markConnectionError, ShaamConnectionPersistError, upsertConnectionFromTokenResponse } from "@/lib/shaam/tokens"
 
 function redirectToSettings(url: URL, params: Record<string, string>) {
   // Always prefer the callback origin to avoid cross-domain session/cookie issues.
@@ -169,17 +169,34 @@ export async function GET(req: Request) {
     return redirectAfterOauth(url, returnTo, { connected: false, error: "bad_response" })
   }
 
-  await upsertConnectionFromTokenResponse({
-    companyId,
-    token: {
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      token_type: tokenType,
-      expires_in: expiresIn,
-      refresh_expires_in: refreshExpiresIn ?? undefined,
-      scope: scope || undefined,
-    },
-  })
+  try {
+    await upsertConnectionFromTokenResponse({
+      companyId,
+      token: {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        token_type: tokenType,
+        expires_in: expiresIn,
+        refresh_expires_in: refreshExpiresIn ?? undefined,
+        scope: scope || undefined,
+      },
+    })
+  } catch (e: any) {
+    if (!(e instanceof ShaamConnectionPersistError)) throw e
 
+    // No markConnectionError here: it upserts the same row through the same
+    // path that just failed, so it would fail identically. The diagnosis is
+    // already in shaam_events — upsertConnectionFromTokenResponse writes
+    // 'oauth_error' carrying the database code before it throws.
+    console.error("[shaam][callback] connection not saved", { code: e.code })
+
+    // '1' rather than a specific code on purpose: the settings screen renders a
+    // message for error=1 only (ShaamIntegrationClient.tsx:56), so a specific
+    // code would send the user back to a page that says nothing at all. The
+    // specific code is not lost — it is on the oauth_error event.
+    return redirectAfterOauth(url, returnTo, { connected: false, error: "1" })
+  }
+
+  // Reached only when the tokens are actually stored.
   return redirectAfterOauth(url, returnTo, { connected: true })
 }
